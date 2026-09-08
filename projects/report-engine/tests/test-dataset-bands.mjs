@@ -14,12 +14,12 @@ const NEEDED = [
   'formatTotalNumber', 'totalsRowHtml', 'totalsRowOf', 'totalsRowLabel', 'totalCellOf',
   'datasetBody', 'datasetRow', 'bandConfigFor', 'bandTitleOf', 'datasetFieldsHtml', 'datasetBlock',
   'BAND_WIDTH_SPANS', 'bandSpanOf', 'BAND_ICONS', 'bandIconSvg',
-  'CHART_COLORS', 'compactNumber', 'donutChartHtml', 'barChartHtml', 'progressChartHtml', 'CHART_BAND_KINDS', 'chartEntriesOf'
+  'CHART_COLORS', 'compactNumber', 'donutChartHtml', 'barChartHtml', 'progressChartHtml', 'CHART_BAND_KINDS', 'chartEntriesOf', 'cardsChartHtml', 'cardEntriesOf', 'ISO_DATE', 'inferColumnType'
 ];
 
 const api = new Function('esc',
   `${NEEDED.map(name => liftDeclaration(html, name)).join('\n')}
-   return { bandConfigFor, datasetFieldsHtml, datasetBlock, bandSpanOf, bandIconSvg, compactNumber, donutChartHtml, barChartHtml, progressChartHtml, chartEntriesOf };`
+   return { bandConfigFor, datasetFieldsHtml, datasetBlock, bandSpanOf, bandIconSvg, compactNumber, donutChartHtml, barChartHtml, progressChartHtml, chartEntriesOf, cardsChartHtml, cardEntriesOf, inferColumnType, datasetBody };`
 )(value => String(value == null ? '' : value));
 
 let passed = 0, failed = 0;
@@ -149,11 +149,56 @@ console.log('the designer carries byte-identical chart builders');
     ['const compactNumber', '};'],
     ['function donutChartHtml', '\n}'],
     ['function barChartHtml', '\n}'],
-    ['function progressChartHtml', '\n}']
+    ['function progressChartHtml', '\n}'],
+    ['function cardsChartHtml', '\n}']
   ]) {
     check(`${opener.replace(/const |function /, '')} does not drift`,
       declarationOf(html, opener, closer) === declarationOf(designer, opener, closer));
   }
+}
+
+console.log('a band can be a strip of KPI cards (L4)');
+{
+  const assets = {
+    role: 'standalone', alias: 'b7', name: 'Other Financial Information',
+    columns: [{ alias: 'metric', label: 'Metric' }, { alias: 'amount', label: 'Amount' }],
+    rows: [
+      { cells: { metric: { text: 'Plant & Machinery (QAR)' }, amount: { value: 2290000, text: '2,290,000.00' } } },
+      { cells: { metric: { text: 'Valuation Date' }, amount: { value: null, text: 'Apr 2026' } } }
+    ],
+    rowCount: 2, truncated: false, elapsedMs: 2
+  };
+  const cards = api.datasetBlock(assets, null, () => '', null, { displayAs: 'cards', icon: 'coin' });
+  check('a card per row', (cards.match(/stat-card"/g) || []).length === 2, cards.slice(0, 200));
+  check('the authored value text is the stat', cards.includes('2,290,000.00'));
+  check('a non-numeric stat is a perfectly good card', cards.includes('Apr 2026'));
+  check('the band icon rides every card', (cards.match(/band-icon/g) || []).length >= 2);
+}
+
+console.log('a badge column wears its value as a pill (L4)');
+{
+  const statuses = {
+    role: 'root', name: 'Loans',
+    columns: [{ alias: 'qdb_name', label: 'Ref' }, { alias: 'statuscode', label: 'Status' }],
+    rows: [{ cells: { qdb_name: { text: 'LN-1' }, statuscode: { value: 1, text: 'Under RM Study' } } }],
+    rowCount: 1, truncated: false, elapsedMs: 1
+  };
+  const badged = api.datasetBody(statuses, null, () => '', null, new Set(['statuscode']));
+  check('the marked column renders the pill', badged.includes('cell-badge') && badged.includes('Under RM Study'), badged.slice(0, 300));
+  check('the unmarked column stays plain', !/cell-badge[^>]*>LN-1/.test(badged));
+  const plain = api.datasetBody(statuses, null, () => '', null, undefined);
+  check('no badge set means no pills anywhere', !plain.includes('cell-badge'));
+}
+
+console.log('an option set wearing a number is not a number (the lineage-demo defect)');
+{
+  const rows = [
+    { cells: { statuscode: { value: 1, text: 'Under RM Study' } } },
+    { cells: { statuscode: { value: 1, text: 'Under RM Study' } } },
+    { cells: { amount: { value: 1250.5, text: 'QAR 1,250.50' } } }
+  ];
+  check('a numeric code with a worded label is a choice', api.inferColumnType('statuscode', rows) === 'Option set');
+  check('a genuine number with formatted text stays numeric', api.inferColumnType('amount', rows) === 'Decimal');
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

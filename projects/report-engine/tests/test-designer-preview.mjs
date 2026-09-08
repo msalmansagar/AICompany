@@ -24,7 +24,7 @@ const NEEDED = [
   'blockPreviewFetchXml', 'scopeCondition', 'blockOwnConditions', 'previewFiltersElement', 'previewTokenSubstitution', 'scopedAuthoredFetchXml', 'resolveStaticBlock',
   'resolvePreviewBlock', 'previewDatasetsHtml', 'previewMultiRecordNotice',
   'previewDatasetHeader', 'previewDatasetBlock', 'previewDatasetTable', 'PREVIEW_BAND_SPANS', 'previewBandSpanOf', 'PREVIEW_BAND_ICONS', 'previewBandIconSvg',
-  'CHART_COLORS', 'compactNumber', 'donutChartHtml', 'barChartHtml', 'progressChartHtml', 'previewChartEntriesOf',
+  'CHART_COLORS', 'compactNumber', 'donutChartHtml', 'barChartHtml', 'progressChartHtml', 'cardsChartHtml', 'previewChartEntriesOf', 'previewCardEntriesOf',
   'previewRows', 'reportPreviewCols', 'canvasDatasetBlocks', 'canvasRootShapeNote', 'runExport',
   'fieldsFromFetchXml', 'datasetFieldsOf', 'staticFieldsOf', 'datasetKindChip', 'wizardDatasetShim',
   'PREVIEW_FETCH_OPERATORS', 'PREVIEW_VALUELESS_OPERATORS', 'PREVIEW_MULTIVALUE_OPERATORS',

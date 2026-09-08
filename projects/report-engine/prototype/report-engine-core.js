@@ -891,9 +891,10 @@ function renderGrid(result){
   // Authored totals per dataset (D3) — computed here so the screen and the exports read one number.
   const totalsFor = dataset => totalsRowOf(authoredTotalsFor(state.current.def, dataset), dataset);
   const bandFor = dataset => bandConfigFor(state.current.def, dataset);
+  const badges = layoutBadges(state.current.def.layout);
   $("#resultHost").innerHTML = (datasets.length > 1
-    ? multiDatasetHtml(datasets, drillCol, gridFontOf, totalsFor, bandFor)
-    : datasetBody(datasets[0], drillCol, gridFontOf, totalsFor(datasets[0])))
+    ? multiDatasetHtml(datasets, drillCol, gridFontOf, totalsFor, bandFor, badges)
+    : datasetBody(datasets[0], drillCol, gridFontOf, totalsFor(datasets[0]), badges))
     + reportFootnoteHtml(state.current.def.layout);
   document.querySelectorAll("[data-drill]").forEach(b => b.onclick = () => drilldown(drillCol, b.dataset.drill));
   /* Conditional formatting is skipped for a multi-dataset report rather than mis-applied. The rules
@@ -979,11 +980,11 @@ const totalsRowHtml = (totalsCells, hasKey) => !totalsCells ? "" :
 
 /* One dataset's meta row and table. This is the markup a report has always produced, kept in one
    place now that more than one dataset can ask for it. */
-function datasetBody(dataset, drillCol, fontOf, totalsCells){
+function datasetBody(dataset, drillCol, fontOf, totalsCells, badges){
   const cols = dataset.columns || [];
   const hasKey = drillCol && cols.some(c => c.alias===drillCol.parentKey);
   const head = cols.map(c=>`<th${fontOf(c)}>${esc(c.label||c.alias)}</th>`).join("") + (hasKey?`<th>Related</th>`:"");
-  const rows = (dataset.rows||[]).map(row => datasetRow(row, { cols, drillCol, hasKey }, fontOf)).join("");
+  const rows = (dataset.rows||[]).map(row => datasetRow(row, { cols, drillCol, hasKey, badges }, fontOf)).join("");
   const empty = `<tr><td colspan="${cols.length+1}" style="text-align:center;color:var(--text-secondary);padding:24px">No rows.</td></tr>`;
   return `
     <div class="meta-row"><span><b>${dataset.rowCount}</b> ${plural(dataset.rowCount, "row")}</span>${dataset.truncated?truncationChip(dataset):''}<span>${dataset.elapsedMs||0} ms</span></div>
@@ -993,6 +994,10 @@ function datasetBody(dataset, drillCol, fontOf, totalsCells){
 function datasetRow(row, shape, fontOf){
   const tds = shape.cols.map(c => {
     const cell=row.cells[c.alias]||{}; const t=cell.text==null?"":cell.text;
+    // L4 — a column the author marked as a badge wears its value as a pill, never as a number.
+    if (shape.badges && shape.badges.has(c.alias) && t !== ""){
+      return `<td${fontOf(c)}><span class="cell-badge">${esc(t)}</span></td>`;
+    }
     const num=NUMERIC.test(t.replace(/[^\d.,-]/g,""))&&t!=="";
     return `<td class="${num?"num":""}"${fontOf(c)}>${esc(t)}</td>`;
   }).join("");
@@ -1007,12 +1012,13 @@ function datasetRow(row, shape, fontOf){
    Conditions. When the root resolves to a single record it is drawn as a HEADER of label/value
    pairs rather than a one-row table, which is the difference between a document and three stacked
    grids. */
-function multiDatasetHtml(datasets, drillCol, fontOf, totalsFor, bandFor){
+function multiDatasetHtml(datasets, drillCol, fontOf, totalsFor, bandFor, badges){
   const [root, ...blocks] = datasets;
   const cellsFor = dataset => totalsFor ? totalsFor(dataset) : null;
+  // Badges are authored against the root's columns (L4), so only the root block wears them.
   const head = isSingleRecord(root)
     ? datasetHeader(root)
-    : datasetBlock(root, drillCol, fontOf, cellsFor(root)) + multiRecordNotice(root);
+    : datasetBlock(root, drillCol, fontOf, cellsFor(root), null, badges) + multiRecordNotice(root);
   // Each block presents as its authored band (D5) at its authored width (L1): the blocks live on
   // a 12-column grid and part-width ones share a row. minmax(0,1fr) so a wide table scrolls
   // inside its block instead of blowing the columns apart.
@@ -1024,6 +1030,10 @@ function multiDatasetHtml(datasets, drillCol, fontOf, totalsFor, bandFor){
 
 const isSingleRecord = dataset =>
   dataset && dataset.status !== "failed" && (dataset.rows || []).length === 1;
+
+/* L4 — the columns the author marked as badges, by result alias. Empty set means none, and
+   every report saved before the feature renders exactly as it did. */
+const layoutBadges = layout => new Set((layout && layout.badges) || []);
 
 /* L2 — the authored footer line ("Confidential", a branding sentence): under the report on
    screen, and on every PDF page beside the page number. Absent means absent. */
@@ -1166,7 +1176,39 @@ function progressChartHtml(entries){
   </div>`).join("")}</div>`;
 }
 
-const CHART_BAND_KINDS = { donut: donutChartHtml, bars: barChartHtml, progress: progressChartHtml };
+function cardsChartHtml(entries, iconSvg){
+  if (!entries.length) return `<div class="empty" style="padding:16px">No rows.</div>`;
+  return `<div class="stat-cards">${entries.map(entry => `<div class="stat-card">
+    <span class="stat-icon">${iconSvg || ""}</span>
+    <div class="stat-body">
+      <span class="stat-label" title="${esc(entry.label)}">${esc(entry.label)}</span>
+      <b class="stat-value">${esc(entry.text ?? compactNumber(entry.value))}</b>
+    </div>
+  </div>`).join("")}</div>`;
+}
+
+const CHART_BAND_KINDS = { donut: donutChartHtml, bars: barChartHtml, progress: progressChartHtml, cards: cardsChartHtml };
+
+/**
+ * Card entries differ from chart entries in one honest way: a stat can be a DATE or a grade, so
+ * the value column is taken as authored (or the first column that is not the label) without
+ * requiring anything numeric — "Apr 2026" is a perfectly good card.
+ */
+function cardEntriesOf(dataset, band){
+  const columns = (dataset.columns || []).filter(c => c.isVisible !== false);
+  if (!columns.length) return null;
+  const labelColumn = columns.find(c => c.alias === (band && band.labelColumn)) || columns[0];
+  const valueColumn = columns.find(c => c.alias === (band && band.valueColumn))
+    || columns.find(c => c !== labelColumn) || labelColumn;
+  return (dataset.rows || []).map(row => {
+    const cells = row.cells || {};
+    return {
+      label: String((cells[labelColumn.alias] || {}).text ?? ""),
+      value: numericCellValue(cells[valueColumn.alias] || {}) ?? 0,
+      text: (cells[valueColumn.alias] || {}).text
+    };
+  });
+}
 
 /**
  * A dataset's rows as chart entries: the authored value column (or the first numeric one), the
@@ -1205,17 +1247,18 @@ function datasetFieldsHtml(dataset, band){
   return rows || `<div class="empty" style="padding:16px">No rows.</div>`;
 }
 
-function datasetBlock(dataset, drillCol, fontOf, totalsCells, band){
+function datasetBlock(dataset, drillCol, fontOf, totalsCells, band, badges){
   const chart = band && CHART_BAND_KINDS[band.displayAs];
-  const chartEntries = chart ? chartEntriesOf(dataset, band) : null;
+  const chartEntries = !chart ? null
+    : band.displayAs === "cards" ? cardEntriesOf(dataset, band) : chartEntriesOf(dataset, band);
   const body = dataset.status === "failed"
     ? `<div class="empty" style="color:var(--error)">This dataset could not be loaded — ${esc(dataset.error || "no reason was given")}</div>`
     : (band && band.displayAs === "fields")
       ? datasetFieldsHtml(dataset, band)
       // A chart band with nothing numeric falls back to its table — uncharted data stays honest.
       : chartEntries
-        ? chart(chartEntries)
-        : datasetBody(dataset, drillCol, fontOf, totalsCells);
+        ? chart(chartEntries, bandIconSvg(band))
+        : datasetBody(dataset, drillCol, fontOf, totalsCells, badges);
   const span = ` style="grid-column:span ${bandSpanOf(band)};min-width:0"`;
   if (band && band.showTitle === false){
     return `<section class="dataset-block"${span}>${body}</section>`;
@@ -2624,6 +2667,14 @@ function inferColumnType(alias, rows){
   if (!samples.length) return "Text";
   if (samples.every(v => typeof v === "boolean")) return "Text";
   if (samples.every(v => typeof v === "number")) {
+    /* An option set's cell carries its numeric CODE as the value and its label as the text —
+       statuscode is value 1, text "Under RM Study". Typing that column by its values called it a
+       number, so the layouts printed 1 where the label was and the grand total summed the codes.
+       A column whose formatted text does not read as a number is a choice wearing one. */
+    const labels = rows.map(r => (r.cells[alias] || {}))
+      .filter(cell => typeof cell.value === "number" && cell.text != null && String(cell.text) !== "")
+      .map(cell => String(cell.text));
+    if (labels.length && labels.some(text => !NUMERIC.test(text.replace(/[^\d.,-]/g, "")))) return "Option set";
     return samples.every(v => Number.isInteger(v)) ? "Whole number" : "Decimal";
   }
   if (samples.every(v => ISO_DATE.test(String(v)))) return "Date/Time";

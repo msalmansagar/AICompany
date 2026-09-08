@@ -16,6 +16,7 @@ const { api } = loadEngine({
   enginePath: ENGINE,
   section: ['/* ---------------- layout rendering', '/* ---------------- self-check'],
   exports: ['renderLayout', 'toRenderModel', 'inferColumnType', 'buildPreviewBody'],
+  seed: ['NUMERIC'],
   globals: { esc },
   smoke: built => built.buildPreviewBody('Grouped Report',
     [{ key: 'k', name: 'K', label: 'K', type: 'Text' }], [{ k: 'a' }], { grandTotal: true })

@@ -830,6 +830,17 @@
   .chart-progress-head span { color: var(--text-secondary); }
   .chart-track { height: 8px; border-radius: 4px; background: var(--surface-alt); border: 1px solid var(--border); overflow: hidden; }
   .chart-fill { height: 100%; border-radius: 4px; }
+  /* L4 — KPI stat cards and badge pills, exactly as the runtime draws them. */
+  .stat-cards { display: flex; flex-wrap: wrap; gap: 12px; padding: 6px 2px; }
+  .stat-card { display: flex; align-items: center; gap: 10px; flex: 1 1 170px; min-width: 0;
+    border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--surface); padding: 12px 14px; }
+  .stat-icon { flex: none; display: flex; align-items: center; justify-content: center; width: 34px; height: 34px;
+    border-radius: 8px; background: var(--primary-tint); color: var(--primary); }
+  .stat-body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .stat-label { color: var(--text-secondary); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stat-value { font-size: 15.5px; color: var(--text); }
+  .cell-badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px;
+    background: var(--primary-tint); color: var(--primary); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
   .dataset-header { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-lg); padding: 14px 16px; }
   .dataset-header > .dataset-head { border-bottom: 2px solid var(--primary); padding-bottom: 6px; margin-bottom: 4px; }
   .dataset-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px 20px; margin: 10px 0 16px; }
@@ -2923,7 +2934,7 @@ function datasetLayoutOf(report, mappedSources) {
   (report.dataSources || []).forEach((source, index) => {
     const band = source.band || {};
     const kept = {};
-    if (["fields", "donut", "bars", "progress"].includes(band.displayAs)) kept.displayAs = band.displayAs;
+    if (["fields", "donut", "bars", "progress", "cards"].includes(band.displayAs)) kept.displayAs = band.displayAs;
     if (band.valueColumn) kept.valueColumn = band.valueColumn;
     if (band.labelColumn) kept.labelColumn = band.labelColumn;
     if (band.showTitle === false) kept.showTitle = false;
@@ -2954,6 +2965,19 @@ function applyLoadedTotals(report, stored) {
   for (const source of report.dataSources || []) {
     if (source.alias && byAlias[source.alias]) source.columnTotals = { ...byAlias[source.alias] };
   }
+  // Badges ride the same aliasing (L4).
+  const badges = new Set(stored.badges || []);
+  for (const column of report.columns || []) {
+    if (badges.has(column.sourceAlias || column.attribute || column.name)) column.badge = true;
+  }
+}
+
+/** The root columns marked as badges, keyed the way the result names them — undefined when none,
+    so a report saved before the feature stays byte-identical. */
+function badgeAliasesOf(report) {
+  const aliases = (report.columns || []).filter(column => column.badge)
+    .map(column => column.sourceAlias || column.attribute || column.name);
+  return aliases.length ? aliases : undefined;
 }
 
 /** One tab filter in the stored shape; dataSourceId null for the report's root query. */
@@ -3401,7 +3425,9 @@ function reportToDefinition(report) {
         // The authored matrix (D4), fully composed so the runtime pivots without inferring.
         matrix: matrixConfigOf(report),
         // How each dataset band presents (D5), keyed by the alias its result block carries.
-        datasetLayout: datasetLayoutOf(report, mappedSources)
+        datasetLayout: datasetLayoutOf(report, mappedSources),
+        // The root columns the author marked as badges (L4), keyed the way totals are.
+        badges: badgeAliasesOf(report)
       }))
     } : null
   };
@@ -5388,7 +5414,7 @@ function tabPreview(body, r) {
   $("#pPrint").onclick = () => toast("Opening print preview…","info");
 }
 function reportPreviewCols(r) {
-  return r.columns.filter(c => c.visible).map(c => ({ name:c.name, key:c.attribute||c.name, type:c.type, right:c.align==="Right", masked:c.masked }));
+  return r.columns.filter(c => c.visible).map(c => ({ name:c.name, key:c.attribute||c.name, type:c.type, right:c.align==="Right", masked:c.masked, badge:c.badge }));
 }
 function renderPaper(host, r) {
   const cols = reportPreviewCols(r);
@@ -5680,7 +5706,9 @@ const RAIL_PANELS = {
       // totals request would silently collapse a report to one row per group.
       { k: "total", label: "Total (row under the table)", options: () => PREVIEW_TOTALS },
       { k: "masked", label: "Masked", type: "check" },
-      { k: "visible", label: "Visible", type: "check" }
+      { k: "visible", label: "Visible", type: "check" },
+      // L4 — the value as a pill (a status, a Yes/No) instead of plain text.
+      { k: "badge", label: "Show value as a badge", type: "check" }
     ]
   },
   filters: {
@@ -6180,11 +6208,11 @@ function datasetBandTab(body, r, source, redraw) {
   const columnsOf = () => datasetFieldsOf(source, r);
   const columnOptions = chosen => `<option value=""${chosen ? "" : " selected"}>Automatic</option>` + columnsOf().map(field =>
     `<option value="${esc(field.logical)}"${chosen === field.logical ? " selected" : ""}>${esc(field.label)}</option>`).join("");
-  const isChart = ["donut", "bars", "progress"].includes(band.displayAs);
+  const isChart = ["donut", "bars", "progress", "cards"].includes(band.displayAs);
   const card = el(`<div><div class="dp-grid">
     <div class="mini-field"><label>Show as</label>
       <select class="fluent-select" data-bandk="displayAs">${[["table", "Table"], ["fields", "Fields (label / value band)"],
-        ["donut", "Donut chart"], ["bars", "Bar chart"], ["progress", "Progress bars"]].map(([value, label]) =>
+        ["donut", "Donut chart"], ["bars", "Bar chart"], ["progress", "Progress bars"], ["cards", "KPI cards"]].map(([value, label]) =>
         `<option value="${value}"${(band.displayAs || "table") === value ? " selected" : ""}>${label}</option>`).join("")}</select></div>
     ${isChart ? `<div class="mini-field"><label>Value column <span class="rel-tag">Chart</span></label>
       <select class="fluent-select" data-bandk="valueColumn">${columnOptions(band.valueColumn)}</select></div>
@@ -8796,6 +8824,17 @@ function progressChartHtml(entries){
   </div>`).join("")}</div>`;
 }
 
+function cardsChartHtml(entries, iconSvg){
+  if (!entries.length) return `<div class="empty" style="padding:16px">No rows.</div>`;
+  return `<div class="stat-cards">${entries.map(entry => `<div class="stat-card">
+    <span class="stat-icon">${iconSvg || ""}</span>
+    <div class="stat-body">
+      <span class="stat-label" title="${esc(entry.label)}">${esc(entry.label)}</span>
+      <b class="stat-value">${esc(entry.text ?? compactNumber(entry.value))}</b>
+    </div>
+  </div>`).join("")}</div>`;
+}
+
 /** The icon choices as the Band tab offers them — the value is the map key, the label a person's word. */
 const BAND_ICON_CHOICES = [["", "None (plain title)"], ["user", "Customer"], ["chart", "Chart"],
   ["donut", "Exposure"], ["building", "Facility"], ["shield", "Compliance"], ["doc", "Document"],
@@ -8844,14 +8883,29 @@ function previewChartEntriesOf(cols, rows, band) {
   }));
 }
 
+/* Card entries need nothing numeric — a date or a grade is a perfectly good stat (L4). */
+function previewCardEntriesOf(cols, rows, band) {
+  if (!cols.length) return null;
+  const labelCol = cols.find(c => c.key === (band && band.labelColumn)) || cols[0];
+  const valueCol = cols.find(c => c.key === (band && band.valueColumn))
+    || cols.find(c => c !== labelCol) || labelCol;
+  return rows.map(row => ({
+    label: String(previewCellText(labelCol, row[labelCol.key]) ?? ""),
+    value: 0,
+    text: previewCellText(valueCol, row[valueCol.key])
+  }));
+}
+
 function previewDatasetBlock(name, cols, rows, notice, totals, band) {
-  const chart = band && { donut: donutChartHtml, bars: barChartHtml, progress: progressChartHtml }[band.displayAs];
-  const chartEntries = (chart && !notice && rows.length) ? previewChartEntriesOf(cols, rows, band) : null;
+  const chart = band && { donut: donutChartHtml, bars: barChartHtml, progress: progressChartHtml, cards: cardsChartHtml }[band.displayAs];
+  const chartEntries = (chart && !notice && rows.length)
+    ? (band.displayAs === "cards" ? previewCardEntriesOf(cols, rows, band) : previewChartEntriesOf(cols, rows, band))
+    : null;
   const body = notice
     ? `<div class="page-sub" style="padding:8px 0">${notice}</div>`
     : !rows.length ? `<div class="page-sub" style="padding:8px 0">No rows.</div>`
     : (band && band.displayAs === "fields") ? previewDatasetFieldsHtml(cols, rows, band)
-    : chartEntries ? chart(chartEntries)
+    : chartEntries ? chart(chartEntries, previewBandIconSvg(band))
     : previewDatasetTable(cols, rows, totals);
   const span = ` style="grid-column:span ${previewBandSpanOf(band)};min-width:0"`;
   if (band && band.showTitle === false) return `<section class="dataset-block"${span}>${body}</section>`;
@@ -8879,8 +8933,13 @@ function previewDatasetFieldsHtml(cols, rows, band) {
 function previewDatasetTable(cols, rows, totals) {
   const right = c => c.right || ["Currency", "Decimal", "Whole number"].includes(c.type);
   const head = cols.map(c => `<th class="${right(c) ? "num" : ""}">${esc(c.name)}</th>`).join("");
-  const body = rows.map(row =>
-    `<tr>${cols.map(c => `<td class="${right(c) ? "num" : ""}">${esc(previewCellText(c, row[c.key]))}</td>`).join("")}</tr>`).join("");
+  const cell = (c, row) => {
+    const text = previewCellText(c, row[c.key]);
+    // L4 — a badge column wears its value as a pill, exactly as the runtime draws it.
+    if (c.badge && text !== "" && text != null) return `<td><span class="cell-badge">${esc(text)}</span></td>`;
+    return `<td class="${right(c) ? "num" : ""}">${esc(text)}</td>`;
+  };
+  const body = rows.map(row => `<tr>${cols.map(c => cell(c, row)).join("")}</tr>`).join("");
   return `<table class="rp-table"><thead><tr>${head}</tr></thead><tbody>${body}${previewTotalsRow(cols, rows, totals)}</tbody></table>`;
 }
 
