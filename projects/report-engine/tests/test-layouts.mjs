@@ -83,6 +83,13 @@ const grouped = api.renderLayout(result, { type: 'Grouped Report', groupBy: 'bra
 check('groups by the category column', grouped.includes('Doha Main') && grouped.includes('Al Wakrah'));
 check('emits a grand total row', /grand-total/.test(grouped));
 
+console.log('\nbadges reach the designed layouts (L4)');
+const badged = api.renderLayout(result, { type: 'Grouped Report', groupBy: 'branch', badges: ['customer'] });
+check('the marked column wears the pill', badged.includes('cell-badge'), badged.slice(0, 200));
+check('and only that column', (badged.match(/cell-badge/g) || []).length === result.rows.length);
+const unbadged = api.renderLayout(result, { type: 'Grouped Report', groupBy: 'branch' });
+check('no badges authored, no pills drawn', !unbadged.includes('cell-badge'));
+
 console.log('\nsafety');
 check('no rows renders nothing (grid takes over)', api.renderLayout({ ...result, rows: [], rowCount: 0 }, { type: 'Tabular Report' }) === '');
 check('unknown layout falls back to empty', typeof api.renderLayout(result, { type: 'Nope Layout' }) === 'string');

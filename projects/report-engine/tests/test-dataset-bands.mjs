@@ -122,14 +122,14 @@ console.log('a band can chart its rows (L3)');
   check('entries infer value and label columns', entries.length === 2 && entries[0].label === 'Available' && entries[0].value === 30100000, JSON.stringify(entries));
 
   const donut = api.datasetBlock(facilities, null, () => '', null, { displayAs: 'donut' });
-  check('a donut band renders segments and the compact total', /chart-donut/.test(donut) && donut.includes('35.0M'), donut.slice(0, 200));
+  check('a donut band renders segments and the compact total', /band-donut/.test(donut) && donut.includes('35.0M'), donut.slice(0, 200));
   check('its legend keeps the authored value text', donut.includes('30.1M') && donut.includes('Utilized'));
 
   const bars = api.datasetBlock(facilities, null, () => '', null, { displayAs: 'bars' });
-  check('a bar band renders a column per row', (bars.match(/chart-bar-col/g) || []).length === 2, bars.slice(0, 160));
+  check('a bar band renders a column per row', (bars.match(/band-bar-col/g) || []).length === 2, bars.slice(0, 160));
 
   const progress = api.datasetBlock(facilities, null, () => '', null, { displayAs: 'progress' });
-  check('a progress band renders a track per row', (progress.match(/chart-track/g) || []).length === 2);
+  check('a progress band renders a track per row', (progress.match(/band-track/g) || []).length === 2);
   check('the widest row fills its track', progress.includes('width:100%'), progress);
 
   // Nothing numeric: the chart falls back to the table rather than drawing an empty ring.
