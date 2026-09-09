@@ -841,12 +841,17 @@ function truncationChip(result){
 function renderResult(result){
   const layout = state.current.def.layout;
 
+  /* The document view (DV) is the default reading experience — the authored print page, on screen.
+     It measures real boxes, so it only runs where a layout engine exists; the Node harness and any
+     stubbed host keep the continuous paths below exactly as they were. */
+  if (docDocumentViewWanted()) { renderDocumentView(result); return; }
+
   /* A designed layout describes ONE table — it binds to a single set of columns. A multi-dataset
      result has no single set, so rendering it through the layout would read result.rowCount and
      result.columns off a shape that has neither, and print "undefined rows" above an empty design.
      Placing each block within a layout is MDS-FR-021's remaining half and is not built yet, so these
      reports render as blocks. */
-  if (isMultiDataset(result)) { renderGrid(result); return; }
+  if (isMultiDataset(result)) { renderGrid(result); docOfferDocumentSwitch(result); return; }
 
   const laidOut = renderLayout(result, layout);
 
@@ -859,18 +864,41 @@ function renderResult(result){
         <span class="chip">${esc(layout.type)}</span>
         ${result.truncated?truncationChip(result):''}
         <span>${result.elapsedMs||0} ms</span>
-        <button class="btn" id="asGrid" style="margin-left:auto">Show as grid</button></div>
+        <button class="btn" id="asDocument" style="margin-left:auto">Document view</button>
+        <button class="btn" id="asGrid">Show as grid</button></div>
       <div class="report-paper">${laidOut}${reportFootnoteHtml(layout)}</div>`;
-    $("#asGrid").onclick = () => renderGrid(result);
+    $("#asGrid").onclick = () => { renderGrid(result); docOfferDocumentSwitch(result); };
+    docWireDocumentSwitch(result);
     applyReportDirection($("#resultHost"));
     applyConditionalFormatting($("#resultHost"), result, layout.conditionalFormatting);
     return;
   }
 
   renderGrid(result);
+  docOfferDocumentSwitch(result);
 }
 
 function renderGrid(result){
+  const rels = (state.current.def.relationships||[]).filter(r => r.childKey && r.parentKey);
+  const drillCol = rels.length ? rels[0] : null;
+  $("#resultHost").innerHTML = gridBodyHtml(result) + reportFootnoteHtml(state.current.def.layout);
+  document.querySelectorAll("[data-drill]").forEach(b => b.onclick = () => drilldown(drillCol, b.dataset.drill));
+  /* Conditional formatting is skipped for a multi-dataset report rather than mis-applied. The rules
+     are authored against the root's columns, and applyConditionalFormatting styles EVERY table in
+     the host by cell position — with several blocks on the page it would colour rows of unrelated
+     tables using the root's rules. Scoping it per block is still to build; wrong colours on real
+     data are worse than none. */
+  if (!isMultiDataset(result)) {
+    applyConditionalFormatting($("#resultHost"), result, (state.current.def.layout || {}).conditionalFormatting);
+  }
+  // The grid is the path most reports render through, so direction has to be applied here too —
+  // putting it only in renderResult would leave it invisible for exactly the common case.
+  applyReportDirection($("#resultHost"));
+}
+
+/** The grid's markup alone — shared by the continuous view and the document view, so the two
+    cannot drift. Returned rather than written because the document view paginates it first. */
+function gridBodyHtml(result){
   const rels = (state.current.def.relationships||[]).filter(r => r.childKey && r.parentKey);
   const drillCol = rels.length ? rels[0] : null;
   /* The grid is what most reports actually render through — the designed layouts are the exception —
@@ -892,22 +920,9 @@ function renderGrid(result){
   const totalsFor = dataset => totalsRowOf(authoredTotalsFor(state.current.def, dataset), dataset);
   const bandFor = dataset => bandConfigFor(state.current.def, dataset);
   const badges = layoutBadges(state.current.def.layout);
-  $("#resultHost").innerHTML = (datasets.length > 1
+  return datasets.length > 1
     ? multiDatasetHtml(datasets, drillCol, gridFontOf, totalsFor, bandFor, badges)
-    : datasetBody(datasets[0], drillCol, gridFontOf, totalsFor(datasets[0]), badges))
-    + reportFootnoteHtml(state.current.def.layout);
-  document.querySelectorAll("[data-drill]").forEach(b => b.onclick = () => drilldown(drillCol, b.dataset.drill));
-  /* Conditional formatting is skipped for a multi-dataset report rather than mis-applied. The rules
-     are authored against the root's columns, and applyConditionalFormatting styles EVERY table in
-     the host by cell position — with several blocks on the page it would colour rows of unrelated
-     tables using the root's rules. Scoping it per block is still to build; wrong colours on real
-     data are worse than none. */
-  if (!isMultiDataset(result)) {
-    applyConditionalFormatting($("#resultHost"), result, (state.current.def.layout || {}).conditionalFormatting);
-  }
-  // The grid is the path most reports render through, so direction has to be applied here too —
-  // putting it only in renderResult would leave it invisible for exactly the common case.
-  applyReportDirection($("#resultHost"));
+    : datasetBody(datasets[0], drillCol, gridFontOf, totalsFor(datasets[0]), badges);
 }
 /* ---------- Authored totals (D3) ----------
    SSRS's totals row, for ours: the author picks a function PER COLUMN — Sum, Avg, Min, Max, Count —
@@ -1513,6 +1528,439 @@ function sheetName(name, used){
 
   used.push(candidate);
   return candidate;
+}
+
+/* ---------- The document view (DV) ----------
+   The authored print page, on screen: the run renders as white pages on a grey canvas — the page
+   size, orientation and margins the author set (the same pdfPageSetup the PDF obeys), the report
+   header and footer repeated on every page, a thumbnail rail, page navigation, zoom and print.
+
+   Pagination is two-phase so the decisions are testable. A MEASURE pass reads real box heights out
+   of an offscreen copy of the continuous markup; a pure PLAN pass (docPlanPages) then deals blocks
+   onto pages from those numbers alone — the Node suite drives the planner with synthetic heights,
+   no layout engine required. Every planning step places at least one piece, so a block or row
+   taller than the page overflows visibly instead of looping. */
+
+let docViewState = { mode: "document", zoom: "fit", page: 1, total: 1 };
+
+/** Pixel geometry of one page at CSS 96dpi, from the same setup the PDF exporter reads. */
+const DOC_PAGE_PX = { a4: { w: 794, h: 1123 }, letter: { w: 816, h: 1056 },
+  a3: { w: 1123, h: 1587 }, legal: { w: 816, h: 1344 } };
+const DOC_HEAD_PX = 52, DOC_FOOT_PX = 30;
+
+function docPageBox(setup){
+  const size = DOC_PAGE_PX[setup.format] || DOC_PAGE_PX.a4;
+  const portrait = setup.orientation === "portrait";
+  const width = portrait ? size.w : size.h, height = portrait ? size.h : size.w;
+  const margin = Math.round(setup.margin * 96 / 72);   // pt → px
+  const headH = setup.showHeader ? DOC_HEAD_PX : 0;
+  const footH = (setup.pageNumber || setup.footerText) ? DOC_FOOT_PX : 0;
+  return { width, height, margin, headH, footH,
+    contentWidth: width - margin * 2,
+    contentHeight: Math.max(60, height - margin * 2 - headH - footH) };
+}
+
+/* The document view exists only where boxes can be measured. The Node harness stubs document with
+   no body, so every suite keeps driving the continuous paths it always has. */
+function docDocumentViewWanted(){
+  return docViewState.mode === "document" && typeof document === "object" && !!document.body
+    && typeof document.createElement === "function";
+}
+
+function renderDocumentView(result){
+  try { docRender(result); }
+  catch (error){
+    // The continuous view is always correct; a document-view failure must never cost the report.
+    console.error("[ReportEngine] document view failed", error);
+    docViewState.mode = "continuous";
+    renderResult(result);
+    toast("Document view failed — showing the continuous view.", "error");
+  }
+}
+
+function docRender(result){
+  const def = state.current.def;
+  const setup = pdfPageSetup(def);
+  const box = docPageBox(setup);
+  $("#resultHost").innerHTML = docShellHtml(def, result);
+  const measure = docMeasureHost(box);
+  measure.innerHTML = docContentHtml(result);
+  if (!isMultiDataset(result)) applyConditionalFormatting(measure, result, (def.layout || {}).conditionalFormatting);
+  const plan = docPlanPages(docSketchContent(measure), box.contentHeight);
+  docBuildPages(plan, box, setup, def);
+  measure.remove();
+  applyReportDirection($("#docPages"));
+  docWireDrill();
+  docBuildThumbnails(box);
+  docWireViewer(result, box, plan.length);
+}
+
+/** The same markup the continuous view shows — the document view only paginates it. The page
+    footer carries footerText itself, so the footnote block is not appended here. */
+function docContentHtml(result){
+  if (!isMultiDataset(result)){
+    const laidOut = renderLayout(result, state.current.def.layout);
+    if (laidOut) return laidOut;
+  }
+  return gridBodyHtml(result);
+}
+
+/** Offscreen but attached and unhidden — display:none reports every height as zero. */
+function docMeasureHost(box){
+  const el = document.createElement("div");
+  el.className = "doc-page-body doc-measure";
+  el.style.cssText = `position:absolute;left:-10000px;top:0;width:${box.contentWidth}px;`;
+  document.body.appendChild(el);
+  return el;
+}
+
+/* ----- Measure: the content reduced to numbers ----- */
+
+function docBlockHeight(el){
+  const style = window.getComputedStyle(el);
+  return el.getBoundingClientRect().height
+    + (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0);
+}
+
+function docSketchContent(measure){
+  return [...measure.children].map(docSketchBlock);
+}
+
+function docSketchBlock(el){
+  const h = docBlockHeight(el);
+  if (el.classList.contains("dataset-grid")) return { el, h, kind: "grid", rows: docSketchGridRows(el) };
+  const table = docSplitTableOf(el);
+  if (table) return { el, h, kind: "table", ...docSketchTable(el, table) };
+  return { el, h, kind: "atom" };
+}
+
+/** The one table a block may be split by — the block itself, or a dataset section's grid table. */
+function docSplitTableOf(el){
+  if (el.matches("table")) return el;
+  if (el.matches(".grid-wrap")) return el.querySelector(":scope > table");
+  if (el.matches("section.dataset-block")) return el.querySelector(":scope > .grid-wrap > table");
+  return null;
+}
+
+function docSketchTable(el, table){
+  const rows = [...table.querySelectorAll(":scope > tbody > tr")];
+  const rowHeights = rows.map(row => row.getBoundingClientRect().height);
+  const thead = table.querySelector(":scope > thead");
+  const headH = thead ? thead.getBoundingClientRect().height : 0;
+  // Whatever the block carries besides its body rows: heading, meta row, band chrome, the head.
+  const leadH = Math.max(0, docBlockHeight(el) - rowHeights.reduce((sum, x) => sum + x, 0));
+  return { table, rows, rowHeights, headH, leadH };
+}
+
+/** Band sections share visual rows on the 12-column grid (L1); a visual row moves as one piece
+    and is as tall as its tallest band. */
+function docSketchGridRows(grid){
+  const rows = [];
+  let span = 12;
+  for (const child of grid.children){
+    const childSpan = docGridSpanOf(child);
+    if (span + childSpan > 12){ rows.push({ els: [], h: 0 }); span = 0; }
+    const row = rows[rows.length - 1];
+    row.els.push(child);
+    row.h = Math.max(row.h, docBlockHeight(child));
+    span += childSpan;
+  }
+  return rows;
+}
+
+function docGridSpanOf(el){
+  const match = /span\s+(\d+)/.exec(el.style.gridColumn || "");
+  return match ? +match[1] : 12;
+}
+
+/* ----- Plan: pure, height-driven, loop-safe ----- */
+
+function docPager(pageHeight){
+  const pages = [[]];
+  let used = 0;
+  return {
+    pages,
+    room(){ return pageHeight - used; },
+    empty(){ return pages[pages.length - 1].length === 0; },
+    breakPage(){ if (!this.empty()){ pages.push([]); used = 0; } },
+    put(piece){ pages[pages.length - 1].push(piece); used += piece.h; },
+    grow(h){ used += h; }
+  };
+}
+
+function docPlanPages(blocks, pageHeight){
+  const pager = docPager(pageHeight);
+  for (const block of blocks) docPlanBlock(block, pager);
+  return pager.pages;
+}
+
+function docPlanBlock(block, pager){
+  if (block.h <= pager.room()){ pager.put({ kind: "block", block, h: block.h }); return; }
+  if (block.kind === "table" && block.rowHeights.length){ docPlanTable(block, pager); return; }
+  if (block.kind === "grid" && block.rows.length){ docPlanGrid(block, pager); return; }
+  pager.breakPage();
+  pager.put({ kind: "block", block, h: block.h });
+}
+
+/** Rows dealt into chunks: the first carries the block's own heading, every later chunk repeats
+    only the table head, and a chunk always takes at least one row — a row taller than the page
+    overflows its page rather than looping. */
+function docPlanTable(block, pager){
+  let index = 0, first = true;
+  while (index < block.rowHeights.length){
+    const lead = first ? block.leadH : block.headH;
+    if (pager.room() < lead + block.rowHeights[index] && !pager.empty()) pager.breakPage();
+    let height = lead, taken = 0;
+    while (index + taken < block.rowHeights.length &&
+           (taken === 0 || height + block.rowHeights[index + taken] <= pager.room())){
+      height += block.rowHeights[index + taken];
+      taken++;
+    }
+    pager.put({ kind: "rows", block, from: index, to: index + taken, h: height, first });
+    index += taken;
+    first = false;
+  }
+}
+
+function docPlanGrid(block, pager){
+  let open = null;
+  for (const row of block.rows){
+    if (row.h > pager.room() && !pager.empty()){ pager.breakPage(); open = null; }
+    if (!open){ open = { kind: "gridrows", block, rows: [], h: 0 }; pager.put(open); }
+    open.rows.push(row);
+    open.h += row.h;
+    pager.grow(row.h);
+  }
+}
+
+/* ----- Build: the plan becomes pages ----- */
+
+function docBuildPages(plan, box, setup, def){
+  /* Assembled detached and attached ONCE. Building live re-laid the whole stack out per page while
+     later chunks pulled rows from earlier ones — long reports locked the renderer for seconds, and
+     scroll anchoring dragged the canvas mid-document before the viewer had even appeared. */
+  const assembled = document.createDocumentFragment();
+  plan.forEach((pieces, index) => assembled.appendChild(docBuildPage(pieces, index + 1, plan.length, box, setup, def)));
+  $("#docPages").appendChild(assembled);
+}
+
+function docBuildPage(pieces, pageNo, total, box, setup, def){
+  const page = document.createElement("div");
+  page.className = "doc-page";
+  page.style.cssText = `width:${box.width}px;height:${box.height}px;padding:${box.margin}px;`;
+  page.innerHTML = docPageChromeHtml(setup, def, pageNo, total);
+  const body = page.querySelector(".doc-page-body");
+  for (const piece of pieces) body.appendChild(docPieceNode(piece));
+  return page;
+}
+
+function docPieceNode(piece){
+  if (piece.kind === "block") return piece.block.el;
+  if (piece.kind === "gridrows"){
+    const shell = piece.block.el.cloneNode(false);
+    piece.rows.forEach(row => row.els.forEach(el => shell.appendChild(el)));
+    return shell;
+  }
+  return docTableChunk(piece);
+}
+
+/** The first chunk is the original block — later chunks pull their rows OUT of it into cloned
+    shells, so appendChild's move semantics do the trimming. */
+function docTableChunk(piece){
+  const rows = piece.block.rows.slice(piece.from, piece.to);
+  if (piece.first) return piece.block.el;
+  const shell = docTableShell(piece.block.table);
+  const tbody = shell.querySelector("tbody");
+  rows.forEach(row => tbody.appendChild(row));
+  return shell;
+}
+
+function docTableShell(table){
+  const clone = table.cloneNode(false);
+  const thead = table.querySelector(":scope > thead");
+  if (thead) clone.appendChild(thead.cloneNode(true));
+  clone.appendChild(document.createElement("tbody"));
+  const wrap = document.createElement("div");
+  wrap.className = "grid-wrap doc-continued";
+  wrap.appendChild(clone);
+  return wrap;
+}
+
+/* ----- Chrome, shell, and the viewer's controls ----- */
+
+/** Every page's header, footer and watermark, from the same authored toggles the PDF obeys. */
+function docPageChromeHtml(setup, def, pageNo, total){
+  const title = esc((def && def.name) || "Report");
+  const code = def && def.reportCode ? `<div class="doc-mono">${esc(def.reportCode)}</div>` : "";
+  const date = setup.genDate ? `<div class="doc-mono">${new Date().toISOString().slice(0, 10)}</div>` : "";
+  const head = setup.showHeader
+    ? `<div class="doc-page-head"><div class="doc-head-title">${title}</div>
+        <div class="doc-head-meta">${code}${date}<div class="doc-mono">Page ${pageNo} of ${total}</div></div></div>`
+    : "";
+  const watermark = setup.watermark ? `<div class="doc-watermark" aria-hidden="true">${esc(setup.watermark)}</div>` : "";
+  const footBits = (setup.footerText ? `<span class="doc-foot-text">${esc(setup.footerText)}</span>` : "")
+    + (setup.pageNumber ? `<span class="doc-foot-page">Page ${pageNo} of ${total}</span>` : "");
+  const foot = footBits ? `<div class="doc-page-foot">${footBits}</div>` : "";
+  return `${watermark}${head}<div class="doc-page-body"></div>${foot}`;
+}
+
+const DOC_ZOOMS = ["fit", "50", "75", "100", "125", "150"];
+
+function docShellHtml(def, result){
+  const root = datasetsOf(result)[0] || { rowCount: 0 };
+  return `<div class="docviewer">
+    <div class="doc-toolbar">
+      <b class="doc-title">${esc(def.name || "Report")}</b>
+      ${def.reportCode ? `<span class="doc-ref doc-mono">${esc(def.reportCode)}</span>` : ""}
+      <span class="doc-nav">
+        <button class="btn" id="docPrev" title="Previous page">‹</button>
+        <span class="doc-pageno doc-mono" id="docPageNo">1 / 1</span>
+        <button class="btn" id="docNext" title="Next page">›</button>
+      </span>
+      <select id="docZoomSel" class="doc-zoom-sel" title="Zoom">${DOC_ZOOMS.map(z =>
+        `<option value="${z}">${z === "fit" ? "Fit width" : z + "%"}</option>`).join("")}</select>
+      <span class="doc-meta">${root.rowCount} ${plural(root.rowCount, "row")} · ${result.elapsedMs || 0} ms</span>
+      ${result.truncated ? truncationChip(result) : ""}
+      <span style="flex:1"></span>
+      <button class="btn" id="docContinuous">Continuous view</button>
+      <button class="btn" id="docPrint">Print</button>
+      <button class="btn primary" id="docExportPdf">Export PDF</button>
+    </div>
+    <div class="doc-body">
+      <div class="doc-rail" id="docRail"></div>
+      <div class="doc-canvas" id="docCanvas"><div class="doc-pages" id="docPages"></div></div>
+    </div>
+  </div>`;
+}
+
+/** Drilldown works from the pages exactly as it does from the grid (MDS-FR-025: root only). */
+function docWireDrill(){
+  const rels = (state.current.def.relationships || []).filter(r => r.childKey && r.parentKey);
+  if (!rels.length) return;
+  $("#docPages").querySelectorAll("[data-drill]").forEach(b =>
+    b.onclick = () => drilldown(rels[0], b.dataset.drill));
+}
+
+/* Thumbnails are inert clones — cloneNode carries no handlers, and pointer events are off in CSS.
+   Past the cap a plain numbered box stands in, so a 5,000-row report does not double its DOM. */
+const DOC_THUMB_LIMIT = 60;
+
+function docBuildThumbnails(box){
+  const rail = $("#docRail");
+  const scale = 96 / box.width;
+  [...$("#docPages").children].forEach((page, index) => {
+    const cell = document.createElement("div");
+    cell.className = "doc-thumb-cell";
+    const thumb = document.createElement("div");
+    thumb.className = "doc-thumb";
+    thumb.style.cssText = `width:96px;height:${Math.round(box.height * scale)}px;`;
+    if (index < DOC_THUMB_LIMIT){
+      const clone = page.cloneNode(true);
+      clone.style.zoom = String(scale);
+      thumb.appendChild(clone);
+    }
+    const label = document.createElement("div");
+    label.className = "doc-thumb-no doc-mono";
+    label.textContent = String(index + 1);
+    cell.append(thumb, label);
+    cell.onclick = () => docGoTo(index + 1);
+    rail.appendChild(cell);
+  });
+}
+
+function docWireViewer(result, box, total){
+  docViewState.total = total;
+  $("#docPrev").onclick = () => docGoTo(docViewState.page - 1);
+  $("#docNext").onclick = () => docGoTo(docViewState.page + 1);
+  const zoomSelect = $("#docZoomSel");
+  zoomSelect.value = docViewState.zoom;
+  zoomSelect.onchange = () => { docViewState.zoom = zoomSelect.value; docApplyZoom(box); };
+  $("#docContinuous").onclick = () => { docViewState.mode = "continuous"; renderResult(result); };
+  $("#docPrint").onclick = () => docPrint(pdfPageSetup(state.current.def));
+  $("#docExportPdf").onclick = () => exportReport("pdf");
+  const canvas = $("#docCanvas");
+  canvas.addEventListener("scroll", docOnScroll);
+  docApplyZoom(box);
+  /* A rebuilt viewer always opens on page one. Asserted again a frame later because the browser
+     restores the previous scroll position onto the fresh canvas after this handler returns. */
+  canvas.scrollTop = 0;
+  docSelectPage(1);
+  requestAnimationFrame(() => { canvas.scrollTop = 0; docSelectPage(1); });
+}
+
+/** CSS zoom scales layout too (unlike transform), so the canvas scrolls to the scaled size. */
+function docApplyZoom(box){
+  const canvas = $("#docCanvas");
+  const factor = docViewState.zoom === "fit"
+    ? Math.min(1, (canvas.clientWidth - 56) / box.width)
+    : (+docViewState.zoom) / 100;
+  // Kept for the scroll listener: offsetTop stays in pre-zoom units while scrollTop is scaled.
+  docViewState.zoomFactor = Math.max(0.2, factor);
+  $("#docPages").style.zoom = String(docViewState.zoomFactor);
+}
+
+function docGoTo(pageNo){
+  const clamped = Math.min(Math.max(1, pageNo), docViewState.total);
+  const page = $("#docPages").children[clamped - 1];
+  const canvas = $("#docCanvas");
+  // The canvas alone scrolls — scrollIntoView would also scroll every ancestor and bury the toolbar.
+  if (page && canvas) canvas.scrollTo({
+    top: Math.max(0, page.offsetTop * (docViewState.zoomFactor || 1) - 16), behavior: "smooth" });
+  docSelectPage(clamped);
+}
+
+function docSelectPage(pageNo){
+  docViewState.page = pageNo;
+  const indicator = $("#docPageNo");
+  if (indicator) indicator.textContent = `${pageNo} / ${docViewState.total}`;
+  [...$("#docRail").children].forEach((cell, index) =>
+    cell.classList.toggle("sel", index === pageNo - 1));
+}
+
+let docScrollPending = false;
+function docOnScroll(){
+  if (docScrollPending) return;
+  docScrollPending = true;
+  requestAnimationFrame(() => {
+    docScrollPending = false;
+    const canvas = $("#docCanvas");
+    if (!canvas) return;
+    const middle = (canvas.scrollTop + canvas.clientHeight / 3) / (docViewState.zoomFactor || 1);
+    let nearest = 1;
+    [...$("#docPages").children].forEach((page, index) => {
+      if (page.offsetTop <= middle) nearest = index + 1;
+    });
+    if (nearest !== docViewState.page) docSelectPage(nearest);
+  });
+}
+
+/** Browser print of exactly the pages: an injected @page matches the authored size, and the
+    doc-printing class hides everything that is not paper. */
+function docPrint(setup){
+  let style = document.getElementById("docPrintStyle");
+  if (!style){
+    style = document.createElement("style");
+    style.id = "docPrintStyle";
+    document.head.appendChild(style);
+  }
+  style.textContent = `@page{ size: ${setup.format} ${setup.orientation}; margin: 0; }`;
+  document.body.classList.add("doc-printing");
+  try { window.print(); } finally { document.body.classList.remove("doc-printing"); }
+}
+
+/* The continuous views keep a way back. Guarded feature-detection rather than DOM assumptions,
+   because renderGrid also runs under the Node harness with a stub host. */
+function docOfferDocumentSwitch(result){
+  const host = $("#resultHost");
+  if (!host || typeof host.insertAdjacentHTML !== "function") return;
+  host.insertAdjacentHTML("afterbegin",
+    `<div class="meta-row"><button class="btn" id="asDocument">Document view</button></div>`);
+  docWireDocumentSwitch(result);
+}
+
+function docWireDocumentSwitch(result){
+  const button = $("#asDocument");
+  if (button) button.onclick = () => { docViewState.mode = "document"; renderResult(result); };
 }
 
 /* ---------- The print page (D6) ----------
