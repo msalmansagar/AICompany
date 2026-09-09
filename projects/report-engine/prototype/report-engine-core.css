@@ -137,24 +137,24 @@
   .report-footnote{border-top:1px solid var(--border-strong); margin-top:18px; padding-top:8px;
     color:var(--text-secondary); font-size:11px; letter-spacing:.4px;}
   /* L3 — block charts. Sized to live inside a third-width panel without scrolling. */
-  .chart-band{display:flex; align-items:center; gap:18px; padding:8px 4px;}
-  .chart-donut{width:150px; height:150px; flex:none;}
-  .chart-center{font-size:15px; font-weight:700; fill:var(--text);}
-  .chart-center-sub{font-size:7px; fill:var(--text-secondary);}
-  .chart-legend{display:flex; flex-direction:column; gap:6px; min-width:0; flex:1;}
-  .chart-legend-row{display:flex; align-items:center; gap:8px; font-size:12px; min-width:0;}
-  .chart-legend-label{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-secondary); flex:1;}
-  .chart-dot{flex:none; width:9px; height:9px; border-radius:50%;}
-  .chart-legend-pct{flex:none; color:var(--text-secondary); font-size:11px;}
-  .chart-bars{display:flex; align-items:flex-end; gap:14px; height:150px; padding:8px 4px 0;}
-  .chart-bar-col{display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:4px; height:100%; min-width:0; flex:1; font-size:11.5px;}
-  .chart-bar{width:70%; max-width:44px; border-radius:3px 3px 0 0;}
-  .chart-bar-label{color:var(--text-secondary); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .chart-progress{display:flex; flex-direction:column; gap:10px; padding:6px 2px;}
-  .chart-progress-head{display:flex; justify-content:space-between; font-size:12px; margin-bottom:3px;}
-  .chart-progress-head span{color:var(--text-secondary);}
-  .chart-track{height:8px; border-radius:4px; background:var(--surface-alt); border:1px solid var(--border); overflow:hidden;}
-  .chart-fill{height:100%; border-radius:4px;}
+  .band-chart{display:flex; align-items:center; gap:18px; padding:8px 4px;}
+  .band-donut{width:150px; height:150px; flex:none;}
+  .band-donut-center{font-size:15px; font-weight:700; fill:var(--text);}
+  .band-donut-sub{font-size:7px; fill:var(--text-secondary);}
+  .band-legend{display:flex; flex-direction:column; gap:6px; min-width:0; flex:1;}
+  .band-legend-row{display:flex; align-items:center; gap:8px; font-size:12px; min-width:0;}
+  .band-legend-label{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-secondary); flex:1;}
+  .band-dot{flex:none; width:9px; height:9px; border-radius:50%;}
+  .band-legend-pct{flex:none; color:var(--text-secondary); font-size:11px;}
+  .band-bars{display:flex; align-items:flex-end; gap:14px; height:150px; padding:8px 4px 0;}
+  .band-bar-col{display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:4px; height:100%; min-width:0; flex:1; font-size:11.5px;}
+  .band-bar{width:70%; max-width:44px; border-radius:3px 3px 0 0;}
+  .band-bar-label{color:var(--text-secondary); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .band-progress{display:flex; flex-direction:column; gap:10px; padding:6px 2px;}
+  .band-progress-head{display:flex; justify-content:space-between; font-size:12px; margin-bottom:3px;}
+  .band-progress-head span{color:var(--text-secondary);}
+  .band-track{height:8px; border-radius:4px; background:var(--surface-alt); border:1px solid var(--border); overflow:hidden;}
+  .band-fill{height:100%; border-radius:4px;}
   /* L4 — KPI stat cards and badge pills. */
   .stat-cards{display:flex; flex-wrap:wrap; gap:12px; padding:6px 2px;}
   .stat-card{display:flex; align-items:center; gap:10px; flex:1 1 170px; min-width:0;

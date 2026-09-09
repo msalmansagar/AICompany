@@ -994,11 +994,12 @@ function datasetBody(dataset, drillCol, fontOf, totalsCells, badges){
 function datasetRow(row, shape, fontOf){
   const tds = shape.cols.map(c => {
     const cell=row.cells[c.alias]||{}; const t=cell.text==null?"":cell.text;
-    // L4 — a column the author marked as a badge wears its value as a pill, never as a number.
-    if (shape.badges && shape.badges.has(c.alias) && t !== ""){
-      return `<td${fontOf(c)}><span class="cell-badge">${esc(t)}</span></td>`;
-    }
     const num=NUMERIC.test(t.replace(/[^\d.,-]/g,""))&&t!=="";
+    // L4 — a column the author marked as a badge wears its value as a pill, never as a number.
+    // The pill keeps the cell's alignment, so a badged amount sits where the amount would.
+    if (shape.badges && shape.badges.has(c.alias) && t !== ""){
+      return `<td class="${num?"num":""}"${fontOf(c)}><span class="cell-badge">${esc(t)}</span></td>`;
+    }
     return `<td class="${num?"num":""}"${fontOf(c)}>${esc(t)}</td>`;
   }).join("");
   const key = shape.hasKey ? (row.cells[shape.drillCol.parentKey]||{}).text : null;
@@ -1141,38 +1142,38 @@ function donutChartHtml(entries){
     turned += fraction;
     return segment;
   }).join("");
-  const legend = entries.map((entry, index) => `<div class="chart-legend-row">
-    <span class="chart-dot" style="background:${CHART_COLORS[index % CHART_COLORS.length]}"></span>
-    <span class="chart-legend-label">${esc(entry.label)}</span>
+  const legend = entries.map((entry, index) => `<div class="band-legend-row">
+    <span class="band-dot" style="background:${CHART_COLORS[index % CHART_COLORS.length]}"></span>
+    <span class="band-legend-label">${esc(entry.label)}</span>
     <b>${esc(entry.text ?? compactNumber(entry.value))}</b>
-    <span class="chart-legend-pct">${Math.round((entry.value > 0 ? entry.value : 0) / total * 100)}%</span>
+    <span class="band-legend-pct">${Math.round((entry.value > 0 ? entry.value : 0) / total * 100)}%</span>
   </div>`).join("");
-  return `<div class="chart-band">
-    <svg viewBox="0 0 100 100" class="chart-donut" role="img">${segments}
-      <text x="50" y="48" text-anchor="middle" class="chart-center">${esc(compactNumber(total))}</text>
-      <text x="50" y="60" text-anchor="middle" class="chart-center-sub">Total</text>
+  return `<div class="band-chart">
+    <svg viewBox="0 0 100 100" class="band-donut" role="img">${segments}
+      <text x="50" y="48" text-anchor="middle" class="band-donut-center">${esc(compactNumber(total))}</text>
+      <text x="50" y="60" text-anchor="middle" class="band-donut-sub">Total</text>
     </svg>
-    <div class="chart-legend">${legend}</div>
+    <div class="band-legend">${legend}</div>
   </div>`;
 }
 
 function barChartHtml(entries){
   const peak = Math.max(0, ...entries.map(entry => entry.value > 0 ? entry.value : 0));
   if (!(peak > 0)) return `<div class="empty" style="padding:16px">Nothing to chart.</div>`;
-  const bars = entries.map((entry, index) => `<div class="chart-bar-col">
+  const bars = entries.map((entry, index) => `<div class="band-bar-col">
     <b>${esc(entry.text ?? compactNumber(entry.value))}</b>
-    <div class="chart-bar" style="height:${Math.max(2, Math.round((entry.value > 0 ? entry.value : 0) / peak * 100))}%;background:${CHART_COLORS[index % CHART_COLORS.length]}"></div>
-    <span class="chart-bar-label" title="${esc(entry.label)}">${esc(entry.label)}</span>
+    <div class="band-bar" style="height:${Math.max(2, Math.round((entry.value > 0 ? entry.value : 0) / peak * 100))}%;background:${CHART_COLORS[index % CHART_COLORS.length]}"></div>
+    <span class="band-bar-label" title="${esc(entry.label)}">${esc(entry.label)}</span>
   </div>`).join("");
-  return `<div class="chart-bars">${bars}</div>`;
+  return `<div class="band-bars">${bars}</div>`;
 }
 
 function progressChartHtml(entries){
   const peak = Math.max(0, ...entries.map(entry => entry.value > 0 ? entry.value : 0));
   if (!(peak > 0)) return `<div class="empty" style="padding:16px">Nothing to chart.</div>`;
-  return `<div class="chart-progress">${entries.map((entry, index) => `<div class="chart-progress-row">
-    <div class="chart-progress-head"><span>${esc(entry.label)}</span><b>${esc(entry.text ?? compactNumber(entry.value))}</b></div>
-    <div class="chart-track"><div class="chart-fill" style="width:${Math.max(1, Math.round((entry.value > 0 ? entry.value : 0) / peak * 100))}%;background:${CHART_COLORS[index % CHART_COLORS.length]}"></div></div>
+  return `<div class="band-progress">${entries.map((entry, index) => `<div class="band-progress-row">
+    <div class="band-progress-head"><span>${esc(entry.label)}</span><b>${esc(entry.text ?? compactNumber(entry.value))}</b></div>
+    <div class="band-track"><div class="band-fill" style="width:${Math.max(1, Math.round((entry.value > 0 ? entry.value : 0) / peak * 100))}%;background:${CHART_COLORS[index % CHART_COLORS.length]}"></div></div>
   </div>`).join("")}</div>`;
 }
 
@@ -2877,7 +2878,17 @@ function buildPreviewBody(type, cols, rows, opts) {
   const columnFont = designFontLookup(opts.layout);
   const fontOf = c => { const css = fontCss(columnFont[c.key] || columnFont[String(c.name).toLowerCase()]); return css ? `;${css}` : ""; };
   const head = cols.map(c=>`<th class="${isRight(c)?"num":""}" style="text-align:${isRight(c)?"end":"start"}${fontOf(c)}">${esc(T(c.name))}</th>`).join("");
-  const trow = r => `<tr>${cols.map(c=>`<td class="${isRight(c)?"num":""}" style="text-align:${isRight(c)?"end":"start"}${fontOf(c)}">${esc(disp(c,r[c.key]))}</td>`).join("")}</tr>`;
+  // L4, in the designed layouts too: a column the author marked as a badge wears its value as a
+  // pill in every table a layout draws — grouped bodies, master-detail line items, drill panels.
+  const badgeKeys = new Set(opts.badges || (opts.layout && opts.layout.badges) || []);
+  const cellOf = (c, r) => {
+    const shown = disp(c, r[c.key]);
+    // Badge on the RAW value's blankness, not on shown !== EMPTY_CELL — a stored label that happens
+    // to be the em-dash character is data, and the grid view badges it.
+    if (badgeKeys.has(c.key) && !isBlankCell(r[c.key])) return `<td style="text-align:${isRight(c)?"end":"start"}${fontOf(c)}"><span class="cell-badge">${esc(shown)}</span></td>`;
+    return `<td class="${isRight(c)?"num":""}" style="text-align:${isRight(c)?"end":"start"}${fontOf(c)}">${esc(shown)}</td>`;
+  };
+  const trow = r => `<tr>${cols.map(c=>cellOf(c,r)).join("")}</tr>`;
   const tile = (t,v) => `<div style="flex:1;min-width:130px;border:1px solid #e1dfdd;border-radius:6px;padding:12px 14px"><div style="font-size:11px;color:#605e5c;text-transform:uppercase;letter-spacing:.5px">${esc(T(t))}</div><div style="font-size:22px;font-weight:700;color:${ac};margin-top:4px">${v}</div></div>`;
   const barChart = items => { const max = Math.max(...items.map(x=>x.v),1); return `<div style="display:flex;flex-direction:column;gap:8px">${items.map(x=>`<div style="display:flex;align-items:center;gap:10px"><div style="width:90px;font-size:11.5px">${esc(T(x.label))}</div><div style="flex:1;background:${acb};border-radius:3px"><div style="width:${Math.round(x.v/max*100)}%;background:${ac};height:16px;border-radius:3px"></div></div><div style="width:120px;text-align:right;font-size:11.5px;font-variant-numeric:tabular-nums">${valCol?money(x.v):x.v}</div></div>`).join("")}</div>`; };
   const grandRow = () => valCol ? `<tr class="grand-total">${cols.map((c,ci)=>`<td class="${isRight(c)?"num":""}">${ci===0?T("Grand total"):(c===valCol?fmtTotal(sum(rows)):"")}</td>`).join("")}</tr>` : "";
@@ -3007,7 +3018,7 @@ function buildPreviewBody(type, cols, rows, opts) {
     return `<div style="display:flex;gap:12px;overflow-x:auto">${statuses.map((s,si)=>{const items=cat2?rows.filter(r=>r[cat2.key]===s):rows.filter((r,i)=>i%3===si);return `<div style="flex:1;min-width:150px;background:#f3f2f1;border-radius:6px;padding:8px"><div style="font-weight:700;font-size:12px;margin-bottom:8px;color:#323130">${esc(T(s))} <span style="color:#605e5c">(${items.length})</span></div>${items.slice(0,3).map(r=>`<div style="background:#fff;border:1px solid #e1dfdd;border-radius:4px;padding:8px;margin-bottom:6px;font-size:12px;border-top:2px solid ${ac}"><b>${esc(T(r[catCol.key]))}</b>${valCol?`<div style="color:#605e5c">${money(+r[valCol.key]||0)}</div>`:""}</div>`).join("")}</div>`;}).join("")}</div>`;
   }
   if (type === "Drill-down Report") {
-    return `<table class="rp-table"><thead><tr><th style="width:20px"></th>${head}</tr></thead><tbody>${groups.map((g,gi)=>{const gr=rows.filter(r=>r[catCol.key]===g);const open=gi===0;return `<tr class="group-head"><td>${open?"▾":"▸"}</td><td colspan="${cols.length}">${esc(T(g))} — ${gr.length} ${T(plural(gr.length, "row"))}${valCol?` · ${money(sum(gr))}`:""}</td></tr>${open?gr.map(r=>`<tr><td></td>${cols.map(c=>`<td class="${isRight(c)?"num":""}">${esc(disp(c,r[c.key]))}</td>`).join("")}</tr>`).join(""):""}`;}).join("")}</tbody></table><div style="font-size:11px;color:#605e5c;margin-top:6px">▸ Click a group to expand · interactive at run time</div>`;
+    return `<table class="rp-table"><thead><tr><th style="width:20px"></th>${head}</tr></thead><tbody>${groups.map((g,gi)=>{const gr=rows.filter(r=>r[catCol.key]===g);const open=gi===0;return `<tr class="group-head"><td>${open?"▾":"▸"}</td><td colspan="${cols.length}">${esc(T(g))} — ${gr.length} ${T(plural(gr.length, "row"))}${valCol?` · ${money(sum(gr))}`:""}</td></tr>${open?gr.map(r=>`<tr><td></td>${cols.map(c=>cellOf(c,r)).join("")}</tr>`).join(""):""}`;}).join("")}</tbody></table><div style="font-size:11px;color:#605e5c;margin-top:6px">▸ Click a group to expand · interactive at run time</div>`;
   }
   if (type === "Comparison Report") {
     const a = groups[0], b = groups[1]||groups[0]; const ga = rows.filter(r=>r[catCol.key]===a), gb = rows.filter(r=>r[catCol.key]===b);
