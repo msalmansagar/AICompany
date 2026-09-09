@@ -5000,7 +5000,12 @@ function tabDataSources(body, r) {
   // The picker offers the main table's children first (round 2); a joined source is still one
   // Composition flip away in the created row, and no main table falls back to the blank row.
   card.appendChild(listTable(cols, r.dataSources, rowHtml, () => {
-    if (r.mainEntity) { openRelatedTablePicker(r, RAIL_PANELS.dataSources, () => renderTab()); return; }
+    if (r.mainEntity) {
+      // Same finish as the tree and the wizard: the properties dialog opens on the born dataset —
+      // a block left with an empty query would silently return nothing.
+      openRelatedTablePicker(r, RAIL_PANELS.dataSources, source => { renderTab(); openDatasetProperties(r, source, renderTab); });
+      return;
+    }
     r.dataSources.push({name:"New source",type:"FetchXML",connector:"",query:"",primary:false,composition:"Joined",entity:"",columns:"",joinFromKey:"",joinToKey:"",enabled:true,rowLimit:""});
     renderTab();
   }, "Add data source"));

@@ -275,7 +275,9 @@ console.log('adding a dataset starts from the main table’s related tables');
     choices.every(c => c.foreignKey && c.parentKey === 'qdb_termsheetid'), JSON.stringify(choices[0]));
 
   const base = { name: 'New source', type: 'FetchXML', primary: false, composition: 'Joined', entity: '', columns: '', joinFromKey: '', joinToKey: '', enabled: true, rowLimit: '' };
-  const born = api.datasetFromRelation(base, choices[2]);
+  // By entity, not ordinal — a future relation sorting between the existing ones must not
+  // silently shift which choice this block is born from.
+  const born = api.datasetFromRelation(base, choices.find(c => c.entity === 'qdb_requestedfacility'));
   check('the dataset is born a block on the chosen table',
     born.composition === 'Standalone' && born.entity === 'qdb_requestedfacility', JSON.stringify(born));
   check('named after the table', born.name === 'Requested Facility', born.name);
