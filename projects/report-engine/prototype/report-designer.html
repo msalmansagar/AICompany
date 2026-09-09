@@ -4997,7 +4997,18 @@ function tabDataSources(body, r) {
       : `<input type="checkbox" data-i="${i}" data-k="enabled" ${s.enabled === false ? "" : "checked"}>`}</td>
     <td><button class="icon-btn" data-dsdialog="${i}" title="Dataset properties">${ic("edit")}</button></td>
     <td><button class="del" data-del="${i}">${ic("trash")}</button></td></tr>`;
-  card.appendChild(listTable(cols, r.dataSources, rowHtml, () => { r.dataSources.push({name:"New source",type:"FetchXML",connector:"",query:"",primary:false,composition:"Joined",entity:"",columns:"",joinFromKey:"",joinToKey:"",enabled:true,rowLimit:""}); renderTab(); }, "Add data source"));
+  // The picker offers the main table's children first (round 2); a joined source is still one
+  // Composition flip away in the created row, and no main table falls back to the blank row.
+  card.appendChild(listTable(cols, r.dataSources, rowHtml, () => {
+    if (r.mainEntity) {
+      // Same finish as the tree and the wizard: the properties dialog opens on the born dataset —
+      // a block left with an empty query would silently return nothing.
+      openRelatedTablePicker(r, RAIL_PANELS.dataSources, source => { renderTab(); openDatasetProperties(r, source, renderTab); });
+      return;
+    }
+    r.dataSources.push({name:"New source",type:"FetchXML",connector:"",query:"",primary:false,composition:"Joined",entity:"",columns:"",joinFromKey:"",joinToKey:"",enabled:true,rowLimit:""});
+    renderTab();
+  }, "Add data source"));
   body.appendChild(card); bindInputs(card, r.dataSources);
   /* The save refuses these, so they have to be readable somewhere the author can act on them. Shown
      under the grid they belong to rather than only as a toast, which is gone before it is fixed. */
@@ -6095,17 +6106,22 @@ function relatedTableChoices(relations, entityInfo, primaryId) {
   return (relations || [])
     .map(rel => ({ rel, info: entityInfo(rel.entity) }))
     .filter(choice => choice.info)
-    .map(({ rel, info }) => ({ entity: rel.entity, label: info.label, foreignKey: rel.foreignKey, parentKey: primaryId }))
+    .map(({ rel, info }) => ({ entity: rel.entity, label: info.label, foreignKey: rel.foreignKey,
+      parentKey: primaryId, primaryName: info.primaryName }))
     .sort((a, b) => a.label.localeCompare(b.label) || a.foreignKey.localeCompare(b.foreignKey));
 }
 
-/** A new block dataset wired the way the relationship says: child key on its table, parent key on the root. */
+/** A new block dataset wired the way the relationship says: child key on its table, parent key on
+    the root — and the child's primary name as its first column, so a block born from the picker
+    previews rows immediately instead of "No fields yet". */
 function datasetFromRelation(base, choice) {
   return { ...base, name: choice.label, composition: "Standalone", entity: choice.entity,
-    joinFromKey: choice.foreignKey, joinToKey: choice.parentKey };
+    joinFromKey: choice.foreignKey, joinToKey: choice.parentKey, columns: choice.primaryName || "" };
 }
 
-function openRelatedTablePicker(r, spec) {
+/* onCreated lets each surface finish its own way — the tree refreshes the manual designer, the
+   wizard and the tabbed screen redraw themselves. Absent, the tree's behaviour stands. */
+function openRelatedTablePicker(r, spec, onCreated) {
   const scrim = el(`<div class="scrim above-wizard"><div class="dialog" role="dialog" aria-modal="true" style="width:560px;max-width:94vw">
     <div class="dialog-head"><h3>Add dataset — related to ${esc(entityLabel(r.mainEntity))}</h3><button class="close-x">✕</button></div>
     <div class="dialog-body" style="max-height:56vh;overflow:auto">
@@ -6124,6 +6140,7 @@ function openRelatedTablePicker(r, spec) {
   const created = source => {
     close();
     r.dataSources.push(source);
+    if (onCreated) { onCreated(source); return; }
     if (renderManualDesigner._refresh) renderManualDesigner._refresh();
     openDatasetProperties(r, source);
   };
@@ -7528,6 +7545,16 @@ function bindExtraDatasets(host, d) {
     openDatasetProperties(wizardDatasetShim(d), d.extraDatasets[+row.dataset.wzds], redraw));
   const add = host.querySelector("#wz_adddataset");
   if (add) add.onclick = () => {
+    // The wizard offers the main table's children first, exactly as the manual designer does
+    // (round 2); the shim's dataSources IS d.extraDatasets, so the picker's push lands there.
+    if (d.mainEntity) {
+      const shim = wizardDatasetShim(d);
+      openRelatedTablePicker(shim, RAIL_PANELS.dataSources, source => {
+        redraw();
+        openDatasetProperties(shim, source, redraw);
+      });
+      return;
+    }
     const created = { name: "New dataset", type: "FetchXML", connector: "", query: "", primary: false,
       composition: "Standalone", entity: "", columns: "", joinFromKey: "", joinToKey: "", enabled: true, rowLimit: "" };
     d.extraDatasets.push(created);
