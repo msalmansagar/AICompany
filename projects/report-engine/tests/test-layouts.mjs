@@ -89,6 +89,12 @@ check('the marked column wears the pill', badged.includes('cell-badge'), badged.
 check('and only that column', (badged.match(/cell-badge/g) || []).length === result.rows.length);
 const unbadged = api.renderLayout(result, { type: 'Grouped Report', groupBy: 'branch' });
 check('no badges authored, no pills drawn', !unbadged.includes('cell-badge'));
+// The drill-down layout builds its expanded rows itself rather than through trow — it must still
+// route each cell through cellOf, or badge columns silently lose their pills in this one layout.
+const drillBadged = api.renderLayout(result, { type: 'Drill-down Report', badges: ['customer'] });
+check('drill-down expanded rows wear the pill too', drillBadged.includes('cell-badge'), drillBadged.slice(0, 200));
+const drillPlain = api.renderLayout(result, { type: 'Drill-down Report' });
+check('drill-down draws no pills unauthored', !drillPlain.includes('cell-badge'));
 
 console.log('\nsafety');
 check('no rows renders nothing (grid takes over)', api.renderLayout({ ...result, rows: [], rowCount: 0 }, { type: 'Tabular Report' }) === '');

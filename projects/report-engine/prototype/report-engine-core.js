@@ -994,11 +994,12 @@ function datasetBody(dataset, drillCol, fontOf, totalsCells, badges){
 function datasetRow(row, shape, fontOf){
   const tds = shape.cols.map(c => {
     const cell=row.cells[c.alias]||{}; const t=cell.text==null?"":cell.text;
-    // L4 — a column the author marked as a badge wears its value as a pill, never as a number.
-    if (shape.badges && shape.badges.has(c.alias) && t !== ""){
-      return `<td${fontOf(c)}><span class="cell-badge">${esc(t)}</span></td>`;
-    }
     const num=NUMERIC.test(t.replace(/[^\d.,-]/g,""))&&t!=="";
+    // L4 — a column the author marked as a badge wears its value as a pill, never as a number.
+    // The pill keeps the cell's alignment, so a badged amount sits where the amount would.
+    if (shape.badges && shape.badges.has(c.alias) && t !== ""){
+      return `<td class="${num?"num":""}"${fontOf(c)}><span class="cell-badge">${esc(t)}</span></td>`;
+    }
     return `<td class="${num?"num":""}"${fontOf(c)}>${esc(t)}</td>`;
   }).join("");
   const key = shape.hasKey ? (row.cells[shape.drillCol.parentKey]||{}).text : null;
@@ -2882,7 +2883,9 @@ function buildPreviewBody(type, cols, rows, opts) {
   const badgeKeys = new Set(opts.badges || (opts.layout && opts.layout.badges) || []);
   const cellOf = (c, r) => {
     const shown = disp(c, r[c.key]);
-    if (badgeKeys.has(c.key) && shown !== EMPTY_CELL) return `<td style="text-align:${isRight(c)?"end":"start"}${fontOf(c)}"><span class="cell-badge">${esc(shown)}</span></td>`;
+    // Badge on the RAW value's blankness, not on shown !== EMPTY_CELL — a stored label that happens
+    // to be the em-dash character is data, and the grid view badges it.
+    if (badgeKeys.has(c.key) && !isBlankCell(r[c.key])) return `<td style="text-align:${isRight(c)?"end":"start"}${fontOf(c)}"><span class="cell-badge">${esc(shown)}</span></td>`;
     return `<td class="${isRight(c)?"num":""}" style="text-align:${isRight(c)?"end":"start"}${fontOf(c)}">${esc(shown)}</td>`;
   };
   const trow = r => `<tr>${cols.map(c=>cellOf(c,r)).join("")}</tr>`;
@@ -3015,7 +3018,7 @@ function buildPreviewBody(type, cols, rows, opts) {
     return `<div style="display:flex;gap:12px;overflow-x:auto">${statuses.map((s,si)=>{const items=cat2?rows.filter(r=>r[cat2.key]===s):rows.filter((r,i)=>i%3===si);return `<div style="flex:1;min-width:150px;background:#f3f2f1;border-radius:6px;padding:8px"><div style="font-weight:700;font-size:12px;margin-bottom:8px;color:#323130">${esc(T(s))} <span style="color:#605e5c">(${items.length})</span></div>${items.slice(0,3).map(r=>`<div style="background:#fff;border:1px solid #e1dfdd;border-radius:4px;padding:8px;margin-bottom:6px;font-size:12px;border-top:2px solid ${ac}"><b>${esc(T(r[catCol.key]))}</b>${valCol?`<div style="color:#605e5c">${money(+r[valCol.key]||0)}</div>`:""}</div>`).join("")}</div>`;}).join("")}</div>`;
   }
   if (type === "Drill-down Report") {
-    return `<table class="rp-table"><thead><tr><th style="width:20px"></th>${head}</tr></thead><tbody>${groups.map((g,gi)=>{const gr=rows.filter(r=>r[catCol.key]===g);const open=gi===0;return `<tr class="group-head"><td>${open?"▾":"▸"}</td><td colspan="${cols.length}">${esc(T(g))} — ${gr.length} ${T(plural(gr.length, "row"))}${valCol?` · ${money(sum(gr))}`:""}</td></tr>${open?gr.map(r=>`<tr><td></td>${cols.map(c=>`<td class="${isRight(c)?"num":""}">${esc(disp(c,r[c.key]))}</td>`).join("")}</tr>`).join(""):""}`;}).join("")}</tbody></table><div style="font-size:11px;color:#605e5c;margin-top:6px">▸ Click a group to expand · interactive at run time</div>`;
+    return `<table class="rp-table"><thead><tr><th style="width:20px"></th>${head}</tr></thead><tbody>${groups.map((g,gi)=>{const gr=rows.filter(r=>r[catCol.key]===g);const open=gi===0;return `<tr class="group-head"><td>${open?"▾":"▸"}</td><td colspan="${cols.length}">${esc(T(g))} — ${gr.length} ${T(plural(gr.length, "row"))}${valCol?` · ${money(sum(gr))}`:""}</td></tr>${open?gr.map(r=>`<tr><td></td>${cols.map(c=>cellOf(c,r)).join("")}</tr>`).join(""):""}`;}).join("")}</tbody></table><div style="font-size:11px;color:#605e5c;margin-top:6px">▸ Click a group to expand · interactive at run time</div>`;
   }
   if (type === "Comparison Report") {
     const a = groups[0], b = groups[1]||groups[0]; const ga = rows.filter(r=>r[catCol.key]===a), gb = rows.filter(r=>r[catCol.key]===b);
