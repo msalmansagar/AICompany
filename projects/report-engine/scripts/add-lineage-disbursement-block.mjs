@@ -20,14 +20,24 @@ const AGGREGATE_FETCHXML =
   + '</entity></fetch>';
 
 const dv = await connect(process.argv[2]);
-const create = (set, body) => dv.fetchJson(set, {
-  method: 'POST',
-  headers: { Prefer: 'return=representation' },
-  body: JSON.stringify(body)
-});
 
+/** Creates the record and returns its id from the OData-EntityId header — the one place a create's
+    id always lives; a deployment that returns a body too is not relied on for it. */
+async function createId(set, body) {
+  const res = await dv.request(`${dv.baseUrl}/api/data/v${dv.apiVersion}/${set}`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error(`create ${set} ${res.status}: ${await res.text()}`);
+  const header = ((res.headers.get('OData-EntityId') || '').match(/\(([0-9a-fA-F-]{36})\)/) || [])[1];
+  if (!header) throw new Error(`created in ${set} but the response carried no OData-EntityId`);
+  return header;
+}
+
+// A doubled quote is OData's own escape; URI-encoding a QUOTED literal is the wrong tool.
 const report = (await dv.fetchJson(
-  `qdb_reportdefinitions?$select=qdb_reportdefinitionid&$filter=qdb_name eq '${encodeURIComponent(REPORT_NAME)}'`)).value[0];
+  `qdb_reportdefinitions?$select=qdb_reportdefinitionid&$filter=qdb_name eq '${REPORT_NAME.replace(/'/g, "''")}'`)).value[0];
 if (!report) throw new Error(`report "${REPORT_NAME}" not found`);
 const reportId = report.qdb_reportdefinitionid;
 
@@ -39,7 +49,7 @@ if (sources.some(source => source.qdb_sourcealias === ALIAS)) {
 }
 
 const order = Math.max(0, ...sources.map(source => source.qdb_executionorder || 0)) + 1;
-const source = await create('qdb_reportdatasources', {
+const sourceId = await createId('qdb_reportdatasources', {
   qdb_name: 'Disbursements per facility',
   qdb_isprimary: false,
   qdb_executionorder: order,
@@ -50,25 +60,25 @@ const source = await create('qdb_reportdatasources', {
   qdb_isenabled: true,
   'Qdb_reportdefinitionid@odata.bind': `/qdb_reportdefinitions(${reportId})`
 });
-const mapping = await create('qdb_reportentitymappings', {
+const mappingId = await createId('qdb_reportentitymappings', {
   qdb_name: 'qdb_payment_authorization_ticket',
   qdb_entitylogicalname: 'qdb_payment_authorization_ticket',
   qdb_entityalias: ALIAS,
   qdb_depth: 0,
-  'Qdb_reportdatasourceid@odata.bind': `/qdb_reportdatasources(${source.qdb_reportdatasourceid})`
+  'Qdb_reportdatasourceid@odata.bind': `/qdb_reportdatasources(${sourceId})`
 });
 const columns = [
   { display: 'Facility', logical: 'facility', order: 1 },
   { display: 'Disbursements', logical: 'disbursements', order: 2 }
 ];
 for (const column of columns) {
-  await create('qdb_reportcolumns', {
+  await createId('qdb_reportcolumns', {
     qdb_name: column.display,
     qdb_columnlogicalname: column.logical,
     qdb_outputalias: column.logical,
     qdb_sortorder: column.order,
     qdb_isvisible: true,
-    'Qdb_reportentitymappingid@odata.bind': `/qdb_reportentitymappings(${mapping.qdb_reportentitymappingid})`
+    'Qdb_reportentitymappingid@odata.bind': `/qdb_reportentitymappings(${mappingId})`
   });
 }
 console.log(`  ✓ created block "${ALIAS}" (order ${order}) with its aggregate query and columns`);
