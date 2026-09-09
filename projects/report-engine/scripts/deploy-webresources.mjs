@@ -131,7 +131,7 @@ async function publish(path, body) {
     }
     const isRetriable = (res && res.status === 429)
       || detail.includes('because there is another')
-      || /ECONNRESET|fetch failed|ETIMEDOUT|ECONNABORTED/i.test(detail);
+      || /ECONNRESET|fetch failed|ETIMEDOUT|ECONNABORTED|ENOTFOUND|EAI_AGAIN/i.test(detail);
     if (!isRetriable || attempt >= PUBLISH_RETRY_DELAYS_MS.length) {
       throw new Error(`publish ${res ? res.status : 'network'}: ${detail}`);
     }

@@ -860,7 +860,7 @@ function renderResult(result){
         ${result.truncated?truncationChip(result):''}
         <span>${result.elapsedMs||0} ms</span>
         <button class="btn" id="asGrid" style="margin-left:auto">Show as grid</button></div>
-      <div class="report-paper">${laidOut}</div>`;
+      <div class="report-paper">${laidOut}${reportFootnoteHtml(layout)}</div>`;
     $("#asGrid").onclick = () => renderGrid(result);
     applyReportDirection($("#resultHost"));
     applyConditionalFormatting($("#resultHost"), result, layout.conditionalFormatting);
@@ -891,9 +891,11 @@ function renderGrid(result){
   // Authored totals per dataset (D3) — computed here so the screen and the exports read one number.
   const totalsFor = dataset => totalsRowOf(authoredTotalsFor(state.current.def, dataset), dataset);
   const bandFor = dataset => bandConfigFor(state.current.def, dataset);
-  $("#resultHost").innerHTML = datasets.length > 1
-    ? multiDatasetHtml(datasets, drillCol, gridFontOf, totalsFor, bandFor)
-    : datasetBody(datasets[0], drillCol, gridFontOf, totalsFor(datasets[0]));
+  const badges = layoutBadges(state.current.def.layout);
+  $("#resultHost").innerHTML = (datasets.length > 1
+    ? multiDatasetHtml(datasets, drillCol, gridFontOf, totalsFor, bandFor, badges)
+    : datasetBody(datasets[0], drillCol, gridFontOf, totalsFor(datasets[0]), badges))
+    + reportFootnoteHtml(state.current.def.layout);
   document.querySelectorAll("[data-drill]").forEach(b => b.onclick = () => drilldown(drillCol, b.dataset.drill));
   /* Conditional formatting is skipped for a multi-dataset report rather than mis-applied. The rules
      are authored against the root's columns, and applyConditionalFormatting styles EVERY table in
@@ -978,11 +980,11 @@ const totalsRowHtml = (totalsCells, hasKey) => !totalsCells ? "" :
 
 /* One dataset's meta row and table. This is the markup a report has always produced, kept in one
    place now that more than one dataset can ask for it. */
-function datasetBody(dataset, drillCol, fontOf, totalsCells){
+function datasetBody(dataset, drillCol, fontOf, totalsCells, badges){
   const cols = dataset.columns || [];
   const hasKey = drillCol && cols.some(c => c.alias===drillCol.parentKey);
   const head = cols.map(c=>`<th${fontOf(c)}>${esc(c.label||c.alias)}</th>`).join("") + (hasKey?`<th>Related</th>`:"");
-  const rows = (dataset.rows||[]).map(row => datasetRow(row, { cols, drillCol, hasKey }, fontOf)).join("");
+  const rows = (dataset.rows||[]).map(row => datasetRow(row, { cols, drillCol, hasKey, badges }, fontOf)).join("");
   const empty = `<tr><td colspan="${cols.length+1}" style="text-align:center;color:var(--text-secondary);padding:24px">No rows.</td></tr>`;
   return `
     <div class="meta-row"><span><b>${dataset.rowCount}</b> ${plural(dataset.rowCount, "row")}</span>${dataset.truncated?truncationChip(dataset):''}<span>${dataset.elapsedMs||0} ms</span></div>
@@ -992,6 +994,10 @@ function datasetBody(dataset, drillCol, fontOf, totalsCells){
 function datasetRow(row, shape, fontOf){
   const tds = shape.cols.map(c => {
     const cell=row.cells[c.alias]||{}; const t=cell.text==null?"":cell.text;
+    // L4 — a column the author marked as a badge wears its value as a pill, never as a number.
+    if (shape.badges && shape.badges.has(c.alias) && t !== ""){
+      return `<td${fontOf(c)}><span class="cell-badge">${esc(t)}</span></td>`;
+    }
     const num=NUMERIC.test(t.replace(/[^\d.,-]/g,""))&&t!=="";
     return `<td class="${num?"num":""}"${fontOf(c)}>${esc(t)}</td>`;
   }).join("");
@@ -1006,19 +1012,35 @@ function datasetRow(row, shape, fontOf){
    Conditions. When the root resolves to a single record it is drawn as a HEADER of label/value
    pairs rather than a one-row table, which is the difference between a document and three stacked
    grids. */
-function multiDatasetHtml(datasets, drillCol, fontOf, totalsFor, bandFor){
+function multiDatasetHtml(datasets, drillCol, fontOf, totalsFor, bandFor, badges){
   const [root, ...blocks] = datasets;
   const cellsFor = dataset => totalsFor ? totalsFor(dataset) : null;
+  // Badges are authored against the root's columns (L4), so only the root block wears them.
   const head = isSingleRecord(root)
     ? datasetHeader(root)
-    : datasetBlock(root, drillCol, fontOf, cellsFor(root)) + multiRecordNotice(root);
-  // Each block presents as its authored band (D5); the root's presentation is the canvas's.
-  return head + blocks.map(block =>
-    datasetBlock(block, null, fontOf, cellsFor(block), bandFor ? bandFor(block) : null)).join("");
+    : datasetBlock(root, drillCol, fontOf, cellsFor(root), null, badges) + multiRecordNotice(root);
+  // Each block presents as its authored band (D5) at its authored width (L1): the blocks live on
+  // a 12-column grid and part-width ones share a row. minmax(0,1fr) so a wide table scrolls
+  // inside its block instead of blowing the columns apart.
+  return head + `<div class="dataset-grid" style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:0 18px;align-items:start">`
+    + blocks.map(block =>
+      datasetBlock(block, null, fontOf, cellsFor(block), bandFor ? bandFor(block) : null)).join("")
+    + `</div>`;
 }
 
 const isSingleRecord = dataset =>
   dataset && dataset.status !== "failed" && (dataset.rows || []).length === 1;
+
+/* L4 — the columns the author marked as badges, by result alias. Empty set means none, and
+   every report saved before the feature renders exactly as it did. */
+const layoutBadges = layout => new Set((layout && layout.badges) || []);
+
+/* L2 — the authored footer line ("Confidential", a branding sentence): under the report on
+   screen, and on every PDF page beside the page number. Absent means absent. */
+const reportFootnoteHtml = layout => {
+  const text = ((layout || {}).footerText || "").trim();
+  return text ? `<div class="report-footnote">${esc(text)}</div>` : "";
+};
 
 /* The engine scopes every block to the root's FIRST row, so a root returning several records is a
    report shape that is only half supported. Saying so is better than a page that looks complete:
@@ -1059,6 +1081,159 @@ function bandConfigFor(def, dataset){
   return (dataset && dataset.alias && byAlias[dataset.alias]) || null;
 }
 
+/* L1 — the grid canvas. A band declares how much of the page it takes; the page is a 12-column
+   grid and part-width blocks flow side by side until a row is full. Absent means full width, so
+   every existing report keeps its stacked layout untouched. */
+const BAND_WIDTH_SPANS = { half: 6, third: 4, twothirds: 8 };
+const bandSpanOf = band => BAND_WIDTH_SPANS[(band && band.width) || ""] || 12;
+
+/* L2 — panel chrome. An authored icon turns a band's plain title into the tinted header bar of a
+   dashboard panel. Opt-in by choosing the icon: no icon, no chrome, and every existing report
+   keeps the heading it has today. The designer carries a byte-identical copy of this map. */
+const BAND_ICONS = {
+  user: '<circle cx="8" cy="5.5" r="2.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3.5 13c.7-2.6 2.4-4 4.5-4s3.8 1.4 4.5 4" fill="none" stroke="currentColor" stroke-width="1.3"/>',
+  chart: '<path d="M4 13V8M8 13V4M12 13V6" stroke="currentColor" stroke-width="1.6"/><path d="M3 13.5h10" stroke="currentColor" stroke-width="1.2"/>',
+  donut: '<circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M8 3a5 5 0 015 5" fill="none" stroke="currentColor" stroke-width="2.4" opacity=".35"/>',
+  building: '<rect x="4" y="3" width="8" height="10" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 5.5h1M9 5.5h1M6 8h1M9 8h1M7 13v-2.5h2V13" stroke="currentColor" stroke-width="1.2"/>',
+  shield: '<path d="M8 2l5 2v4c0 3-2 5-5 6-3-1-5-3-5-6V4l5-2z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M6 8l1.5 1.5L10.5 6.5" fill="none" stroke="currentColor" stroke-width="1.3"/>',
+  doc: '<path d="M4 2h5l3 3v9H4V2z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M9 2v3h3M6 8h4M6 10.5h4" stroke="currentColor" stroke-width="1.1"/>',
+  coin: '<circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10 6.2c-.4-.7-1.1-1-2-1-1.1 0-2 .6-2 1.4 0 1.9 4 .9 4 2.8 0 .8-.9 1.4-2 1.4-.9 0-1.6-.3-2-1M8 4v1.2M8 10.8V12" fill="none" stroke="currentColor" stroke-width="1.2"/>',
+  alert: '<path d="M8 2.5L14 13H2L8 2.5z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 6.5V9.5M8 11v.5" stroke="currentColor" stroke-width="1.4"/>'
+};
+
+const bandIconSvg = band => {
+  const path = band && BAND_ICONS[band.icon];
+  return path ? `<svg class="band-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">${path}</svg>` : "";
+};
+
+/* ---------- L3: block charts ----------
+   A band can present its rows as a chart: a donut with the total in its centre, bars, or progress
+   rows. The chart is presentation only — exports keep the table, exactly as a Fields band does —
+   and every builder takes plain {label, value, text} entries, so the designer's preview and the
+   runtime feed one shape. These builders are byte-identical designer-side; the drift test compares
+   them. Colours are CSS-variable hooks with the brand blues as fallback, so a theme can restyle
+   the charts without touching this file. */
+
+const CHART_COLORS = ["var(--chart-1,#2b88d8)", "var(--chart-2,#0b57a4)", "var(--chart-3,#164a7c)",
+  "var(--chart-4,#7fb8e6)", "var(--chart-5,#a9d0f0)", "var(--chart-6,#d6e8f8)"];
+
+/** 35 000 000 reads as 35.0M on a panel; a number under a thousand is left as itself. */
+const compactNumber = value => {
+  const n = +value;
+  if (!isFinite(n)) return "";
+  const abs = Math.abs(n);
+  if (abs >= 1e9) return (n / 1e9).toFixed(1) + "B";
+  if (abs >= 1e6) return (n / 1e6).toFixed(1) + "M";
+  if (abs >= 1e3) return (n / 1e3).toFixed(1) + "K";
+  return String(Math.round(n * 10) / 10);
+};
+
+function donutChartHtml(entries){
+  const total = entries.reduce((sum, entry) => sum + (entry.value > 0 ? entry.value : 0), 0);
+  if (!(total > 0)) return `<div class="empty" style="padding:16px">Nothing to chart.</div>`;
+  const circumference = 2 * Math.PI * 40;
+  let turned = 0;
+  const segments = entries.map((entry, index) => {
+    const fraction = (entry.value > 0 ? entry.value : 0) / total;
+    const segment = `<circle r="40" cx="50" cy="50" fill="none" stroke="${CHART_COLORS[index % CHART_COLORS.length]}"
+      stroke-width="15" stroke-dasharray="${(fraction * circumference).toFixed(2)} ${circumference.toFixed(2)}"
+      stroke-dashoffset="${(-turned * circumference).toFixed(2)}" transform="rotate(-90 50 50)"/>`;
+    turned += fraction;
+    return segment;
+  }).join("");
+  const legend = entries.map((entry, index) => `<div class="chart-legend-row">
+    <span class="chart-dot" style="background:${CHART_COLORS[index % CHART_COLORS.length]}"></span>
+    <span class="chart-legend-label">${esc(entry.label)}</span>
+    <b>${esc(entry.text ?? compactNumber(entry.value))}</b>
+    <span class="chart-legend-pct">${Math.round((entry.value > 0 ? entry.value : 0) / total * 100)}%</span>
+  </div>`).join("");
+  return `<div class="chart-band">
+    <svg viewBox="0 0 100 100" class="chart-donut" role="img">${segments}
+      <text x="50" y="48" text-anchor="middle" class="chart-center">${esc(compactNumber(total))}</text>
+      <text x="50" y="60" text-anchor="middle" class="chart-center-sub">Total</text>
+    </svg>
+    <div class="chart-legend">${legend}</div>
+  </div>`;
+}
+
+function barChartHtml(entries){
+  const peak = Math.max(0, ...entries.map(entry => entry.value > 0 ? entry.value : 0));
+  if (!(peak > 0)) return `<div class="empty" style="padding:16px">Nothing to chart.</div>`;
+  const bars = entries.map((entry, index) => `<div class="chart-bar-col">
+    <b>${esc(entry.text ?? compactNumber(entry.value))}</b>
+    <div class="chart-bar" style="height:${Math.max(2, Math.round((entry.value > 0 ? entry.value : 0) / peak * 100))}%;background:${CHART_COLORS[index % CHART_COLORS.length]}"></div>
+    <span class="chart-bar-label" title="${esc(entry.label)}">${esc(entry.label)}</span>
+  </div>`).join("");
+  return `<div class="chart-bars">${bars}</div>`;
+}
+
+function progressChartHtml(entries){
+  const peak = Math.max(0, ...entries.map(entry => entry.value > 0 ? entry.value : 0));
+  if (!(peak > 0)) return `<div class="empty" style="padding:16px">Nothing to chart.</div>`;
+  return `<div class="chart-progress">${entries.map((entry, index) => `<div class="chart-progress-row">
+    <div class="chart-progress-head"><span>${esc(entry.label)}</span><b>${esc(entry.text ?? compactNumber(entry.value))}</b></div>
+    <div class="chart-track"><div class="chart-fill" style="width:${Math.max(1, Math.round((entry.value > 0 ? entry.value : 0) / peak * 100))}%;background:${CHART_COLORS[index % CHART_COLORS.length]}"></div></div>
+  </div>`).join("")}</div>`;
+}
+
+function cardsChartHtml(entries, iconSvg){
+  if (!entries.length) return `<div class="empty" style="padding:16px">No rows.</div>`;
+  // No icon, no box — an empty tinted square is not a design choice anyone made.
+  return `<div class="stat-cards">${entries.map(entry => `<div class="stat-card">
+    ${iconSvg ? `<span class="stat-icon">${iconSvg}</span>` : ""}
+    <div class="stat-body">
+      <span class="stat-label" title="${esc(entry.label)}">${esc(entry.label)}</span>
+      <b class="stat-value">${esc(entry.text ?? compactNumber(entry.value))}</b>
+    </div>
+  </div>`).join("")}</div>`;
+}
+
+const CHART_BAND_KINDS = { donut: donutChartHtml, bars: barChartHtml, progress: progressChartHtml, cards: cardsChartHtml };
+
+/**
+ * Card entries differ from chart entries in one honest way: a stat can be a DATE or a grade, so
+ * the value column is taken as authored (or the first column that is not the label) without
+ * requiring anything numeric — "Apr 2026" is a perfectly good card.
+ */
+function cardEntriesOf(dataset, band){
+  const columns = (dataset.columns || []).filter(c => c.isVisible !== false);
+  if (!columns.length) return null;
+  const labelColumn = columns.find(c => c.alias === (band && band.labelColumn)) || columns[0];
+  const valueColumn = columns.find(c => c.alias === (band && band.valueColumn))
+    || columns.find(c => c !== labelColumn) || labelColumn;
+  return (dataset.rows || []).map(row => {
+    const cells = row.cells || {};
+    return {
+      label: String((cells[labelColumn.alias] || {}).text ?? ""),
+      value: numericCellValue(cells[valueColumn.alias] || {}) ?? 0,
+      text: (cells[valueColumn.alias] || {}).text
+    };
+  });
+}
+
+/**
+ * A dataset's rows as chart entries: the authored value column (or the first numeric one), the
+ * authored label column (or the first other one). Null when nothing numeric exists — the caller
+ * falls back to the table, which is the honest answer for uncharted data.
+ */
+function chartEntriesOf(dataset, band){
+  const columns = (dataset.columns || []).filter(c => c.isVisible !== false);
+  const rows = dataset.rows || [];
+  const valueColumn = columns.find(c => c.alias === (band && band.valueColumn))
+    || columns.find(c => rows.some(row => numericCellValue(((row.cells || {})[c.alias]) || {}) != null));
+  if (!valueColumn) return null;
+  const labelColumn = columns.find(c => c.alias === (band && band.labelColumn))
+    || columns.find(c => c !== valueColumn) || valueColumn;
+  return rows.map(row => {
+    const cells = row.cells || {};
+    return {
+      label: String((cells[labelColumn.alias] || {}).text ?? ""),
+      value: numericCellValue(cells[valueColumn.alias] || {}) ?? 0,
+      text: (cells[valueColumn.alias] || {}).text
+    };
+  });
+}
+
 const bandTitleOf = (band, dataset) =>
   band && band.title ? band.title : ((dataset && dataset.name) || "Dataset");
 
@@ -1073,17 +1248,28 @@ function datasetFieldsHtml(dataset, band){
   return rows || `<div class="empty" style="padding:16px">No rows.</div>`;
 }
 
-function datasetBlock(dataset, drillCol, fontOf, totalsCells, band){
+function datasetBlock(dataset, drillCol, fontOf, totalsCells, band, badges){
+  const chart = band && CHART_BAND_KINDS[band.displayAs];
+  const chartEntries = !chart ? null
+    : band.displayAs === "cards" ? cardEntriesOf(dataset, band) : chartEntriesOf(dataset, band);
   const body = dataset.status === "failed"
     ? `<div class="empty" style="color:var(--error)">This dataset could not be loaded — ${esc(dataset.error || "no reason was given")}</div>`
     : (band && band.displayAs === "fields")
       ? datasetFieldsHtml(dataset, band)
-      : datasetBody(dataset, drillCol, fontOf, totalsCells);
+      // A chart band with nothing numeric falls back to its table — uncharted data stays honest.
+      : chartEntries
+        ? chart(chartEntries, bandIconSvg(band))
+        : datasetBody(dataset, drillCol, fontOf, totalsCells, badges);
+  const span = ` style="grid-column:span ${bandSpanOf(band)};min-width:0"`;
   if (band && band.showTitle === false){
-    return `<section class="dataset-block">${body}</section>`;
+    return `<section class="dataset-block"${span}>${body}</section>`;
   }
-  return `<section class="dataset-block">
-    <div class="meta-row"><b>${esc(bandTitleOf(band, dataset))}</b></div>
+  const icon = bandIconSvg(band);
+  const heading = icon
+    ? `<div class="meta-row band-chrome">${icon}<b>${esc(bandTitleOf(band, dataset))}</b></div>`
+    : `<div class="meta-row"><b>${esc(bandTitleOf(band, dataset))}</b></div>`;
+  return `<section class="dataset-block"${span}>
+    ${heading}
     ${body}</section>`;
 }
 
@@ -1242,10 +1428,17 @@ const exportRows = result => tableOf(rootDatasetOf(result) || result);
  * dropping it would make the export quietly disagree with the screen.
  */
 function exportTables(result){
-  return datasetsOf(result).map(dataset => Object.assign(
-    { name: dataset.name || "Dataset", status: dataset.status, error: dataset.error },
-    tableOf(dataset)
-  ));
+  const def = exportDefinition();
+  return datasetsOf(result).map((dataset, index) => {
+    const band = index === 0 ? null : bandConfigFor(def, dataset);
+    return Object.assign(
+      { name: dataset.name || "Dataset", status: dataset.status, error: dataset.error,
+        // The authored width and chrome ride into print (L1/L2); the root is always the page's.
+        span: index === 0 ? 12 : bandSpanOf(band),
+        icon: (band && BAND_ICONS[band.icon]) ? band.icon : undefined },
+      tableOf(dataset)
+    );
+  });
 }
 
 /** Tells the user which datasets a single-table export could not carry (MDS-FR-023). */
@@ -1342,7 +1535,8 @@ function pdfPageSetup(def){
     showHeader: layout.showHeader !== false,
     pageNumber: layout.pageNumber !== false,
     genDate: layout.genDate !== false,
-    watermark: (layout.watermark || "").trim()
+    watermark: (layout.watermark || "").trim(),
+    footerText: (layout.footerText || "").trim()
   };
 }
 
@@ -1370,6 +1564,12 @@ function drawPdfPageChrome(doc, page, title, font, rtl){
     const total = typeof doc.putTotalPages === "function" ? PDF_TOTAL_PAGES_MARKER : "?";
     doc.text(`Page ${pageNumber} of ${total}`, width / 2, height - Math.max(14, page.margin / 2), { align: "center" });
   }
+  if (page.footerText){
+    // Beside the page number, at the reading edge — the "Confidential" line of a bank document.
+    doc.setFontSize(8); doc.setTextColor(130);
+    doc.text(page.footerText, rtl ? width - page.margin : page.margin,
+      height - Math.max(14, page.margin / 2), { align: rtl ? "right" : "left" });
+  }
   if (page.watermark && doc.GState){
     doc.saveGraphicsState();
     doc.setGState(new doc.GState({ opacity: 0.08 }));
@@ -1391,7 +1591,17 @@ async function exportPdf(result, baseName){
   const font = rtl ? await useArabicFont(doc) : "helvetica";
   const def = exportDefinition();
   const title = (def && def.name) || (result && result.reportName) || baseName;
-  const chrome = () => drawPdfPageChrome(doc, page, title, font, rtl);
+  /* Once per page, whoever asks. The explicit page-one call, every table's didDrawPage hook, and
+     each panel of a shared row (L1) all request chrome; unguarded, a page carrying two panels drew
+     its header and page number twice and its watermark twice as dark. */
+  const chromedPages = new Set();
+  const chrome = () => {
+    const pageNumber = doc.internal.getCurrentPageInfo
+      ? doc.internal.getCurrentPageInfo().pageNumber : doc.internal.getNumberOfPages();
+    if (chromedPages.has(pageNumber)) return;
+    chromedPages.add(pageNumber);
+    drawPdfPageChrome(doc, page, title, font, rtl);
+  };
 
   // Ordering needs no help. jsPDF's default text path already runs the bidi pass: Arabic runs come
   // out in visual order and Latin and numbers keep theirs. Passing isInputVisual:false — which an
@@ -1405,29 +1615,130 @@ async function exportPdf(result, baseName){
      screen rather than as its first table alone. autoTable reports where it finished, which is where
      the next one starts; a single-dataset report is unchanged because it simply has one. */
   let top = page.margin + (page.showHeader ? PDF_HEADER_RESERVE : 0);
-  for (const table of tables) {
-    if (tables.length > 1) top = drawPdfSubtitle(doc, table.name, font, rtl, top, page, chrome);
+  let index = 0;
+  while (index < tables.length) {
+    // Part-width blocks share a row in print exactly as on screen (L1); a full-width table keeps
+    // the path single-dataset exports have always taken, byte for byte.
+    const row = pdfRowOf(tables, index);
+    if (row.length > 1) {
+      top = drawPdfPanelRow(doc, row, font, rtl, top, page, chrome);
+      index += row.length;
+      continue;
+    }
+    const table = row[0];
+    if (tables.length > 1) top = drawPdfSubtitle(doc, table, font, rtl, top, page, chrome);
     top = table.status === "failed"
       ? drawPdfFailure(doc, table, font, rtl, top, page)
       : drawPdfTable(doc, orderedForDirection(table, rtl), font, rtl, top, page, chrome);
+    index++;
   }
 
   if (page.pageNumber && typeof doc.putTotalPages === "function") doc.putTotalPages(PDF_TOTAL_PAGES_MARKER);
   saveBlob(doc.output("blob"), baseName + ".pdf");
 }
 
-function drawPdfSubtitle(doc, name, font, rtl, top, page, chrome){
+/** Consecutive part-width tables that fit one 12-column row together — the grid, in print. */
+function pdfRowOf(tables, start){
+  const row = [tables[start]];
+  let used = tables[start].span || 12;
+  if (used >= 12) return row;
+  while (start + row.length < tables.length){
+    const span = tables[start + row.length].span || 12;
+    if (span >= 12 || used + span > 12) break;
+    row.push(tables[start + row.length]);
+    used += span;
+  }
+  return row;
+}
+
+const PDF_PANEL_GAP = 12;
+
+/**
+ * One row of side-by-side panels: each drawn in its own column of the printable width, titled at
+ * its own left edge, the row's bottom being the deepest panel's. A row too near the page's foot
+ * starts on a fresh page whole, so a row stays a row.
+ */
+function drawPdfPanelRow(doc, row, font, rtl, top, page, chrome){
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const printable = pageWidth - page.margin * 2 - PDF_PANEL_GAP * (row.length - 1);
+  if (top > doc.internal.pageSize.getHeight() - page.margin - 90){
+    doc.addPage();
+    chrome();
+    top = page.margin + (page.showHeader ? PDF_HEADER_RESERVE : 0);
+  }
+  const startPage = doc.internal.getCurrentPageInfo().pageNumber;
+  let x = page.margin;
+  let endPage = startPage;
+  let bottom = top;
+  for (const table of row){
+    doc.setPage(startPage);
+    const width = printable * (table.span || 12) / 12;
+    const left = rtl ? pageWidth - x - width : x;
+    const textX = rtl ? left + width : left;
+    drawPdfPanelTitle(doc, table, font, rtl, top, left, width);
+    if (table.status === "failed"){
+      doc.setFontSize(8);
+      doc.text(`Could not be loaded — ${table.error || "no reason was given"}`, textX, top + 16,
+        { align: rtl ? "right" : "left", maxWidth: width });
+      bottom = Math.max(bottom, top + 28);
+      x += width + PDF_PANEL_GAP;
+      continue;
+    }
+    const shaped = orderedForDirection(table, rtl);
+    doc.autoTable({
+      head: [shaped.head], body: shaped.body, startY: top + (table.icon ? 12 : 6), tableWidth: width,
+      margin: { left, right: pageWidth - left - width,
+        top: page.margin + (page.showHeader ? PDF_HEADER_RESERVE : 0), bottom: Math.max(24, page.margin / 2) + 6 },
+      didDrawPage: chrome,
+      styles: { font, fontSize: 8, cellPadding: 4, overflow: "linebreak", halign: rtl ? "right" : "left" },
+      headStyles: { font, fillColor: [0, 120, 212], textColor: 255, fontStyle: rtl ? "normal" : "bold" },
+      alternateRowStyles: { fillColor: [247, 247, 247] }
+    });
+    const landed = doc.internal.getCurrentPageInfo().pageNumber;
+    const finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY : top;
+    if (landed > endPage){ endPage = landed; bottom = finalY; }
+    else if (landed === endPage) bottom = Math.max(bottom, finalY);
+    x += width + PDF_PANEL_GAP;
+  }
+  doc.setPage(endPage);
+  return bottom + 22;
+}
+
+function drawPdfSubtitle(doc, table, font, rtl, top, page, chrome){
   // A subtitle at the very bottom of a page would strand its table's start; break first.
   if (top > doc.internal.pageSize.getHeight() - page.margin - 60){
     doc.addPage();
     chrome();
     top = page.margin + (page.showHeader ? PDF_HEADER_RESERVE : 0);
   }
+  const width = doc.internal.pageSize.getWidth() - page.margin * 2;
+  if (table.icon) return drawPdfPanelTitle(doc, table, font, rtl, top, page.margin, width) + 2;
   const x = rtl ? doc.internal.pageSize.getWidth() - page.margin : page.margin;
   doc.setFont(font);
   doc.setFontSize(11);
-  doc.text(String(name), x, top, { align: rtl ? "right" : "left" });
+  doc.text(String(table.name), x, top, { align: rtl ? "right" : "left" });
   return top + 8;
+}
+
+/**
+ * L2 — the authored panel chrome, in print: a tinted bar carrying the title, the same light-blue
+ * on dark-blue the screen draws. No icon means no bar, and the caller draws its plain title.
+ */
+function drawPdfPanelTitle(doc, table, font, rtl, top, left, width){
+  if (!table.icon){
+    doc.setFont(font);
+    doc.setFontSize(10);
+    doc.text(String(table.name), rtl ? left + width : left, top, { align: rtl ? "right" : "left" });
+    return top + 6;
+  }
+  doc.setFillColor(222, 236, 249);
+  doc.roundedRect(left, top - 9, width, 15, 2, 2, "F");
+  doc.setFont(font);
+  doc.setFontSize(9);
+  doc.setTextColor(0, 90, 158);
+  doc.text(String(table.name), rtl ? left + width - 6 : left + 6, top + 1, { align: rtl ? "right" : "left" });
+  doc.setTextColor(0);
+  return top + 12;
 }
 
 /** A failed dataset states its reason. An empty table would read as "nothing matched". */
@@ -2367,6 +2678,14 @@ function inferColumnType(alias, rows){
   if (!samples.length) return "Text";
   if (samples.every(v => typeof v === "boolean")) return "Text";
   if (samples.every(v => typeof v === "number")) {
+    /* An option set's cell carries its numeric CODE as the value and its label as the text —
+       statuscode is value 1, text "Under RM Study". Typing that column by its values called it a
+       number, so the layouts printed 1 where the label was and the grand total summed the codes.
+       A column whose formatted text does not read as a number is a choice wearing one. */
+    const labels = rows.map(r => (r.cells[alias] || {}))
+      .filter(cell => typeof cell.value === "number" && cell.text != null && String(cell.text) !== "")
+      .map(cell => String(cell.text));
+    if (labels.length && labels.some(text => !NUMERIC.test(text.replace(/[^\d.,-]/g, "")))) return "Option set";
     return samples.every(v => Number.isInteger(v)) ? "Whole number" : "Decimal";
   }
   if (samples.every(v => ISO_DATE.test(String(v)))) return "Date/Time";

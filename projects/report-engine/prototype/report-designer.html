@@ -805,6 +805,42 @@
   .dataset-block { margin-bottom: 22px; }
   .dataset-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
   .dataset-head b { color: var(--text); font-size: 13.5px; }
+  /* L2 — the tinted panel header, exactly as the runtime wears it. */
+  .dataset-head.band-chrome { justify-content: flex-start; align-items: center; gap: 8px;
+    background: var(--primary-tint); color: var(--primary); border-radius: var(--radius-lg); padding: 7px 12px; }
+  .dataset-head.band-chrome b { color: inherit; }
+  .dataset-head.band-chrome span { margin-left: auto; }
+  .band-icon { flex: none; display: block; }
+  /* L3 — block charts, exactly as the runtime draws them. */
+  .chart-band { display: flex; align-items: center; gap: 18px; padding: 8px 4px; }
+  .chart-donut { width: 150px; height: 150px; flex: none; }
+  .chart-center { font-size: 15px; font-weight: 700; fill: var(--text); }
+  .chart-center-sub { font-size: 7px; fill: var(--text-secondary); }
+  .chart-legend { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+  .chart-legend-row { display: flex; align-items: center; gap: 8px; font-size: 12px; min-width: 0; }
+  .chart-legend-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); flex: 1; }
+  .chart-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; }
+  .chart-legend-pct { flex: none; color: var(--text-secondary); font-size: 11px; }
+  .chart-bars { display: flex; align-items: flex-end; gap: 14px; height: 150px; padding: 8px 4px 0; }
+  .chart-bar-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; min-width: 0; flex: 1; font-size: 11.5px; }
+  .chart-bar { width: 70%; max-width: 44px; border-radius: 3px 3px 0 0; }
+  .chart-bar-label { color: var(--text-secondary); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chart-progress { display: flex; flex-direction: column; gap: 10px; padding: 6px 2px; }
+  .chart-progress-head { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; }
+  .chart-progress-head span { color: var(--text-secondary); }
+  .chart-track { height: 8px; border-radius: 4px; background: var(--surface-alt); border: 1px solid var(--border); overflow: hidden; }
+  .chart-fill { height: 100%; border-radius: 4px; }
+  /* L4 — KPI stat cards and badge pills, exactly as the runtime draws them. */
+  .stat-cards { display: flex; flex-wrap: wrap; gap: 12px; padding: 6px 2px; }
+  .stat-card { display: flex; align-items: center; gap: 10px; flex: 1 1 170px; min-width: 0;
+    border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--surface); padding: 12px 14px; }
+  .stat-icon { flex: none; display: flex; align-items: center; justify-content: center; width: 34px; height: 34px;
+    border-radius: 8px; background: var(--primary-tint); color: var(--primary); }
+  .stat-body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .stat-label { color: var(--text-secondary); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stat-value { font-size: 15.5px; color: var(--text); }
+  .cell-badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px;
+    background: var(--primary-tint); color: var(--primary); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
   .dataset-header { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-lg); padding: 14px 16px; }
   .dataset-header > .dataset-head { border-bottom: 2px solid var(--primary); padding-bottom: 6px; margin-bottom: 4px; }
   .dataset-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px 20px; margin: 10px 0 16px; }
@@ -837,6 +873,23 @@
   .ds-field { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; min-width: 0; }
   .ds-field > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ds-logical { flex: none; font-family: ui-monospace, Consolas, monospace; font-size: 10.5px; color: var(--text-secondary); }
+  .ds-outcol { cursor: pointer; border-radius: var(--radius); padding: 2px 4px; }
+  .ds-outcol:hover { background: var(--surface-alt); }
+  .ds-colbtns { flex: none; display: flex; gap: 2px; opacity: 0; }
+  .ds-field:hover .ds-colbtns { opacity: 1; }
+  .ds-colbtns button { border: none; background: none; cursor: pointer; color: var(--text-secondary);
+    font-size: 10px; padding: 1px 3px; border-radius: 3px; }
+  .ds-colbtns button:hover { background: var(--surface); color: var(--text); }
+  .ds-colbtns button:disabled { opacity: .3; cursor: default; }
+
+  /* Related-table picker — "Add dataset" offers the main table's children first. */
+  .rp-row { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 8px 10px;
+    border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface);
+    cursor: pointer; margin-bottom: 6px; font: inherit; color: var(--text); min-width: 0; }
+  .rp-row:hover { border-color: var(--primary); background: var(--surface-alt); }
+  .rp-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .rp-logical { flex: none; font-family: ui-monospace, Consolas, monospace; font-size: 10.5px; color: var(--text-secondary); }
+  .rp-via { flex: none; margin-left: auto; font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
 
   /* Dataset properties dialog. */
   .dp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; }
@@ -1557,6 +1610,8 @@ async function loadEntityMetadata() {
   syncEntityDatalist();
   render();
   refreshOpenWizard();
+  // The related-table picker may be waiting on the primary's own record to wire the join.
+  refreshOpenRelatedPicker();
 }
 
 async function loadAttributeMetadata(entity) {
@@ -1608,6 +1663,7 @@ async function loadRelationshipMetadata(entity) {
   endBusy(`Loading ${entity} relationships…`);
   render();
   refreshJoinKeySuggestions(entity);
+  refreshOpenRelatedPicker();
 }
 
 /* Choice columns read their options from the org too. The designer used to offer categories and
@@ -2181,10 +2237,14 @@ const state = {
   dashPreview: false,
   dashSelection: null,
   fieldFilter: "",
-  // The manual designer's properties pane, hidden to give the canvas the room.
-  propsCollapsed: false,
+  // The manual designer's properties pane: closed until something on the canvas is selected —
+  // an open pane holding only instructions costs canvas width and answers nothing.
+  propsCollapsed: true,
+  // True only while the user has opened the pane by hand with nothing selected; that explicit
+  // ask is the one time it may sit open showing the how-to hint.
+  propsManual: false,
   // Which panel the left rail is showing in the manual designer.
-  railSection: "fields",
+  railSection: "data",
   report: null,
   selectedReportId: null,
   dashboard: null,
@@ -2876,10 +2936,14 @@ function datasetLayoutOf(report, mappedSources) {
   (report.dataSources || []).forEach((source, index) => {
     const band = source.band || {};
     const kept = {};
-    if (band.displayAs === "fields") kept.displayAs = "fields";
+    if (["fields", "donut", "bars", "progress", "cards"].includes(band.displayAs)) kept.displayAs = band.displayAs;
+    if (band.valueColumn) kept.valueColumn = band.valueColumn;
+    if (band.labelColumn) kept.labelColumn = band.labelColumn;
     if (band.showTitle === false) kept.showTitle = false;
     if (band.title && band.title.trim()) kept.title = band.title.trim();
     if (band.fieldColumns) kept.fieldColumns = +band.fieldColumns || undefined;
+    if (["half", "third", "twothirds"].includes(band.width)) kept.width = band.width;
+    if (PREVIEW_BAND_ICONS[band.icon]) kept.icon = band.icon;
     if (Object.keys(kept).length && mappedSources[index]) all[mappedSources[index].sourceAlias] = kept;
   });
   return Object.keys(all).length ? all : undefined;
@@ -2903,6 +2967,19 @@ function applyLoadedTotals(report, stored) {
   for (const source of report.dataSources || []) {
     if (source.alias && byAlias[source.alias]) source.columnTotals = { ...byAlias[source.alias] };
   }
+  // Badges ride the same aliasing (L4).
+  const badges = new Set(stored.badges || []);
+  for (const column of report.columns || []) {
+    if (badges.has(column.sourceAlias || column.attribute || column.name)) column.badge = true;
+  }
+}
+
+/** The root columns marked as badges, keyed the way the result names them — undefined when none,
+    so a report saved before the feature stays byte-identical. */
+function badgeAliasesOf(report) {
+  const aliases = (report.columns || []).filter(column => column.badge)
+    .map(column => column.sourceAlias || column.attribute || column.name);
+  return aliases.length ? aliases : undefined;
 }
 
 /** One tab filter in the stored shape; dataSourceId null for the report's root query. */
@@ -3350,7 +3427,9 @@ function reportToDefinition(report) {
         // The authored matrix (D4), fully composed so the runtime pivots without inferring.
         matrix: matrixConfigOf(report),
         // How each dataset band presents (D5), keyed by the alias its result block carries.
-        datasetLayout: datasetLayoutOf(report, mappedSources)
+        datasetLayout: datasetLayoutOf(report, mappedSources),
+        // The root columns the author marked as badges (L4), keyed the way totals are.
+        badges: badgeAliasesOf(report)
       }))
     } : null
   };
@@ -5207,6 +5286,7 @@ function tabLayout(body, r) {
       <div class="field"><label class="lbl">Page size</label><select class="fluent-select" data-l="pageSize">${opts(["A4","Letter","A3","Legal"], L.pageSize)}</select></div>
       <div class="field"><label class="lbl">Margins <span class="rel-tag">PDF</span></label><select class="fluent-select" data-l="margins">${opts(["Normal","Narrow","Wide"], L.margins||"Normal")}</select></div>
       <div class="field"><label class="lbl">Watermark text</label><input class="fluent-input" data-l="watermark" value="${esc(L.watermark)}" placeholder="e.g. CONFIDENTIAL"></div>
+      <div class="field"><label class="lbl">Footer text</label><input class="fluent-input" data-l="footerText" value="${esc(L.footerText || "")}" placeholder="e.g. Confidential"></div>
       <div class="field"><label class="lbl">Chart type <span class="rel-tag">Chart Report</span></label><select class="fluent-select" data-l="chartType">${opts(CHART_TYPES, L.chartType||"Column")}</select></div>
       <div class="field"><label class="lbl">Info card icon <span class="rel-tag">Info Cards</span></label><select class="fluent-select" data-l="cardIcon">${opts(CARD_ICONS, L.cardIcon||"chart")}</select></div>
     </div>
@@ -5336,7 +5416,7 @@ function tabPreview(body, r) {
   $("#pPrint").onclick = () => toast("Opening print preview…","info");
 }
 function reportPreviewCols(r) {
-  return r.columns.filter(c => c.visible).map(c => ({ name:c.name, key:c.attribute||c.name, type:c.type, right:c.align==="Right", masked:c.masked }));
+  return r.columns.filter(c => c.visible).map(c => ({ name:c.name, key:c.attribute||c.name, type:c.type, right:c.align==="Right", masked:c.masked, badge:c.badge }));
 }
 function renderPaper(host, r) {
   const cols = reportPreviewCols(r);
@@ -5503,7 +5583,7 @@ function renderManualDesigner(c) {
       <div class="props-bar">
         <button class="props-toggle" id="md_toggleprops"
           title="${state.propsCollapsed ? "Show properties" : "Hide properties"}"
-          aria-expanded="${!state.propsCollapsed}">${state.propsCollapsed ? "◀" : "▶"}</button>
+          aria-expanded="${!state.propsCollapsed}">${state.propsCollapsed ? "◀" : "✕"}</button>
         ${state.propsCollapsed ? "" : `<h4>Properties</h4>`}
       </div>
       <div id="md_props_body"></div>
@@ -5522,7 +5602,41 @@ function renderManualDesigner(c) {
      the author off the canvas. */
   $("#md_settings").onclick = () => { r.name = r.design.header.title || r.name; openReportSettings(r); };
   $("#md_wizard").onclick = () => toast("Switches to the guided wizard (prototype)", "info");
-  $("#md_toggleprops").onclick = () => { state.propsCollapsed = !state.propsCollapsed; render(); };
+  $("#md_toggleprops").onclick = () => {
+    const opening = state.propsCollapsed;
+    setPropsOpen(opening, { manual: true });
+    if (opening) renderProps(r);
+  };
+}
+
+/**
+ * The properties pane earns its column only when it has something to say. Selecting on the canvas
+ * opens it, deselecting closes it; the toggle stays for opening it deliberately, and that explicit
+ * ask is the one time it may sit open with only the how-to hint. Class and bar are updated in
+ * place — a full render would reset canvas scroll for what is a CSS state change.
+ */
+function setPropsOpen(open, { manual = false } = {}) {
+  state.propsManual = !!(open && manual);
+  if (state.propsCollapsed === !open) return;
+  state.propsCollapsed = !open;
+  const grid = document.querySelector(".md-grid4");
+  if (!grid) return;
+  grid.classList.toggle("props-collapsed", state.propsCollapsed);
+  const toggle = $("#md_toggleprops");
+  if (toggle) {
+    toggle.textContent = state.propsCollapsed ? "◀" : "✕";
+    toggle.title = state.propsCollapsed ? "Show properties" : "Hide properties";
+    toggle.setAttribute("aria-expanded", String(!state.propsCollapsed));
+  }
+  const heading = grid.querySelector(".props-bar h4");
+  if (state.propsCollapsed && heading) heading.remove();
+  else if (!state.propsCollapsed && !heading && toggle) toggle.insertAdjacentHTML("afterend", "<h4>Properties</h4>");
+  if (state.propsCollapsed) {
+    // A grid column cannot shrink below its content: stale properties left in the body hold the
+    // "collapsed" pane at full width. Empty means 34px.
+    const body = $("#md_props_body");
+    if (body) body.innerHTML = "";
+  }
 }
 
 /* ---------- left rail ----------
@@ -5594,7 +5708,9 @@ const RAIL_PANELS = {
       // totals request would silently collapse a report to one row per group.
       { k: "total", label: "Total (row under the table)", options: () => PREVIEW_TOTALS },
       { k: "masked", label: "Masked", type: "check" },
-      { k: "visible", label: "Visible", type: "check" }
+      { k: "visible", label: "Visible", type: "check" },
+      // L4 — the value as a pill (a status, a Yes/No) instead of plain text.
+      { k: "badge", label: "Show value as a badge", type: "check" }
     ]
   },
   filters: {
@@ -5695,9 +5811,11 @@ const RAIL_PANELS = {
    group owned it — and the strip had room for twelve buttons while using eight, so the tidiness
    bought nothing. A name someone already knows beats a category someone has to infer. */
 const RAIL_SECTIONS = [
-  { key: "fields", label: "Fields", icon: "tree" },
+  // No separate Fields or Columns tab: fields and chosen columns belong to the dataset that
+  // returns them, so both live in the Report Data tree — the root's under its node, a block's
+  // under its dialog (R2+R3). Editing a chosen column is a selection, so it uses the properties
+  // pane like any canvas control.
   { key: "data", label: "Data", icon: "flow", panels: ["dataSources", "externalSources"] },
-  { key: "columns", label: "Columns", icon: "doc", panels: ["columns"] },
   { key: "filters", label: "Filters", icon: "filter", panels: ["filters"] },
   { key: "params", label: "Params", icon: "param", panels: ["parameters"] },
   { key: "drilldown", label: "Drilldown", icon: "tree", panels: ["relationships"] },
@@ -5732,8 +5850,8 @@ function railSectionCount(section, r) {
 function renderRail(r) {
   const host = $("#md_ds");
   if (!host) return;
-  if (state.railSection === "fields") { dsPanel(r); return; }
-  const section = RAIL_SECTIONS.find(s => s.key === state.railSection) || RAIL_SECTIONS[1];
+  // A session restored with the retired "fields" key lands on Data, where the fields now live.
+  const section = RAIL_SECTIONS.find(s => s.key === state.railSection) || RAIL_SECTIONS[0];
   host.innerHTML = "";
   section.panels.forEach(key => railPanel(host, r, key, RAIL_PANELS[key]));
 }
@@ -5827,9 +5945,17 @@ function bindRailCard(card, target, r) {
 
 function datasetTreePanel(host, r, spec) {
   r.dataSources = r.dataSources || [];
+  // The primary node opens by default: it IS the report, and its field browser is the first
+  // thing an author reaches for. Once only — other code pre-seeds the map with {}, and a node
+  // the author closed must stay closed.
+  r._dsExpanded = r._dsExpanded || {};
+  if (!r._dsExpanded.__init) { r._dsExpanded.__init = true; if (r._dsExpanded[0] === undefined) r._dsExpanded[0] = true; }
+  const redraw = () => { host.innerHTML = ""; datasetTreePanel(host, r, spec); };
   host.appendChild(el(`<div><h4>Report data</h4>
     <div class="hint" style="margin-bottom:10px">What the report reads. ${ic("edit")} opens a dataset's properties.</div></div>`));
   host.appendChild(el(datasetTreeHtml(r)));
+  bindFieldBrowser(host, r, redraw);
+  bindReportColumns(host, r);
   bindDatasetTree(host, r, spec);
 }
 
@@ -5862,10 +5988,12 @@ function parametersFolderHtml(r) {
 }
 
 function datasetNodeHtml(r, source, index, isExpanded) {
-  const fields = datasetFieldsOf(source, r);
-  const fieldRows = fields.map(field =>
-    `<div class="ds-field"><span>${esc(field.label)}</span><span class="ds-logical">${esc(field.logical)}</span></div>`).join("")
-    || `<div class="ds-field" style="color:var(--text-secondary)">No fields yet — open properties</div>`;
+  // The primary expands to its full field browser — searchable, draggable, the retired Fields
+  // tab's content where it always belonged. A block expands to what it returns; its own browser
+  // is the dialog's Fields tab.
+  const body = !isExpanded ? "" : source.primary
+    ? `<div class="ds-fields">${fieldBrowserHtml(r)}<h4 class="mt">Columns on the report</h4>${reportColumnsHtml(r)}</div>`
+    : `<div class="ds-fields">${datasetChosenFieldsHtml(r, source, index)}</div>`;
   return `<div class="ds-node">
     <div class="ds-row" data-dstoggle="${index}">
       <span class="ds-caret">${isExpanded ? "▾" : "▸"}</span>
@@ -5873,8 +6001,73 @@ function datasetNodeHtml(r, source, index, isExpanded) {
       ${datasetKindChip(source)}
       <button class="icon-btn ds-gear" data-dsprops="${index}" title="Dataset properties">${ic("edit")}</button>
     </div>
-    ${isExpanded ? `<div class="ds-fields">${fieldRows}</div>` : ""}
+    ${body}
   </div>`;
+}
+
+function datasetChosenFieldsHtml(r, source, index) {
+  const fields = datasetFieldsOf(source, r);
+  // A block's column order is its comma list's order, so those rows can be moved in place.
+  const movable = !source.primary && !isStaticSource(source.type) && String(source.columns || "").trim();
+  return fields.map((field, at) =>
+    `<div class="ds-field"><span>${esc(field.label)}</span><span class="ds-logical">${esc(field.logical)}</span>${
+      movable ? `<span class="ds-colbtns">
+        <button data-blockmv="${index}" data-logical="${esc(field.logical)}" data-dir="-1" title="Up" ${at === 0 ? "disabled" : ""}>▲</button>
+        <button data-blockmv="${index}" data-logical="${esc(field.logical)}" data-dir="1" title="Down" ${at === fields.length - 1 ? "disabled" : ""}>▼</button>
+      </span>` : ""}</div>`).join("")
+    || `<div class="ds-field" style="color:var(--text-secondary)">No fields yet — open properties</div>`;
+}
+
+/* R3: the report's chosen columns, under the node of the dataset that returns them — where the
+   Columns tab used to be a third view of the same thing. A row is a selection: clicking it opens
+   the full editor in the properties pane, exactly as a canvas column would. */
+function reportColumnsHtml(r) {
+  const cols = r.columns || [];
+  if (!cols.length) return `<div class="ds-field" style="color:var(--text-secondary)">None yet — click a field above, or drag it onto the canvas.</div>`;
+  return cols.map((column, index) => `<div class="ds-field ds-outcol" data-outcol="${index}">
+    <span>${esc(column.name || column.attribute || "Column")}${column.visible === false ? ` <span class="pt">hidden</span>` : ""}</span>
+    <span class="ds-logical">${esc(column.attribute || "")}</span>
+    <span class="ds-colbtns">
+      <button data-colmv="${index}" data-dir="-1" title="Up" ${index === 0 ? "disabled" : ""}>▲</button>
+      <button data-colmv="${index}" data-dir="1" title="Down" ${index === cols.length - 1 ? "disabled" : ""}>▼</button>
+      <button data-coldel="${index}" title="Remove">✕</button>
+    </span>
+  </div>`).join("");
+}
+
+function bindReportColumns(host, r) {
+  const refresh = () => { if (renderManualDesigner._refresh) renderManualDesigner._refresh(); };
+  host.querySelectorAll("[data-colmv]").forEach(button => button.onclick = event => {
+    event.stopPropagation();
+    const from = +button.dataset.colmv, to = from + (+button.dataset.dir);
+    if (to < 0 || to >= r.columns.length) return;
+    const [moved] = r.columns.splice(from, 1);
+    r.columns.splice(to, 0, moved);
+    if (r._sel && r._sel.t === "outcol" && r._sel.i === from) r._sel.i = to;
+    refresh();
+  });
+  host.querySelectorAll("[data-coldel]").forEach(button => button.onclick = event => {
+    event.stopPropagation();
+    r.columns.splice(+button.dataset.coldel, 1);
+    if (r._sel && r._sel.t === "outcol") { r._sel = null; setPropsOpen(false); }
+    refresh();
+  });
+  host.querySelectorAll("[data-outcol]").forEach(row => row.onclick = event => {
+    if (event.target.closest("button")) return;
+    r._sel = { t: "outcol", i: +row.dataset.outcol };
+    setPropsOpen(true);
+    renderProps(r);
+  });
+  host.querySelectorAll("[data-blockmv]").forEach(button => button.onclick = event => {
+    event.stopPropagation();
+    const source = r.dataSources[+button.dataset.blockmv];
+    const list = String(source.columns || "").split(",").map(s => s.trim()).filter(Boolean);
+    const from = list.indexOf(button.dataset.logical), to = from + (+button.dataset.dir);
+    if (from < 0 || to < 0 || to >= list.length) return;
+    [list[from], list[to]] = [list[to], list[from]];
+    source.columns = list.join(", ");
+    refresh();
+  });
 }
 
 /* The chip says how the engine will treat the dataset — and an external one says PHASE B, because
@@ -5884,6 +6077,98 @@ function datasetKindChip(source) {
   if (isExternalSourceType(source.type)) return `<span class="ds-chip warn" title="External execution is gated to Phase B — stored, not run yet">Phase B</span>`;
   if (isStaticSource(source.type)) return `<span class="ds-chip">Static</span>`;
   return isStandalone(source) ? `<span class="ds-chip">Block</span>` : `<span class="ds-chip">Joined</span>`;
+}
+
+/* ---------- Related-table picker ----------
+   "Add dataset" starts from what Dataverse already knows: the tables related to the report's main
+   one. The author picks a child table by name instead of hunting the org's whole entity list, and
+   both join keys are written from the relationship rather than retyped from memory — the
+   suggestJoinKeys principle, applied where a dataset is BORN instead of after the damage. The
+   manual path stays one click away: a block on an unrelated table is legitimate, just rarer. */
+
+/**
+ * The offerable children: relationships whose table a report could be built over, labelled and
+ * carrying both sides of the join. System relationships (async jobs, audit shadows, sync errors)
+ * outnumber the real ones several times over and would bury them.
+ */
+function relatedTableChoices(relations, entityInfo, primaryId) {
+  return (relations || [])
+    .map(rel => ({ rel, info: entityInfo(rel.entity) }))
+    .filter(choice => choice.info)
+    .map(({ rel, info }) => ({ entity: rel.entity, label: info.label, foreignKey: rel.foreignKey, parentKey: primaryId }))
+    .sort((a, b) => a.label.localeCompare(b.label) || a.foreignKey.localeCompare(b.foreignKey));
+}
+
+/** A new block dataset wired the way the relationship says: child key on its table, parent key on the root. */
+function datasetFromRelation(base, choice) {
+  return { ...base, name: choice.label, composition: "Standalone", entity: choice.entity,
+    joinFromKey: choice.foreignKey, joinToKey: choice.parentKey };
+}
+
+function openRelatedTablePicker(r, spec) {
+  const scrim = el(`<div class="scrim above-wizard"><div class="dialog" role="dialog" aria-modal="true" style="width:560px;max-width:94vw">
+    <div class="dialog-head"><h3>Add dataset — related to ${esc(entityLabel(r.mainEntity))}</h3><button class="close-x">✕</button></div>
+    <div class="dialog-body" style="max-height:56vh;overflow:auto">
+      <input class="inp" id="rp_search" placeholder="Search related tables…" autocomplete="off" style="width:100%">
+      <div id="rp_list" style="margin-top:10px"></div>
+    </div>
+    <div class="dialog-foot" style="display:flex;gap:8px">
+      <button class="btn" data-rpmanual>${ic("table")}Another table…</button>
+      <div style="flex:1"></div>
+      <button class="btn" data-close>Cancel</button>
+    </div>
+  </div></div>`);
+  document.body.appendChild(scrim);
+
+  const close = () => { delete refreshOpenRelatedPicker._draw; scrim.remove(); };
+  const created = source => {
+    close();
+    r.dataSources.push(source);
+    if (renderManualDesigner._refresh) renderManualDesigner._refresh();
+    openDatasetProperties(r, source);
+  };
+
+  let term = "";
+  const draw = () => {
+    const primary = entityRecord(r.mainEntity);
+    const list = scrim.querySelector("#rp_list");
+    // No primary record means no primary-key to wire the join with — a dataset born now would
+    // carry an EMPTY parent key and silently return nothing. Wait for the metadata instead.
+    if (!primary) {
+      list.innerHTML = `<div class="hint">Loading tables…</div>`;
+      return;
+    }
+    const choices = relatedTableChoices(relationsOf(r.mainEntity), entityRecord, primary.primaryId)
+      .filter(choice => matchesSearch(term, choice.label, choice.entity, choice.foreignKey));
+    if (metadata.pending["rel:" + r.mainEntity]) {
+      list.innerHTML = `<div class="hint">Loading related tables…</div>`;
+    } else if (!choices.length) {
+      list.innerHTML = `<div class="hint">${term ? "Nothing related matches the search." : "No related tables found."} Use “Another table…” to pick any table.</div>`;
+    } else {
+      list.innerHTML = choices.map((choice, index) => `<button class="rp-row" data-rp="${index}">
+        <span class="rp-label">${highlight(choice.label, term)}</span>
+        <span class="rp-logical">${highlight(choice.entity, term)}</span>
+        <span class="rp-via" title="The block will be scoped by this lookup">via ${highlight(choice.foreignKey, term)}</span>
+      </button>`).join("");
+      list.querySelectorAll("[data-rp]").forEach(row => row.onclick = () =>
+        created(datasetFromRelation(spec.add(), choices[+row.dataset.rp])));
+    }
+  };
+  refreshOpenRelatedPicker._draw = draw;
+
+  const search = scrim.querySelector("#rp_search");
+  search.oninput = () => { term = search.value; draw(); };
+  search.focus();
+  scrim.querySelector(".close-x").onclick = close;
+  scrim.querySelector("[data-close]").onclick = close;
+  scrim.querySelector("[data-rpmanual]").onclick = () =>
+    created({ ...spec.add(), name: "New dataset", composition: "Standalone" });
+  draw();
+}
+
+/** Repaints an open picker once the relationships it was waiting for arrive. */
+function refreshOpenRelatedPicker() {
+  if (refreshOpenRelatedPicker._draw && document.getElementById("rp_list")) refreshOpenRelatedPicker._draw();
 }
 
 function bindDatasetTree(host, r, spec) {
@@ -5900,6 +6185,9 @@ function bindDatasetTree(host, r, spec) {
   if (add) add.onclick = () => {
     // Standalone by default: "add a dataset" to a report that already has its main one means a
     // block; a second joined source is the rarer intent and one click away in the dialog.
+    // With a main table chosen, its related tables are offered first (the picker keeps the
+    // any-table path); without one there is nothing to relate to, so straight to the dialog.
+    if (r.mainEntity) { openRelatedTablePicker(r, spec); return; }
     const created = { ...spec.add(), name: "New dataset", composition: "Standalone" };
     r.dataSources.push(created);
     refresh();
@@ -5924,26 +6212,47 @@ function datasetBandTab(body, r, source, redraw) {
   }
   source.band = source.band || {};
   const band = source.band;
-  const card = el(`<div class="dp-grid">
+  // One root: el() refuses a two-root template, and the grid plus its hint are one tab body.
+  const columnsOf = () => datasetFieldsOf(source, r);
+  const columnOptions = chosen => `<option value=""${chosen ? "" : " selected"}>Automatic</option>` + columnsOf().map(field =>
+    `<option value="${esc(field.logical)}"${chosen === field.logical ? " selected" : ""}>${esc(field.label)}</option>`).join("");
+  const isChart = ["donut", "bars", "progress", "cards"].includes(band.displayAs);
+  const card = el(`<div><div class="dp-grid">
     <div class="mini-field"><label>Show as</label>
-      <select class="fluent-select" data-bandk="displayAs">
-        <option value="table"${band.displayAs === "fields" ? "" : " selected"}>Table</option>
-        <option value="fields"${band.displayAs === "fields" ? " selected" : ""}>Fields (label / value band)</option>
-      </select></div>
+      <select class="fluent-select" data-bandk="displayAs">${[["table", "Table"], ["fields", "Fields (label / value band)"],
+        ["donut", "Donut chart"], ["bars", "Bar chart"], ["progress", "Progress bars"], ["cards", "KPI cards"]].map(([value, label]) =>
+        `<option value="${value}"${(band.displayAs || "table") === value ? " selected" : ""}>${label}</option>`).join("")}</select></div>
+    ${isChart ? `<div class="mini-field"><label>Value column <span class="rel-tag">Chart</span></label>
+      <select class="fluent-select" data-bandk="valueColumn">${columnOptions(band.valueColumn)}</select></div>
+    <div class="mini-field"><label>Label column <span class="rel-tag">Chart</span></label>
+      <select class="fluent-select" data-bandk="labelColumn">${columnOptions(band.labelColumn)}</select></div>` : ""}
     <div class="mini-field"><label>Fields per row <span class="rel-tag">Fields</span></label>
       <select class="fluent-select" data-bandk="fieldColumns">${opts(["auto", "1", "2", "3", "4"], band.fieldColumns ? String(band.fieldColumns) : "auto")}</select></div>
+    <div class="mini-field"><label>Panel icon</label>
+      <select class="fluent-select" data-bandk="icon">${BAND_ICON_CHOICES.map(([value, label]) =>
+        `<option value="${value}"${(band.icon || "") === value ? " selected" : ""}>${label}</option>`).join("")}</select></div>
+    <div class="mini-field"><label>Width on the page</label>
+      <select class="fluent-select" data-bandk="width">
+        <option value=""${!band.width ? " selected" : ""}>Full width</option>
+        <option value="twothirds"${band.width === "twothirds" ? " selected" : ""}>Two thirds</option>
+        <option value="half"${band.width === "half" ? " selected" : ""}>Half</option>
+        <option value="third"${band.width === "third" ? " selected" : ""}>Third</option>
+      </select></div>
     <div class="mini-field"><label>Band title</label>
       <input class="fluent-input" data-bandk="title" value="${esc(band.title || "")}" placeholder="${esc(source.name || "Dataset")}"></div>
     <div class="mini-field"><label class="toggle" style="margin-top:20px"><input type="checkbox" data-bandk="showTitle" ${band.showTitle === false ? "" : "checked"}>
       <span class="track"></span><span class="tlabel">Show the title above the band</span></label></div>
   </div>
-  <div class="hint" style="margin-top:10px">Move the band up or down on the canvas — its position IS the run order, so what you arrange is what executes.</div>`);
+  <div class="hint" style="margin-top:10px">Move the band up or down on the canvas — its position IS the run order, so what you arrange is what executes.</div></div>`);
   body.appendChild(card);
   card.querySelectorAll("[data-bandk]").forEach(input => input.addEventListener(comboSafeEvent(input), () => {
     const key = input.dataset.bandk;
     if (key === "showTitle") band.showTitle = input.checked ? true : false;
     else if (key === "fieldColumns") band.fieldColumns = input.value === "auto" ? undefined : +input.value;
+    else if (["width", "icon", "valueColumn", "labelColumn"].includes(key)) band[key] = input.value || undefined;
     else band[key] = input.value;
+    // Choosing a chart reveals its value and label pickers; leaving one hides them.
+    if (key === "displayAs") redraw();
   }));
 }
 
@@ -5996,6 +6305,13 @@ function openDatasetProperties(r, source, onClose) {
 }
 
 function datasetQueryTab(body, r, source, redraw) {
+  if (source.primary) {
+    // The report's source belongs to the primary dataset (R3). Read via and the query — a saved
+    // view picker under CRM View — are already fields of the card below.
+    const controls = el(`<div class="dp-grid" style="margin-bottom:8px">${primarySourceControlsHtml(r)}</div>`);
+    body.appendChild(controls);
+    bindPrimarySourceControls(controls, r, redraw);
+  }
   const card = el(`<div class="dp-grid"></div>`);
   RAIL_PANELS.dataSources.fields
     .filter(field => !field.when || field.when(source))
@@ -6036,7 +6352,7 @@ function datasetProblemsHtml(r, source) {
 function datasetFieldsTab(body, r, source, redraw) {
   if (source.primary) {
     body.appendChild(el(`<div class="hint">The main dataset returns the report's own columns —
-      manage them under <b>Columns</b>, or drag fields onto the canvas.</div>`));
+      manage them under its node in <b>Report data</b>, or drag fields onto the canvas.</div>`));
     return;
   }
   if (isStaticSource(source.type)) {
@@ -6276,8 +6592,39 @@ function addFieldByClick(r, f) {
   renderManualDesigner._refresh();
   renderRailStrip(r);
 }
-function dsPanel(r) {
-  const host = $("#md_ds"); const ent = r.mainEntity;
+/* ---------- primary dataset: source controls + field browser ----------
+   Both lived on the retired Fields tab. The controls configure the primary dataset and now sit at
+   the top of Report data; the field browser renders inside the root dataset's expanded node, so
+   every dataset's data story starts in one tree (R2). Blocks keep their fields in the Dataset
+   properties dialog. */
+
+/* R3: these live in the PRIMARY dataset's properties dialog, beside the Read via and query the
+   dialog already carries — the report's source is the primary dataset's business, not a box the
+   whole panel wears. Only the two the dialog lacks: the reusable-source shortcut and the entity. */
+function primarySourceControlsHtml(r) {
+  const ds0 = (r.dataSources && r.dataSources[0]) || {};
+  return `<div class="mini-field"><label>Reusable data source</label><select class="fluent-select" id="md_dsrc">${datasourceOptions(ds0.name)}</select></div>
+    <div class="mini-field"><label>Main CRM entity</label>${entityPickerHtml(r.mainEntity, 'id="md_entity"')}</div>`;
+}
+
+function bindPrimarySourceControls(host, r, redraw) {
+  const source = host.querySelector("#md_dsrc");
+  if (source) source.onchange = e => {
+    const ds = dataSourceCatalog.get().find(x => x.name === e.target.value);
+    r.dataSources = r.dataSources && r.dataSources.length ? r.dataSources : [{ name:"", type:"FetchXML", primary:true }];
+    // The stored source carries its name and type; its entity lives on the mapping rows, so the
+    // main entity stays whatever the picker beside this one says.
+    if (ds) { r.dataSources[0].name = ds.name; r.dataSources[0].type = ds.type; }
+    else r.dataSources[0].name = "";
+    redraw();
+  };
+  const entity = host.querySelector("#md_entity");
+  if (entity) entity.onchange = e => { r.mainEntity = e.target.value; r._dsExpanded = { 0: true }; r._fieldSearch = ""; redraw(); };
+}
+
+function fieldBrowserHtml(r) {
+  const ent = r.mainEntity;
+  if (!ent) return `<div class="page-sub" style="padding:4px 0">Choose the main CRM entity in this dataset's properties (${ic("edit")}) to see its fields.</div>`;
   const fieldItem = (at, entity) => `<div class="ds-col" draggable="true" title="${esc(at.n)}" data-fattr="${esc(at.a)}" data-fent="${esc(at.linkedEntity ? ent : entity)}" data-ftype="${esc(at.t)}" data-fname="${esc(columnHeadingFor(at))}"><span>${ic("drag")}</span><span class="ds-colname">${esc(at.n)}</span>${at.linkedEntity?`<span class="rel-tag">${esc(at.linkedEntityLabel)}</span>`:""}<span class="pt">${esc(at.t)}</span></div>`;
   /* The tree is the same problem in a narrower column: a main entity contributes hundreds of
      draggable fields, and each expanded relationship adds hundreds more. */
@@ -6287,7 +6634,10 @@ function dsPanel(r) {
   // view's query replaces the generated one and never links to them.
   const source = primarySourceOf(r);
   const viaView = source && isCrmViewSource(source.type);
-  const groups = ent ? attributeGroupsFor(ent, source && source.type, source && source.query, []) : [];
+  // A hand-written query is treated like a view: the browser offers what the QUERY returns —
+  // its root selection and its joined tables' columns — not the whole entity.
+  const viaQuery = !viaView && !!authoredQuerySelection(source && source.type, source && source.query);
+  const groups = attributeGroupsFor(ent, source && source.type, source && source.query, []);
   const groupFor = entity => groups.find(g => g.entity === entity);
   const matches = attrs => attrs.filter(at => matchesSearch(term, at.n, at.a, at.t, at.linkedEntityLabel || ""));
   const visible = (entity) => matches(groupFor(entity) ? groupFor(entity).attrs : attributesOf(entity));
@@ -6298,80 +6648,55 @@ function dsPanel(r) {
       : `<div class="page-sub" style="padding:6px 0">No field matches “${esc(term)}”.</div>`;
   };
 
-  let tree;
-  if (!ent) tree = `<div class="page-sub">Select a main entity to see its fields.</div>`;
-  else {
-    const rootGroup = groupFor(ent);
-    const total = rootGroup ? rootGroup.attrs.length : attributesOf(ent).length;
-    const search = `<div class="mini-field"><input class="fluent-input" id="md_fieldsearch" autocomplete="off"
-      placeholder="Search ${total} fields…" value="${esc(term)}"></div>`;
-    const related = viaView
-      ? groups.filter(g => g.joinedByView).map(g => {
-          const exp = r._dsExpanded[g.entity];
-          const cols = exp ? `<div class="ds-rel">${matches(g.attrs).map(at => fieldItem(at, g.entity)).join("") || `<div class="page-sub" style="padding:6px 0">No field matches.</div>`}</div>` : "";
-          return `<div class="ds-ent" data-exp="${esc(g.entity)}"><span class="caret">${exp?"▾":"▸"}</span>${ic("tree")}<span>${esc(g.label)}</span><span class="pt" style="margin-left:auto;font-size:10px">${g.attrs.length} via view</span></div>${cols}`;
-        }).join("")
-      : relationsOf(ent).map(rel => { const exp = r._dsExpanded[rel.entity]; const cols = exp ? `<div class="ds-rel">${fieldsHtml(rel.entity)}</div>` : ""; return `<div class="ds-ent" data-exp="${esc(rel.entity)}"><span class="caret">${exp?"▾":"▸"}</span>${ic("tree")}<span>${esc(rel.label)}</span><span class="pt" style="margin-left:auto;font-size:10px">${esc(rel.entity)}</span></div>${cols}`; }).join("");
-    const relatedHeading = viaView ? "Joined by the view" : "Related entities";
-    const relatedEmpty = viaView
-      ? `<div class="page-sub">This view joins no other table.</div>`
-      : `<div class="page-sub">No related entities.</div>`;
-    const viewNote = viaView
-      ? `<div class="page-sub" style="padding:4px 0 8px">Fields <b>${esc(source.query || "the view")}</b> returns.</div>`
+  const rootGroup = groupFor(ent);
+  const total = rootGroup ? rootGroup.attrs.length : attributesOf(ent).length;
+  const search = `<div class="mini-field"><input class="fluent-input" id="md_fieldsearch" autocomplete="off"
+    placeholder="Search ${total} fields…" value="${esc(term)}"></div>`;
+  const related = (viaView || viaQuery)
+    ? groups.filter(g => g.joinedByView).map(g => {
+        const exp = r._dsExpanded[g.entity];
+        const cols = exp ? `<div class="ds-rel">${matches(g.attrs).map(at => fieldItem(at, g.entity)).join("") || `<div class="page-sub" style="padding:6px 0">No field matches.</div>`}</div>` : "";
+        return `<div class="ds-ent" data-exp="${esc(g.entity)}"><span class="caret">${exp?"▾":"▸"}</span>${ic("tree")}<span>${esc(g.label)}</span><span class="pt" style="margin-left:auto;font-size:10px">${g.attrs.length} ${viaView ? "via view" : "via query"}</span></div>${cols}`;
+      }).join("")
+    : relationsOf(ent).map(rel => { const exp = r._dsExpanded[rel.entity]; const cols = exp ? `<div class="ds-rel">${fieldsHtml(rel.entity)}</div>` : ""; return `<div class="ds-ent" data-exp="${esc(rel.entity)}"><span class="caret">${exp?"▾":"▸"}</span>${ic("tree")}<span>${esc(rel.label)}</span><span class="pt" style="margin-left:auto;font-size:10px">${esc(rel.entity)}</span></div>${cols}`; }).join("");
+  const relatedHeading = viaView ? "Joined by the view" : viaQuery ? "Joined by the query" : "Related entities";
+  const relatedEmpty = viaView
+    ? `<div class="page-sub">This view joins no other table.</div>`
+    : viaQuery ? `<div class="page-sub">This query joins no other table.</div>`
+    : `<div class="page-sub">No related entities.</div>`;
+  const viewNote = viaView
+    ? `<div class="page-sub" style="padding:4px 0 8px">Fields <b>${esc(source.query || "the view")}</b> returns.</div>`
+    : viaQuery
+      ? `<div class="page-sub" style="padding:4px 0 8px">Fields the hand-written query returns.</div>`
       : "";
-    tree = `${search}${viewNote}<div class="ds-ent" data-exp="__main"><span class="caret">▾</span>${ic("tree")}<span>${esc(ent)}</span><span class="pt" style="margin-left:auto;font-size:10px">${visible(ent).length}/${total}</span></div>${fieldsHtml(ent)}<h4 class="mt">${relatedHeading}</h4>${related||relatedEmpty}`;
-  }
-  const extt = (r.externalSources||[]).map((x,i)=>`<div class="ds-ent" style="cursor:default">${ic("flow")}<span>${esc(x.connector)}</span><button class="del" data-xdel="${i}" style="margin-left:auto">${ic("trash")}</button></div>`).join("");
-  const ds0 = (r.dataSources && r.dataSources[0]) || {};
-  host.innerHTML = `<h4>Data source</h4>
-    <div class="mini-field"><label>Reusable data source</label><select class="fluent-select" id="md_ds">${datasourceOptions(ds0.name)}</select></div>
-    <div class="mini-field"><label>Read via</label><select class="fluent-select" id="md_srctype">${opts(SOURCE_TYPES, ds0.type||"FetchXML")}</select></div>
-    <div class="mini-field"><label>Main CRM entity</label>${entityPickerHtml(ent, 'id="md_entity"')}</div>
-    ${isCrmViewSource(ds0.type) ? `<div class="mini-field"><label>Saved view</label>${viewPickerHtml(ent, ds0.query, 'id="md_view"')}</div>` : ""}
-    <div class="canvas-hint" style="margin:8px 0 10px">${ent?"Drag a field onto the canvas, or click it to add →":""}</div>
-    ${tree}
-    <h4 class="mt">External sources</h4>${extt||'<div class="page-sub" style="margin-bottom:8px">None yet.</div>'}
-    <button class="btn sm" id="md_addext">${ic("add")}Add external source</button>`;
-  $("#md_ds").onchange = e => {
-    const ds = dataSourceCatalog.get().find(x=>x.name===e.target.value);
-    r.dataSources = r.dataSources && r.dataSources.length ? r.dataSources : [{ name:"", type:"FetchXML", primary:true }];
-    // The stored source carries its name and type; its entity lives on the mapping rows, so the
-    // main entity stays whatever the picker beside this one says.
-    if (ds) { r.dataSources[0].name = ds.name; r.dataSources[0].type = ds.type; }
-    else r.dataSources[0].name = "";
-    dsPanel(r);
+  // The main entity group collapses too — with hundreds of fields it is a wall, not a list.
+  const mainOpen = r._dsExpanded.__main !== false;
+  return `<div class="canvas-hint" style="margin:2px 0 8px">Drag a field onto the canvas, or click it to add →</div>
+    ${search}${viewNote}
+    <div class="ds-ent" data-exp="__main"><span class="caret">${mainOpen?"▾":"▸"}</span>${ic("tree")}<span>${esc(ent)}</span><span class="pt" style="margin-left:auto;font-size:10px">${visible(ent).length}/${total}</span></div>
+    ${mainOpen ? fieldsHtml(ent) : ""}
+    <h4 class="mt">${relatedHeading}</h4>${related||relatedEmpty}`;
+}
+
+function bindFieldBrowser(host, r, redraw) {
+  const fieldSearch = host.querySelector("#md_fieldsearch");
+  if (fieldSearch) fieldSearch.oninput = () => {
+    r._fieldSearch = fieldSearch.value;
+    redraw();
+    const again = host.querySelector("#md_fieldsearch");
+    if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
   };
-  $("#md_srctype").onchange = e => {
-    r.dataSources = r.dataSources && r.dataSources.length ? r.dataSources : [{ name:"", primary:true }];
-    r.dataSources[0].type = e.target.value;
-    // The payload belongs to the read method it was written for, exactly as in the wizard.
-    r.dataSources[0].query = "";
-    dsPanel(r);
-  };
-  const viewPicker = $("#md_view");
-  if (viewPicker) viewPicker.addEventListener(comboSafeEvent(viewPicker), () => {
-    if (viewPicker.value === r.dataSources[0].query) return;
-    r.dataSources[0].query = viewPicker.value;
-    dsPanel(r);
+  host.querySelectorAll("[data-exp]").forEach(n => n.onclick = () => {
+    const key = n.dataset.exp;
+    if (key === "__main") r._dsExpanded.__main = r._dsExpanded.__main === false;
+    else r._dsExpanded[key] = !r._dsExpanded[key];
+    redraw();
   });
-  $("#md_entity").onchange = e => { r.mainEntity = e.target.value; r._dsExpanded = {}; r._fieldSearch = ""; dsPanel(r); };
-  const fieldSearch = $("#md_fieldsearch");
-  if (fieldSearch) {
-    fieldSearch.oninput = () => {
-      r._fieldSearch = fieldSearch.value;
-      dsPanel(r);
-      const again = $("#md_fieldsearch");
-      if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
-    };
-  }
-  host.querySelectorAll("[data-exp]").forEach(n => n.onclick = () => { const k = n.dataset.exp; if (k==="__main") return; r._dsExpanded[k] = !r._dsExpanded[k]; dsPanel(r); });
   host.querySelectorAll("[data-fattr]").forEach(it => {
     const fdata = () => ({ attr:it.dataset.fattr, entity:it.dataset.fent, type:it.dataset.ftype, name:it.dataset.fname });
     it.addEventListener("dragstart", e => e.dataTransfer.setData("text/field", JSON.stringify(fdata())));
     it.addEventListener("click", () => addFieldByClick(r, fdata()));
   });
-  host.querySelectorAll("[data-xdel]").forEach(b => b.onclick = () => { r.externalSources.splice(+b.dataset.xdel,1); dsPanel(r); });
-  $("#md_addext").onclick = () => { r.externalSources = r.externalSources || []; r.externalSources.push({connectorId:"",connector:"",operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); dsPanel(r); };
 }
 function renderCanvas(r) {
   const host = $("#md_canvas"); const D = r.design; const H = D.header, F = D.footer; const sel = r._sel || {};
@@ -6465,14 +6790,19 @@ function canvasDatasetBlocks(report) {
   if (!rootRows.length && isReportRootLoading(report)) {
     return band(loadingNote(`Reading ${report.mainEntity} from Dataverse…`));
   }
-  const body = blocks.map(block => {
-    const resolved = resolvePreviewBlock(block, rootRows);
-    const controls = `<span class="cv-bandbtns">
+  // The canvas lays the blocks on the same 12-column grid the runtime draws (L1); the span sits
+  // on the wrapper, which is the grid's child — inside it the toolbar would not move the block.
+  const body = `<div class="dataset-grid" style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:0 18px;align-items:start">`
+    + blocks.map(block => {
+      const resolved = resolvePreviewBlock(block, rootRows);
+      const controls = `<span class="cv-bandbtns">
       <button data-bandmove="${block.sourceIndex}" data-dir="-1" title="Move up — order IS the run order">▲</button>
       <button data-bandmove="${block.sourceIndex}" data-dir="1" title="Move down">▼</button>
       <button data-bandprops="${block.sourceIndex}" title="Dataset properties">${ic("edit")}</button></span>`;
-    return `<div class="cv-bandwrap">${controls}${previewDatasetBlock(block.name, resolved.cols || block.cols, resolved.rows, resolved.notice, block.totals, block.band)}</div>`;
-  }).join("");
+      return `<div class="cv-bandwrap" style="grid-column:span ${previewBandSpanOf(block.band)};min-width:0">${controls}${
+        previewDatasetBlock(block.name, resolved.cols || block.cols, resolved.rows, resolved.notice, block.totals, block.band)}</div>`;
+    }).join("")
+    + `</div>`;
   return band(canvasRootShapeNote(report, rootRows) + body);
 }
 
@@ -6516,7 +6846,7 @@ function bindCanvas(r) {
     event.stopPropagation();
     openDatasetProperties(r, r.dataSources[+button.dataset.bandprops]);
   });
-  const pick = (obj) => { r._sel = obj; renderCanvas(r); renderProps(r); };
+  const pick = (obj) => { r._sel = obj; setPropsOpen(!!obj); renderCanvas(r); renderProps(r); };
   host.querySelectorAll("[data-rmode]").forEach(b => b.onclick = () => { r._renderMode = b.dataset.rmode; renderCanvas(r); });
   host.querySelectorAll("[data-sel]").forEach(n => n.onclick = () => pick({t:n.dataset.sel}));
   host.querySelectorAll("[data-selsec]").forEach(n => n.onclick = e => { if (e.target.closest("button")) return; e.stopPropagation(); pick({t:"section", tid:n.dataset.selsec}); });
@@ -6631,7 +6961,26 @@ function renderProps(r) {
   const posBtns = (val) => `<div class="seg" data-seg="labelPos">${[["top","Top"],["left","Left"],["right","Right"]].map(([v,l])=>`<button class="${(val||"left")===v?"on":""}" data-val="${v}">${l}</button>`).join("")}</div>`;
   const alignBtns = (val) => `<div class="seg" data-seg="align">${["Left","Center","Right"].map(a=>`<button class="${(val||"Left")===a?"on":""}" data-val="${a}">${a}</button>`).join("")}</div>`;
   // No heading here: the pane's bar already says Properties, and repeating it read as two titles.
-  if (!sel) { host.innerHTML = `<div class="page-sub">Click the header, a section title, a header field, or a table column on the canvas to edit it — including its label and alignment.</div>`; return; }
+  if (!sel) {
+    // Only a deliberate open shows the how-to; otherwise no selection means no pane.
+    if (!state.propsManual) { setPropsOpen(false); return; }
+    host.innerHTML = `<div class="page-sub">Click the header, a section title, a header field, or a table column on the canvas to edit it — including its label and alignment.</div>`;
+    return;
+  }
+  if (sel.t === "outcol") {
+    // A chosen column picked in the Report data tree (R3): the Columns tab's full editor, as the
+    // properties of a selection rather than a card on a third tab.
+    const column = (r.columns || [])[sel.i];
+    if (!column) { r._sel = null; setPropsOpen(false); return; }
+    host.innerHTML = `<h4>Output column</h4>`;
+    host.appendChild(railCard(r, RAIL_PANELS.columns, column, () => {
+      r.columns.splice(sel.i, 1);
+      r._sel = null;
+      setPropsOpen(false);
+      if (renderManualDesigner._refresh) renderManualDesigner._refresh();
+    }));
+    return;
+  }
   if (sel.t==="header") { const H=D.header;
     host.innerHTML = `<h4>Report header</h4>
       <div class="mini-field"><label>Title</label><input class="fluent-input" id="p_title" value="${esc(H.title)}"></div>
@@ -6854,14 +7203,32 @@ function reportableAttributes(entity) {
  * an author blocked from choosing any column at all is worse than one offered too many.
  */
 function availableAttributes(entity, sourceType, viewName) {
+  if (!isCrmViewSource(sourceType)) return attributesOf(entity);
+  return selectionAttributes(entity, viewSelection(entity, viewName));
+}
+
+/** The fields one parsed query selection offers: the root's chosen attributes plus the linked
+    tables' columns under their aliases — the shape the row actually arrives in. */
+function selectionAttributes(entity, selection) {
   const all = attributesOf(entity);
-  if (!isCrmViewSource(sourceType)) return all;
-
-  const selection = viewSelection(entity, viewName);
   if (!selection || !selection.attributes.length) return all;
-
   const selected = new Set(selection.attributes);
   return all.filter(a => selected.has(a.a)).concat(linkedAttributesOf(selection));
+}
+
+/**
+ * A hand-written FetchXML query's own selection, in the shape a saved view's takes — one grouping
+ * path serves both, because the result row arrives the same way: linked columns keyed
+ * alias.attribute. Without this, an authored query that joins other tables had no way to offer
+ * those tables' columns to the report, and its own field browser showed the whole entity instead
+ * of what the query returns.
+ */
+function authoredQuerySelection(sourceType, queryPayload) {
+  if (isCrmViewSource(sourceType) || !/<fetch[\s>]/i.test(String(queryPayload || ""))) return null;
+  const fetch = parseFetchXml(String(queryPayload));
+  const root = fetch && fetch.querySelector("entity");
+  if (!root) return null;
+  return { attributes: directAttributesOf(root), links: linksUnder(root, root.getAttribute("name")), conditions: [] };
 }
 
 /**
@@ -6924,9 +7291,10 @@ function primarySourceOf(report) {
  * tree — so they cannot disagree about what is selectable. Under a CRM View the groups come from the
  * view: its own table, then each table it joins. Otherwise, from the report's own joins.
  */
-function attributeGroupsFor(mainEntity, sourceType, viewName, joins = []) {
+function attributeGroupsFor(mainEntity, sourceType, queryPayload, joins = []) {
   const named = entity => entityLabel(entity) || entity;
-  if (!isCrmViewSource(sourceType)) {
+  const authored = authoredQuerySelection(sourceType, queryPayload);
+  if (!isCrmViewSource(sourceType) && !authored) {
     return [{ entity: mainEntity, label: named(mainEntity), attrs: attributesOf(mainEntity) }]
       .concat(joins.filter(j => j.entity).map(j => ({
         entity: j.entity, label: named(j.entity), joined: true,
@@ -6937,7 +7305,9 @@ function attributeGroupsFor(mainEntity, sourceType, viewName, joins = []) {
       })));
   }
 
-  const available = availableAttributes(mainEntity, sourceType, viewName);
+  const available = authored
+    ? selectionAttributes(mainEntity, authored)
+    : availableAttributes(mainEntity, sourceType, queryPayload);
   const groups = [{ entity: mainEntity, label: named(mainEntity), attrs: available.filter(a => !a.linkedEntity) }];
   available.filter(a => a.linkedEntity).forEach(attribute => {
     const existing = groups.find(group => group.entity === attribute.linkedEntity);
@@ -8366,13 +8736,118 @@ function previewDatasetsHtml(report, rootCols, rootRows, blocks) {
     ? previewDatasetHeader(report.name || "Record", rootCols, rootRows[0])
     : previewDatasetBlock(report.name || "Main dataset", rootCols, rootRows, "", rootPreviewTotals(report))
       + previewMultiRecordNotice(rootRows.length);
-  const body = blocks.map(block => {
-    const resolved = resolvePreviewBlock(block, rootRows);
-    // A static block derives its columns from its rows, exactly as the engine does.
-    return previewDatasetBlock(block.name, resolved.cols || block.cols, resolved.rows, resolved.notice, block.totals, block.band);
-  }).join("");
+  // The preview lays blocks on the same 12-column grid the runtime draws (L1) — a width chosen in
+  // the Band tab reads identically here, on the run screen, and in print.
+  const body = `<div class="dataset-grid" style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:0 18px;align-items:start">`
+    + blocks.map(block => {
+      const resolved = resolvePreviewBlock(block, rootRows);
+      // A static block derives its columns from its rows, exactly as the engine does.
+      return previewDatasetBlock(block.name, resolved.cols || block.cols, resolved.rows, resolved.notice, block.totals, block.band);
+    }).join("")
+    + `</div>`;
   return head + body;
 }
+
+/* Mirrors the runtime's bandSpanOf — the preview must not disagree with the page. */
+const PREVIEW_BAND_SPANS = { half: 6, third: 4, twothirds: 8 };
+const previewBandSpanOf = band => PREVIEW_BAND_SPANS[(band && band.width) || ""] || 12;
+
+/* Byte-identical to the runtime's BAND_ICONS (L2) — the drift test compares the two maps. */
+const PREVIEW_BAND_ICONS = {
+  user: '<circle cx="8" cy="5.5" r="2.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3.5 13c.7-2.6 2.4-4 4.5-4s3.8 1.4 4.5 4" fill="none" stroke="currentColor" stroke-width="1.3"/>',
+  chart: '<path d="M4 13V8M8 13V4M12 13V6" stroke="currentColor" stroke-width="1.6"/><path d="M3 13.5h10" stroke="currentColor" stroke-width="1.2"/>',
+  donut: '<circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M8 3a5 5 0 015 5" fill="none" stroke="currentColor" stroke-width="2.4" opacity=".35"/>',
+  building: '<rect x="4" y="3" width="8" height="10" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 5.5h1M9 5.5h1M6 8h1M9 8h1M7 13v-2.5h2V13" stroke="currentColor" stroke-width="1.2"/>',
+  shield: '<path d="M8 2l5 2v4c0 3-2 5-5 6-3-1-5-3-5-6V4l5-2z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M6 8l1.5 1.5L10.5 6.5" fill="none" stroke="currentColor" stroke-width="1.3"/>',
+  doc: '<path d="M4 2h5l3 3v9H4V2z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M9 2v3h3M6 8h4M6 10.5h4" stroke="currentColor" stroke-width="1.1"/>',
+  coin: '<circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10 6.2c-.4-.7-1.1-1-2-1-1.1 0-2 .6-2 1.4 0 1.9 4 .9 4 2.8 0 .8-.9 1.4-2 1.4-.9 0-1.6-.3-2-1M8 4v1.2M8 10.8V12" fill="none" stroke="currentColor" stroke-width="1.2"/>',
+  alert: '<path d="M8 2.5L14 13H2L8 2.5z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 6.5V9.5M8 11v.5" stroke="currentColor" stroke-width="1.4"/>'
+};
+
+const previewBandIconSvg = band => {
+  const path = band && PREVIEW_BAND_ICONS[band.icon];
+  return path ? `<svg class="band-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">${path}</svg>` : "";
+};
+
+/* Byte-identical to the runtime chart builders (L3) — the drift test compares them. */
+const CHART_COLORS = ["var(--chart-1,#2b88d8)", "var(--chart-2,#0b57a4)", "var(--chart-3,#164a7c)",
+  "var(--chart-4,#7fb8e6)", "var(--chart-5,#a9d0f0)", "var(--chart-6,#d6e8f8)"];
+
+/** 35 000 000 reads as 35.0M on a panel; a number under a thousand is left as itself. */
+const compactNumber = value => {
+  const n = +value;
+  if (!isFinite(n)) return "";
+  const abs = Math.abs(n);
+  if (abs >= 1e9) return (n / 1e9).toFixed(1) + "B";
+  if (abs >= 1e6) return (n / 1e6).toFixed(1) + "M";
+  if (abs >= 1e3) return (n / 1e3).toFixed(1) + "K";
+  return String(Math.round(n * 10) / 10);
+};
+
+function donutChartHtml(entries){
+  const total = entries.reduce((sum, entry) => sum + (entry.value > 0 ? entry.value : 0), 0);
+  if (!(total > 0)) return `<div class="empty" style="padding:16px">Nothing to chart.</div>`;
+  const circumference = 2 * Math.PI * 40;
+  let turned = 0;
+  const segments = entries.map((entry, index) => {
+    const fraction = (entry.value > 0 ? entry.value : 0) / total;
+    const segment = `<circle r="40" cx="50" cy="50" fill="none" stroke="${CHART_COLORS[index % CHART_COLORS.length]}"
+      stroke-width="15" stroke-dasharray="${(fraction * circumference).toFixed(2)} ${circumference.toFixed(2)}"
+      stroke-dashoffset="${(-turned * circumference).toFixed(2)}" transform="rotate(-90 50 50)"/>`;
+    turned += fraction;
+    return segment;
+  }).join("");
+  const legend = entries.map((entry, index) => `<div class="chart-legend-row">
+    <span class="chart-dot" style="background:${CHART_COLORS[index % CHART_COLORS.length]}"></span>
+    <span class="chart-legend-label">${esc(entry.label)}</span>
+    <b>${esc(entry.text ?? compactNumber(entry.value))}</b>
+    <span class="chart-legend-pct">${Math.round((entry.value > 0 ? entry.value : 0) / total * 100)}%</span>
+  </div>`).join("");
+  return `<div class="chart-band">
+    <svg viewBox="0 0 100 100" class="chart-donut" role="img">${segments}
+      <text x="50" y="48" text-anchor="middle" class="chart-center">${esc(compactNumber(total))}</text>
+      <text x="50" y="60" text-anchor="middle" class="chart-center-sub">Total</text>
+    </svg>
+    <div class="chart-legend">${legend}</div>
+  </div>`;
+}
+
+function barChartHtml(entries){
+  const peak = Math.max(0, ...entries.map(entry => entry.value > 0 ? entry.value : 0));
+  if (!(peak > 0)) return `<div class="empty" style="padding:16px">Nothing to chart.</div>`;
+  const bars = entries.map((entry, index) => `<div class="chart-bar-col">
+    <b>${esc(entry.text ?? compactNumber(entry.value))}</b>
+    <div class="chart-bar" style="height:${Math.max(2, Math.round((entry.value > 0 ? entry.value : 0) / peak * 100))}%;background:${CHART_COLORS[index % CHART_COLORS.length]}"></div>
+    <span class="chart-bar-label" title="${esc(entry.label)}">${esc(entry.label)}</span>
+  </div>`).join("");
+  return `<div class="chart-bars">${bars}</div>`;
+}
+
+function progressChartHtml(entries){
+  const peak = Math.max(0, ...entries.map(entry => entry.value > 0 ? entry.value : 0));
+  if (!(peak > 0)) return `<div class="empty" style="padding:16px">Nothing to chart.</div>`;
+  return `<div class="chart-progress">${entries.map((entry, index) => `<div class="chart-progress-row">
+    <div class="chart-progress-head"><span>${esc(entry.label)}</span><b>${esc(entry.text ?? compactNumber(entry.value))}</b></div>
+    <div class="chart-track"><div class="chart-fill" style="width:${Math.max(1, Math.round((entry.value > 0 ? entry.value : 0) / peak * 100))}%;background:${CHART_COLORS[index % CHART_COLORS.length]}"></div></div>
+  </div>`).join("")}</div>`;
+}
+
+function cardsChartHtml(entries, iconSvg){
+  if (!entries.length) return `<div class="empty" style="padding:16px">No rows.</div>`;
+  // No icon, no box — an empty tinted square is not a design choice anyone made.
+  return `<div class="stat-cards">${entries.map(entry => `<div class="stat-card">
+    ${iconSvg ? `<span class="stat-icon">${iconSvg}</span>` : ""}
+    <div class="stat-body">
+      <span class="stat-label" title="${esc(entry.label)}">${esc(entry.label)}</span>
+      <b class="stat-value">${esc(entry.text ?? compactNumber(entry.value))}</b>
+    </div>
+  </div>`).join("")}</div>`;
+}
+
+/** The icon choices as the Band tab offers them — the value is the map key, the label a person's word. */
+const BAND_ICON_CHOICES = [["", "None (plain title)"], ["user", "Customer"], ["chart", "Chart"],
+  ["donut", "Exposure"], ["building", "Facility"], ["shield", "Compliance"], ["doc", "Document"],
+  ["coin", "Financial"], ["alert", "Exception"]];
 
 /** The root's authored totals, keyed the way the PREVIEW keys its columns. */
 function rootPreviewTotals(report) {
@@ -8398,16 +8873,58 @@ function previewDatasetHeader(name, cols, row) {
   </section>`;
 }
 
+/* The preview's rows keyed by column key, as chart entries — the same shape the runtime feeds
+   the shared builders, so a chart previews exactly as it will run (L3). */
+function previewChartEntriesOf(cols, rows, band) {
+  const numericOf = value => {
+    const text = String(value ?? "").replace(/[,\s ]/g, "").replace(/[^\d.-]/g, "");
+    return text !== "" && !isNaN(+text) ? +text : null;
+  };
+  const valueCol = cols.find(c => c.key === (band && band.valueColumn))
+    || cols.find(c => rows.some(row => numericOf(row[c.key]) != null));
+  if (!valueCol) return null;
+  const labelCol = cols.find(c => c.key === (band && band.labelColumn))
+    || cols.find(c => c !== valueCol) || valueCol;
+  return rows.map(row => ({
+    label: String(previewCellText(labelCol, row[labelCol.key]) ?? ""),
+    value: numericOf(row[valueCol.key]) ?? 0,
+    text: previewCellText(valueCol, row[valueCol.key])
+  }));
+}
+
+/* Card entries need nothing numeric — a date or a grade is a perfectly good stat (L4). */
+function previewCardEntriesOf(cols, rows, band) {
+  if (!cols.length) return null;
+  const labelCol = cols.find(c => c.key === (band && band.labelColumn)) || cols[0];
+  const valueCol = cols.find(c => c.key === (band && band.valueColumn))
+    || cols.find(c => c !== labelCol) || labelCol;
+  return rows.map(row => ({
+    label: String(previewCellText(labelCol, row[labelCol.key]) ?? ""),
+    value: 0,
+    text: previewCellText(valueCol, row[valueCol.key])
+  }));
+}
+
 function previewDatasetBlock(name, cols, rows, notice, totals, band) {
+  const chart = band && { donut: donutChartHtml, bars: barChartHtml, progress: progressChartHtml, cards: cardsChartHtml }[band.displayAs];
+  const chartEntries = (chart && !notice && rows.length)
+    ? (band.displayAs === "cards" ? previewCardEntriesOf(cols, rows, band) : previewChartEntriesOf(cols, rows, band))
+    : null;
   const body = notice
     ? `<div class="page-sub" style="padding:8px 0">${notice}</div>`
     : !rows.length ? `<div class="page-sub" style="padding:8px 0">No rows.</div>`
     : (band && band.displayAs === "fields") ? previewDatasetFieldsHtml(cols, rows, band)
+    : chartEntries ? chart(chartEntries, previewBandIconSvg(band))
     : previewDatasetTable(cols, rows, totals);
-  if (band && band.showTitle === false) return `<section class="dataset-block">${body}</section>`;
+  const span = ` style="grid-column:span ${previewBandSpanOf(band)};min-width:0"`;
+  if (band && band.showTitle === false) return `<section class="dataset-block"${span}>${body}</section>`;
   const count = (!notice && rows.length) ? `<span>${rows.length} ${rows.length === 1 ? "row" : "rows"}</span>` : "";
-  return `<section class="dataset-block">
-    <div class="dataset-head"><b>${esc((band && band.title) || name)}</b>${count}</div>
+  const icon = previewBandIconSvg(band);
+  const head = icon
+    ? `<div class="dataset-head band-chrome">${icon}<b>${esc((band && band.title) || name)}</b>${count}</div>`
+    : `<div class="dataset-head"><b>${esc((band && band.title) || name)}</b>${count}</div>`;
+  return `<section class="dataset-block"${span}>
+    ${head}
     ${body}</section>`;
 }
 
@@ -8425,8 +8942,13 @@ function previewDatasetFieldsHtml(cols, rows, band) {
 function previewDatasetTable(cols, rows, totals) {
   const right = c => c.right || ["Currency", "Decimal", "Whole number"].includes(c.type);
   const head = cols.map(c => `<th class="${right(c) ? "num" : ""}">${esc(c.name)}</th>`).join("");
-  const body = rows.map(row =>
-    `<tr>${cols.map(c => `<td class="${right(c) ? "num" : ""}">${esc(previewCellText(c, row[c.key]))}</td>`).join("")}</tr>`).join("");
+  const cell = (c, row) => {
+    const text = previewCellText(c, row[c.key]);
+    // L4 — a badge column wears its value as a pill, exactly as the runtime draws it.
+    if (c.badge && text !== "" && text != null) return `<td><span class="cell-badge">${esc(text)}</span></td>`;
+    return `<td class="${right(c) ? "num" : ""}">${esc(text)}</td>`;
+  };
+  const body = rows.map(row => `<tr>${cols.map(c => cell(c, row)).join("")}</tr>`).join("");
   return `<table class="rp-table"><thead><tr>${head}</tr></thead><tbody>${body}${previewTotalsRow(cols, rows, totals)}</tbody></table>`;
 }
 

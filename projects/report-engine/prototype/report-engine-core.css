@@ -128,6 +128,44 @@
      the blocks follow dark mode and the glass themes without a second palette. */
   .dataset-block{margin-bottom:22px;}
   .dataset-block > .meta-row b{color:var(--text); font-size:13.5px;}
+  /* L2 — a band with an authored icon wears the tinted panel header; theme tokens keep it right
+     in dark mode and under the glass themes with no second palette. */
+  .band-chrome{display:flex; align-items:center; gap:8px; background:var(--primary-tint); color:var(--primary);
+    border-radius:var(--radius-lg); padding:7px 12px; margin-bottom:8px;}
+  .dataset-block > .band-chrome b{color:inherit;}
+  .band-icon{flex:none; display:block;}
+  .report-footnote{border-top:1px solid var(--border-strong); margin-top:18px; padding-top:8px;
+    color:var(--text-secondary); font-size:11px; letter-spacing:.4px;}
+  /* L3 — block charts. Sized to live inside a third-width panel without scrolling. */
+  .chart-band{display:flex; align-items:center; gap:18px; padding:8px 4px;}
+  .chart-donut{width:150px; height:150px; flex:none;}
+  .chart-center{font-size:15px; font-weight:700; fill:var(--text);}
+  .chart-center-sub{font-size:7px; fill:var(--text-secondary);}
+  .chart-legend{display:flex; flex-direction:column; gap:6px; min-width:0; flex:1;}
+  .chart-legend-row{display:flex; align-items:center; gap:8px; font-size:12px; min-width:0;}
+  .chart-legend-label{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-secondary); flex:1;}
+  .chart-dot{flex:none; width:9px; height:9px; border-radius:50%;}
+  .chart-legend-pct{flex:none; color:var(--text-secondary); font-size:11px;}
+  .chart-bars{display:flex; align-items:flex-end; gap:14px; height:150px; padding:8px 4px 0;}
+  .chart-bar-col{display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:4px; height:100%; min-width:0; flex:1; font-size:11.5px;}
+  .chart-bar{width:70%; max-width:44px; border-radius:3px 3px 0 0;}
+  .chart-bar-label{color:var(--text-secondary); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .chart-progress{display:flex; flex-direction:column; gap:10px; padding:6px 2px;}
+  .chart-progress-head{display:flex; justify-content:space-between; font-size:12px; margin-bottom:3px;}
+  .chart-progress-head span{color:var(--text-secondary);}
+  .chart-track{height:8px; border-radius:4px; background:var(--surface-alt); border:1px solid var(--border); overflow:hidden;}
+  .chart-fill{height:100%; border-radius:4px;}
+  /* L4 — KPI stat cards and badge pills. */
+  .stat-cards{display:flex; flex-wrap:wrap; gap:12px; padding:6px 2px;}
+  .stat-card{display:flex; align-items:center; gap:10px; flex:1 1 170px; min-width:0;
+    border:1px solid var(--border-strong); border-radius:var(--radius-lg); background:var(--surface); padding:12px 14px;}
+  .stat-icon{flex:none; display:flex; align-items:center; justify-content:center; width:34px; height:34px;
+    border-radius:8px; background:var(--primary-tint); color:var(--primary);}
+  .stat-body{min-width:0; display:flex; flex-direction:column; gap:3px;}
+  .stat-label{color:var(--text-secondary); font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .stat-value{font-size:15.5px; color:var(--text);}
+  .cell-badge{display:inline-flex; align-items:center; padding:2px 10px; border-radius:999px;
+    background:var(--primary-tint); color:var(--primary); font-size:11.5px; font-weight:600; white-space:nowrap;}
   .dataset-header{background:var(--surface); border:1px solid var(--border-strong); border-radius:var(--radius-lg); box-shadow:var(--shadow-8); padding:14px 16px;}
   .dataset-header > .meta-row{border-bottom:2px solid var(--primary); padding-bottom:6px; margin-bottom:4px;}
   /* The authored totals row (D3): visibly a summary, never mistakable for another data row. */
