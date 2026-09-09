@@ -261,7 +261,7 @@ console.log('adding a dataset starts from the main table’s related tables');
     { entity: 'qdb_condition', foreignKey: 'qdb_relatedtermsheetid' }
   ];
   const reportable = {
-    qdb_requestedfacility: { label: 'Requested Facility' },
+    qdb_requestedfacility: { label: 'Requested Facility', primaryName: 'qdb_name' },
     qdb_condition: { label: 'Condition' }
   };
   const choices = api.relatedTableChoices(relations, entity => reportable[entity], 'qdb_termsheetid');
@@ -283,6 +283,12 @@ console.log('adding a dataset starts from the main table’s related tables');
     born.joinFromKey === 'qdb_termsheetid' && born.joinToKey === 'qdb_termsheetid', JSON.stringify(born));
   check('and the base defaults kept', born.enabled === true && born.type === 'FetchXML');
   check('the base object is not mutated', base.entity === '' && base.composition === 'Joined');
+
+  // Round 2: the child's primary name becomes the block's first column, so a picker-born block
+  // previews rows immediately; a table with no primary name known yet stays honestly empty.
+  check('the primary name is the born column', born.columns === 'qdb_name', JSON.stringify(born.columns));
+  const nameless = api.datasetFromRelation(base, choices.find(c => c.entity === 'qdb_condition'));
+  check('no primary name means no invented column', nameless.columns === '');
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
