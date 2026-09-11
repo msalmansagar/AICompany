@@ -54,7 +54,22 @@ const ICON_PATHS = {
   escalate: '<path d="M8 13V4M4.5 7.5L8 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.4"/>',
   bell: '<path d="M8 2a3.6 3.6 0 013.6 3.6c0 3 1.1 3.7 1.4 4.4H3c.3-.7 1.4-1.4 1.4-4.4A3.6 3.6 0 018 2z" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M6.6 12a1.5 1.5 0 002.8 0" fill="none" stroke="currentColor" stroke-width="1.25"/>',
   send: '<path d="M14 2L2 7l4.5 1.8L14 2zm0 0L8.5 13l-2-4.2L14 2z" fill="none" stroke="currentColor" stroke-width="1.25"/>',
-  assign: '<path d="M6 7.5a2.6 2.6 0 100-5.2 2.6 2.6 0 000 5.2zM1.8 13.5c0-2.2 1.9-3.6 4.2-3.6" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M9.5 11h4.5M12 9l2 2-2 2" fill="none" stroke="currentColor" stroke-width="1.25"/>'
+  assign: '<path d="M6 7.5a2.6 2.6 0 100-5.2 2.6 2.6 0 000 5.2zM1.8 13.5c0-2.2 1.9-3.6 4.2-3.6" fill="none" stroke="currentColor" stroke-width="1.25"/><path d="M9.5 11h4.5M12 9l2 2-2 2" fill="none" stroke="currentColor" stroke-width="1.25"/>',
+  pin: '<path d="M6 2h4l-.5 4 2.5 2.5H3.5L6 6z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 8.5V14" stroke="currentColor" stroke-width="1.2"/>',
+  sort: '<path d="M3 4h10M4.5 8h7M6.5 12h3" stroke="currentColor" stroke-width="1.3"/>',
+  attach: '<path d="M11 5.5L6.2 10.3a1.7 1.7 0 002.4 2.4l5-5a3.1 3.1 0 10-4.4-4.4L4 8.5" fill="none" stroke="currentColor" stroke-width="1.2"/>',
+  copilot: '<path d="M5.2 3.5h3.3c1.6 0 2.3 1 2.7 2.2l1 3c.35 1.1-.3 2.1-1.4 2.1H7.5c-1.6 0-2.3-1-2.7-2.2l-1-3C3.45 4.5 4.1 3.5 5.2 3.5z" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="11.6" cy="4.4" r="1.1" fill="currentColor"/>',
+  help: '<circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M6.4 6.2a1.7 1.7 0 113 1.1c-.5.5-1.4.7-1.4 1.7" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="11.4" r=".8" fill="currentColor"/>',
+  popout: '<path d="M9 3h4v4M13 3L7.5 8.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M12 9.5V13H3V4h3.5" fill="none" stroke="currentColor" stroke-width="1.3"/>',
+  share: '<circle cx="12" cy="4" r="1.8" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="4" cy="8" r="1.8" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="12" cy="12" r="1.8" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M5.6 7.1l4.8-2.2M5.6 8.9l4.8 2.2" stroke="currentColor" stroke-width="1.2"/>',
+  formsel: '<rect x="2.5" y="3" width="11" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2.5 6h11M6 6v7" stroke="currentColor" stroke-width="1.2"/>',
+  chevdown: '<path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.4"/>',
+  chevup: '<path d="M4 10l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.4"/>',
+  more: '<circle cx="3.2" cy="8" r="1.2" fill="currentColor"/><circle cx="8" cy="8" r="1.2" fill="currentColor"/><circle cx="12.8" cy="8" r="1.2" fill="currentColor"/>',
+  note: '<path d="M11 2l3 3-8 8-3.5.5.5-3.5 8-8z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M2 14.5h12" stroke="currentColor" stroke-width="1.1"/>',
+  bookmark: '<path d="M4 2.5h8v11l-4-3-4 3z" fill="none" stroke="currentColor" stroke-width="1.2"/>',
+  autopost: '<circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3.2l2.2 1.3" fill="none" stroke="currentColor" stroke-width="1.2"/>',
+  grid: '<rect x="2.5" y="2.5" width="11" height="11" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2.5 6.2h11M2.5 9.9h11M6.2 2.5v11" stroke="currentColor" stroke-width="1.1"/>',
 };
 
 /**

@@ -69,6 +69,9 @@ const SITEMAP = [
   }
 ];
 
+/* The environment banner a model-driven app shows across the top of the header. */
+const ENVIRONMENT = "SANDBOX";
+
 const THEMES = [
   { id: "light", name: "Light", desc: "Clean Fluent default" },
   { id: "dark", name: "Dark", desc: "Low-light, easy on eyes" },
@@ -106,6 +109,8 @@ const DC = {
         <div class="header-accent"></div>
         <div class="app-title"><span class="env">MSS Collections</span><span class="name">Debt Collection</span></div>
         <div class="header-spacer"></div>
+        <div class="env-name">${esc(ENVIRONMENT)}</div>
+        <div class="header-spacer"></div>
         <div class="header-search">
           ${ic("search")}<input placeholder="Search customer, case or QID" aria-label="Search" id="globalSearch" />
         </div>
@@ -126,6 +131,11 @@ const DC = {
             <svg class="chk" width="16" height="16" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3.2L13 5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
           </button>`).join("")}
         </div>
+        <button class="icon-btn" id="quickNew" title="Quick create">${ic("add")}</button>
+        <button class="icon-btn hide-md" id="advFilter" title="Filter">${ic("filter")}</button>
+        <button class="icon-btn hide-md" id="appSettings" title="Settings">${ic("settings")}</button>
+        <button class="icon-btn hide-md" id="appHelp" title="Help">${ic("help")}</button>
+        <button class="copilot-pill" id="copilotBtn" title="Ask Copilot"><span class="cp-i">${ic("copilot")}</span><span>Copilot</span></button>
         <button class="icon-btn" id="notifBtn" title="Notifications">${ic("bell")}</button>
         <div class="avatar" title="${esc(role.user)} — ${esc(role.name)}">${esc(role.initials)}</div>
       </header>
@@ -148,6 +158,12 @@ const DC = {
     document.addEventListener("click", () => menu.classList.remove("open"));
     $$("[data-set-theme]").forEach(b => b.onclick = () => this.setTheme(b.dataset.setTheme));
     $("#notifBtn").onclick = () => toast("4 approvals and 2 SLA breaches need attention", "warn");
+    $("#quickNew").onclick = () => toast("Quick create — case creation is manual by design (D-2)", "info");
+    $("#advFilter").onclick = () => toast("Advanced filter applies per organisation, then merges", "info");
+    $("#appSettings").onclick = () => DC.go("admin");
+    $("#appHelp").onclick = () => toast("DCP-001 prototype — 22 screens over two Dynamics organisations", "info");
+    $("#copilotBtn").onclick = () => toast("Copilot is out of scope for Phase 1 — shown for chrome parity only", "info");
+    $(".area-switch") && ($(".area-switch").onclick = () => toast("Single app area in Phase 1: Collections", "info"));
     $("#globalSearch").onkeydown = (e) => {
       if (e.key !== "Enter" || !e.target.value.trim()) return;
       toast(`Searching both CRMs for "${e.target.value.trim()}" — router fans out on QID`, "info");
@@ -166,7 +182,7 @@ const DC = {
 
   renderNav() {
     const nav = $("#nav");
-    nav.innerHTML = SITEMAP.map(g => {
+    const groups = SITEMAP.map(g => {
       const items = g.items.filter(i => this.isVisible(i));
       if (!items.length) return "";
       return `<div class="nav-group-label">${esc(g.group)}</div>` + items.map(i =>
@@ -174,6 +190,29 @@ const DC = {
            ${ic(i.icon)}<span>${esc(i.label)}</span>${i.count ? `<span class="nav-count">${i.count}</span>` : ""}
          </a>`).join("");
     }).join("");
+
+    nav.innerHTML = `<div class="nav-scroll">
+      <a class="nav-item" href="01-workspace.html#myday">${ic("home")}<span>Home</span></a>
+      ${this.navExpander("Recent", "history")}
+      ${this.navExpander("Pinned", "pin")}
+      <div class="nav-sep"></div>
+      ${groups}
+    </div>
+    <button class="area-switch" title="Switch app area">
+      <span class="ab">C</span><span class="an">Collections</span><span class="ac">${ic("chevup")}</span>
+    </button>`;
+
+    $$(".nav-item[data-exp]", nav).forEach(b => b.onclick = (e) => {
+      e.preventDefault();
+      b.classList.toggle("open");
+      toast(`${b.dataset.exp} is a UCI shell affordance — not wired in the prototype`, "info");
+    });
+  },
+
+  /** Collapsible shell entries UCI shows above the sitemap groups. */
+  navExpander(label, icon) {
+    return `<a class="nav-item" href="#" data-exp="${esc(label)}">${ic(icon)}<span>${esc(label)}</span>
+      <span class="nav-exp">${ic("chevdown")}</span></a>`;
   },
 
   route(fallback) {
@@ -309,6 +348,177 @@ const DC = {
         <div class="tl-meta">${i.meta}</div>
         ${i.note ? `<div class="tl-note">${esc(i.note)}</div>` : ""}
       </div></div>`).join("")}</div>`;
+  },
+
+  /* ---------- model-driven record surface (UCI) ---------- */
+
+  /**
+   * The record hero a model-driven form shows above the tab strip:
+   * identity on the left, owner on the right, entity/form breadcrumb beneath.
+   * @param {{initials:string,title:string,saved?:boolean,entity:string,form:string,
+   *          owner:{initials:string,name:string,role:string},chips?:string}} spec
+   */
+  hero(spec) {
+    const node = el(`<div class="uci-hero">
+      <div class="uci-hero-top">
+        <div class="uci-hero-id">${esc(spec.initials)}</div>
+        <div class="uci-hero-txt">
+          <div class="uci-hero-name">
+            <h1>${esc(spec.title)}</h1>
+            <span class="uci-hero-saved">- ${spec.saved === false ? "Unsaved" : "Saved"}</span>
+            ${spec.chips || ""}
+          </div>
+          <div class="uci-crumb">
+            <span>${esc(spec.entity)}</span><span class="sep">·</span>
+            <button type="button" data-form>${esc(spec.form)} ${ic("chevdown")}</button>
+          </div>
+        </div>
+        <div class="uci-owner" title="Record owner">
+          <div class="uci-owner-av">${esc(spec.owner.initials)}</div>
+          <div class="uci-owner-txt">
+            <span class="uci-owner-name">${esc(spec.owner.name)}</span>
+            <span class="uci-owner-role">${esc(spec.owner.role)}</span>
+          </div>
+          ${ic("chevdown")}
+        </div>
+      </div>
+    </div>`);
+    $("[data-form]", node).onclick = () =>
+      toast(`Form selector — ${spec.form} is the only published form in the prototype`, "info");
+    $(".uci-owner", node).onclick = () =>
+      toast(`Owned by ${spec.owner.name}. Reassign writes to the owning CRM.`, "info");
+    return node;
+  },
+
+  /** A labelled form section, the UCI equivalent of a form column group. */
+  uciSection(title, innerHtml) {
+    return `<div class="uci-sec"><div class="uci-sec-h">${esc(title)}</div>${innerHtml}</div>`;
+  },
+
+  /**
+   * One form field, read-only: a prototype must not imply an editable
+   * contract that nothing enforces server-side.
+   * @param {string} label
+   * @param {string} valueHtml markup for the value, or "" for an empty field
+   * @param {{required?:boolean,action?:string,actionTitle?:string,cls?:string}} [opts]
+   */
+  f(label, valueHtml, opts = {}) {
+    const isEmpty = !valueHtml;
+    return `<div class="uci-f">
+      <label class="uci-f-l">${esc(label)}${opts.required ? `<span class="req">*</span>` : ""}</label>
+      <div class="uci-f-c readonly">
+        <span class="uci-f-v ${opts.cls || ""} ${isEmpty ? "dim" : ""}">${isEmpty ? "---" : valueHtml}</span>
+        ${opts.action ? `<button class="uci-f-btn" title="${esc(opts.actionTitle || "")}" data-fa="${esc(opts.actionTitle || label)}">${ic(opts.action)}</button>` : ""}
+      </div></div>`;
+  },
+
+  /** A lookup field: the related record as a removable chip plus a search affordance. */
+  fLookup(label, chip, opts = {}) {
+    const chipHtml = chip
+      ? `<span class="uci-chip">${ic(opts.icon || "doc")}<a href="${chip.href || "#"}">${esc(chip.text)}</a>` +
+        `<button class="x" title="Remove" data-fa="Removing a lookup is blocked once the case is open">✕</button></span>`
+      : "";
+    return `<div class="uci-f">
+      <label class="uci-f-l">${esc(label)}${opts.required ? `<span class="req">*</span>` : ""}</label>
+      <div class="uci-f-c">
+        <span class="uci-lk">${chipHtml}</span>
+        <button class="uci-f-btn" title="Search records" data-fa="Lookup searches only the owning organisation">${ic("search")}</button>
+      </div></div>`;
+  },
+
+  /**
+   * The activity Timeline. ADR-DCP-01 made collection interactions activity
+   * entities precisely so actions and communications land here together
+   * with no code to merge them.
+   * @param {{items:Array,locked?:string,highlights?:string}} spec
+   */
+  uciTimeline(spec) {
+    const composer = spec.locked
+      ? `<div class="uci-tl-lock">${ic("lock")}<div>${spec.locked}</div></div>`
+      : `<div class="uci-tl-note">${ic("note")}<input placeholder="Enter a note..." aria-label="Enter a note" />
+           <button class="uci-f-btn" title="Attach" data-t="Attachments are stored against the activity">${ic("attach")}</button></div>`;
+
+    const node = el(`<div class="uci-tl">
+      <div class="uci-tl-h">
+        <h3>Timeline</h3>
+        <button class="uci-tl-ic" data-t="Create a timeline record" title="Create a record">${ic("add")}</button>
+        <button class="uci-tl-ic" data-t="Bookmarked records" title="Bookmarks">${ic("bookmark")}</button>
+        <button class="uci-tl-ic" data-t="Filter by activity type" title="Filter">${ic("filter")}</button>
+        <button class="uci-tl-ic" data-t="Sorted newest first" title="Sort">${ic("sort")}</button>
+        <button class="uci-tl-ic" data-t="Timeline refreshed" title="Refresh">${ic("refresh")}</button>
+        <button class="uci-tl-ic" data-t="More timeline commands" title="More">${ic("more")}</button>
+      </div>
+      <div class="uci-tl-search">${ic("search")}<input placeholder="Search timeline" aria-label="Search timeline" /></div>
+      ${composer}
+      <div class="uci-highlights">
+        <button class="uci-hl-h" type="button"><span class="cp">${ic("copilot")}</span><span>Highlights</span><span class="sp"></span>${ic("chevup")}</button>
+        <div class="uci-hl-b">${ic("info")}<div>${spec.highlights || "There is not enough information to generate highlights."}</div></div>
+      </div>
+      <div class="uci-tl-div"><span>Recent</span><span class="ln"></span>
+        <button data-t="Collapse the Recent group" title="Collapse">${ic("chevup")}</button></div>
+      <div class="uci-tl-list">${spec.items.map(i => this.timelineEntry(i)).join("")}</div>
+    </div>`);
+
+    $$("[data-t]", node).forEach(b => b.onclick = () => toast(b.dataset.t, "info"));
+    $$("[data-note-act]", node).forEach(b => b.onclick = () => toast(b.dataset.noteAct, "info"));
+    const highlights = $(".uci-highlights", node);
+    $(".uci-hl-h", highlights).onclick = () => highlights.classList.toggle("collapsed");
+    $$(".uci-tl-more", node).forEach(b => b.onclick = () => this.toggleNoteText(b));
+    return node;
+  },
+
+  /** Expands or collapses a truncated timeline note in place. */
+  toggleNoteText(button) {
+    const body = button.previousElementSibling;
+    const isOpen = body.dataset.open === "1";
+    body.textContent = isOpen ? body.dataset.short : body.dataset.full;
+    body.dataset.open = isOpen ? "0" : "1";
+    $("span", button).textContent = isOpen ? "View more" : "View less";
+  },
+
+  /** One timeline row: an auto-post, a note card, or a logged activity. */
+  timelineEntry(item) {
+    if (item.kind === "note") return this.timelineNote(item);
+    if (item.kind === "auto") {
+      return `<div class="uci-tl-e"><div class="ei">${ic("autopost")}</div>
+        <div class="eb">${item.html} <span class="w">${esc(item.when)}</span></div></div>`;
+    }
+    return `<div class="uci-tl-e">
+      <div class="ei ${item.tone || ""}">${ic(item.icon || "case")}</div>
+      <div class="eb"><b>${esc(item.title)}</b> <span class="w">${esc(item.when)}</span>
+        <div class="w">${item.meta}</div>
+        ${item.note ? `<div style="margin-top:3px">${esc(item.note)}</div>` : ""}</div></div>`;
+  },
+
+  timelineNote(item) {
+    const isLong = item.text.length > 120;
+    const short = isLong ? item.text.slice(0, 120).trimEnd() + "…" : item.text;
+    return `<div class="uci-tl-e">
+      <div class="ei">${ic("user")}</div>
+      <div class="eb"><div class="uci-tl-card">
+        <div class="ch"><span class="w">Modified on: ${esc(item.when)}</span>
+          <span class="acts">
+            <button title="Edit" data-note-act="A note stays editable until its activity is completed">${ic("edit")}</button>
+            <button title="Copy" data-note-act="Note copied">${ic("copy")}</button>
+            <button title="Pin" data-note-act="Pinned to the top of the timeline">${ic("pin")}</button>
+            <button class="del" title="Delete" data-note-act="Blocked by a plugin — completed activities are immutable (R-03)">${ic("trash")}</button>
+          </span></div>
+        <div class="ct">${ic("note")} Note by ${esc(item.by)}</div>
+        <div class="cx" data-short="${esc(short)}" data-full="${esc(item.text)}" data-open="0">${esc(short)}</div>
+        ${isLong ? `<button class="uci-tl-more"><span>View more</span>${ic("chevdown")}</button>` : ""}
+      </div></div></div>`;
+  },
+
+  /** A related-data card for the right-hand column of a model-driven form. */
+  sideCard(title, bodyHtml, opts = {}) {
+    return `<div class="uci-card">
+      <div class="uci-card-h"><h3>${esc(title)}</h3>
+        ${opts.action ? `<button title="${esc(opts.action)}" data-fa="${esc(opts.action)}">${ic("more")}</button>` : ""}
+      </div>${bodyHtml}</div>`;
+  },
+
+  uciEmpty(title, desc) {
+    return `<div class="uci-empty"><span class="t">${esc(title)}</span><span class="d">${desc}</span></div>`;
   },
 
   dialog(spec) {

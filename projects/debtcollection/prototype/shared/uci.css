@@ -1,0 +1,291 @@
+/* =====================================================================
+   Debt Collection Platform — model-driven (UCI) record surface
+   Mirrors the Dynamics 365 form experience so the workspace reads as
+   native to CRM users: record hero, three-column form, filled fields
+   with lookup chips, and the activity Timeline.
+
+   The Timeline is the visible payoff of ADR-DCP-01 — collection
+   interactions are activity entities, so actions and communications
+   aggregate onto one timeline without any code to merge them.
+   ===================================================================== */
+
+/* ============ Record hero ============ */
+.uci-hero {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 14px 20px 0; flex-shrink: 0;
+}
+.uci-hero-top { display: flex; align-items: flex-start; gap: 14px; }
+.uci-hero-id {
+  width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
+  background: var(--primary-tint); color: var(--primary);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 600;
+}
+.uci-hero-txt { min-width: 0; flex: 1; }
+.uci-hero-name { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.uci-hero-name h1 { font-size: 21px; font-weight: 600; }
+.uci-hero-saved { color: var(--text-secondary); font-size: 14px; font-weight: 400; }
+.uci-crumb {
+  display: flex; align-items: center; gap: 6px; margin-top: 2px;
+  font-size: 12.5px; color: var(--text-secondary);
+}
+.uci-crumb .sep { opacity: .6; }
+.uci-crumb button {
+  border: none; background: transparent; font-family: inherit; font-size: 12.5px;
+  color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center;
+  gap: 3px; padding: 1px 4px; border-radius: var(--radius);
+}
+.uci-crumb button:hover { background: var(--surface-alt); color: var(--text); }
+
+/* Owner card, right-aligned in the hero exactly as UCI places it */
+.uci-owner {
+  display: flex; align-items: center; gap: 9px; padding: 4px 6px 4px 4px;
+  border-radius: var(--radius); cursor: pointer; flex-shrink: 0;
+}
+.uci-owner:hover { background: var(--surface-alt); }
+.uci-owner-av {
+  width: 32px; height: 32px; border-radius: 50%; position: relative;
+  background: var(--org-bfd); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11.5px; font-weight: 600;
+}
+.uci-owner-av::after {
+  content: ""; position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px;
+  border-radius: 50%; background: var(--success); border: 1.5px solid var(--surface);
+}
+.uci-owner-txt { line-height: 1.25; }
+.uci-owner-name { font-size: 13.5px; font-weight: 600; color: var(--primary); display: block; }
+.uci-owner-role { font-size: 11.5px; color: var(--text-secondary); display: block; }
+
+.page.uci-page { padding: 0; }
+
+/* ============ Three-column form ============ */
+.uci-form {
+  display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.25fr) minmax(0,.92fr);
+  gap: 12px; align-items: start; padding: 12px 16px 20px;
+}
+.uci-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+@media (max-width: 1280px) {
+  .uci-form { grid-template-columns: minmax(0,1fr) minmax(0,1.2fr); }
+  .uci-col.side { grid-column: 1 / -1; }
+}
+@media (max-width: 900px) {
+  .uci-form { grid-template-columns: 1fr; }
+  .uci-col.side { grid-column: auto; }
+}
+
+.uci-sec {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 14px 16px 16px;
+}
+.uci-sec-h {
+  font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--text-secondary); margin-bottom: 12px;
+}
+
+/* ============ Filled fields, UCI style ============ */
+.uci-f { margin-bottom: 12px; }
+.uci-f:last-child { margin-bottom: 0; }
+.uci-f-l { display: block; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 3px; }
+.uci-f-l .req { color: var(--error); margin-left: 2px; }
+.uci-f-c {
+  display: flex; align-items: center; min-height: 32px;
+  background: var(--field-bg); border: 1px solid transparent;
+  border-radius: var(--radius); padding: 0 2px 0 8px; font-size: 13.5px; color: var(--text);
+}
+.uci-f-c:hover { background: var(--field-bg-hover); }
+.uci-f-c:focus-within {
+  background: var(--surface); border-color: var(--border-input);
+  box-shadow: inset 0 -2px 0 -1px var(--primary);
+}
+.uci-f-c input, .uci-f-c select, .uci-f-c textarea {
+  border: none; background: transparent; outline: none; font-family: inherit;
+  font-size: 13.5px; color: var(--text); width: 100%; padding: 6px 0; min-width: 0;
+}
+.uci-f-c textarea { resize: vertical; min-height: 56px; line-height: 1.45; }
+.uci-f-c.readonly { background: transparent; }
+.uci-f-c.readonly:hover { background: var(--surface-alt); }
+.uci-f-btn {
+  width: 28px; height: 28px; flex-shrink: 0; border: none; background: transparent;
+  color: var(--text-secondary); cursor: pointer; border-radius: var(--radius);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.uci-f-btn:hover { background: var(--neutral-chip); color: var(--primary); }
+.uci-f-v { padding: 6px 0; flex: 1; min-width: 0; }
+.uci-f-v.num { font-variant-numeric: tabular-nums; }
+.uci-f-v.dim { color: var(--text-disabled); }
+
+/* Lookup rendered as a removable chip, the way UCI renders a related record */
+.uci-lk { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex: 1; min-width: 0; padding: 3px 0; }
+.uci-chip {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
+  background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: var(--radius); padding: 2px 4px 2px 6px; font-size: 13px;
+}
+.uci-chip svg { flex-shrink: 0; color: var(--text-secondary); }
+.uci-chip a {
+  color: var(--primary); text-decoration: none; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+}
+.uci-chip a:hover { text-decoration: underline; }
+.uci-chip .x {
+  border: none; background: transparent; color: var(--text-secondary); cursor: pointer;
+  padding: 0 2px; line-height: 1; font-size: 13px; flex-shrink: 0;
+}
+.uci-chip .x:hover { color: var(--error); }
+
+/* ============ Timeline ============ */
+.uci-tl { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.uci-tl-h { display: flex; align-items: center; gap: 2px; padding: 12px 10px 10px 16px; }
+.uci-tl-h h3 { font-size: 15px; flex: 1; }
+.uci-tl-ic {
+  width: 30px; height: 30px; border: none; background: transparent; cursor: pointer;
+  color: var(--text-secondary); border-radius: var(--radius);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.uci-tl-ic:hover { background: var(--surface-alt); color: var(--text); }
+.uci-tl-search, .uci-tl-note {
+  display: flex; align-items: center; gap: 8px; margin: 0 16px 8px;
+  background: var(--field-bg); border: 1px solid transparent; border-radius: var(--radius);
+  padding: 0 8px; min-height: 32px; color: var(--text-secondary);
+}
+.uci-tl-search:focus-within, .uci-tl-note:focus-within {
+  background: var(--surface); border-color: var(--border-input);
+}
+.uci-tl-search input, .uci-tl-note input {
+  border: none; background: transparent; outline: none; font-family: inherit;
+  font-size: 13px; color: var(--text); width: 100%; padding: 7px 0;
+}
+.uci-tl-note { margin-bottom: 10px; }
+
+/* Copilot highlights band */
+.uci-highlights { margin: 0 16px 10px; }
+.uci-hl-h {
+  display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600;
+  cursor: pointer; padding: 4px 0; border: none; background: transparent;
+  font-family: inherit; color: var(--text); width: 100%; text-align: left;
+}
+.uci-hl-h .cp { color: var(--org-bfd); display: inline-flex; }
+.uci-hl-h .sp { flex: 1; }
+.uci-hl-b {
+  display: flex; align-items: flex-start; gap: 8px; background: var(--surface-alt);
+  border-radius: var(--radius); padding: 9px 11px; font-size: 12.5px;
+  color: var(--text-secondary); line-height: 1.5;
+}
+.uci-hl-b svg { flex-shrink: 0; margin-top: 1px; }
+.uci-highlights.collapsed .uci-hl-b { display: none; }
+
+.uci-tl-div {
+  display: flex; align-items: center; gap: 8px; padding: 4px 16px 8px;
+  font-size: 13px; font-weight: 600; color: var(--text);
+}
+.uci-tl-div .ln { flex: 1; height: 2px; background: var(--primary); border-radius: 1px; }
+.uci-tl-div button {
+  border: none; background: transparent; cursor: pointer;
+  color: var(--text-secondary); display: inline-flex; padding: 0;
+}
+
+.uci-tl-list { padding: 0 16px 14px; max-height: 640px; overflow-y: auto; }
+.uci-tl-e { display: grid; grid-template-columns: 26px 1fr; gap: 10px; padding: 8px 0; }
+.uci-tl-e .ei { color: var(--text-secondary); display: flex; justify-content: center; padding-top: 2px; }
+.uci-tl-e .ei.ok { color: var(--success); }
+.uci-tl-e .ei.warn { color: var(--warning); }
+.uci-tl-e .ei.bad { color: var(--error); }
+.uci-tl-e .eb { min-width: 0; font-size: 13px; line-height: 1.5; }
+.uci-tl-e .eb .w { color: var(--text-secondary); font-size: 12px; }
+.uci-tl-e a { color: var(--primary); text-decoration: none; }
+.uci-tl-e a:hover { text-decoration: underline; }
+
+/* A note renders as its own card with hover actions, as UCI does */
+.uci-tl-card {
+  border: 1px solid var(--border-strong); border-radius: var(--radius-lg);
+  padding: 10px 12px; background: var(--surface);
+}
+.uci-tl-card .ch { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.uci-tl-card .ch .w { flex: 1; font-size: 12px; color: var(--text-secondary); }
+.uci-tl-card .acts { display: flex; gap: 1px; opacity: 0; transition: opacity .12s; }
+.uci-tl-card:hover .acts, .uci-tl-card:focus-within .acts { opacity: 1; }
+.uci-tl-card .acts button {
+  width: 26px; height: 26px; border: none; background: transparent; cursor: pointer;
+  color: var(--text-secondary); border-radius: var(--radius);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.uci-tl-card .acts button:hover { background: var(--surface-alt); color: var(--primary); }
+.uci-tl-card .acts button.del:hover { color: var(--error); }
+.uci-tl-card .ct { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+.uci-tl-card .cx { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+.uci-tl-more {
+  display: flex; align-items: center; justify-content: space-between; width: 100%;
+  border: none; background: transparent; cursor: pointer; color: var(--text);
+  font-family: inherit; font-size: 13px; padding: 6px 0 0; margin-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+/* Locked banner inside the timeline — suppression is a router rule, not a hidden button */
+.uci-tl-lock {
+  display: flex; align-items: flex-start; gap: 8px; margin: 0 16px 10px;
+  background: var(--error-bg); border-radius: var(--radius); padding: 9px 11px;
+  font-size: 12.5px; color: var(--text); line-height: 1.5;
+}
+.uci-tl-lock svg { flex-shrink: 0; margin-top: 1px; color: var(--error); }
+
+/* ============ Side cards ============ */
+.uci-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 14px 16px 16px;
+}
+.uci-card-h {
+  display: flex; align-items: center; gap: 6px; padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-strong); margin-bottom: 12px;
+}
+.uci-card-h h3 { font-size: 14.5px; flex: 1; }
+.uci-card-h button {
+  border: none; background: transparent; cursor: pointer; color: var(--text-secondary);
+  display: inline-flex; padding: 2px; border-radius: var(--radius);
+}
+.uci-card-h button:hover { background: var(--surface-alt); color: var(--text); }
+.uci-empty { text-align: center; padding: 14px 8px; }
+.uci-empty .t { display: block; font-size: 13.5px; font-weight: 600; margin-bottom: 4px; }
+.uci-empty .d { display: block; font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+
+/* ============ Header additions ============ */
+.env-name {
+  font-size: 17px; font-weight: 600; letter-spacing: 2px; color: var(--header-fg);
+  pointer-events: none; white-space: nowrap; margin: 0 auto; padding: 0 16px;
+}
+.copilot-pill {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px;
+  border: 1px solid var(--header-search-border); border-radius: var(--radius);
+  background: transparent; color: var(--header-fg); cursor: pointer;
+  font-family: inherit; font-size: 13px; font-weight: 600; margin: 0 2px;
+}
+.copilot-pill:hover { background: var(--header-hover); }
+.copilot-pill .cp-i { color: #9bb7ff; display: inline-flex; }
+@media (max-width: 1180px) { .env-name, .copilot-pill span { display: none; } }
+@media (max-width: 1080px) { .hide-md { display: none; } }
+
+/* ============ Sitemap additions ============ */
+.nav { display: flex; flex-direction: column; padding-bottom: 0; }
+.nav-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px 0; }
+.nav-exp { margin-left: auto; color: var(--text-secondary); display: inline-flex; transition: transform .12s; }
+.nav.collapsed .nav-exp { display: none; }
+.nav-sep { height: 1px; background: var(--border-strong); margin: 8px 12px; }
+.area-switch {
+  display: flex; align-items: center; gap: 10px; padding: 0 12px; height: 46px;
+  border-top: 1px solid var(--border-strong); background: var(--nav-bg);
+  cursor: pointer; flex-shrink: 0; border-left: none; border-right: none; border-bottom: none;
+  width: 100%; font-family: inherit; color: var(--text); text-align: left;
+}
+.area-switch:hover { background: var(--surface-alt); }
+.area-switch .ab {
+  width: 26px; height: 26px; border-radius: var(--radius); flex-shrink: 0;
+  background: var(--primary); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700;
+}
+.area-switch .an {
+  flex: 1; font-size: 14px; font-weight: 600; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.area-switch .ac { color: var(--text-secondary); display: inline-flex; flex-shrink: 0; }
+.nav.collapsed .area-switch .an, .nav.collapsed .area-switch .ac { display: none; }

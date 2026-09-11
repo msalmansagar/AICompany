@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="stylesheet" href="shared/tokens.css" />
 <link rel="stylesheet" href="shared/components.css" />
+<link rel="stylesheet" href="shared/uci.css" />
 </head>
 <body>
 <script src="shared/icons.js"></script>
@@ -73,57 +74,179 @@ function confirmTransition(record, to) {
   });
 }
 
-function caseHeader(record) {
-  const customer = findCustomer(record.customerId);
-  const facility = findFacility(record.facilityId);
-  const head = el(`<div class="record-head">
-    <div class="record-title">
-      <button class="btn sm" id="cBack">${ic("back")}Cases</button>
-      <h1>${esc(record.id)}</h1>${orgBadge(record.org)}${statusPill(record.status)}
-      <span class="pill ${record.priority === "Critical" ? "bad" : record.priority === "High" ? "warn" : "muted"}">${esc(record.priority)}</span>
-      ${slaChip(record.slaHours)}
-    </div>
-    <div class="record-facts">
-      <div class="read-pair"><span class="rk">Customer</span><span class="rv"><a href="02-case-360.html#customer/${esc(customer.id)}">${esc(customer.name)}</a></span></div>
-      <div class="read-pair"><span class="rk">Facility</span><span class="rv">${esc(facility.id)} · ${esc(facility.product)}</span></div>
-      <div class="read-pair"><span class="rk">Overdue</span><span class="rv">${money(record.overdue)}</span></div>
-      <div class="read-pair"><span class="rk">DPD / bucket</span><span class="rv">${record.dpd} ${bucketPill(record.bucket)}</span></div>
-      <div class="read-pair"><span class="rk">Owner</span><span class="rv">${esc(record.owner)}</span></div>
-      <div class="read-pair"><span class="rk">Queue</span><span class="rv">${esc((QUEUES.find(q => q.id === record.queue) || {}).name || "—")}</span></div>
-    </div>
-    <div class="status-strip">${stageTrack(record.stage)}</div>
-  </div>`);
-  $("#cBack", head).onclick = () => DC.go("cases");
-  head.appendChild(el(`<div style="padding:0 0 14px"></div>`)).appendChild(statusChanger(record));
-  return head;
+/** Pluralises a count for prose: 1 action, 2 actions. */
+function countOf(n, noun) { return n + " " + noun + (n === 1 ? "" : "s"); }
+
+/** Maps a collection action type onto the shared icon set. */
+function activityIcon(type) {
+  const map = { Call: "phone", SMS: "sms", Email: "mail", Letter: "letter", "Field Visit": "route", Meeting: "users" };
+  return map[type] || "case";
 }
 
-function caseSummaryTab(page, record) {
+/**
+ * ADR-DCP-01 made collection actions and communications two *activity*
+ * entities. The payoff is this function: one chronological sort merges
+ * them onto a single Timeline, with no join and no merge code.
+ */
+function caseTimelineItems(record) {
+  const actions = actionsFor(record.id).map(a => ({
+    kind: "activity", when: a.when, icon: activityIcon(a.type),
+    tone: /reached|delivered|promise|signed/i.test(a.outcome) ? "ok" : "warn",
+    title: `${a.type} — ${a.outcome}`,
+    meta: `qdb_collectionaction · ${esc(a.channel)} · logged by ${esc(a.by)}`,
+    note: a.note
+  }));
+  const comms = commsFor(record.id).map(c => ({
+    kind: "activity", when: c.when, icon: activityIcon(c.channel), tone: "ok",
+    title: `${c.channel} — ${c.status}`,
+    meta: `qdb_communication · template ${esc(c.template)} · to ${esc(c.to)} · ${esc(c.lang)}`
+  }));
+  const merged = [...actions, ...comms].sort((a, b) => b.when.localeCompare(a.when));
+  return [
+    {
+      kind: "note", by: record.owner, when: record.lastAction + " 16:04",
+      text: "Customer asked for the arrears statement in Arabic before committing to a date. Statement issued and acknowledged; the promise below was captured on the follow-up call rather than in this conversation."
+    },
+    ...merged,
+    {
+      kind: "auto", when: record.opened,
+      html: `Auto-post on <a href="#case/${esc(record.id)}">${esc(record.id)}</a>: case created manually by ${esc(record.owner)} in ${esc(ORGS[record.org].name)}`
+    }
+  ];
+}
+
+/** The record hero: identity, live status chips, and the owner card. */
+function caseHeader(record) {
   const customer = findCustomer(record.customerId);
-  const facility = findFacility(record.facilityId);
-  if (customer.stopContact) {
-    page.appendChild(el(`<div class="info-banner bad">${ic("lock")}<div>
-      <b>Contact suppressed.</b> This customer is flagged deceased. All outbound channels are blocked
-      at the CRM Context Router — not merely hidden on this screen. Claim handling only.</div></div>`));
-  }
+  const chips = `${orgBadge(record.org)}${statusPill(record.status)}` +
+    `<span class="pill ${record.priority === "Critical" ? "bad" : record.priority === "High" ? "warn" : "muted"}">${esc(record.priority)}</span>` +
+    slaChip(record.slaHours);
+  const owner = Object.values(ROLES).find(r => r.user === record.owner);
+  return DC.hero({
+    initials: record.id.replace(/[^0-9]/g, "").slice(-2),
+    title: `${record.id} — ${customer.name}`,
+    entity: "Collection Case",
+    form: "Collections — Officer",
+    chips,
+    owner: {
+      initials: owner ? owner.initials : "UN",
+      name: record.owner,
+      role: owner ? owner.name : "Unassigned"
+    }
+  });
+}
+
+/* ---- the three form columns ---- */
+
+function caseFieldsColumn(record, customer, facility) {
+  const col = el(`<div class="uci-col"></div>`);
+  col.innerHTML =
+    DC.uciSection("Case information", [
+      DC.f("Case number", esc(record.id), { required: true }),
+      DC.fLookup("Customer", { text: customer.name, href: `02-case-360.html#customer/${customer.id}` }, { required: true, icon: "user" }),
+      DC.fLookup("Facility", { text: `${facility.id} · ${facility.product}` }, { required: true, icon: "money" }),
+      DC.f("Status reason", statusPill(record.status), { required: true }),
+      DC.f("Priority", esc(record.priority)),
+      DC.f("Stage", esc(record.stage))
+    ].join("")) +
+    DC.uciSection("Delinquency — MIS snapshot", [
+      DC.f("Arrears at snapshot", money(record.overdue), { cls: "num", required: true }),
+      DC.f("Days past due", String(record.dpd), { cls: "num", required: true }),
+      DC.f("MIS bucket", bucketPill(record.bucket), { required: true }),
+      DC.f("Snapshot taken", esc(record.opened)),
+      DC.f("Outstanding (live)", money(facility.outstanding), { cls: "num", action: "refresh", actionTitle: "Read live from the owning CRM — the snapshot beside it is immutable" })
+    ].join("")) +
+    DC.uciSection("Ownership and follow-up", [
+      DC.f("Owner", esc(record.owner), { action: "assign", actionTitle: "Reassignment writes to the owning organisation" }),
+      DC.f("Queue", esc((QUEUES.find(q => q.id === record.queue) || {}).name || "")),
+      DC.f("Opened on", esc(record.opened)),
+      DC.f("Last action", esc(record.lastAction)),
+      DC.f("Next action due", esc(record.nextAction), { action: "calendar", actionTitle: "Open activity + scheduledend is the mandatory-next-action control" }),
+      DC.f("Mobile phone", esc(customer.phone), { action: "phone", actionTitle: "Dial through the telephony gateway" }),
+      DC.f("Email", esc(customer.email), { action: "mail", actionTitle: "Compose a communication activity" })
+    ].join(""));
+  return col;
+}
+
+function caseTimelineColumn(record, customer) {
+  const col = el(`<div class="uci-col"></div>`);
+  const locked = customer.stopContact
+    ? `<b>Contact suppressed.</b> This customer is flagged deceased. The composer is disabled here, but the
+       binding control is the CRM Context Router — every outbound channel is refused server-side (R-04), so
+       the block holds even for a caller that never loads this screen.`
+    : "";
+  col.appendChild(DC.uciTimeline({
+    items: caseTimelineItems(record),
+    locked,
+    highlights: `${countOf(actionsFor(record.id).length, "action")} and
+      ${countOf(commsFor(record.id).length, "communication")} on one timeline. Both are activity entities,
+      so this aggregation is native — no merge code and no custom control.`
+  }));
+  return col;
+}
+
+function caseSideColumn(record, customer, facility) {
+  const col = el(`<div class="uci-col side"></div>`);
   const strategy = customer.stopContact
     ? STRATEGY_RULES.find(r => r.requiresFlag === "stopContact")
     : STRATEGY_RULES.filter(r => !r.requiresFlag).find(r => r.bucket === record.bucket) || STRATEGY_RULES[0];
-  page.appendChild(DC.card("Recommended strategy", `Derived from bucket ${esc(record.bucket)}, segment ${esc(customer.segment)} and risk grade ${customer.risk}.`,
-    `<div class="info-banner ok" style="margin:0">${ic("strategy")}<div><b>${esc(strategy.id)}</b> — ${esc(strategy.action)}
-      <div class="hint-inline" style="margin-top:4px">Channel ${esc(strategy.channel)} · routes to ${esc(strategy.queue)}</div></div></div>`));
-  page.appendChild(DC.card("Facility", "Read live from " + ORGS[record.org].name + ".", DC.readGrid([
-    ["Facility", esc(facility.id)], ["Product", esc(facility.product)],
-    ["Outstanding", money(facility.outstanding)], ["Instalment", money(facility.instalment)],
-    ["Overdue", money(facility.overdue)], ["Profit rate", facility.rate + "%"],
-    ["Tenor", facility.tenor + " months"], ["Collateral", esc(facility.collateral)],
-    ["Guarantor", esc(facility.guarantor)], ["Insurance", esc(facility.insurance)]
-  ])));
-  page.appendChild(DC.card("Case", "", DC.readGrid([
-    ["Opened", esc(record.opened)], ["Last action", esc(record.lastAction)],
-    ["Next action", esc(record.nextAction)], ["Stage", esc(record.stage)],
-    ["Priority", esc(record.priority)], ["System of record", esc(ORGS[record.org].name)]
-  ])));
+
+  const otherOrgCases = casesFor(customer.id).filter(c => c.org !== record.org);
+  const crossOrg = otherOrgCases.length
+    ? otherOrgCases.map(c => `<div class="uci-tl-e"><div class="ei">${ic("case")}</div>
+        <div class="eb"><a href="02-case-360.html#case/${esc(c.id)}">${esc(c.id)}</a> ${orgBadge(c.org)}
+          <div class="w">${money(c.overdue)} overdue · ${c.dpd} DPD · ${esc(c.status)}</div></div></div>`).join("")
+    : DC.uciEmpty("No connections found",
+        `This customer exists in ${esc(ORGS[record.org].name)} only. A match in the other organisation is
+         resolved on QID by the router, never by a FetchXML join (R-01).`);
+
+  const ptps = ptpsFor(record.id);
+  const ptpBody = ptps.length
+    ? ptps.map(p => `<div class="uci-tl-e"><div class="ei ${/kept|paid/i.test(p.status) ? "ok" : /broken/i.test(p.status) ? "bad" : "warn"}">${ic("promise")}</div>
+        <div class="eb"><b>${money(p.amount)}</b> ${statusPill(p.status)}
+          <div class="w">Promised ${esc(p.promised)} · ${esc(p.type)} · by ${esc(p.capturedBy)}</div></div></div>`).join("")
+    : DC.uciEmpty("No promises recorded", "Capture one from the command bar or the Timeline composer.");
+
+  col.innerHTML =
+    DC.sideCard("Recommended strategy",
+      `<div class="uci-tl-e"><div class="ei ok">${ic("strategy")}</div>
+        <div class="eb"><b>${esc(strategy.id)}</b> — ${esc(strategy.action)}
+          <div class="w">Channel ${esc(strategy.channel)} · routes to ${esc(strategy.queue)}</div>
+          <div class="w">From bucket ${esc(record.bucket)}, segment ${esc(customer.segment)}, risk grade ${customer.risk}</div>
+        </div></div>`, { action: "Strategy is configuration, not code" }) +
+    DC.sideCard("Other organisation", crossOrg, { action: "Router fans out on QID" }) +
+    DC.sideCard(`Promises to pay (${ptps.length})`, ptpBody, { action: "A broken promise blocks the next one" }) +
+    DC.sideCard("Facility",
+      [DC.f("Product", esc(facility.product)),
+       DC.f("Instalment", money(facility.instalment), { cls: "num" }),
+       DC.f("Profit rate", facility.rate + "%", { cls: "num" }),
+       DC.f("Collateral", esc(facility.collateral)),
+       DC.f("Guarantor", esc(facility.guarantor)),
+       DC.f("Insurance", esc(facility.insurance))].join(""));
+  return col;
+}
+
+/** The Summary tab, laid out as a model-driven form rather than stacked cards. */
+function caseSummaryTab(page, record) {
+  const customer = findCustomer(record.customerId);
+  const facility = findFacility(record.facilityId);
+  page.classList.add("uci-page");
+
+  if (customer.stopContact) {
+    page.appendChild(el(`<div class="info-banner bad" style="margin:0 0 12px">${ic("lock")}<div>
+      <b>Contact suppressed.</b> This customer is flagged deceased. All outbound channels are blocked
+      at the CRM Context Router — not merely hidden on this screen. Claim handling only.</div></div>`));
+  }
+
+  page.appendChild(el(`<div class="status-strip" style="padding:12px 16px 0">${stageTrack(record.stage)}</div>`));
+  const form = el(`<div class="uci-form"></div>`);
+  form.appendChild(caseFieldsColumn(record, customer, facility));
+  form.appendChild(caseTimelineColumn(record, customer));
+  form.appendChild(caseSideColumn(record, customer, facility));
+  page.appendChild(form);
+
+  page.appendChild(el(`<div style="padding:0 16px 8px"></div>`)).appendChild(statusChanger(record));
+  $$("[data-fa]", page).forEach(b => b.onclick = (e) => { e.preventDefault(); toast(b.dataset.fa, "info"); });
 }
 
 function caseActionsTab(page, record) {
@@ -256,6 +379,10 @@ function caseAuditTab(page, record) {
 function renderCase(content, arg) {
   const record = currentCase(arg);
   content.appendChild(DC.cmdbar([
+    { label: "Cases", icon: "back", onClick: () => DC.go("cases") },
+    { label: "Form", icon: "formsel", onClick: () => toast("Collections — Officer is the only published form", "info") },
+    { label: "Pop out", icon: "popout", onClick: () => toast("Opens the record in its own window", "info") },
+    "sep",
     { label: "Log action", icon: "add", kind: "primary", onClick: () => toast("Action form opened on the Actions tab", "info") },
     { label: "Capture PTP", icon: "promise", onClick: () => DC.go("ptp") },
     { label: "Send message", icon: "send", onClick: () => DC.go("comms") },
@@ -264,7 +391,8 @@ function renderCase(content, arg) {
     { label: "Refer to legal", icon: "legal", onClick: () => DC.go("legal") },
     { label: "Escalate", icon: "escalate", onClick: () => toast("Escalated to Senior Manager with SLA reset", "warn") },
     "spacer",
-    { label: "Customer 360", icon: "users", onClick: () => DC.go("customer", record.customerId) }
+    { label: "Customer 360", icon: "users", onClick: () => DC.go("customer", record.customerId) },
+    { label: "Share", icon: "share", onClick: () => toast("Sharing grants access in the owning organisation only (R-05)", "info") }
   ]));
   content.appendChild(caseHeader(record));
   const host = el(`<div style="display:flex;flex-direction:column;flex:1;min-height:0"></div>`);

@@ -41,12 +41,13 @@
   --radius: 2px;
   --radius-lg: 4px;
 
-  --header-bg: #0078d4; --header-border: #005a9e;
-  --header-fg: #ffffff; --header-fg-dim: rgba(255,255,255,.82);
-  --header-hover: rgba(255,255,255,.16); --header-accent: rgba(255,255,255,.7);
-  --header-search-bg: rgba(255,255,255,.16); --header-search-border: rgba(255,255,255,.32);
-  --header-search-ph: rgba(255,255,255,.72);
-  --header-avatar-bg: #ffffff; --header-avatar-fg: #0078d4;
+  --header-bg: #0b1f3a; --header-border: #0b1f3a;
+  --header-fg: #ffffff; --header-fg-dim: rgba(255,255,255,.86);
+  --header-hover: rgba(255,255,255,.12); --header-accent: rgba(255,255,255,.38);
+  --header-search-bg: #16375c; --header-search-border: #2b4d75;
+  --header-search-ph: rgba(255,255,255,.66);
+  --header-avatar-bg: #c8d5e6; --header-avatar-fg: #0b1f3a;
+  --field-bg: #f5f5f5; --field-bg-hover: #ededed; --field-underline: #605e5c;
 
   /* DPD bucket ramp — sequential severity, used by charts, pills and the bucket matrix */
   --dpd-0: #107c10; --dpd-1: #7fba00; --dpd-2: #ca7c11; --dpd-3: #d13438; --dpd-4: #750b1c;
@@ -75,6 +76,7 @@
     --header-search-bg: rgba(255,255,255,.06); --header-search-border: rgba(255,255,255,.14);
     --header-search-ph: rgba(243,242,241,.5);
     --header-avatar-bg: #2899f5; --header-avatar-fg: #0b1a26;
+  --field-bg: #201f1e; --field-bg-hover: #2b2a29; --field-underline: #c8c6c4;
     --dpd-0: #6bb700; --dpd-1: #a4cd00; --dpd-2: #f7a300; --dpd-3: #f1707b; --dpd-4: #c94f4f;
     --org-hl: #2899f5; --org-bfd: #b4a0e5;
   }
@@ -97,6 +99,7 @@
   --header-search-bg: rgba(255,255,255,.06); --header-search-border: rgba(255,255,255,.14);
   --header-search-ph: rgba(243,242,241,.5);
   --header-avatar-bg: #2899f5; --header-avatar-fg: #0b1a26;
+  --field-bg: #201f1e; --field-bg-hover: #2b2a29; --field-underline: #c8c6c4;
   --dpd-0: #6bb700; --dpd-1: #a4cd00; --dpd-2: #f7a300; --dpd-3: #f1707b; --dpd-4: #c94f4f;
   --org-hl: #2899f5; --org-bfd: #b4a0e5;
   --app-bg-image: none; --surface-blur: none;
@@ -111,12 +114,13 @@
   --success: #107c10; --success-bg: #dff6dd; --warning: #ca7c11; --warning-bg: #fff4ce;
   --error: #a4262c; --error-bg: #fde7e9; --info: #0078d4; --info-bg: #eff6fc;
   --neutral-chip: #f3f2f1;
-  --header-bg: #0078d4; --header-border: #005a9e;
-  --header-fg: #ffffff; --header-fg-dim: rgba(255,255,255,.82);
-  --header-hover: rgba(255,255,255,.16); --header-accent: rgba(255,255,255,.7);
-  --header-search-bg: rgba(255,255,255,.16); --header-search-border: rgba(255,255,255,.32);
-  --header-search-ph: rgba(255,255,255,.72);
-  --header-avatar-bg: #ffffff; --header-avatar-fg: #0078d4;
+  --header-bg: #0b1f3a; --header-border: #0b1f3a;
+  --header-fg: #ffffff; --header-fg-dim: rgba(255,255,255,.86);
+  --header-hover: rgba(255,255,255,.12); --header-accent: rgba(255,255,255,.38);
+  --header-search-bg: #16375c; --header-search-border: #2b4d75;
+  --header-search-ph: rgba(255,255,255,.66);
+  --header-avatar-bg: #c8d5e6; --header-avatar-fg: #0b1f3a;
+  --field-bg: #f5f5f5; --field-bg-hover: #ededed; --field-underline: #605e5c;
   --dpd-0: #107c10; --dpd-1: #7fba00; --dpd-2: #ca7c11; --dpd-3: #d13438; --dpd-4: #750b1c;
   --org-hl: #0078d4; --org-bfd: #8764b8;
   --app-bg-image: none; --surface-blur: none;
@@ -144,6 +148,7 @@
   --header-search-bg: rgba(255,255,255,.5); --header-search-border: rgba(255,255,255,.62);
   --header-search-ph: rgba(28,28,46,.5);
   --header-avatar-bg: #5b5bd6; --header-avatar-fg: #ffffff;
+  --field-bg: rgba(255,255,255,.42); --field-bg-hover: rgba(255,255,255,.58); --field-underline: #5b5bd6;
   --dpd-0: #0f7a4f; --dpd-1: #7a9b12; --dpd-2: #b5730a; --dpd-3: #c0392b; --dpd-4: #7a1420;
   --org-hl: #5b5bd6; --org-bfd: #9b4fc0;
 }
@@ -170,6 +175,7 @@
   --header-search-bg: rgba(255,255,255,.2); --header-search-border: rgba(255,255,255,.4);
   --header-search-ph: rgba(255,255,255,.75);
   --header-avatar-bg: #ffffff; --header-avatar-fg: #7c3aed;
+  --field-bg: #f7f5ff; --field-bg-hover: #efeafc; --field-underline: #7c3aed;
   --dpd-0: #0f9d58; --dpd-1: #84cc16; --dpd-2: #d97706; --dpd-3: #e11d48; --dpd-4: #86104a;
   --org-hl: #7c3aed; --org-bfd: #db2777;
 }
