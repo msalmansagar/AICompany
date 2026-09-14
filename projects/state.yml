@@ -90,6 +90,110 @@ projects:
       DEFECT-003 (VersionService zero coverage), DEFECT-004 (publish pipeline partial failure).
       All must be resolved before UAT. Awaiting Phase 6 Audit.
 
+  - name: debtcollection
+    type: integration   # React workspace + Fastify router over two D365 CE orgs
+    phase: ba
+    started: 2026-07-30
+    last_updated: 2026-09-14
+    last_agent: ceo (brd-approval-gate)
+    ceo_approved_phases: [phase-1, brd]
+    output_dir: projects/debtcollection/
+    status: approved_with_conditions
+    brd_gate_decision: APPROVED WITH CONDITIONS
+    brd_gate_date: 2026-09-13
+    conditions:
+      - id: COND-DCP-001
+        description: >
+          Re-cut P1 into a genuinely shippable minimum. 120 P1 / 12 P2 / 0 P3
+          against a 2-person team is not a prioritisation. BA + Product Owner
+          must produce a revised priority cut; CEO must countersign before
+          Phase 3 (Architecture) opens.
+        gates: Architecture
+        owner: BA + Product Owner
+        status: open
+      - id: COND-DCP-002
+        description: >
+          Q-14 (on-premise 2019 vs Dataverse cloud) answered in writing by the
+          client or Technical Lead. Blocks router hosting and MSAL flavour
+          decisions in the architecture.
+        gates: Architecture
+        owner: Client / Technical Lead
+        status: closed
+        closed_date: 2026-09-14
+        resolution: >
+          User: both orgs on-premise 9.x now, both migrate to Dataverse cloud in
+          ~18 months. NFR-020 restated as a portability constraint (pluggable
+          auth adapter, both-platform features only, containerised router).
+      - id: COND-DCP-003
+        description: >
+          Specify the PDPPL consent model as requirements. FRs 056, 067, 074
+          consume "PDPPL consent" but no FR defines where consent is stored or
+          what happens when it is unknown. Unknown consent must fail closed.
+        gates: Architecture
+        owner: BA + Compliance
+        status: closed
+        closed_date: 2026-09-14
+        resolution: >
+          FR-133 (consent record per channel), FR-134 (router fail-closed on
+          unknown/missing), FR-135 (withdrawal immediate + audit-logged), and
+          FR-136 (WhatsApp inherits SMS gate pending Q-12) added to Module 7.
+      - id: COND-DCP-004
+        description: >
+          Seed the >2000 DPD bucket as "no automated contact" ON by default
+          in the strategy config table. This inverts Q-09 and protects against
+          automated contact on a 5.5+ year delinquent population (conduct risk).
+        gates: Build + Go-live
+        owner: Compliance
+        status: open
+      - id: COND-DCP-005
+        description: >
+          Remove or restate "high-exposure cases" in FR-039. It contradicts
+          C-05 (exposure must not be used as segmentation criterion) and FR-034.
+          Replace with a DPD-or-arrears threshold.
+        gates: Architecture
+        owner: BA
+        status: closed
+        closed_date: 2026-09-14
+        resolution: >
+          FR-039 restated. Approval trigger is now arrears/DPD threshold read
+          from the admin approval-limit table at runtime. Word "exposure" removed.
+          Source column references C-05 and FR-034.
+      - id: COND-DCP-006
+        description: >
+          Confirm the DWH counterparty exists at QDB, or demote FR-125 (nightly
+          DWH extract) and FR-128 (Portfolio Dashboard from DWH) to P2. If no
+          DWH is in place, the portfolio dashboard has no data source.
+        gates: Architecture
+        owner: Product Owner + Integration Lead
+        status: closed
+        closed_date: 2026-09-14
+        resolution: >
+          User: a DWH exists and is called MIS; exposed through the Middleware
+          API in buckets. FR-125/FR-128 stay P1 against the Middleware API.
+          Q-06 closed with it.
+      - id: COND-DCP-007
+        description: >
+          Map SC-01..SC-06 (CEO success criteria) to FR IDs in the traceability
+          matrix. SC-01 and SC-03 are currently untraced; architecture cannot
+          prove coverage without the mapping.
+        gates: Architecture
+        owner: BA
+        status: closed
+        closed_date: 2026-09-14
+        resolution: >
+          SC-01..SC-06 mapping table added to phase-2-ba-traceability.md.
+          SC-01 mapped to FR-001/002/003/045/046/055. SC-03 mapped to
+          FR-067/068/096/120. All six SCs map to at least one P1 FR.
+    notes: >
+      DCP-001 Debt Collection Platform. Phase 1 (CEO) APPROVED 2026-09-13.
+      BRD (phase-2-ba.md) produced: 132 FRs + 20 NFRs, 17 sections, 626 lines.
+      CEO BRD gate: APPROVED WITH CONDITIONS 2026-09-13 (7 conditions).
+      Q-01 RESOLVED (broad reading: 6 modules in Phase 1).
+      Q-02..Q-14 carried as open items with owners and defaults.
+      Architecture (Phase 3) is BLOCKED until COND-DCP-001/002/003/005/006/007 close.
+      Build/Go-live additionally BLOCKED on COND-DCP-004.
+      ADR-DCP-01/02/03 drafted and standing. Next: close conditions, then architect.
+
 # Example entry:
 # projects:
 #   - name: insurance-calc-engine
