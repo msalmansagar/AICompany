@@ -958,7 +958,7 @@ Business Constraints
 ──────────────────────────────────────────────────────────────────
   - Only one qdb_form_lookup_config record may exist per qdb_form_field_id.
     Enforced by unique index on qdb_form_field_id.
-  - qdb_max_results must not exceed 50 (platform protection for API quota).
+  - qdb_max_results must not exceed 250 (raised from 50 on 2026-09-14; the entity metadata, the portal lookup routes and the external-API proxy all share the limit).
   - qdb_depends_on_filter_template is required when qdb_depends_on_field_id
     is populated, and vice versa.
 

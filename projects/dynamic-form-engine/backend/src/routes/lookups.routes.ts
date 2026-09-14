@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import type { CrmLookupService } from '../services/CrmLookupService.js';
-import type { ApiLookupService } from '../services/ApiLookupService.js';
+import { MAX_LOOKUP_RESULTS, type ApiLookupService } from '../services/ApiLookupService.js';
 import { ForbiddenError } from '../utils/errors.js';
 import type { ApiResponse, LookupResult, LookupDisplayColumn } from '@qdb/shared';
 
@@ -32,7 +32,7 @@ const querySchema = z.object({
   displayAttribute: z.string().min(1),
   valueAttribute: z.string().optional(),
   filter: z.string().optional(),
-  max: z.coerce.number().min(1).max(50).default(10),
+  max: z.coerce.number().min(1).max(MAX_LOOKUP_RESULTS).default(10),
   // DFE-LKPCOL-001 — JSON array of { attribute, arabicAttribute?, header? } + form language.
   columns: z.string().optional(),
   lang: z.string().optional(),
@@ -50,7 +50,7 @@ const apiQuerySchema = z.object({
   labelPath: z.string().min(1),
   searchParam: z.string().optional(),
   searchMode: z.enum(['typeahead', 'fetchAll']).optional(),
-  max: z.coerce.number().min(1).max(50).optional(),
+  max: z.coerce.number().min(1).max(MAX_LOOKUP_RESULTS).optional(),
 });
 
 export function createLookupsRouter(

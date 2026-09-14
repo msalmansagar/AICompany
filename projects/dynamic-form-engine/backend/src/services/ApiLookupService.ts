@@ -30,7 +30,8 @@ interface CacheEntry {
   items: unknown[];
 }
 
-const MAX_RESULTS_HARD_CAP = 50;
+/** Matches the 1–250 range of qdb_max_results on qdb_form_lookup_config. */
+export const MAX_LOOKUP_RESULTS = 250;
 
 export class ApiLookupService {
   private readonly fetchAllCache = new Map<string, CacheEntry>();
@@ -181,7 +182,7 @@ export class ApiLookupService {
 
 function clampMaxResults(maxResults?: number): number {
   if (!maxResults || maxResults < 1) return 10;
-  return Math.min(maxResults, MAX_RESULTS_HARD_CAP);
+  return Math.min(maxResults, MAX_LOOKUP_RESULTS);
 }
 
 /** Accept a root JSON array, or an object whose first array-valued property holds the items. */
