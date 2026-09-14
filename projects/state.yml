@@ -110,7 +110,12 @@ projects:
           Phase 3 (Architecture) opens.
         gates: Architecture
         owner: BA + Product Owner
-        status: open
+        status: closed
+        closed_date: 2026-09-14
+        resolution: >
+          Re-cut to 73 P1 / 59 P2 / 4 P3 (phase-2-ba-priority-recut.md), PO
+          countersigned T1/T2/T3, CEO signed off with notes. Priorities applied
+          to phase-2-ba.md and the traceability matrix.
       - id: COND-DCP-002
         description: >
           Q-14 (on-premise 2019 vs Dataverse cloud) answered in writing by the

@@ -211,19 +211,19 @@ Source: skeleton §A; Final Requirements; brief §5; non-negotiable R-01.
 
 | FR-001 | The system SHALL display a unified customer profile including name, QID, CR number, mobile, email, address, employer, salary transfer status, nationality, and vulnerability flag, sourced from the HL CRM (Phase 1). | P1 | Skeleton §A |
 | FR-002 | The system SHALL display all loan/facility records for the customer: product type, outstanding balance (live "as of" from MIS API), arrears, instalment, DPD, maturity date, collateral, guarantor, restructure flag, and NPL flag. | P1 | Skeleton §A; FR-002 note: live balance shows alongside snapshot value with explicit "as of" timestamp |
-| FR-003 | The system SHALL display the full delinquency snapshot history for each facility, with MIS batch reference and "as of" timestamp per row, sourced from `qdb_delinquencysnapshot`. | P1 | facts-and-analysis.md §5; non-negotiable |
+| FR-003 | The system SHALL display the full delinquency snapshot history for each facility, with MIS batch reference and "as of" timestamp per row, sourced from `qdb_delinquencysnapshot`. | P2 | facts-and-analysis.md §5; non-negotiable |
 | FR-004 | The system SHALL display the customer's complete collection history: all `qdb_collectionaction` and `qdb_communication` activity records in chronological order on the native CRM Timeline. | P1 | ADR-DCP-01; skeleton §A |
-| FR-005 | The system SHALL display legal case status, insurance claim status, and deceased flag on the Customer 360 screen as read-only fields sourced from the respective CRM entities. | P1 | Skeleton §A |
-| FR-006 | The system SHALL display all open and historical PTP records, restructure cases, and dispute records linked to the customer or facility. | P1 | Skeleton §A |
+| FR-005 | The system SHALL display legal case status, insurance claim status, and deceased flag on the Customer 360 screen as read-only fields sourced from the respective CRM entities. | P2 | Skeleton §A |
+| FR-006 | The system SHALL display all open and historical PTP records, restructure cases, and dispute records linked to the customer or facility. | P2 | Skeleton §A |
 | FR-007 | The system SHALL enforce QID as the customer identity key; customers without a QID on their CRM record SHALL be placed in the unresolved-identity queue (`qdb_identityexception`). | P1 | Non-negotiable R-06; brief R-06 |
-| FR-008 | The system SHALL display an unresolved-identity queue showing all identity mismatches (missing QID, name mismatch, QID found in one org only) with an action prompt for manual review. | P1 | Non-negotiable R-06 |
-| FR-009 | The router SHALL fan out Customer 360 reads to both HL and BFD CRMs using the QID identity map and merge results into one view when BFD is enabled; in Phase 1 (BFD feature-flagged off) the view is HL-only with BFD data hidden but router routing logic built. | P2 | Non-negotiable R-01; facts-and-analysis.md §6.3 |
-| FR-010 | The system SHALL display the MIS ingest batch status (last run, records processed, failures) on the Customer 360 screen so officers are informed of any data staleness. | P1 | facts-and-analysis.md §5 |
-| FR-011 | The system SHALL display payment history (payment date, amount, channel, rejection reason, auto-sweep status) for each facility, sourced from the Payments integration. | P1 | Skeleton §7.C |
+| FR-008 | The system SHALL display an unresolved-identity queue showing all identity mismatches (missing QID, name mismatch, QID found in one org only) with an action prompt for manual review. | P2 | Non-negotiable R-06 |
+| FR-009 | The router SHALL fan out Customer 360 reads to both HL and BFD CRMs using the QID identity map and merge results into one view when BFD is enabled; in Phase 1 (BFD feature-flagged off) the view is HL-only with BFD data hidden but router routing logic built. | P3 | Non-negotiable R-01; facts-and-analysis.md §6.3 |
+| FR-010 | The system SHALL display the MIS ingest batch status (last run, records processed, failures) on the Customer 360 screen so officers are informed of any data staleness. | P2 | facts-and-analysis.md §5 |
+| FR-011 | The system SHALL display payment history (payment date, amount, channel, rejection reason, auto-sweep status) for each facility, sourced from the Payments integration. | P2 | Skeleton §7.C |
 | FR-012 | The system SHALL display the communication history log (channel, template, direction, delivery status, timestamp) for all communications linked to the customer. | P1 | Skeleton §G |
-| FR-013 | The system SHALL display the complaint and dispute history linked to the customer. | P1 | Skeleton §L |
+| FR-013 | The system SHALL display the complaint and dispute history linked to the customer. | P2 | Skeleton §L |
 | FR-014 | The system SHALL mask sensitive PII fields (such as full mobile number and bank account number) for roles that do not hold the "View Sensitive PII" privilege, enforced at the API layer. | P1 | Non-negotiable R-07; PDPPL |
-| FR-015 | The system SHALL display the customer's DPD bucket colour-coded using the ten MIS bucket taxonomy, consistent with the strategy configuration table. | P1 | facts-and-analysis.md §3 |
+| FR-015 | The system SHALL display the customer's DPD bucket colour-coded using the ten MIS bucket taxonomy, consistent with the strategy configuration table. | P2 | facts-and-analysis.md §3 |
 
 ---
 
@@ -236,16 +236,16 @@ Source: skeleton §B; Final Requirements; ADR-DCP-01; facts-and-analysis.md §1 
 | FR-018 | The system SHALL store DPD bucket using the ten-value MIS taxonomy: 1–30, 31–60, 61–90, 91–180, 181–270, 271–360, 361–500, 501–1000, 1001–2000, >2000. NPL and Write-off SHALL be stored as a separate account-status field, not in the bucket field. | P1 | Non-negotiable; facts §3; Q-03 default |
 | FR-019 | An officer SHALL be able to create a collection case (`qdb_collectioncase`) manually against a customer and facility, without requiring any automated trigger. | P1 | D-2; Final Requirements |
 | FR-020 | The case creation form SHALL require the officer to select the product type (Housing Loan, Corporate Loan, SME Facility, Restructured Facility, Legal Account, Deceased Account) and a mandatory case reason. | P1 | D-3; Final Requirements |
-| FR-021 | The system SHALL allow an administrator to configure an automatic case creation threshold (e.g. "create case when DPD reaches N"), which defaults to disabled (manual-only) in Phase 1 but can be enabled by a config change. | P2 | D-2; facts §2.2 |
+| FR-021 | The system SHALL allow an administrator to configure an automatic case creation threshold (e.g. "create case when DPD reaches N"), which defaults to disabled (manual-only) in Phase 1 but can be enabled by a config change. | P3 | D-2; facts §2.2 |
 | FR-022 | The case SHALL support the following `statuscode` values: New, Assigned, In Progress, Pending Customer Response, PTP Active, PTP Broken, Restructure Review, Restructured, Escalated to Supervisor, Pending Legal Review, Referred to Legal, Under Legal Action, Deceased/Insurance Review, Settled, Closed, Written Off, Reopened. | P1 | Skeleton §15 |
 | FR-023 | Status transitions SHALL be enforced by a CRM plugin that validates the allowed transition matrix; invalid transitions SHALL be rejected with an explanatory error. | P1 | Brief §2; ADR-DCP-01 |
-| FR-024 | The system SHALL display the delinquency snapshot value (arrears, DPD) captured at case creation alongside the current live value with an "as of" timestamp on the case screen. | P1 | Non-negotiable; facts §5 |
+| FR-024 | The system SHALL display the delinquency snapshot value (arrears, DPD) captured at case creation alongside the current live value with an "as of" timestamp on the case screen. | P2 | Non-negotiable; facts §5 |
 | FR-025 | The system SHALL prevent deletion of any collection case record; the Delete privilege SHALL be removed from every security role. | P1 | Skeleton §17; non-negotiable R-03 |
-| FR-026 | The system SHALL segregate the >2000 DPD population visually (distinct colour, separate queue segment) on the case list and dashboard. | P1 | facts §2.2 |
+| FR-026 | The system SHALL segregate the >2000 DPD population visually (distinct colour, separate queue segment) on the case list and dashboard. | P2 | facts §2.2 |
 | FR-027 | The system SHALL display an ingestion-failure alert on the workspace when the MIS ingest batch fails or has not completed within the configured SLA window. | P1 | facts §5 |
 | FR-028 | The case entity SHALL capture `created_by`, `created_on`, `modified_by`, `modified_on` on every record. All IDs are GUIDs. | P1 | CLAUDE.md enterprise rules |
 | FR-029 | The system SHALL support case reopening from Closed status, requiring a mandatory reopen reason, captured in the audit trail. | P2 | Skeleton §15 |
-| FR-030 | A case created against a BFD facility SHALL be routed by the CRM Context Router to the BFD CRM; the feature flag controls whether BFD cases are visible in the portal UI. | P2 | Q-05 (answered); ADR-DCP-02 |
+| FR-030 | A case created against a BFD facility SHALL be routed by the CRM Context Router to the BFD CRM; the feature flag controls whether BFD cases are visible in the portal UI. | P3 | Q-05 (answered); ADR-DCP-02 |
 
 ---
 
@@ -266,7 +266,7 @@ Source: skeleton §C, §D; Final Requirements; facts-and-analysis.md §2.2, §2.
 
 | FR-037 | The system SHALL maintain named queues in CRM: Early Collection, High Risk, Deceased & Insurance, Legal Review, Restructuring, Disputes & Complaints. | P1 | Skeleton §D; prototype Q-EARLY etc. |
 | FR-038 | The system SHALL support automatic case assignment to a queue based on the strategy rule triggered by the DPD bucket, with manual reassignment available to supervisors. | P1 | Skeleton §D |
-| FR-039 | Manual case reassignment SHALL require a mandatory reason and SHALL be captured in the audit trail. Reassignment of cases where the arrears amount or DPD bucket meets or exceeds the threshold configured in the admin approval-limit table SHALL require Head-of-Collections approval; the approval threshold is read at runtime from the configuration table and SHALL NOT be hard-coded. | P1 | Skeleton §6 approval matrix; C-05; FR-034 |
+| FR-039 | Manual case reassignment SHALL require a mandatory reason and SHALL be captured in the audit trail. Reassignment of cases where the arrears amount or DPD bucket meets or exceeds the threshold configured in the admin approval-limit table SHALL require Head-of-Collections approval; the approval threshold is read at runtime from the configuration table and SHALL NOT be hard-coded. | P2 | Skeleton §6 approval matrix; C-05; FR-034 |
 | FR-040 | The system SHALL track SLA for each queue: time since case was assigned, overdue indicator when SLA is breached. SLA thresholds SHALL be configurable per queue. | P1 | Skeleton §D |
 | FR-041 | The system SHALL provide a supervisor view showing team workload per officer: open cases, actions completed, overdue actions, broken PTPs. | P1 | Skeleton §D; SO-01 |
 | FR-042 | The system SHALL support workload-balancing reassignment: a supervisor can drag-and-drop or bulk-reassign cases from one officer to another. | P2 | Skeleton §D |
@@ -285,12 +285,12 @@ Source: skeleton §E, §F; Final Requirements; ADR-DCP-01.
 | FR-046 | The action record SHALL capture: action type (configurable), outcome code (from config table), mandatory notes, actor, timestamp, and `scheduledend` (next-action date). `scheduledend` is mandatory for every open action. | P1 | Skeleton §E controls; ADR-DCP-01 |
 | FR-047 | The system SHALL prevent Update or Delete of a `qdb_collectionaction` once `statecode = Completed`; a CRM plugin SHALL enforce this unconditionally. | P1 | Non-negotiable R-03; ADR-DCP-01 constraint 1 |
 | FR-048 | The system SHALL flag open `qdb_collectionaction` records where `scheduledend` is in the past as overdue; these SHALL appear in the overdue-actions view for the assigned officer and supervisor. | P1 | Skeleton §17; ADR-DCP-01 |
-| FR-049 | The officer SHALL be able to escalate a case to supervisor from the action plan screen; the escalation SHALL create a `qdb_collectionaction` of type Supervisor Review and notify the supervisor. | P1 | Skeleton §E |
+| FR-049 | The officer SHALL be able to escalate a case to supervisor from the action plan screen; the escalation SHALL create a `qdb_collectionaction` of type Supervisor Review and notify the supervisor. | P2 | Skeleton §E |
 | FR-050 | The system SHALL support action plan templates (pre-defined sequences of action types) that an officer can apply to a case to generate the initial action backlog. | P2 | Skeleton §E |
-| FR-051 | A Supervisor Review action SHALL require approval (accept/return with reason) from the assigned supervisor; the outcome SHALL be captured in the audit trail. | P1 | Skeleton §E; skeleton §6 |
+| FR-051 | A Supervisor Review action SHALL require approval (accept/return with reason) from the assigned supervisor; the outcome SHALL be captured in the audit trail. | P2 | Skeleton §E; skeleton §6 |
 | FR-052 | The system SHALL capture action outcome codes from the configurable action-outcome table, not from a hard-coded option set. The standard outcomes from skeleton §16 are the initial seed values. | P1 | D-4; skeleton §16 |
 | FR-053 | The system SHALL record `user_id` and system timestamp on every action creation and update, non-overridable. | P1 | Skeleton §E controls |
-| FR-054 | The field-visit action type SHALL be available on `qdb_collectionaction` (as action type "Field Visit") even though Module 11 is deferred; the field visit lifecycle entity is not built in Phase 1. | P1 | D-8; ADR-DCP-01 constraint 5 |
+| FR-054 | The field-visit action type SHALL be available on `qdb_collectionaction` (as action type "Field Visit") even though Module 11 is deferred; the field visit lifecycle entity is not built in Phase 1. | P2 | D-8; ADR-DCP-01 constraint 5 |
 
 **PTP Management (Module 6)**
 
@@ -299,10 +299,10 @@ Source: skeleton §E, §F; Final Requirements; ADR-DCP-01.
 | FR-057 | The system SHALL monitor each PTP after its due date; when no matched payment is received by end-of-day on the promised date, the system SHALL automatically set PTP status to Broken and create a broken-PTP `qdb_collectionaction`. | P1 | SC-02; skeleton §F |
 | FR-058 | A broken PTP SHALL trigger an escalation notification to the assigned supervisor. After a configurable number of broken PTPs for the same customer, the case SHALL be escalated to the supervisor queue. | P1 | Skeleton §4.B; skeleton §F |
 | FR-059 | The system SHALL support PTP statuses: Open, Kept, Partially Kept, Broken, Rescheduled, Cancelled. | P1 | Skeleton §F |
-| FR-060 | A PTP reschedule SHALL require a mandatory reason. After a configurable limit of reschedules (default: 2), further reschedule SHALL require Senior Manager approval. | P1 | Skeleton §F controls |
+| FR-060 | A PTP reschedule SHALL require a mandatory reason. After a configurable limit of reschedules (default: 2), further reschedule SHALL require Senior Manager approval. | P2 | Skeleton §F controls |
 | FR-061 | All PTP changes (create, edit, reschedule, status change, cancellation) SHALL be captured in the audit trail with actor, timestamp, old value, and new value. | P1 | Non-negotiable R-03; skeleton §F |
 | FR-062 | A Payments integration event (matched payment received) SHALL automatically update the linked PTP status to Kept or Partially Kept based on the amount matched. | P2 | Skeleton §F; integration §8.B |
-| FR-063 | The system SHALL track the PTP kept rate per officer and expose it on the performance dashboard. | P1 | Skeleton §10 KPIs |
+| FR-063 | The system SHALL track the PTP kept rate per officer and expose it on the performance dashboard. | P2 | Skeleton §10 KPIs |
 | FR-064 | A customer flagged with `stopContact = true` SHALL NOT receive a PTP reminder communication; the blocked attempt SHALL be logged in the audit trail with the block reason. | P1 | Non-negotiable R-04 |
 
 ---
@@ -317,8 +317,8 @@ Source: skeleton §G; Final Requirements; ADR-DCP-01; non-negotiable R-04.
 | FR-068 | The system SHALL enforce stop-contact in the router before reaching any channel adapter. Stop-contact enforcement SHALL NOT be implemented at the UI layer only. | P1 | Non-negotiable R-04 |
 | FR-069 | All outbound communications SHALL use pre-approved templates. An officer WITHOUT the "Send Free-Text Message" privilege SHALL NOT be able to compose a free-text message to a customer. | P1 | Skeleton §G controls |
 | FR-070 | Communication templates SHALL support Arabic and English content. Templates SHALL be selected based on the customer's preferred language where configured; default is Arabic. | P1 | Skeleton §G; brief §5 |
-| FR-071 | Templates SHALL be subject to a template approval workflow before they can be used. Template creation and change SHALL require Compliance or Management approval. | P1 | Skeleton §G controls |
-| FR-072 | The system SHALL track delivery status for SMS and email where available from the gateway (Delivered, Failed, Opened). Official letters SHALL support Sent, Delivered-Signed, and Returned statuses (default per Q-11; see Section 7 — sub-states added if Q-11 is confirmed). | P1 | Q-11 default; skeleton §G |
+| FR-071 | Templates SHALL be subject to a template approval workflow before they can be used. Template creation and change SHALL require Compliance or Management approval. | P2 | Skeleton §G controls |
+| FR-072 | The system SHALL track delivery status for SMS and email where available from the gateway (Delivered, Failed, Opened). Official letters SHALL support Sent, Delivered-Signed, and Returned statuses (default per Q-11; see Section 7 — sub-states added if Q-11 is confirmed). | P2 | Q-11 default; skeleton §G |
 | FR-073 | An officer SHALL be able to log an inbound or outbound phone call as a `qdb_communication` record (channel = Call) with outcome and notes; no telephony integration is required in Phase 1. | P1 | Skeleton §G; ADR-DCP-01 |
 | FR-074 | Bulk outbound campaigns (SMS or email to a filtered segment) SHALL be supported, subject to stop-contact and consent validation for every recipient in the batch. | P2 | Skeleton §G; BO-03 |
 | FR-075 | The system SHALL prevent Update or Delete of a `qdb_communication` record once `statecode = Completed`; enforced by plugin. | P1 | Non-negotiable R-03; ADR-DCP-01 |
@@ -337,16 +337,16 @@ Source: skeleton §G; Final Requirements; ADR-DCP-01; non-negotiable R-04.
 
 Source: skeleton §H; Final Requirements; ADR-DCP-03.
 
-| FR-077 | An officer or RM SHALL be able to create a `qdb_restructurecase` entity from the portal, capturing: customer and facility, new tenor, new instalment, grace period, waiver amount, eligibility checklist, and supporting documents. | P1 | Skeleton §H; ADR-DCP-03 |
-| FR-078 | The restructure case SHALL follow the approval workflow: Collection Officer → Senior Manager → Head of Collections → Credit/Risk → Committee (if required). Each stage SHALL record actor, timestamp, decision, and reason. | P1 | Skeleton §H approval workflow |
-| FR-079 | The approval workflow stages and limits SHALL be configurable by an administrator; no stage thresholds are hard-coded. | P1 | Skeleton §12 |
-| FR-080 | A waiver request within a restructure proposal SHALL require a separate maker-checker approval, with the waiver amount and justification captured as mandatory fields. | P1 | Skeleton §6 |
-| FR-081 | The system SHALL enforce a document checklist for restructure proposals; the proposal cannot be submitted for approval until all mandatory documents are uploaded. | P1 | Skeleton §H |
+| FR-077 | An officer or RM SHALL be able to create a `qdb_restructurecase` entity from the portal, capturing: customer and facility, new tenor, new instalment, grace period, waiver amount, eligibility checklist, and supporting documents. | P2 | Skeleton §H; ADR-DCP-03 |
+| FR-078 | The restructure case SHALL follow the approval workflow: Collection Officer → Senior Manager → Head of Collections → Credit/Risk → Committee (if required). Each stage SHALL record actor, timestamp, decision, and reason. | P2 | Skeleton §H approval workflow |
+| FR-079 | The approval workflow stages and limits SHALL be configurable by an administrator; no stage thresholds are hard-coded. | P2 | Skeleton §12 |
+| FR-080 | A waiver request within a restructure proposal SHALL require a separate maker-checker approval, with the waiver amount and justification captured as mandatory fields. | P2 | Skeleton §6 |
+| FR-081 | The system SHALL enforce a document checklist for restructure proposals; the proposal cannot be submitted for approval until all mandatory documents are uploaded. | P2 | Skeleton §H |
 | FR-082 | After a restructure is approved, the system SHALL create a post-restructure monitoring schedule; any breach of the restructured terms SHALL flag the case as Re-Defaulted. | P2 | Skeleton §H |
-| FR-083 | The officer SHALL be able to submit a financial assessment for the customer (income, liabilities, employment status) as part of the restructure proposal, stored against the restructure case. | P1 | Skeleton §H |
-| FR-084 | A rejected restructure proposal SHALL require a mandatory rejection reason; the officer SHALL be able to revise and resubmit. | P1 | Skeleton §H |
-| FR-085 | All restructure case changes (status, approval decisions, document uploads, re-default events) SHALL be captured in the audit trail. | P1 | Non-negotiable R-03 |
-| FR-086 | The portal SHALL display the officer a read-only status view of any restructure case they submitted, showing the current approval stage and approver comments. | P1 | ADR-DCP-03 decision 3 |
+| FR-083 | The officer SHALL be able to submit a financial assessment for the customer (income, liabilities, employment status) as part of the restructure proposal, stored against the restructure case. | P2 | Skeleton §H |
+| FR-084 | A rejected restructure proposal SHALL require a mandatory rejection reason; the officer SHALL be able to revise and resubmit. | P2 | Skeleton §H |
+| FR-085 | All restructure case changes (status, approval decisions, document uploads, re-default events) SHALL be captured in the audit trail. | P2 | Non-negotiable R-03 |
+| FR-086 | The portal SHALL display the officer a read-only status view of any restructure case they submitted, showing the current approval stage and approver comments. | P2 | ADR-DCP-03 decision 3 |
 
 ---
 
@@ -354,14 +354,14 @@ Source: skeleton §H; Final Requirements; ADR-DCP-03.
 
 Source: skeleton §I; Final Requirements; ADR-DCP-03.
 
-| FR-087 | An officer SHALL be able to submit a legal referral from the portal by completing a `qdb_legalcase` hand-off entity. The entity requires: legal referral checklist completion, case history summary, outstanding balance, communication history, PTP history, restructuring history, and mandatory documents. | P1 | Skeleton §I; Final Requirements |
-| FR-088 | Submission of a legal referral SHALL require maker-checker approval (Senior Manager and Head of Collections) before the case is transmitted to the CRM Legal module. | P1 | Skeleton §I controls |
-| FR-089 | The legal referral SHALL only be submitted when the case has passed the configured DPD threshold and all previous collection attempts are recorded. These preconditions are enforced by the router plugin. | P1 | Skeleton §I controls |
-| FR-090 | The portal SHALL display the officer a read-only legal case status view (Pending Legal Review, Notice Issued, Case Filed, Court Stage, Judgment Received, Execution Stage, Settlement Reached, Closed) sourced from the CRM Legal module via the router. | P1 | Skeleton §I; ADR-DCP-03 decision 3 |
+| FR-087 | An officer SHALL be able to submit a legal referral from the portal by completing a `qdb_legalcase` hand-off entity. The entity requires: legal referral checklist completion, case history summary, outstanding balance, communication history, PTP history, restructuring history, and mandatory documents. | P2 | Skeleton §I; Final Requirements |
+| FR-088 | Submission of a legal referral SHALL require maker-checker approval (Senior Manager and Head of Collections) before the case is transmitted to the CRM Legal module. | P2 | Skeleton §I controls |
+| FR-089 | The legal referral SHALL only be submitted when the case has passed the configured DPD threshold and all previous collection attempts are recorded. These preconditions are enforced by the router plugin. | P2 | Skeleton §I controls |
+| FR-090 | The portal SHALL display the officer a read-only legal case status view (Pending Legal Review, Notice Issued, Case Filed, Court Stage, Judgment Received, Execution Stage, Settlement Reached, Closed) sourced from the CRM Legal module via the router. | P2 | Skeleton §I; ADR-DCP-03 decision 3 |
 | FR-091 | Legal Users track the legal lifecycle in native CRM forms. No portal UI for the Legal User persona is built in Phase 1. | P1 | ADR-DCP-03 decision 2 |
-| FR-092 | The Legal User SHALL be able to return a case to Collections from native CRM, with a mandatory return reason. The return SHALL create a `qdb_collectionaction` and update the case status. | P1 | Skeleton §I controls |
-| FR-093 | Legal recovery amount and legal cost shall be captured on the `qdb_legalcase` entity, updated by the Legal User in native CRM. | P1 | Skeleton §I |
-| FR-094 | Court documents SHALL be uploadable against the legal case in CRM. All document uploads SHALL be captured in the audit trail. | P1 | Skeleton §I |
+| FR-092 | The Legal User SHALL be able to return a case to Collections from native CRM, with a mandatory return reason. The return SHALL create a `qdb_collectionaction` and update the case status. | P2 | Skeleton §I controls |
+| FR-093 | Legal recovery amount and legal cost shall be captured on the `qdb_legalcase` entity, updated by the Legal User in native CRM. | P2 | Skeleton §I |
+| FR-094 | Court documents SHALL be uploadable against the legal case in CRM. All document uploads SHALL be captured in the audit trail. | P2 | Skeleton §I |
 
 ---
 
@@ -374,19 +374,19 @@ Source: skeleton §J, §L; Final Requirements; non-negotiables R-04.
 | FR-095 | An officer SHALL be able to flag a customer as deceased by setting a deceased flag and `stopContact = true` on the customer record, capturing: date of death, source of confirmation, and mandatory approver. | P1 | Skeleton §J; non-negotiable |
 | FR-096 | Setting `stopContact = true` SHALL immediately suppress all automated outbound communications to the customer in the router; the suppression is enforced before any channel adapter and cannot be overridden at the UI. | P1 | Non-negotiable R-04; skeleton §4.D |
 | FR-097 | A deceased case SHALL be automatically transferred to the Deceased & Insurance queue and all standard collection queue membership removed. | P1 | Skeleton §J controls |
-| FR-098 | An officer SHALL be able to create an `qdb_insuranceclaim` entity capturing: claim kind (Credit Life, Takaful Life, Disability), insurer, claim submission date, claim amount, and a document checklist. | P1 | Skeleton §J |
-| FR-099 | The insurance claim SHALL support statuses: Pending Documents, Submitted, Under Review, Approved, Rejected, Paid. Status transitions SHALL be captured in the audit trail. | P1 | Skeleton §J; Final Requirements |
-| FR-100 | Any communication with the estate or heirs SHALL require mandatory Senior Manager approval, captured in the audit trail (default per Q-13; see Section 7 — if Q-13 confirms multi-recipient is out of scope, this FR is scoped to deceased-family approval only). | P1 | Skeleton §J controls; Q-13 default |
-| FR-101 | The outstanding balance after insurance claim settlement SHALL be updated on the facility record and displayed on the Customer 360 screen. | P1 | Skeleton §J |
+| FR-098 | An officer SHALL be able to create an `qdb_insuranceclaim` entity capturing: claim kind (Credit Life, Takaful Life, Disability), insurer, claim submission date, claim amount, and a document checklist. | P2 | Skeleton §J |
+| FR-099 | The insurance claim SHALL support statuses: Pending Documents, Submitted, Under Review, Approved, Rejected, Paid. Status transitions SHALL be captured in the audit trail. | P2 | Skeleton §J; Final Requirements |
+| FR-100 | Any communication with the estate or heirs SHALL require mandatory Senior Manager approval, captured in the audit trail (default per Q-13; see Section 7 — if Q-13 confirms multi-recipient is out of scope, this FR is scoped to deceased-family approval only). | P2 | Skeleton §J controls; Q-13 default |
+| FR-101 | The outstanding balance after insurance claim settlement SHALL be updated on the facility record and displayed on the Customer 360 screen. | P2 | Skeleton §J |
 | FR-102 | Insurance Officers manage the claim lifecycle in native CRM. No portal UI for the Insurance Officer persona is built in Phase 1. | P1 | ADR-DCP-03 |
 
 **Disputes & Complaint Management (Module 12 in the module list; implemented here)**
 
-| FR-103 | An officer SHALL be able to register a `qdb_dispute` entity capturing: complaint type (configurable), root cause, supporting documents, assigned owner, and SLA due date. | P1 | Skeleton §L; Final Requirements |
-| FR-104 | When a dispute is registered against a case, collection activity on that case SHALL be paused (`collectionPaused = true`) until the dispute is resolved or rejected. | P1 | Skeleton §L; prototype DSP data |
-| FR-105 | The dispute SHALL track investigation notes, resolution decision, customer response, and escalation to management if required. All changes SHALL be in the audit trail. | P1 | Skeleton §L |
-| FR-106 | The dispute SLA timer SHALL start on registration; overdue disputes SHALL appear in the supervisor queue. SLA thresholds are configurable per complaint type. | P1 | Skeleton §L; skeleton §12 |
-| FR-107 | Standard complaint types (configurable initial seed): Payment Already Made, Wrong Deduction, Incorrect Arrears Amount, Bank Rejection Issue, Communication Sent by Mistake, Deceased Case Communication Issue, Legal Escalation Objection. | P1 | Skeleton §L; Final Requirements |
+| FR-103 | An officer SHALL be able to register a `qdb_dispute` entity capturing: complaint type (configurable), root cause, supporting documents, assigned owner, and SLA due date. | P2 | Skeleton §L; Final Requirements |
+| FR-104 | When a dispute is registered against a case, collection activity on that case SHALL be paused (`collectionPaused = true`) until the dispute is resolved or rejected. | P2 | Skeleton §L; prototype DSP data |
+| FR-105 | The dispute SHALL track investigation notes, resolution decision, customer response, and escalation to management if required. All changes SHALL be in the audit trail. | P2 | Skeleton §L |
+| FR-106 | The dispute SLA timer SHALL start on registration; overdue disputes SHALL appear in the supervisor queue. SLA thresholds are configurable per complaint type. | P2 | Skeleton §L; skeleton §12 |
+| FR-107 | Standard complaint types (configurable initial seed): Payment Already Made, Wrong Deduction, Incorrect Arrears Amount, Bank Rejection Issue, Communication Sent by Mistake, Deceased Case Communication Issue, Legal Escalation Objection. | P2 | Skeleton §L; Final Requirements |
 
 ---
 
@@ -403,12 +403,12 @@ Source: skeleton §11, §12, §8, §9; non-negotiables R-03, R-04, R-05, R-07.
 | FR-112 | Security roles SHALL be defined in a single role matrix deployed identically to both CRMs from one solution package. A role-drift report SHALL be generated on each deployment comparing both orgs. | P1 | Non-negotiable R-05; brief R-05 |
 | FR-113 | Standard roles: Collection Officer, Relationship Manager, Senior Manager, Head of Collections, Legal User, Insurance Officer, Restructuring Officer, Risk/Credit User, Finance User, Admin User, Audit/Compliance (read-only), Management (dashboards only). | P1 | Skeleton §5 |
 | FR-114 | Sensitive PII fields (mobile number, bank account, full address) SHALL be masked for roles without "View Sensitive PII" privilege; masking is enforced at the API layer in the router, not in the portal. | P1 | Non-negotiable R-07; PDPPL |
-| FR-115 | User activity logs (login, logout, data access, export) SHALL be captured in the audit trail. | P1 | Skeleton §11 |
+| FR-115 | User activity logs (login, logout, data access, export) SHALL be captured in the audit trail. | P2 | Skeleton §11 |
 
 **Admin Configuration (Module 14)**
 
-| FR-116 | An Admin User SHALL be able to manage the following via the portal Admin screen without a code deployment: DPD strategy rules, communication templates, SLA thresholds, queue assignment rules, PTP reschedule limits, legal referral thresholds, approval limit matrix. | P1 | Skeleton §12 |
-| FR-117 | Template creation and activation SHALL require a Compliance or Management approval step before the template is available to officers. | P1 | Skeleton §G controls |
+| FR-116 | An Admin User SHALL be able to manage the following via the portal Admin screen without a code deployment: DPD strategy rules, communication templates, SLA thresholds, queue assignment rules, PTP reschedule limits, legal referral thresholds, approval limit matrix. | P2 | Skeleton §12 |
+| FR-117 | Template creation and activation SHALL require a Compliance or Management approval step before the template is available to officers. | P2 | Skeleton §G controls |
 | FR-118 | All admin configuration changes SHALL be captured in the audit trail with actor, timestamp, and old/new values. | P1 | Non-negotiable R-03 |
 
 **Integration Layer (Module 15)**
@@ -418,18 +418,18 @@ Source: skeleton §11, §12, §8, §9; non-negotiables R-03, R-04, R-05, R-07.
 | FR-121 | The system SHALL integrate with the MIS middleware API to receive pre-classified delinquency data. Raw DPD and arrears are received; no DPD calculation is performed by the platform. | P1 | D-1; Q-06 default |
 | FR-122 | The system SHALL integrate with the SMS/Email gateway for outbound communications using pre-approved templates; delivery-status webhooks SHALL update the `qdb_communication` delivery status field. | P1 | Skeleton §8.D |
 | FR-123 | The system SHALL integrate with the Payments system via an event stream; a matched payment event SHALL trigger PTP status update (Kept/Partially Kept) and a collection action log. | P2 | Skeleton §8.B |
-| FR-124 | The system SHALL produce a monthly QCB/credit bureau delinquency file in the required format; the file generation is configurable for frequency and content. | P2 | Skeleton §8.E |
-| FR-125 | The system SHALL emit a nightly extract to DWH/BI covering all collection entities; the extract feeds portfolio-level dashboards that neither CRM can answer alone. | P1 | Skeleton §8.F; facts §2 |
+| FR-124 | The system SHALL produce a monthly QCB/credit bureau delinquency file in the required format; the file generation is configurable for frequency and content. | P3 | Skeleton §8.E |
+| FR-125 | The system SHALL emit a nightly extract to DWH/BI covering all collection entities; the extract feeds portfolio-level dashboards that neither CRM can answer alone. | P2 | Skeleton §8.F; facts §2 |
 | FR-126 | The integration layer SHALL surface a health/status panel showing last successful run, record counts, latency, and failure count for each integration endpoint. | P1 | Facts §5; prototype INTEGRATIONS data |
 
 **Dashboards & MIS (Module 12 of the module list)**
 
 | FR-127 | The system SHALL provide an Operational Dashboard: total overdue cases, arrears by DPD bucket (10-value), new cases today, pending actions, overdue actions, broken PTPs, high-risk cases. | P1 | Skeleton §9.A; SC-05 |
-| FR-128 | The system SHALL provide a Portfolio Dashboard fed from DWH: arrears by product, by DPD bucket, roll-rate by bucket transition, cure rate, recovery rate, NPL movement. | P1 | Skeleton §9.B; facts §2 |
+| FR-128 | The system SHALL provide a Portfolio Dashboard fed from DWH: arrears by product, by DPD bucket, roll-rate by bucket transition, cure rate, recovery rate, NPL movement. | P2 | Skeleton §9.B; facts §2 |
 | FR-129 | The system SHALL provide a PTP Dashboard: total PTPs, kept/broken/partial counts, PTP kept rate per officer, repeat broken-PTP customers. | P1 | Skeleton §9.C; SC-05 |
-| FR-130 | The system SHALL provide a Legal Dashboard: cases in each legal stage, legal recovery amount, aging of legal cases, settlements reached. | P1 | Skeleton §9.D |
-| FR-131 | The system SHALL provide a Management Dashboard: total overdue exposure, monthly recoveries, NPL trend, collection efficiency, officer productivity. | P1 | Skeleton §9.G; SO-02 |
-| FR-132 | The Operational Dashboard SHALL segregate the >2000 DPD population from the active collection population, consistent with FR-026. | P1 | Facts §2.2 |
+| FR-130 | The system SHALL provide a Legal Dashboard: cases in each legal stage, legal recovery amount, aging of legal cases, settlements reached. | P2 | Skeleton §9.D |
+| FR-131 | The system SHALL provide a Management Dashboard: total overdue exposure, monthly recoveries, NPL trend, collection efficiency, officer productivity. | P2 | Skeleton §9.G; SO-02 |
+| FR-132 | The Operational Dashboard SHALL segregate the >2000 DPD population from the active collection population, consistent with FR-026. | P2 | Facts §2.2 |
 
 ---
 
@@ -637,6 +637,7 @@ COND-DCP-007 are closed. COND-DCP-004 gates Build and Go-live.
 |---|---|---|---|
 | COND-DCP-005 | 2026-09-14 | FR-039 restated: approval trigger changed from "high-exposure cases" (prohibited by C-05/FR-034) to an arrears/DPD threshold read from the admin approval-limit configuration table. Word "exposure" removed entirely. Source column updated to reference C-05 and FR-034. | FR-039 |
 | COND-DCP-003 | 2026-09-14 | Four new P1 FRs added to Module 7 (Communication Management): FR-133 (consent record per channel, with source and captured-by), FR-134 (router reads consent before every send; fail-closed on unknown/missing), FR-135 (withdrawal immediate + audit-logged), FR-136 (WhatsApp inherits SMS gate pending Q-12). Traceability matrix and module count updated. | FR-133, FR-134, FR-135, FR-136 |
+| COND-DCP-001 | 2026-09-14 | Priority re-cut proposed in `phase-2-ba-priority-recut.md`, countersigned by the Product Owner (T1 Workout P2, T2 Legal/Insurance/Disputes P2, T3 MIS + gateway only, admin on CRM forms, PTP Kept from MIS drop or manual mark) and SIGNED OFF WITH NOTES by the CEO. Priorities applied to every FR row here and in the traceability matrix: **73 P1 / 59 P2 / 4 P3** (was 124/12/0). SC-01 mapping trimmed to FR-001/002/045/046/055. CEO note for architecture: evaluate PTP Broken against the latest MIS snapshot and make the manual Kept mark the correction path. | 55 rows re-prioritised; see the re-cut file |
 | COND-DCP-002 | 2026-09-14 | Q-14 answered by the user: both orgs on-premise 9.x now, both to Dataverse cloud in ~18 months. Section 7 Q-14 row, C-07 and NFR-020 restated as a portability constraint. | NFR-020 |
 | COND-DCP-006 | 2026-09-14 | User confirmed a DWH exists — it is MIS, exposed through the Middleware API in buckets. FR-125 and FR-128 stay P1; the counterparty is the Middleware API in front of MIS (same feed as FR-121), never a direct warehouse connection. Q-06 closed with it. | FR-121, FR-125, FR-128 |
 | COND-DCP-007 | 2026-09-14 | SC-01..SC-06 mapping table added to `phase-2-ba-traceability.md`. SC-01 mapped to FR-001, FR-002, FR-003, FR-045, FR-046, FR-055. SC-03 mapped to FR-067, FR-068, FR-096, FR-120. All six SCs now map to at least one P1 FR. | FR-001, FR-002, FR-003, FR-045, FR-046, FR-055, FR-067, FR-068, FR-096, FR-111, FR-120 (SC mappings only; FRs unchanged) |
