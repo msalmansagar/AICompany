@@ -92,11 +92,11 @@ projects:
 
   - name: debtcollection
     type: integration   # React workspace + Fastify router over two D365 CE orgs
-    phase: ba
+    phase: architecture
     started: 2026-07-30
     last_updated: 2026-09-14
-    last_agent: ceo (brd-approval-gate)
-    ceo_approved_phases: [phase-1, brd]
+    last_agent: ceo (architecture-gate)
+    ceo_approved_phases: [phase-1, brd, architecture]
     output_dir: projects/debtcollection/
     status: approved_with_conditions
     brd_gate_decision: APPROVED WITH CONDITIONS
@@ -189,6 +189,77 @@ projects:
           SC-01..SC-06 mapping table added to phase-2-ba-traceability.md.
           SC-01 mapped to FR-001/002/003/045/046/055. SC-03 mapped to
           FR-067/068/096/120. All six SCs map to at least one P1 FR.
+      - id: COND-DCP-008
+        description: >
+          Prove AdfsAdapter against a real AD FS 2019 endpoint before any
+          component depends on it. If AD FS is WS-Fed-only or needs a
+          certificate S2S flow the generic OIDC path does not model, stop and
+          escalate to CEO. (Skeptic CH1 / AR-01)
+        gates: Build step 1 (Foundation)
+        owner: DevOps + backend
+        status: open
+      - id: COND-DCP-009
+        description: >
+          Add MIS batch-integrity validation to the ingest — row-count range
+          and schema/field sanity on the batch itself. A 200 response carrying
+          a truncated or malformed batch must not upsert or append snapshots;
+          it must reject-and-alert. (Skeptic CH2)
+        gates: Build step 2 (Ingest)
+        owner: architect + backend
+        status: open
+      - id: COND-DCP-010
+        description: >
+          Enforce the stop-contact + consent gate structurally, not by
+          convention. No channel adapter (ISmsGateway / nodemailer) may be
+          reachable outside the gated module; QA must prove no send path
+          bypasses the gate. (Skeptic CH4 / R-04)
+        gates: Build step 4 (Router + stop-contact + consent)
+        owner: architect + QA
+        status: open
+      - id: COND-DCP-011
+        description: >
+          Provide tamper-evidence beyond plugin enforcement — a periodic
+          external attestation / integrity check of qdb_auditlog and the
+          append-only snapshot tables, so a disable-plugin-then-delete is
+          detectable by a regulator. (Skeptic CH6 / SO-02)
+        gates: Go-live
+        owner: security-engineer + auditor
+        status: open
+      - id: COND-DCP-012
+        description: >
+          Guard the highest-leverage native-form config: validation on the
+          "no automated contact" and SLA rules in qdb_strategyconfig, plus a
+          change-review alert on strategy-rule edits (FR-118 logs them; someone
+          must be notified and review). Ties to COND-DCP-004. (Skeptic CH7)
+        gates: Build step 8 (Strategy + queues)
+        owner: Compliance + backend
+        status: open
+      - id: COND-DCP-013
+        description: >
+          QA must test the near-promised-date payment case and instrument the
+          false-Broken rate in early operation; if false escalations exceed the
+          agreed threshold, revisit the one-cycle grace window before the
+          population scales. (Skeptic CH3 / AR-02)
+        gates: Build step 6 (PTP) + early operation
+        owner: QA + Product Owner
+        status: open
+      - id: COND-DCP-014
+        description: >
+          Fix the gate tooling — .claude/scripts/gate-analyze.sh SKIPs because
+          it expects a *-brd.md filename; teach it the phase-2-ba.md convention
+          so the semantic gate actually runs on future phases. Tooling defect,
+          not a pass/fail on this architecture.
+        gates: Next gate run
+        owner: DevOps
+        status: open
+      - id: COND-DCP-015
+        description: >
+          Start the standalone-portal security review / AAD app registration /
+          hosting request early, parallel to build, not at the end — it is the
+          slowest path to prod. (Skeptic CH5 / AR-08)
+        gates: Go-live
+        owner: DevOps + Client
+        status: open
     notes: >
       DCP-001 Debt Collection Platform. Phase 1 (CEO) APPROVED 2026-09-13.
       BRD (phase-2-ba.md) produced: 132 FRs + 20 NFRs, 17 sections, 626 lines.
