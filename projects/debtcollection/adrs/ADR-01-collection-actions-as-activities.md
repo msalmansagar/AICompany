@@ -5,9 +5,9 @@
 
 ## Decision (summary)
 Model collection interactions as **custom activity entities** (`IsActivity=true`), split into two types on
-**privilege**: `qdb_collectionaction` (call, meeting, supervisor review, field visit, manual note — no outbound
-side-effect) and `qdb_communication` (SMS, email, official letter, call log — dispatches + delivery lifecycle).
-`regardingobjectid` is **polymorphic** (Contact/Account, `qdb_loanfacility`, `qdb_collectioncase`) so an
+**privilege**: `msst_dcpcollectionaction` (call, meeting, supervisor review, field visit, manual note — no outbound
+side-effect) and `msst_dcpcommunication` (SMS, email, official letter, call log — dispatches + delivery lifecycle).
+`regardingobjectid` is **polymorphic** (Contact/Account, `msst_dcploanfacility`, `msst_dcpcollectioncase`) so an
 interaction **never requires a case** — the fix for manual case creation (D-2). PTP, restructure, legal,
 insurance, dispute remain **normal entities** with full lifecycle. Communications are recorded **once**.
 Identical schema + logical names deployed to both orgs (R-05 mitigation).
@@ -15,7 +15,7 @@ Identical schema + logical names deployed to both orgs (R-05 mitigation).
 ## Binding constraints
 1. Plugin blocks Update/Delete once `statecode=Completed` — incl. sysadmin (removing role Delete is not enough).
 2. `subject` composed by a plugin. 3. Stop-contact + consent evaluated in the **router** before any
-`qdb_communication` is created; a blocked attempt is written as evidence. 4. Outcome codes from config.
+`msst_dcpcommunication` is created; a blocked attempt is written as evidence. 4. Outcome codes from config.
 5. Field visit is an action type, not the deferred module-11 entity.
 
 ## Consequences

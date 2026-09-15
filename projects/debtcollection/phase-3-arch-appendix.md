@@ -12,94 +12,94 @@ product segment in the entity name, columns do not — reference note `publisher
 Read polymorphic lookups as `_<attr>_value` + the `lookuplogicalname` / FormattedValue annotation; `$expand`
 names the target type (GOT-009; ADR-DCP-01). Option-set codes are 100000000-based — never assume 0-based (GOT-011).
 
-### A.1 `qdb_customer`  (FR-007, 014, 095, 133)
+### A.1 `msst_dcpcustomer`  (FR-007, 014, 095, 133)
 | Field | Type | Notes |
 |---|---|---|
-| `qdb_qid` | text, **alternate key** | Qatar ID — the cross-org identity key. Missing ⇒ `qdb_identityexception` |
-| `qdb_crnumber` | text | Commercial registration (secondary correlation) |
-| `qdb_fullname` / `qdb_nationality` / `qdb_employer` | text | Profile |
-| `qdb_mobile` / `qdb_email` / `qdb_address` | text | **Masked** for roles without `View Sensitive PII` |
-| `qdb_salarytransfer` | bool | Salary-transfer status |
-| `qdb_vulnerabilityflag` | bool | Conduct flag |
-| `qdb_stopcontact` | bool | R-04 trigger; suppresses all automated outbound in the router |
-| `qdb_deceasedflag` / `qdb_dateofdeath` / `qdb_deathsource` | bool/date/text | FR-095 |
-| `qdb_preferredlanguage` | optionset (AR/EN) | Template language; default AR |
+| `msst_qid` | text, **alternate key** | Qatar ID — the cross-org identity key. Missing ⇒ `msst_dcpidentityexception` |
+| `msst_crnumber` | text | Commercial registration (secondary correlation) |
+| `msst_fullname` / `msst_nationality` / `msst_employer` | text | Profile |
+| `msst_mobile` / `msst_email` / `msst_address` | text | **Masked** for roles without `View Sensitive PII` |
+| `msst_salarytransfer` | bool | Salary-transfer status |
+| `msst_vulnerabilityflag` | bool | Conduct flag |
+| `msst_stopcontact` | bool | R-04 trigger; suppresses all automated outbound in the router |
+| `msst_deceasedflag` / `msst_dateofdeath` / `msst_deathsource` | bool/date/text | FR-095 |
+| `msst_preferredlanguage` | optionset (AR/EN) | Template language; default AR |
 
-### A.2 `qdb_loanfacility`  (FR-002, 020, 101)
+### A.2 `msst_dcploanfacility`  (FR-002, 020, 101)
 | Field | Type | Notes |
 |---|---|---|
-| `qdb_customerid` | lookup → customer | Owner |
-| `qdb_producttype` | optionset | Housing Loan, Corporate, SME, Restructured, Legal, Deceased |
-| `qdb_outstandingbalance` / `qdb_arrears` / `qdb_instalment` | money | Current (upserted from MIS); live figure read from MIS API on screen |
-| `qdb_dpd` | int | From MIS; never computed here |
-| `qdb_dpdbucket` | optionset (10-value) | 1-30 … >2000, verbatim MIS |
-| `qdb_accountstatus` | optionset | **NPL / Write-off axis — separate from bucket** (FR-018) |
-| `qdb_maturitydate` / `qdb_collateral` / `qdb_guarantor` / `qdb_restructureflag` | mixed | Facility detail |
+| `msst_customerid` | lookup → customer | Owner |
+| `msst_producttype` | optionset | Housing Loan, Corporate, SME, Restructured, Legal, Deceased |
+| `msst_outstandingbalance` / `msst_arrears` / `msst_instalment` | money | Current (upserted from MIS); live figure read from MIS API on screen |
+| `msst_dpd` | int | From MIS; never computed here |
+| `msst_dpdbucket` | optionset (10-value) | 1-30 … >2000, verbatim MIS |
+| `msst_accountstatus` | optionset | **NPL / Write-off axis — separate from bucket** (FR-018) |
+| `msst_maturitydate` / `msst_collateral` / `msst_guarantor` / `msst_restructureflag` | mixed | Facility detail |
 
-### A.3 `qdb_delinquencysnapshot`  (append-only — FR-016, 017, 018)
+### A.3 `msst_dcpdelinquencysnapshot`  (append-only — FR-016, 017, 018)
 | Field | Type | Notes |
 |---|---|---|
-| `qdb_facilityid` | lookup → facility | Subject |
-| `qdb_batchreference` | text | MIS batch id — provenance |
-| `qdb_asof` | datetime | Moment-of-decision stamp |
-| `qdb_dpd` / `qdb_arrears` / `qdb_outstandingbalance` | int/money | Values at `asOf` |
-| `qdb_dpdbucket` | optionset (10-value) | Classification from MIS |
+| `msst_facilityid` | lookup → facility | Subject |
+| `msst_batchreference` | text | MIS batch id — provenance |
+| `msst_asof` | datetime | Moment-of-decision stamp |
+| `msst_dpd` / `msst_arrears` / `msst_outstandingbalance` | int/money | Values at `asOf` |
+| `msst_dpdbucket` | optionset (10-value) | Classification from MIS |
 | — | — | **No Update / Delete** (ImmutabilityGuard, incl. sysadmin) |
 
-### A.4 `qdb_collectioncase`  (FR-019, 020, 022, 025, 028)
+### A.4 `msst_dcpcollectioncase`  (FR-019, 020, 022, 025, 028)
 | Field | Type | Notes |
 |---|---|---|
-| `qdb_customerid` / `qdb_facilityid` | lookup | Anchors |
-| `qdb_producttype` | optionset | Officer-selected (D-3) |
-| `qdb_casereason` | text | Mandatory |
+| `msst_customerid` / `msst_facilityid` | lookup | Anchors |
+| `msst_producttype` | optionset | Officer-selected (D-3) |
+| `msst_casereason` | text | Mandatory |
 | `statuscode` | optionset (17-value) | FR-022; transitions plugin-validated |
-| `qdb_org` | optionset (HL/BFD) | Routing attribute of the record |
+| `msst_org` | optionset (HL/BFD) | Routing attribute of the record |
 | — | — | Delete removed from every role + blocked by plugin |
 
-### A.5 `qdb_collectionaction` (custom activity — FR-045, 046, 047, 052, 054)
+### A.5 `msst_dcpcollectionaction` (custom activity — FR-045, 046, 047, 052, 054)
 | Field | Type | Notes |
 |---|---|---|
 | `regardingobjectid` | **polymorphic** lookup | Contact/Account, facility, or case — never required to be a case |
-| `qdb_actiontype` | optionset (config) | Call, Meeting, Supervisor Review, Field Visit, Manual Note |
-| `qdb_outcomecode` | optionset (config) | From action-outcome config, not hard-coded (FR-052) |
-| `qdb_notes` | text | Mandatory |
+| `msst_actiontype` | optionset (config) | Call, Meeting, Supervisor Review, Field Visit, Manual Note |
+| `msst_outcomecode` | optionset (config) | From action-outcome config, not hard-coded (FR-052) |
+| `msst_notes` | text | Mandatory |
 | `scheduledend` | datetime | **Mandatory next-action date**; past + Open = overdue (FR-048) |
 | `statecode` | Open/Completed/Canceled | Completed ⇒ immutable |
 | `subject` | text | Composed by plugin |
 
-### A.6 `qdb_communication` (custom activity — FR-065, 066, 067, 072, 075)
+### A.6 `msst_dcpcommunication` (custom activity — FR-065, 066, 067, 072, 075)
 | Field | Type | Notes |
 |---|---|---|
 | `regardingobjectid` | polymorphic lookup | Customer / facility / case |
-| `qdb_channel` | optionset | SMS, Email, Official Letter, Call |
-| `qdb_direction` | optionset | Inbound / Outbound |
-| `qdb_templateref` | lookup/text | Approved template used (FR-069) |
-| `qdb_deliverystatus` | optionset | Sent, Delivered, Failed, Opened (P2); Blocked |
-| `qdb_blockreason` | text | `stop_contact` / `consent_not_established` / `consent_withdrawn` — evidence |
+| `msst_channel` | optionset | SMS, Email, Official Letter, Call |
+| `msst_direction` | optionset | Inbound / Outbound |
+| `msst_templateref` | lookup/text | Approved template used (FR-069) |
+| `msst_deliverystatus` | optionset | Sent, Delivered, Failed, Opened (P2); Blocked |
+| `msst_blockreason` | text | `stop_contact` / `consent_not_established` / `consent_withdrawn` — evidence |
 | `statecode` | Open/Completed/Canceled | Completed ⇒ immutable |
 
-### A.7 `qdb_ptprecord`  (FR-055, 059, 061)
+### A.7 `msst_dcpptprecord`  (FR-055, 059, 061)
 | Field | Type | Notes |
 |---|---|---|
-| `qdb_customerid` / `qdb_caseid` | lookup | Case recommended, not required |
-| `qdb_ptpdate` / `qdb_promisedamount` / `qdb_partialflag` | date/money/bool | Commitment |
-| `qdb_reminderdate` | date | Drives FR-056 reminder |
-| `qdb_status` | optionset | Open, Kept, Partially Kept, Broken, Rescheduled, Cancelled |
-| `qdb_reschedulecount` | int | Limit + approval (P2, FR-060) |
+| `msst_customerid` / `msst_caseid` | lookup | Case recommended, not required |
+| `msst_ptpdate` / `msst_promisedamount` / `msst_partialflag` | date/money/bool | Commitment |
+| `msst_reminderdate` | date | Drives FR-056 reminder |
+| `msst_status` | optionset | Open, Kept, Partially Kept, Broken, Rescheduled, Cancelled |
+| `msst_reschedulecount` | int | Limit + approval (P2, FR-060) |
 
-### A.8 `qdb_consent`  (FR-133, 134, 135) · A.9 `qdb_strategyconfig` (FR-031/032/033) · A.10 `qdb_auditlog` (FR-108/109) · A.11 `qdb_identityexception` (FR-007)
+### A.8 `msst_dcpconsent`  (FR-133, 134, 135) · A.9 `msst_dcpstrategyconfig` (FR-031/032/033) · A.10 `msst_dcpauditlog` (FR-108/109) · A.11 `msst_dcpidentityexception` (FR-007)
 | Entity | Key fields |
 |---|---|
-| `qdb_consent` | `qdb_customerid`, `qdb_channel`, `qdb_status` (given/withdrawn/not-recorded), `qdb_lawfulbasis`, `qdb_source`, `qdb_recordedby`, `qdb_recordedon` |
-| `qdb_strategyconfig` | `qdb_dpdbucket` (10-value), `qdb_segment` (Retail/SME), `qdb_actiontype` (SMS/Email/Letter/Queue/**NoContact**), `qdb_queueref`, `qdb_slahours`, `qdb_active` |
-| `qdb_auditlog` | `qdb_actiontype`, `qdb_entityname`, `qdb_recordid`, `qdb_oldvalue`, `qdb_newvalue`, `qdb_actor`, `qdb_actorrole`, `qdb_timestamp`, `qdb_sourcepath` — append-only, blocked to sysadmin |
-| `qdb_identityexception` | `qdb_qid`, `qdb_reason` (missing/duplicate/one-org-only), `qdb_status`, `qdb_reviewedby` |
+| `msst_dcpconsent` | `msst_customerid`, `msst_channel`, `msst_status` (given/withdrawn/not-recorded), `msst_lawfulbasis`, `msst_source`, `msst_recordedby`, `msst_recordedon` |
+| `msst_dcpstrategyconfig` | `msst_dpdbucket` (10-value), `msst_segment` (Retail/SME), `msst_actiontype` (SMS/Email/Letter/Queue/**NoContact**), `msst_queueref`, `msst_slahours`, `msst_active` |
+| `msst_dcpauditlog` | `msst_actiontype`, `msst_entityname`, `msst_recordid`, `msst_oldvalue`, `msst_newvalue`, `msst_actor`, `msst_actorrole`, `msst_timestamp`, `msst_sourcepath` — append-only, blocked to sysadmin |
+| `msst_dcpidentityexception` | `msst_qid`, `msst_reason` (missing/duplicate/one-org-only), `msst_status`, `msst_reviewedby` |
 
 ---
 
 ## B. Statuscode Transition Matrices
 
-### B.1 `qdb_collectioncase` (FR-022/023 — enforced by `StatusTransitionValidator`)
+### B.1 `msst_dcpcollectioncase` (FR-022/023 — enforced by `StatusTransitionValidator`)
 
 The 17 statuscodes and their permitted next states. Any transition not listed is rejected with an explanatory
 `invalid_transition` error. Terminal states: Closed, Written Off (both reopenable to Reopened, FR-029 P2).
@@ -124,12 +124,12 @@ The 17 statuscodes and their permitted next states. Any transition not listed is
 | Written Off | Reopened |
 | Reopened | In Progress |
 
-**Guard rule:** any transition into a contact-bearing state is refused if `qdb_stopcontact = true` except a move
+**Guard rule:** any transition into a contact-bearing state is refused if `msst_stopcontact = true` except a move
 to Deceased/Insurance Review (FR-043/097). Restructure/Legal/Insurance target states exist for lifecycle
 continuity but their **entities are P2/P3** — in Phase 1 the case reaches the state and the downstream work
 happens in native CRM (ADR-DCP-03).
 
-### B.2 `qdb_ptprecord` (FR-059; evaluation per ADR-DCP-06)
+### B.2 `msst_dcpptprecord` (FR-059; evaluation per ADR-DCP-06)
 | From | Permitted → |
 |---|---|
 | Open | Kept, Partially Kept, Broken, Rescheduled, Cancelled |
@@ -166,7 +166,7 @@ Privileges shown in the last three columns are native CRM privileges, not code c
 
 `Send Free-Text` is deliberately held by no standard role in Phase 1 (all sends use approved templates, FR-069);
 it is provisioned as a grantable privilege for a future exception process. Per-channel send (SMS vs letter) is a
-finer privilege on `qdb_communication` create, the RBAC boundary ADR-DCP-01 splits the two activities to express.
+finer privilege on `msst_dcpcommunication` create, the RBAC boundary ADR-DCP-01 splits the two activities to express.
 
 ---
 
@@ -219,7 +219,7 @@ Every P1 FR from the priority re-cut maps to at least one architecture component
 | FR-001 | Customer profile — `/customers/:qid`, web page 02 | §5.1, §9, D |
 | FR-002 | Facilities + live "as of" balance | §4.1, §6, App A.2, D |
 | FR-004 | Native Timeline (activities) | §4.2, §9 |
-| FR-007 | QID identity key + `qdb_identityexception` | §5.3, App A.1/A.11 |
+| FR-007 | QID identity key + `msst_dcpidentityexception` | §5.3, App A.1/A.11 |
 | FR-012 | Communication log | §8, D |
 | FR-014 | PII masking at router | §5.1, §10, App C |
 | FR-016 | MIS ingest → upsert + snapshot | §6 |
@@ -243,13 +243,13 @@ Every P1 FR from the priority re-cut maps to at least one architecture component
 | FR-040 | Queue SLA (configurable) | §9, App A.9, D |
 | FR-041 | Supervisor workload view | §9, D |
 | FR-043 | Stop-contact queue rule | §5.4, App B.1, D |
-| FR-045 | Log `qdb_collectionaction` | §4.2, App A.5, D |
+| FR-045 | Log `msst_dcpcollectionaction` | §4.2, App A.5, D |
 | FR-046 | Action fields + mandatory `scheduledend` | App A.5 |
 | FR-047 | Action immutable after Completed | §4.4 |
 | FR-048 | Overdue-actions view | §4.2, D |
 | FR-052 | Outcome codes from config | §4.6, App A.5 |
 | FR-053 | Non-overridable actor/timestamp | §4.1 (NFR-015) |
-| FR-055 | Create `qdb_ptprecord` | §7, App A.7, D |
+| FR-055 | Create `msst_dcpptprecord` | §7, App A.7, D |
 | FR-056 | PTP reminder (gated) | §8 |
 | FR-057 | Broken evaluation vs latest snapshot | §7 |
 | FR-058 | Broken-PTP escalation | §7 |

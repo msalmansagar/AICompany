@@ -13,8 +13,8 @@ the moment of decision, CRM-side rule triggers, and history/trending (facts §5)
 **Store thin, read live.**
 1. A **pg-boss** job (transactional enqueue+write in the same PostgreSQL transaction; MIT; no Redis) runs on a
    configurable nightly schedule against the MIS API for **delinquent accounts only**.
-2. Per facility: **upsert** `qdb_customer` / `qdb_loanfacility` (mutable, current); **append** a
-   `qdb_delinquencysnapshot` row **only when the bucket or arrears changed, or it is month-end** — removing
+2. Per facility: **upsert** `msst_dcpcustomer` / `msst_dcploanfacility` (mutable, current); **append** a
+   `msst_dcpdelinquencysnapshot` row **only when the bucket or arrears changed, or it is month-end** — removing
    ~80% of rows while preserving every decision point and the regulatory month-end position.
 3. Every snapshot row carries the MIS `batchReference` and `asOf`, is **append-only** (ImmutabilityGuard, never
    the UI), and stores the bucket **verbatim** as one of the ten MIS values. **NPL / Write-off live on a

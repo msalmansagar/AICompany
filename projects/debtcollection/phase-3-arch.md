@@ -125,34 +125,36 @@ deploys independently; the registry captures the *decision* to reuse, and the fo
 
 ## 4. CRM Solution Design
 
-One **managed solution** (`QdbDebtCollection`, publisher prefix `qdb_`) imported identically into HL and BFD
+One **managed solution** (`MsstDebtCollection`, publisher `MSST`, prefix `msst`, product segment `dcp` on entities per `global/PUBLISHER-AND-PREFIX.md`) imported identically into HL and BFD
 from a single package — the schema-level mitigation for role/schema drift (R-05). Field-level attribute lists
 are in the appendix; this section is the inventory, the statuscode model, the plugins, and the roles.
+
+**Naming amendment 2026-09-15.** The draft named everything `qdb_*`. That violates `global/PUBLISHER-AND-PREFIX.md` (one publisher `MSST`, prefix `msst`, product segment on entities and Custom APIs, none on columns; the client is the first customer, never the namespace owner) and a prefix is permanent once components exist. All names below are therefore `msst_dcp<entity>` for entities and `msst_<column>` for columns; the BRD's `qdb_*` names are read as logical placeholders for these. Web resources, if any, are `msst_dcp_*`.
 
 ### 4.1 Entities — Phase 1 only
 
 | Logical name | Kind | Purpose | P1 FRs |
 |---|---|---|---|
-| `qdb_customer` | entity (or Contact ext.) | Customer master; QID key, `stopContact`, deceased flag, preferred language, consent link | FR-007, 095 |
-| `qdb_loanfacility` | entity | Facility: product type, balance, arrears, DPD, NPL/account-status axis | FR-002, 020 |
-| `qdb_delinquencysnapshot` | entity (**append-only**) | Immutable per-facility per-run snapshot; MIS `batchReference`, `asOf`, DPD, arrears, balance, 10-bucket | FR-016, 017, 018, 024 |
-| `qdb_collectioncase` | entity | Manually-created case; product type, reason, statuscode | FR-019, 020, 022, 025 |
-| `qdb_collectionaction` | **custom activity** | Call, meeting, supervisor review, field-visit, manual note. No outbound side-effect | FR-045, 046, 047, 048, 052, 053 |
-| `qdb_communication` | **custom activity** | SMS, email, official letter, call log. Dispatches + delivery lifecycle | FR-065, 066, 073, 075 |
-| `qdb_ptprecord` | entity | Promise-to-pay commitment; monitored after close | FR-055, 057, 059, 061 |
-| `qdb_consent` | entity | PDPPL consent per customer per channel; fail-closed source | FR-133, 134, 135 |
-| `qdb_strategyconfig` | entity (config) | DPD-bucket → action rule; "no automated contact" | FR-031, 032, 033, 035 |
-| `qdb_auditlog` | entity (**append-only**) | Plugin-written audit; blocked to sysadmin | FR-108, 109, 110, 111 |
-| `qdb_identityexception` | entity | Unresolved-identity queue (missing/duplicate QID) | FR-007 |
+| `msst_dcpcustomer` | entity (or Contact ext.) | Customer master; QID key, `stopContact`, deceased flag, preferred language, consent link | FR-007, 095 |
+| `msst_dcploanfacility` | entity | Facility: product type, balance, arrears, DPD, NPL/account-status axis | FR-002, 020 |
+| `msst_dcpdelinquencysnapshot` | entity (**append-only**) | Immutable per-facility per-run snapshot; MIS `batchReference`, `asOf`, DPD, arrears, balance, 10-bucket | FR-016, 017, 018, 024 |
+| `msst_dcpcollectioncase` | entity | Manually-created case; product type, reason, statuscode | FR-019, 020, 022, 025 |
+| `msst_dcpcollectionaction` | **custom activity** | Call, meeting, supervisor review, field-visit, manual note. No outbound side-effect | FR-045, 046, 047, 048, 052, 053 |
+| `msst_dcpcommunication` | **custom activity** | SMS, email, official letter, call log. Dispatches + delivery lifecycle | FR-065, 066, 073, 075 |
+| `msst_dcpptprecord` | entity | Promise-to-pay commitment; monitored after close | FR-055, 057, 059, 061 |
+| `msst_dcpconsent` | entity | PDPPL consent per customer per channel; fail-closed source | FR-133, 134, 135 |
+| `msst_dcpstrategyconfig` | entity (config) | DPD-bucket → action rule; "no automated contact" | FR-031, 032, 033, 035 |
+| `msst_dcpauditlog` | entity (**append-only**) | Plugin-written audit; blocked to sysadmin | FR-108, 109, 110, 111 |
+| `msst_dcpidentityexception` | entity | Unresolved-identity queue (missing/duplicate QID) | FR-007 |
 
-P2/P3 entities named by ADR-DCP-01 §5 but **not built in Phase 1**: `qdb_restructurecase`, `qdb_legalcase`,
-`qdb_insuranceclaim`, `qdb_dispute`, `qdb_approvalrequest`. Legal/Insurance personas use native CRM (ADR-DCP-03).
+P2/P3 entities named by ADR-DCP-01 §5 but **not built in Phase 1**: `msst_dcprestructurecase`, `msst_dcplegalcase`,
+`msst_dcpinsuranceclaim`, `msst_dcpdispute`, `msst_dcpapprovalrequest`. Legal/Insurance personas use native CRM (ADR-DCP-03).
 
 ### 4.2 Custom activities (ADR-DCP-01)
 
-`qdb_collectionaction` and `qdb_communication` are `IsActivity = true` — **split on privilege, not tidiness**:
+`msst_dcpcollectionaction` and `msst_dcpcommunication` are `IsActivity = true` — **split on privilege, not tidiness**:
 "may log a call" ≠ "may send an SMS" is a native RBAC boundary (RFP §4 segregation of duties). `regardingobjectid`
-is **polymorphic** (Contact/Account, `qdb_loanfacility`, `qdb_collectioncase`) so an interaction **never requires
+is **polymorphic** (Contact/Account, `msst_dcploanfacility`, `msst_dcpcollectioncase`) so an interaction **never requires
 a case** — the direct fix for manual case creation (D-2) over the 41% top-of-funnel population. The native
 Timeline aggregates both, satisfying FR-004/012 with no custom control (cross-org timeline is deferred with BFD).
 `subject` is composed by a plugin. Frontend cost: read `_regardingobjectid_value` + `lookuplogicalname`
@@ -160,8 +162,8 @@ annotation, `$expand` names the target type (appendix §A note; GOT-009).
 
 ### 4.3 Statuscode model
 
-`qdb_collectioncase` carries the 17-value lifecycle of FR-022; transitions are validated by a plugin against an
-allowed-transition matrix (FR-023). `qdb_ptprecord` carries Open/Kept/PartiallyKept/Broken/Rescheduled/Cancelled
+`msst_dcpcollectioncase` carries the 17-value lifecycle of FR-022; transitions are validated by a plugin against an
+allowed-transition matrix (FR-023). `msst_dcpptprecord` carries Open/Kept/PartiallyKept/Broken/Rescheduled/Cancelled
 (FR-059). Custom activities use the native Open/Completed/Canceled statecode; **immutability keys on
 `statecode = Completed`** (FR-047/075). **Full transition matrices are in appendix §B.**
 
@@ -169,7 +171,7 @@ allowed-transition matrix (FR-023). `qdb_ptprecord` carries Open/Kept/PartiallyK
 
 | Plugin | Fires on | Responsibility | P1 FRs |
 |---|---|---|---|
-| `AuditLogWriter` | post-op Create/Update on every tracked entity | Write append-only `qdb_auditlog` row (actor+role, old/new, source path, correlation id) | FR-036, 061, 076, 108, 109, 118 |
+| `AuditLogWriter` | post-op Create/Update on every tracked entity | Write append-only `msst_dcpauditlog` row (actor+role, old/new, source path, correlation id) | FR-036, 061, 076, 108, 109, 118 |
 | `StatusTransitionValidator` | pre-op Update of `statuscode` on case/PTP | Reject transitions outside the matrix with an explanatory error | FR-023 |
 | `ImmutabilityGuard` | pre-op Update/Delete | Block change once `statecode=Completed` (activities) or on snapshot/audit rows — **including for sysadmin** | FR-017, 025, 047, 075, 110 |
 
@@ -187,7 +189,7 @@ checks. **No role holds Delete** on case/snapshot/audit/completed-activity — n
 ### 4.6 Config-table vs code (Article V; NFR-018)
 
 **Config (edited on CRM native forms in Phase 1 — no portal admin screen, T3):** strategy rules incl. "no
-automated contact" (`qdb_strategyconfig`, FR-031/032/033/035), action-outcome codes (FR-052), SLA thresholds
+automated contact" (`msst_dcpstrategyconfig`, FR-031/032/033/035), action-outcome codes (FR-052), SLA thresholds
 per queue (FR-040), PTP reschedule limit and broken-PTP escalation count (FR-058/060), templates AR/EN
 (seeded pre-approved by Compliance offline, FR-070). **Code:** transition matrix shape, the router capabilities,
 plugin logic. **Never in config:** record GUIDs — resolve by code/name/alternate-key at runtime (ARC-M-001,
@@ -234,22 +236,22 @@ S2S/OAuth service principal, cloud uses MSAL client-credentials — behind the s
 An org is a runtime attribute of a **record**, never of a page (brief §2). `resolveOrg(request)` decides HL vs
 BFD by, in order: explicit `org` param → facility product type → record-id prefix (FR-119). Phase 1 always
 resolves HL; BFD is a config-gated branch (`FEATURE_BFD`, NFR-012/SC-06) proven against an empty BFD target.
-The **QID identity map** (`qdb_customer.qdb_qid` alternate key in each org) lets the router fan out on QID and
+The **QID identity map** (`msst_dcpcustomer.msst_qid` alternate key in each org) lets the router fan out on QID and
 merge for cross-org 360 — **built but flag-off in Phase 1** (FR-009 is P3). Records with no QID land in
-`qdb_identityexception` and are never merged (FR-007). No record GUID is ever carried across orgs (ARC-M-001).
+`msst_dcpidentityexception` and are never merged (FR-007). No record GUID is ever carried across orgs (ARC-M-001).
 
 ### 5.4 Stop-contact + consent gate placement (R-04; the SC-03 control)
 
 The gate lives in a single Fastify pre-handler on **every** outbound-communication path, **before any channel
-adapter and before the `qdb_communication` create** (ADR-DCP-01 constraint 3):
+adapter and before the `msst_dcpcommunication` create** (ADR-DCP-01 constraint 3):
 
 ```
 POST /communications
   → validate(zod) → auth → correlationId
   → GATE:  stopContact(customer)?  OR  consent(customer, channel) ∈ {missing, withdrawn}?
-             ├─ blocked → write qdb_communication{ status: Blocked, reason, channel, ts }  (evidence)
+             ├─ blocked → write msst_dcpcommunication{ status: Blocked, reason, channel, ts }  (evidence)
              │            → return Result.err('stop_contact' | 'consent_not_established' | 'consent_withdrawn')
-             └─ allowed → channel adapter (ISmsGateway / nodemailer) → qdb_communication{ Completed, deliveryStatus }
+             └─ allowed → channel adapter (ISmsGateway / nodemailer) → msst_dcpcommunication{ Completed, deliveryStatus }
 ```
 
 Consent is **fail-closed**: absence of a record = no consent (FR-134). WhatsApp inherits the SMS gate (FR-136,
@@ -259,7 +261,7 @@ written as evidence — the block itself is the audit artifact SC-03 exports.
 ### 5.5 Correlation id + error model
 
 Every request is stamped with a `correlationId` (Article XIV) that flows React → router → CRM; the router passes
-it to the plugin via a custom header so the `qdb_auditlog` row records the **full source path** (FR-109). All
+it to the plugin via a custom header so the `msst_dcpauditlog` row records the **full source path** (FR-109). All
 handlers return a **`Result<T, DomainError>`** — never `null`, never a bare throw across the boundary (common.md;
 ARC preferred approach). `DomainError` carries a stable code (`stop_contact`, `consent_withdrawn`,
 `invalid_transition`, `identity_unresolved`, `mis_unavailable`) mapped to an HTTP status by one boundary handler.
@@ -280,8 +282,8 @@ pg-boss schedule (configurable, nightly)  ──►  MIS Middleware API  (delinq
    │  one job, transactional: enqueue + write in the SAME PostgreSQL transaction (no split-brain, dependencies §3)
    ▼
 for each facility in batch:
-   upsert  qdb_customer / qdb_loanfacility        (mutable, current — by QID/facility alternate key)
-   append  qdb_delinquencysnapshot  IF  bucket or arrears CHANGED, OR it is month-end   (else skip)
+   upsert  msst_dcpcustomer / msst_dcploanfacility        (mutable, current — by QID/facility alternate key)
+   append  msst_dcpdelinquencysnapshot  IF  bucket or arrears CHANGED, OR it is month-end   (else skip)
                                      carrying MIS batchReference + asOf (immutable, plugin-guarded)
 ```
 
@@ -310,7 +312,7 @@ snapshot or a manual mark — the CEO note and T3 decision:
 
 - **Broken (FR-057/058, the SC-02 path):** a PTP whose promised date has passed and whose **latest snapshot**
   does not show arrears reduced by ≥ the promised amount is set to `Broken`, and a broken-PTP
-  `qdb_collectionaction` is written; after a configurable count of broken PTPs the case escalates to the
+  `msst_dcpcollectionaction` is written; after a configurable count of broken PTPs the case escalates to the
   supervisor queue. Evaluation runs as a pg-boss job after each ingest (so it always reads the newest snapshot).
 - **Kept:** the next MIS ingest shows arrears reduced by ≥ the promised amount ⇒ `Kept` (or `Partially Kept` if
   reduced by less); OR an officer marks it Kept with a reason (`POST /ptp/:id/mark-kept`), which is the
@@ -334,13 +336,13 @@ officer/PTP-reminder request
   → template resolve (liquidjs, AR/EN by preferred language, default AR)        FR-070
   → APPROVED-TEMPLATE check (no free-text without privilege)                    FR-069
   → STOP-CONTACT + CONSENT GATE (§5.4, fail-closed)                             FR-067/068/134
-      blocked → qdb_communication{ Blocked, reason }  (evidence, SC-03)          FR-067
+      blocked → msst_dcpcommunication{ Blocked, reason }  (evidence, SC-03)          FR-067
   → INotificationService → ISmsGateway | nodemailer(SMTP)                       FR-065/122
-  → create qdb_communication{ Completed, channel, templateRef }                 FR-066
+  → create msst_dcpcommunication{ Completed, channel, templateRef }                 FR-066
   → gateway delivery-status webhook → PATCH deliveryStatus                      FR-122 (P2: Delivered/Opened)
 ```
 
-**One authoritative record** per send in `qdb_communication` only — the prototype's duplicate action row is
+**One authoritative record** per send in `msst_dcpcommunication` only — the prototype's duplicate action row is
 removed (ADR-DCP-01 §6, FR-066). Channels in Phase 1: **SMS, Email, Official Letter, Call log** (FR-065); call
 logging needs no telephony integration (FR-073). Templates are LiquidJS (sandboxed, no code-eval — the FR-069
 control; handlebars rejected for 2026 RCE/XSS advisories, dependencies §5), seeded pre-approved by Compliance
@@ -377,8 +379,8 @@ server-rendered (NFR-006): 360, arrears, contact data are fetched in client comp
 | Concern | Design | Article / FR |
 |---|---|---|
 | Logging | **pino** structured logs in the router; every entry carries `correlationId`, `timestamp`, `service_name`, `operation`. CRM plugins use `ITracingService`. No `console.log` in committed code | XIV; common.md |
-| Correlation ids | Minted at the portal edge, propagated React → router → CRM header → `qdb_auditlog.sourcePath` | XIV; FR-109 |
-| Config | All thresholds/rules/templates from `qdb_strategyconfig` and CRM config forms at runtime; **no hard-coded GUIDs, rates, or rules** — resolve identifiers by code/name/alternate key | V; NFR-018; FR-035; ARC-M-001 |
+| Correlation ids | Minted at the portal edge, propagated React → router → CRM header → `msst_dcpauditlog.sourcePath` | XIV; FR-109 |
+| Config | All thresholds/rules/templates from `msst_dcpstrategyconfig` and CRM config forms at runtime; **no hard-coded GUIDs, rates, or rules** — resolve identifiers by code/name/alternate key | V; NFR-018; FR-035; ARC-M-001 |
 | Secrets | `.env` only, never in code/logs/transcripts; the previously-committed Azure secret (SEC-01) is a rotation gate. Reference variable names only (ANTI-005) | VII |
 | i18n | next-intl in the portal, `@dcp/i18n` bundles, AR/EN + RTL for Arabic mode; communications AR/EN mandatory (NFR-013). Templates resolve language with fallback | XX; NFR-013; FR-070 |
 | Observability | `GET /health` per service; integration health panel (FR-126/NFR-019); metrics (request count, error rate, p95) defined before deploy; alert thresholds tested pre-go-live | XIV |
@@ -394,7 +396,7 @@ All six are **Accepted** at this Phase-3 gate. ADR-DCP-01/02/03 are promoted fro
 
 | ADR | Title | Status | Date | Decided by | Full text |
 |-----|-------|--------|------|------------|-----------|
-| ADR-DCP-01 | Collection interactions as custom activity entities (`qdb_collectionaction` + `qdb_communication`, polymorphic regarding, immutability after Completed) | Accepted | 2026-09-14 | architect, ceo | `adrs/ADR-01-collection-actions-as-activities.md` (draft: facts §9) |
+| ADR-DCP-01 | Collection interactions as custom activity entities (`msst_dcpcollectionaction` + `msst_dcpcommunication`, polymorphic regarding, immutability after Completed) | Accepted | 2026-09-14 | architect, ceo | `adrs/ADR-01-collection-actions-as-activities.md` (draft: facts §9) |
 | ADR-DCP-02 | Standalone Next.js portal + separate Fastify router, one monorepo forked from portal-shell; no SSR of PII; router is a shared service | Accepted | 2026-09-14 | architect, ceo | `adrs/ADR-02-nextjs-portal-and-fastify-router.md` (draft: facts §10) |
 | ADR-DCP-03 | Portal owns submission; Legal/Insurance lifecycles in native CRM; react-hook-form + zod, no descriptor layer at n=4 | Accepted | 2026-09-14 | architect, ceo | `adrs/ADR-03-portal-forms-crm-lifecycle.md` (draft: facts §11) |
 | ADR-DCP-04 | Platform portability + pluggable auth adapter (`IAuthAdapter` over openid-client: AD FS now, Azure AD later); both-platform feature set; containerised router | Accepted | 2026-09-14 | architect, ceo | `adrs/ADR-04-platform-portability-auth-adapter.md` |
@@ -460,7 +462,7 @@ From the re-cut §3; each step is usable on its own and carries a proving test. 
 | AR-10 | Puppeteer/Chromium (~170 MB) inflates the container | Low | Size into the router image (dependencies §6); one HTML template serves both preview and PDF |
 
 **Open questions carried into build** (from BRD §7, unresolved by architecture): **Q-11** official-letter
-dispatch sub-states (affects `qdb_communication` state model); **Q-12** WhatsApp separate vs shared SMS consent
+dispatch sub-states (affects `msst_dcpcommunication` state model); **Q-12** WhatsApp separate vs shared SMS consent
 (FR-136 stays fail-closed, no build); **Q-13** multi-recipient contact (PartyList limitation — deferred P2).
 **SEC-01** the previously-committed Azure secret must be rotated before any cloud credential is used.
 
@@ -512,7 +514,7 @@ Switching roles. No new artifacts — only challenges to the design above.
 > review) and deferred the standalone portal? ADR-DCP-02 says no because of the router — but the router exists
 > either way. We should be able to defend that the portal, not just the router, earns its Phase-1 cost.
 
-> CHALLENGE 6 — Immutability we do not control: `qdb_communication` and `qdb_collectionaction` "feel immutable and
+> CHALLENGE 6 — Immutability we do not control: `msst_dcpcommunication` and `msst_dcpcollectionaction` "feel immutable and
 > are not" (ADR-DCP-01) — activities are deletable, and our guard is a plugin. A plugin can be disabled by an
 > admin in the same breath that deletes the row. For a regulator, is a plugin-enforced audit trail actually
 > tamper-evident, or only tamper-inconvenient? Do we need a periodic external attestation of the audit table?

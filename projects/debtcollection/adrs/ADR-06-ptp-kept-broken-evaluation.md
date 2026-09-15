@@ -14,7 +14,7 @@ date may not reduce arrears until the next ingest — risking a **false Broken f
    by less), **or** an officer marks it Kept with a reason (`POST /ptp/:id/mark-kept`) — the **correction path**.
 2. **Broken** = promised date passed **and** the **latest** snapshot does not show the required arrears drop.
    Evaluation runs as a pg-boss job **after each ingest**, so it always reads the newest snapshot. A broken PTP
-   writes a broken-PTP `qdb_collectionaction` and, after a configurable count of broken PTPs, escalates the case
+   writes a broken-PTP `msst_dcpcollectionaction` and, after a configurable count of broken PTPs, escalates the case
    to the supervisor queue.
 3. **Batch-latency mitigations (all required):** (a) always evaluate against the latest snapshot, never a stale
    one; (b) do not auto-escalate on the first ingest after the promised date if that ingest post-dates the
