@@ -80,3 +80,56 @@ model-driven form should have it, but org5869857f holds 12 API-created rules wit
 Third, once published: the runtime compares the dropdown's stored **value**, not its label,
 case-sensitively. If the option values differ from the labels in the rule, it publishes but
 never fires.
+
+## 2026-09-16 — "the lookup is set automatically, not by a change event"
+
+The reported rule differs from the demo in two ways that matter, and one that does not.
+
+**`trigger_event` does not restrict a rule to user edits.** The engine groups rules by
+trigger event and resolves the values each one reads. `on_load`, `on_blur` and `on_save` read
+a captured snapshot; **everything else, `on_change` and an absent value alike, reads the live
+values**. The provider re-evaluates every rule on any change to the value map, including the
+first one, and a legacy rule carries no trigger event at all, so it takes the same path. A
+value written by the record load, by a default, or by another rule's Set Value action
+therefore re-runs the rules exactly as typing would.
+
+**Proven against the real published JSON**, mounting the summary tab with the sponsor already
+present in the loaded record and touching nothing:
+
+| Auto-set value | Section hidden |
+|---|---|
+| `{ id, displayName: 'QDB Enterprise Solutions' }` | yes |
+| `'QDB Enterprise Solutions'` as a plain string | yes |
+| the record id alone, `03f1b2a3-…` | **no** |
+| `{ id, displayName: 'Qatar National Bank' }` | no, correctly |
+
+**So the shape of the auto-set value decides it.** A lookup cell holds the record it points at
+plus the text the user saw. Both halves become facts and an `equals` condition matches on
+either, which is why a display name works. Code that sets the lookup automatically and writes
+only the record id leaves nothing for a condition written against the label to match, and the
+rule publishes, evaluates, and does nothing. Either write both halves, or write the condition
+against the record id.
+
+**The second difference is the logic operator.** The reported conditions are two `equals`
+tests on one field:
+
+```json
+[{"fieldId":"3ef13247-…","operator":"equals","value":"Application Approved – Documents Pending"},
+ {"fieldId":"3ef13247-…","operator":"equals","value":"Returned for Additional Documents"}]
+```
+
+A legacy rule takes its combinator from `qdb_conditions_logic`, whose options are AND
+(100000000) and OR (100000001). **Under AND these two can never both hold**, whatever the
+field contains, so the rule can only ever fire with OR. The designer format carries the same
+choice as `condition_group.logical_operator`, which in the demo rule is AND only because that
+rule has a single condition.
+
+**Checks, in the order that settles it fastest:**
+
+1. `qdb_conditions_logic` on the rule is **OR**.
+2. Whatever sets the lookup writes the **display name**, not only the id, or the conditions
+   name the id.
+3. The condition strings match the stored text exactly. Matching is case-sensitive, and the
+   reported values contain an **en dash**, not a hyphen.
+4. The rule's Form Definition lookup points at the form, and the plugin is the 2026-09-06
+   build, without which a section-targeted rule never reaches the JSON at all.
