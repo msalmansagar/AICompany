@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net471</TargetFramework>
+    <AssemblyName>Msst.DebtCollection.Plugins</AssemblyName>
+    <RootNamespace>Msst.DebtCollection.Plugins</RootNamespace>
+    <Nullable>enable</Nullable>
+    <LangVersion>10.0</LangVersion>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <!-- Strong-name signing is required by the Dataverse sandbox isolation model. -->
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>key.snk</AssemblyOriginatorKeyFile>
+    <!--
+      The sandbox provides Microsoft.Xrm.Sdk and Newtonsoft.Json at runtime.
+      ExcludeAssets=runtime keeps them out of the output folder so the assembly
+      does not ship its own copies. No ILMerge step is needed here because we
+      carry no non-SDK dependencies.
+    -->
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Provides .NET Framework 4.7.1 reference assemblies so `dotnet build` works
+      on machines that have the NuGet package but not the SDK targeting pack.
+      The package's MSBuild targets set TargetFrameworkRootPath automatically.
+    -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net471" Version="1.0.3" PrivateAssets="All" />
+
+    <PackageReference Include="Microsoft.CrmSdk.CoreAssemblies" Version="9.0.2.51">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3">
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>
