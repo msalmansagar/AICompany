@@ -106,28 +106,36 @@ The 17 statuscodes and their permitted next states. Any transition not listed is
 
 | From | Permitted → |
 |---|---|
-| New | Assigned |
-| Assigned | In Progress, Escalated to Supervisor |
+| New | Assigned, Deceased/Insurance Review |
+| Assigned | In Progress, Escalated to Supervisor, Deceased/Insurance Review |
 | In Progress | Pending Customer Response, PTP Active, Restructure Review, Pending Legal Review, Deceased/Insurance Review, Escalated to Supervisor |
-| Pending Customer Response | In Progress, PTP Active |
-| PTP Active | PTP Broken, In Progress (kept), Settled |
-| PTP Broken | In Progress, Escalated to Supervisor, Pending Legal Review |
-| Restructure Review | Restructured, In Progress (rejected) |
-| Restructured | In Progress (re-default), Settled |
-| Escalated to Supervisor | In Progress, Pending Legal Review |
-| Pending Legal Review | Referred to Legal, In Progress (returned) |
-| Referred to Legal | Under Legal Action, In Progress (returned by Legal, FR-092) |
+| Pending Customer Response | In Progress, PTP Active, Deceased/Insurance Review |
+| PTP Active | PTP Broken, In Progress (kept), Settled, Deceased/Insurance Review |
+| PTP Broken | In Progress, Escalated to Supervisor, Pending Legal Review, Deceased/Insurance Review |
+| Restructure Review | Restructured, In Progress (rejected), Deceased/Insurance Review |
+| Restructured | In Progress (re-default), Settled, Deceased/Insurance Review |
+| Escalated to Supervisor | In Progress, Pending Legal Review, Deceased/Insurance Review |
+| Pending Legal Review | Referred to Legal, In Progress (returned), Deceased/Insurance Review |
+| Referred to Legal | Under Legal Action, In Progress (returned by Legal, FR-092), Deceased/Insurance Review |
 | Under Legal Action | Settled, Written Off |
 | Deceased/Insurance Review | Settled, Written Off |
 | Settled | Closed |
 | Closed | Reopened |
 | Written Off | Reopened |
-| Reopened | In Progress |
+| Reopened | In Progress, Deceased/Insurance Review |
 
 **Guard rule:** any transition into a contact-bearing state is refused if `msst_stopcontact = true` except a move
-to Deceased/Insurance Review (FR-043/097). Restructure/Legal/Insurance target states exist for lifecycle
-continuity but their **entities are P2/P3** — in Phase 1 the case reaches the state and the downstream work
-happens in native CRM (ADR-DCP-03).
+to Deceased/Insurance Review (FR-043/097) — which is now a permitted transition from **every non-terminal state**
+(all states except Under Legal Action, Deceased/Insurance Review itself, Settled, Closed, Written Off). This makes
+the carve-out a genuine escape hatch: a case in any live state whose customer is flagged deceased/stop-contact can
+always reach Deceased/Insurance Review, never trapped behind In Progress. The `StopContactQueueMover` (FR-097,
+post-op on the `msst_stopcontact` flip) sets `statuscode` to Deceased/Insurance Review on each active case as well
+as moving the queue, so lifecycle and queue agree automatically and no case rests in a contact-bearing status after
+suppression; that automatic transition is validated by `StatusTransitionValidator` (the carve-out permits it) and
+audited by `AuditLogWriter` under the flag-flipping user and the same correlation id as the customer Update
+(Build-step-1 decision 3, §14.2). Restructure/Legal/Insurance target states exist for
+lifecycle continuity but their **entities are P2/P3** — in Phase 1 the case reaches the state and the downstream
+work happens in native CRM (ADR-DCP-03).
 
 ### B.2 `msst_dcpptprecord` (FR-059; evaluation per ADR-DCP-06)
 | From | Permitted → |

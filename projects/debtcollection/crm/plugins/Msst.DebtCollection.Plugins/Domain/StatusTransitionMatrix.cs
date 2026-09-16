@@ -52,33 +52,55 @@ namespace Msst.DebtCollection.Plugins.Domain
 
         // ── Allowed-transition maps ───────────────────────────────────────────────
 
+        // ── Deceased/Insurance Review as a universal escape hatch ───────────────
+        // DeceasedInsuranceReview is a permitted escape hatch from every non-terminal
+        // state (App §B.1, Build-step-1 decision 3, 2026-09-16). The five states
+        // that do NOT carry it are the terminal/already-there group:
+        //   UnderLegalAction, DeceasedInsuranceReview itself, Settled, Closed, WrittenOff.
+
         private static readonly Dictionary<int, HashSet<int>> CaseAllowed =
             new Dictionary<int, HashSet<int>>
             {
-                [CaseStatus.New] = new HashSet<int> { CaseStatus.Assigned },
+                [CaseStatus.New] = new HashSet<int> {
+                    CaseStatus.Assigned,
+                    CaseStatus.DeceasedInsuranceReview },
                 [CaseStatus.Assigned] = new HashSet<int> {
-                    CaseStatus.InProgress, CaseStatus.EscalatedToSupervisor },
+                    CaseStatus.InProgress, CaseStatus.EscalatedToSupervisor,
+                    CaseStatus.DeceasedInsuranceReview },
                 [CaseStatus.InProgress] = new HashSet<int> {
                     CaseStatus.PendingCustomerResponse, CaseStatus.PtpActive,
                     CaseStatus.RestructureReview, CaseStatus.PendingLegalReview,
                     CaseStatus.DeceasedInsuranceReview, CaseStatus.EscalatedToSupervisor },
                 [CaseStatus.PendingCustomerResponse] = new HashSet<int> {
-                    CaseStatus.InProgress, CaseStatus.PtpActive },
+                    CaseStatus.InProgress, CaseStatus.PtpActive,
+                    CaseStatus.DeceasedInsuranceReview },
                 [CaseStatus.PtpActive] = new HashSet<int> {
-                    CaseStatus.PtpBroken, CaseStatus.InProgress, CaseStatus.Settled },
+                    CaseStatus.PtpBroken, CaseStatus.InProgress, CaseStatus.Settled,
+                    CaseStatus.DeceasedInsuranceReview },
                 [CaseStatus.PtpBroken] = new HashSet<int> {
                     CaseStatus.InProgress, CaseStatus.EscalatedToSupervisor,
-                    CaseStatus.PendingLegalReview },
+                    CaseStatus.PendingLegalReview,
+                    CaseStatus.DeceasedInsuranceReview },
                 [CaseStatus.RestructureReview] = new HashSet<int> {
-                    CaseStatus.Restructured, CaseStatus.InProgress },
+                    CaseStatus.Restructured, CaseStatus.InProgress,
+                    CaseStatus.DeceasedInsuranceReview },
                 [CaseStatus.Restructured] = new HashSet<int> {
-                    CaseStatus.InProgress, CaseStatus.Settled },
+                    CaseStatus.InProgress, CaseStatus.Settled,
+                    CaseStatus.DeceasedInsuranceReview },
                 [CaseStatus.EscalatedToSupervisor] = new HashSet<int> {
-                    CaseStatus.InProgress, CaseStatus.PendingLegalReview },
+                    CaseStatus.InProgress, CaseStatus.PendingLegalReview,
+                    CaseStatus.DeceasedInsuranceReview },
                 [CaseStatus.PendingLegalReview] = new HashSet<int> {
-                    CaseStatus.ReferredToLegal, CaseStatus.InProgress },
+                    CaseStatus.ReferredToLegal, CaseStatus.InProgress,
+                    CaseStatus.DeceasedInsuranceReview },
                 [CaseStatus.ReferredToLegal] = new HashSet<int> {
-                    CaseStatus.UnderLegalAction, CaseStatus.InProgress },
+                    CaseStatus.UnderLegalAction, CaseStatus.InProgress,
+                    CaseStatus.DeceasedInsuranceReview },
+                [CaseStatus.Reopened] = new HashSet<int> {
+                    CaseStatus.InProgress,
+                    CaseStatus.DeceasedInsuranceReview },
+
+                // Terminal / already-there — DeceasedInsuranceReview NOT permitted as target.
                 [CaseStatus.UnderLegalAction] = new HashSet<int> {
                     CaseStatus.Settled, CaseStatus.WrittenOff },
                 [CaseStatus.DeceasedInsuranceReview] = new HashSet<int> {
@@ -86,7 +108,6 @@ namespace Msst.DebtCollection.Plugins.Domain
                 [CaseStatus.Settled] = new HashSet<int> { CaseStatus.Closed },
                 [CaseStatus.Closed] = new HashSet<int> { CaseStatus.Reopened },
                 [CaseStatus.WrittenOff] = new HashSet<int> { CaseStatus.Reopened },
-                [CaseStatus.Reopened] = new HashSet<int> { CaseStatus.InProgress },
             };
 
         private static readonly Dictionary<int, HashSet<int>> PtpAllowed =

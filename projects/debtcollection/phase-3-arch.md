@@ -482,6 +482,43 @@ That is a **gate-tooling filename mismatch, not a coverage failure** — handed 
   masked + PDPPL gate (VII), append-only audit (VI), 4.7.1 plugins (X), single managed solution declared
   individually (XI/NFR-017). **No CRITICAL finding** → the gate is not blocked.
 
+### 14.2 Build-step-1 decisions (2026-09-15, decision 3 added 2026-09-16)
+
+Two code-review warnings on the plugin engine, resolved before the assembly is registered.
+
+**(1) Stop-contact guard on case transitions -> ADD to the plugin (defence in depth).** The
+S5.4 router gate guards the *communication* path only; a native-CRM status change or a future
+integration never traverses it. R-04: the plugin is the only layer such a caller cannot bypass,
+and stop-contact is a compliance control for deceased/legal/insurance customers at a regulated
+bank. `StatusTransitionValidator` already fires pre-op sync on `statuscode`, so it gains the
+App B.1 guard in place: reject a transition into any contact-bearing state when
+`msst_stopcontact = true`, except a move to Deceased/Insurance Review. Cost is one indexed
+Retrieve of the customer row (by primary key) inside the existing sync pre-op; add
+`msst_customerid` to the case PreImage columns in REGISTRATION.md so the guard needs no extra
+case Retrieve. App B.1 stays as written; FR-043/097 coverage is preserved, not dropped.
+
+**(2) Paging in `FindActiveCases` -> accept the platform bound, document it.** A customer holds
+a small, bounded number of facilities and therefore active cases (single/double digits); the
+5,000-row platform page is not physically reachable, and the mover runs post-op async off the
+hot path. Paging here is defensive code for an impossible input (YAGNI, common.md). Record the
+5,000-row bound and its domain justification in the XML doc comment on `FindActiveCases`; no
+`PageInfo` loop is added.
+
+**(3) Deceased/Insurance Review unreachable behind the stop-contact guard -> open the carve-out and let the mover
+set the status. Build-step-1 decision 3 (2026-09-16).** Live smoke test (App §B.1): the guard's sole carve-out was
+reachable only via In Progress, so a flagged case in any other live state could never reach Deceased/Insurance
+Review, and FR-097 moved the queue but left it in a contact-bearing status forever. Fix: App §B.1 now permits
+Deceased/Insurance Review from every non-terminal state (escape hatch), and the FR-097 `StopContactQueueMover` sets
+`statuscode` = Deceased/Insurance Review on each active case alongside the queue move (option b). Chosen over
+allowing the transition only (option a) because a manual status change reopens the same gap; the mover already
+fires post-op on the `msst_stopcontact` flip, so lifecycle follows the queue automatically and deterministically.
+R-04: the case now leaves every contact-bearing status, so no automated path can even attempt contact — the guard
+stays the enforcement wall (decision 1). Audit: the automatic transition is an ordinary Update of `statuscode`, so
+`AuditLogWriter` appends a row (old/new status, source path, correlation id). The async mover runs as the user who
+flipped `msst_stopcontact`, so `msst_actor`/`msst_actorrole` name that user, not a system account; the row is
+distinguishable from a manual move because it shares the CRM correlation id with the audited customer Update that
+triggered it. No new entity, no schema change.
+
 ---
 
 ## Skeptic Review

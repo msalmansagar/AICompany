@@ -4,6 +4,7 @@ using Microsoft.Crm.Sdk.Messages;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
 using Moq;
+using Msst.DebtCollection.Plugins.Domain;
 using Msst.DebtCollection.Plugins.Plugins;
 using Msst.DebtCollection.Plugins.Tests.Infrastructure;
 using Xunit;
@@ -230,5 +231,141 @@ namespace Msst.DebtCollection.Plugins.Tests
 
         private static StopContactQueueMover CreateMover(PluginContextBuilder builder) =>
             new StopContactQueueMover(builder.Service, builder.Tracing, builder.Context);
+
+        // ── Status-update tests (Build-step-1 decision 3) ─────────────────────────
+
+        [Fact]
+        public void MoveToDeceasedQueue_CaseInAssigned_SetsDeceasedInsuranceStatus()
+        {
+            // Arrange
+            var customerId = Guid.NewGuid();
+            var caseId = Guid.NewGuid();
+            var queueId = Guid.NewGuid();
+
+            var builder = BuildFlipToTrue(customerId, wasFalse: true);
+            SetupQueueQuery(builder, queueId);
+            SetupCaseQueryWithStatus(builder, caseId, StatusTransitionMatrix.CaseStatus.Assigned);
+
+            var mover = CreateMover(builder);
+
+            // Act
+            mover.MoveToDeceasedQueue();
+
+            // Assert — Update called with statuscode = DeceasedInsuranceReview
+            builder.MockService.Verify(
+                s => s.Update(It.Is<Entity>(e =>
+                    e.Id == caseId &&
+                    e.GetAttributeValue<OptionSetValue>("statuscode").Value ==
+                        StatusTransitionMatrix.CaseStatus.DeceasedInsuranceReview)),
+                Times.Once);
+        }
+
+        [Fact]
+        public void MoveToDeceasedQueue_CaseInPtpActive_SetsDeceasedInsuranceStatus()
+        {
+            // Arrange
+            var customerId = Guid.NewGuid();
+            var caseId = Guid.NewGuid();
+            var queueId = Guid.NewGuid();
+
+            var builder = BuildFlipToTrue(customerId, wasFalse: true);
+            SetupQueueQuery(builder, queueId);
+            SetupCaseQueryWithStatus(builder, caseId, StatusTransitionMatrix.CaseStatus.PtpActive);
+
+            var mover = CreateMover(builder);
+
+            // Act
+            mover.MoveToDeceasedQueue();
+
+            // Assert — Update called with statuscode = DeceasedInsuranceReview
+            builder.MockService.Verify(
+                s => s.Update(It.Is<Entity>(e =>
+                    e.Id == caseId &&
+                    e.GetAttributeValue<OptionSetValue>("statuscode").Value ==
+                        StatusTransitionMatrix.CaseStatus.DeceasedInsuranceReview)),
+                Times.Once);
+        }
+
+        [Fact]
+        public void MoveToDeceasedQueue_CaseAlreadyInDeceasedInsuranceReview_DoesNotUpdate()
+        {
+            // Arrange
+            var customerId = Guid.NewGuid();
+            var caseId = Guid.NewGuid();
+            var queueId = Guid.NewGuid();
+
+            var builder = BuildFlipToTrue(customerId, wasFalse: true);
+            SetupQueueQuery(builder, queueId);
+            SetupCaseQueryWithStatus(
+                builder, caseId, StatusTransitionMatrix.CaseStatus.DeceasedInsuranceReview);
+
+            var mover = CreateMover(builder);
+
+            // Act
+            mover.MoveToDeceasedQueue();
+
+            // Assert — no Update call because the case is already in the target state
+            builder.MockService.Verify(s => s.Update(It.IsAny<Entity>()), Times.Never);
+        }
+
+        [Fact]
+        public void MoveToDeceasedQueue_CaseInSettled_DoesNotUpdate()
+        {
+            // Arrange — Settled is a terminal state; the matrix does not permit the move
+            var customerId = Guid.NewGuid();
+            var caseId = Guid.NewGuid();
+            var queueId = Guid.NewGuid();
+
+            var builder = BuildFlipToTrue(customerId, wasFalse: true);
+            SetupQueueQuery(builder, queueId);
+            SetupCaseQueryWithStatus(builder, caseId, StatusTransitionMatrix.CaseStatus.Settled);
+
+            var mover = CreateMover(builder);
+
+            // Act
+            mover.MoveToDeceasedQueue();
+
+            // Assert — no Update call
+            builder.MockService.Verify(s => s.Update(It.IsAny<Entity>()), Times.Never);
+        }
+
+        [Fact]
+        public void MoveToDeceasedQueue_CaseInSettled_QueueMoveStillIssued()
+        {
+            // Arrange — even cases skipped for the status update still receive the queue move
+            var customerId = Guid.NewGuid();
+            var caseId = Guid.NewGuid();
+            var queueId = Guid.NewGuid();
+
+            var builder = BuildFlipToTrue(customerId, wasFalse: true);
+            SetupQueueQuery(builder, queueId);
+            SetupCaseQueryWithStatus(builder, caseId, StatusTransitionMatrix.CaseStatus.Settled);
+
+            var mover = CreateMover(builder);
+
+            // Act
+            mover.MoveToDeceasedQueue();
+
+            // Assert — AddToQueueRequest still executed
+            builder.MockService.Verify(
+                s => s.Execute(It.Is<OrganizationRequest>(r =>
+                    r is AddToQueueRequest &&
+                    ((AddToQueueRequest)r).Target.Id == caseId)),
+                Times.Once);
+        }
+
+        private static void SetupCaseQueryWithStatus(
+            PluginContextBuilder builder,
+            Guid caseId,
+            int statusCode)
+        {
+            var caseEntity = new Entity(EntityCase, caseId);
+            caseEntity["statuscode"] = new OptionSetValue(statusCode);
+
+            builder.MockService
+                .Setup(s => s.RetrieveMultiple(
+                    It.Is<QueryExpression>(q => q.EntityName == EntityCase)))
+                .Returns(new EntityCollection(new List<Entity> { caseEntity }));
+        }
     }
 }

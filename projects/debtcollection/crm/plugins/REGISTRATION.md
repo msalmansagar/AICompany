@@ -101,6 +101,21 @@ methods handle any records that were created before this plugin was deployed.
 
 Pre-image alias: `PreImage`. Image column: `msst_stopcontact`.
 
+The mover does two things per active case when `msst_stopcontact` flips to `true`:
+1. **Queue move** — issues `AddToQueueRequest` to the "Deceased & Insurance" queue.
+2. **Status update** — sets `statuscode = DeceasedInsuranceReview` unless the case is
+   already in that state or in a terminal state (Under Legal Action, Settled, Closed,
+   Written Off).  This Update is a normal CRM platform operation: it passes through
+   `StatusTransitionValidator` (PreOperation, Sync — the expanded App §B.1 matrix now
+   permits the transition from every non-terminal state, and Deceased/Insurance Review
+   is not contact-bearing so the stop-contact carve-out is also satisfied) and is
+   subsequently audited by `AuditLogWriter` (PostOperation, Async).
+   The mover never bypasses the validator.
+
+Build-step-1 decision 3 (2026-09-16): previously the carve-out was only reachable via
+In Progress, leaving cases in other live states stuck in a contact-bearing status after
+suppression.  The matrix expansion and this mover update close that gap (FR-097).
+
 ## 3. Deployment notes
 
 - Register from `bin/Release/net471/Msst.DebtCollection.Plugins.dll`.

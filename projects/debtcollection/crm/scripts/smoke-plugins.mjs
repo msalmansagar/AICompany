@@ -41,6 +41,10 @@ record('valid transition New -> Assigned accepted', valid.status === 204, valid.
 const progressed = await send('PATCH', casePath, { statuscode: CASE.InProgress });
 record('valid transition Assigned -> In Progress accepted', progressed.status === 204, progressed.status === 204 ? '' : errorMessage(progressed.text).slice(0, 120));
 
+const parked = await send('POST', '/msst_dcpcollectioncases', { msst_name: `${tag} parked case`, 'msst_customerid@odata.bind': `/msst_dcpcustomers(${customer.id})` });
+const parkedAssigned = await send('PATCH', `/msst_dcpcollectioncases(${parked.id})`, { statuscode: CASE.Assigned });
+record('second case parked in Assigned before the flag flip', parked.status === 204 && !!parked.id && parkedAssigned.status === 204, parked.id ? `${parked.id} (park PATCH ${parkedAssigned.status})` : errorMessage(parked.text));
+
 const flag = await send('PATCH', `/msst_dcpcustomers(${customer.id})`, { msst_stopcontact: true });
 record('stop-contact flag set', flag.status === 204, flag.status === 204 ? '' : errorMessage(flag.text).slice(0, 120));
 const guarded = await send('PATCH', casePath, { statuscode: CASE.PendingCustomer });
@@ -48,13 +52,17 @@ record('stop-contact guard rejects In Progress -> Pending Customer Response', gu
 const carveOut = await send('PATCH', casePath, { statuscode: CASE.DeceasedReview });
 record('stop-contact carve-out allows -> Deceased/Insurance Review', carveOut.status === 204, carveOut.status === 204 ? '' : errorMessage(carveOut.text).slice(0, 120));
 
+await wait(15000);
+const parkedNow = await apiGet(cfg, token, SOLUTION, `/msst_dcpcollectioncases(${parked.id})?$select=statuscode`);
+record('flag flip moved the parked case to Deceased/Insurance Review automatically', parkedNow?.statuscode === CASE.DeceasedReview, `statuscode ${parkedNow?.statuscode}`);
+
 const del = await send('DELETE', casePath);
 record('case Delete blocked (sysadmin included)', del.status === 400, errorMessage(del.text).slice(0, 120));
 
-await wait(20000);
+await wait(5000);
 const audit = await apiGet(cfg, token, SOLUTION, `/msst_dcpauditlogs?$select=msst_name,createdon&$filter=contains(msst_name,'${created.id}')`);
 const auditCount = audit?.value?.length ?? 0;
-record('audit rows written for the case (async, after 20 s)', auditCount >= 1, `${auditCount} rows`);
+record('audit rows written for the case (async, after 20 s total)', auditCount >= 1, `${auditCount} rows`);
 if (auditCount >= 1) {
   const rowPath = `/msst_dcpauditlogs(${(await apiGet(cfg, token, SOLUTION, `/msst_dcpauditlogs?$select=msst_dcpauditlogid&$filter=contains(msst_name,'${created.id}')&$top=1`)).value[0].msst_dcpauditlogid})`;
   const tamper = await send('PATCH', rowPath, { msst_name: 'tampered' });
