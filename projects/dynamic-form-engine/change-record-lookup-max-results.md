@@ -47,3 +47,36 @@ web resource were not redeployed; a form that has not been re-published since th
 render cache is rebuilt only on publish); or, for report 2, a lookup value that is not the exact
 display name the rule compares against (matching is case-sensitive, on the id or the display
 name).
+
+## 2026-09-16 — the report is from the on-prem org, and the shape works on cloud
+
+The user's screenshot names form **Reyada-IPC**, section **Additional Documents** (Is Visible
+= No) under a tab with Is Summary Tab = Yes, and a rule in the LEGACY format (flat conditions
+array keyed by the trigger field's record id). That form does not exist on org5869857f, the
+field id `3ef13247-c2a9-f111-9957-005056be18f7` returns 404 there, and its GUID suffix is the
+on-prem style. **The report is from the on-prem org.**
+
+The exact shape was seeded on org5869857f as `summary-section-rule-demo`
+(`scripts/seed-summary-section-rule-demo.mjs`: dropdown trigger, summary tab, section
+starting invisible, legacy rule with two `equals` conditions on the field's record id, logic
+OR, action Show Section, target section). Published with the deployed plugin, the render cache
+carries the rule on the trigger field, conditions resolved to the schema name, `showSection`,
+`OR`, and the section id. Driven through the real runtime, the section is absent at load,
+appears for either matching status, and disappears for another value.
+
+**Why the on-prem org drops it.** Until commit `e560a0b1` (2026-07-28) the plugin attached
+every rule to its TARGET field; a section-targeted rule has no target field and was never
+published — precisely "the business rule is not appearing in JSON". A plugin assembly older
+than that on the on-prem org reproduces the report exactly. The merged assembly
+`crm-plugins/Qdb.FormEngine/dist/Qdb.FormEngine.Plugins.dll` (built 2026-09-06, zipped as
+`Qdb.FormEngine.Plugins 7-Sep-26.zip`) contains that fix and the September ones (no
+`SecurityStripper`; `TriggersOnField`, `AppendLegacyRule`, `AppendDesignerRules` present).
+
+Second thing to check on the record itself: the plugin reads only rules whose **Form
+Definition** lookup equals the form (`FetchBusinessRules` filters on
+`qdb_form_definition_id`). The lookup is application-required, so a rule saved through the
+model-driven form should have it, but org5869857f holds 12 API-created rules with it blank.
+
+Third, once published: the runtime compares the dropdown's stored **value**, not its label,
+case-sensitively. If the option values differ from the labels in the rule, it publishes but
+never fires.
