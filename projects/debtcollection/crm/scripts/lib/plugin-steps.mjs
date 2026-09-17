@@ -8,7 +8,7 @@
  *     `statuscode` (the system status field), not the draft `msst_status`.
  */
 
-export const ASSEMBLY_NAME = 'Msst.DebtCollection.Plugins';
+export const ASSEMBLY_NAME = 'Qdb.DebtCollection.Plugins';
 export const SOLUTION_NAME = 'msst_debtcollection';
 
 /**

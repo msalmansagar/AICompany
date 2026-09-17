@@ -1,11 +1,18 @@
 /**
  * crm-client.mjs
- * Dataverse Web API auth + HTTP helpers.
+ * Dynamics 365 / Dataverse Web API auth + HTTP helpers.
  *
- * Required env vars: DV_TENANT_ID, DV_CLIENT_ID, DV_CLIENT_SECRET, DV_DATAVERSE_URL
+ * Required env vars: DV_CLIENT_ID, DV_CLIENT_SECRET, DV_DATAVERSE_URL, DV_API_VERSION
+ * Platform selection:  DV_AUTH_MODE (entra | adfs | ifd | windows) — see lib/tooling-auth.mjs
+ *   entra      also requires DV_TENANT_ID
+ *   adfs / ifd also require DV_AUTH_AUTHORITY
+ *
+ * The Web API version and the token mechanism are both configuration: the same tooling reaches
+ * Dynamics 365 CE 9.1 on-premises and Dataverse cloud.
  */
+import { resolveAuthMode, acquireTokenForMode } from './tooling-auth.mjs';
 
-const REQUIRED_ENV = ['DV_TENANT_ID', 'DV_CLIENT_ID', 'DV_CLIENT_SECRET', 'DV_DATAVERSE_URL'];
+const REQUIRED_ENV = ['DV_CLIENT_ID', 'DV_CLIENT_SECRET', 'DV_DATAVERSE_URL', 'DV_API_VERSION'];
 
 /**
  * Reads and validates DV_* env vars. Exits with a clear message if any are missing.
@@ -18,12 +25,29 @@ export function loadConfig() {
     process.exit(1);
   }
   const orgUrl = process.env.DV_DATAVERSE_URL.replace(/\/$/, '');
+  const apiVersion = process.env.DV_API_VERSION;
+  if (!/^\d+\.\d+$/.test(apiVersion)) {
+    console.error(`[FATAL] DV_API_VERSION must look like "9.1" (on-premises) or "9.2" (cloud) — got "${apiVersion}"`);
+    process.exit(1);
+  }
+  const authMode = resolveAuthMode();
+  if (authMode === 'entra' && !process.env.DV_TENANT_ID) {
+    console.error('[FATAL] DV_TENANT_ID is required when DV_AUTH_MODE=entra');
+    process.exit(1);
+  }
+  if ((authMode === 'adfs' || authMode === 'ifd') && !process.env.DV_AUTH_AUTHORITY) {
+    console.error(`[FATAL] DV_AUTH_AUTHORITY is required when DV_AUTH_MODE=${authMode}`);
+    process.exit(1);
+  }
   return {
     tenantId:     process.env.DV_TENANT_ID,
     clientId:     process.env.DV_CLIENT_ID,
     clientSecret: process.env.DV_CLIENT_SECRET,
+    authority:    process.env.DV_AUTH_AUTHORITY,
+    authMode,
     orgUrl,
-    apiBase: `${orgUrl}/api/data/v9.2`,
+    apiVersion,
+    apiBase: `${orgUrl}/api/data/v${apiVersion}`,
   };
 }
 
@@ -33,19 +57,7 @@ export function loadConfig() {
  * @returns {Promise<string>}
  */
 export async function acquireToken(cfg) {
-  const body = new URLSearchParams({
-    grant_type:    'client_credentials',
-    client_id:     cfg.clientId,
-    client_secret: cfg.clientSecret,
-    scope:         `${cfg.orgUrl}/.default`,
-  });
-  const res = await fetch(
-    `https://login.microsoftonline.com/${cfg.tenantId}/oauth2/v2.0/token`,
-    { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() },
-  );
-  if (!res.ok) throw new Error(`Auth failed ${res.status}: ${await res.text()}`);
-  const { access_token: accessToken } = await res.json();
-  return accessToken;
+  return acquireTokenForMode(cfg, cfg.authMode);
 }
 
 /**

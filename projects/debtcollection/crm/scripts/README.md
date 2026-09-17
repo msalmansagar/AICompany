@@ -34,7 +34,7 @@ lifecycle lives in the platform `statuscode` (architecture section 4.3). Do not 
 
 ## register-plugins.mjs
 
-Registers `Msst.DebtCollection.Plugins.dll` and all 28 steps from REGISTRATION.md.
+Registers `Qdb.DebtCollection.Plugins.dll` and all 28 steps from REGISTRATION.md.
 Assembly is patched only when its sha256 content hash has changed. Steps and images
 are skipped if they already exist by deterministic name.
 
@@ -49,5 +49,5 @@ node --env-file=".env" projects/debtcollection/crm/scripts/register-plugins.mjs
 node --env-file=".env" projects/debtcollection/crm/scripts/register-plugins.mjs --dll <path>
 ```
 
-Build the DLL first (`dotnet build -c Release` in `crm/plugins/Msst.DebtCollection.Plugins/`).
+Build the DLL first (`dotnet build -c Release` in `crm/plugins/Qdb.DebtCollection.Plugins/`).
 Run only after `provision-schema.mjs` — steps reference entities that must exist first.

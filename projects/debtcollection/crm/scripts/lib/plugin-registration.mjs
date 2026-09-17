@@ -174,7 +174,10 @@ export async function ensurePluginType({ cfg, token, solutionName, assemblyId, n
   const { entityId } = await apiPost(cfg, token, solutionName, '/plugintypes', {
     name:         typeName,
     typename:     typeName,
-    friendlyname: shortName,
+    // The platform enforces a unique friendly name across every assembly, so the bare class name
+    // cannot be reused: registering a second assembly that declares the same class names is
+    // refused with 412 "A record with matching key values already exists".
+    friendlyname: typeName,
     description:  '',
     'pluginassemblyid@odata.bind': `/pluginassemblies(${assemblyId})`,
   });
@@ -190,11 +193,13 @@ export async function ensurePluginType({ cfg, token, solutionName, assemblyId, n
 export async function ensureStep({ cfg, token, solutionName, typeId, messageId, filterId, step, stepName, dryRun }) {
   const existing = await apiGet(
     cfg, token, solutionName,
-    `/sdkmessageprocessingsteps?$select=sdkmessageprocessingstepid,name&$filter=name eq '${stepName}'&$top=1`,
+    `/sdkmessageprocessingsteps?$select=sdkmessageprocessingstepid,name,filteringattributes&$filter=name eq '${stepName}'&$top=1`,
   );
   if (existing?.value?.length) {
-    const id = existing.value[0].sdkmessageprocessingstepid;
+    const record = existing.value[0];
+    const id = record.sdkmessageprocessingstepid;
     console.log(`  Step exists: ${stepName} (${id})`);
+    await reconcileStepFilter({ cfg, token, solutionName, id, record, step, dryRun });
     return { id, action: 'skipped' };
   }
   console.log(`  Step missing — ${dryRun ? '[DRY RUN] would create' : 'creating'}: ${stepName}`);
@@ -203,6 +208,28 @@ export async function ensureStep({ cfg, token, solutionName, typeId, messageId, 
   const { entityId } = await apiPost(cfg, token, solutionName, '/sdkmessageprocessingsteps', body);
   if (!entityId) throw new Error(`Created step '${stepName}' but no entityId was returned.`);
   return { id: entityId, action: 'created' };
+}
+
+/**
+ * Brings an existing step's filtering attributes back in line with the step table.
+ * Unlike an image, a step's filter can be patched in place. Without this a filter widened after
+ * the first registration — say, a guard that must fire on every update, not just one column —
+ * would stay narrow on every organisation already registered, and the gap is invisible.
+ * @param {{ cfg: object, token: string, solutionName: string, id: string, record: object, step: object, dryRun: boolean }} params
+ */
+async function reconcileStepFilter({ cfg, token, solutionName, id, record, step, dryRun }) {
+  const wanted = step.filterAttributes || null;
+  if ((record.filteringattributes || null) === wanted) return;
+
+  console.log(`    Step filter differs — ${dryRun ? '[DRY RUN] would set' : 'setting'}: ${wanted ?? '(all attributes)'}`);
+  if (dryRun) return;
+  await apiPatch(cfg, token, solutionName, `/sdkmessageprocessingsteps(${id})`, {
+    filteringattributes: wanted,
+  });
+  // Writing the column is not enough: the pipeline caches the step's registration and carries on
+  // running under the old filter. Proven on the KI-40 correction, where the guard kept accepting the
+  // update the widened filter was meant to catch until the step was cycled.
+  await refreshStep({ cfg, token, solutionName, stepId: id });
 }
 
 /** @param {{ typeId: string, messageId: string, filterId: string, step: object, stepName: string }} params */
@@ -280,5 +307,5 @@ export async function refreshStep({ cfg, token, solutionName, stepId }) {
   const path = `/sdkmessageprocessingsteps(${stepId})`;
   await apiPatch(cfg, token, solutionName, path, { statecode: 1, statuscode: 2 });
   await apiPatch(cfg, token, solutionName, path, { statecode: 0, statuscode: 1 });
-  console.log(`    Step refreshed after image change (${stepId})`);
+  console.log(`    Step refreshed (${stepId}) — disabled and re-enabled so the change takes effect`);
 }

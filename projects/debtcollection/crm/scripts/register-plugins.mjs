@@ -1,8 +1,10 @@
 /**
  * register-plugins.mjs
- * Registers the Msst.DebtCollection.Plugins assembly and all processing steps.
+ * Registers the Qdb.DebtCollection.Plugins assembly and all processing steps.
  * Idempotent: creates missing components, patches the assembly if the DLL
  * content hash differs, and skips components that are already correct.
+ *
+ * Schema: pass --qdb to register the canonical qdb_ steps; the default is the legacy msst_ table.
  *
  * Usage:
  *   node --env-file="<path>/.env" projects/debtcollection/crm/scripts/register-plugins.mjs
@@ -26,12 +28,22 @@ import {
   ensurePluginType,
   ensureStep,
   ensureImage,
+  refreshStep,
 } from './lib/plugin-registration.mjs';
-import { PLUGIN_STEPS, ASSEMBLY_NAME, SOLUTION_NAME } from './lib/plugin-steps.mjs';
+/**
+ * Which step table to register. The canonical `qdb_` schema and the earlier `msst_` one are both
+ * live on the organisation during Phase 1: the old steps keep running while the new ones are added,
+ * so the schema is chosen per run rather than compiled in.
+ */
+const STEP_TABLE_MODULE = process.argv.includes('--qdb')
+  ? './lib/qdb-plugin-steps.mjs'
+  : './lib/plugin-steps.mjs';
+
+const { PLUGIN_STEPS, ASSEMBLY_NAME, SOLUTION_NAME } = await import(STEP_TABLE_MODULE);
 
 const __dirname  = dirname(fileURLToPath(import.meta.url));
-const PLUGIN_DIR = resolve(__dirname, '../plugins/Msst.DebtCollection.Plugins/bin/Release/net471');
-const NAMESPACE  = 'Msst.DebtCollection.Plugins.Plugins';
+const PLUGIN_DIR = resolve(__dirname, '../plugins/Qdb.DebtCollection.Plugins/bin/Release/net471');
+const NAMESPACE  = 'Qdb.DebtCollection.Plugins.Plugins';
 
 // ── CLI parsing ───────────────────────────────────────────────────────────────
 
@@ -65,7 +77,7 @@ function loadDll(dllPath) {
   } catch (err) {
     throw new Error(
       `Cannot read DLL at ${dllPath}.\n` +
-      `Run: dotnet build -c Release in crm/plugins/Msst.DebtCollection.Plugins/\n` +
+      `Run: dotnet build -c Release in crm/plugins/Qdb.DebtCollection.Plugins/\n` +
       `Original: ${err.message}`,
     );
   }
@@ -161,7 +173,7 @@ async function ensureAllSteps({ cfg, token, typeIds, messageIds, filterIds }) {
         stepId, image: step.image, dryRun: false,
       });
       counts.images[imgAction]++;
-      if (imgAction === 'created' && stepAction === 'skipped' && !dryRun) {
+      if (imgAction === 'created' && stepAction === 'skipped') {
         await refreshStep({ cfg, token, solutionName: SOLUTION_NAME, stepId });
       }
     }

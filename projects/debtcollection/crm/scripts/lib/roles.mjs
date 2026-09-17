@@ -9,7 +9,7 @@
  */
 import { apiGet, apiPost } from './crm-client.mjs';
 import { addToSolution, COMPONENT_TYPE } from './solution.mjs';
-import { DEPTH, ORG_OWNED } from './role-defs.mjs';
+import { DEPTH } from './role-defs.mjs';
 
 const PRIV_ACTIONS = ['Read', 'Create', 'Write', 'Delete', 'Append', 'AppendTo'];
 
@@ -77,33 +77,52 @@ export async function ensureRole(cfg, token, solutionName, roleName, rootBuId) {
  * @param {object} cfg @param {string} token @param {string} solutionName
  * @param {string} roleId @param {object} rolePrivileges map of entity → { c, r, u }
  */
-/** ReplacePrivilegesRole is used, not Add: it is idempotent and makes the single role matrix the whole truth. */
-/** @param {{c?: string, r?: string, u?: string}} access */
-function toGlobalDepth(access) {
-  return { ...(access.c && { c: DEPTH.GLOBAL }), ...(access.r && { r: DEPTH.GLOBAL }), ...(access.u && { u: DEPTH.GLOBAL }) };
+const ownershipCache = new Map();
+
+/**
+ * Reads OwnershipType from the organisation rather than a hard-coded list.
+ * The platform rejects any depth other than Global on an organisation-owned table, and a static set
+ * silently goes stale the moment a second schema (here `qdb_`) is provisioned alongside the first.
+ * @param {object} cfg @param {string} token @param {string} solutionName @param {string} entityLogicalName
+ * @returns {Promise<boolean>}
+ */
+async function isOrganizationOwned(cfg, token, solutionName, entityLogicalName) {
+  if (!ownershipCache.has(entityLogicalName)) {
+    const metadata = await apiGet(cfg, token, solutionName,
+      `/EntityDefinitions(LogicalName='${entityLogicalName}')?$select=OwnershipType`);
+    ownershipCache.set(entityLogicalName, metadata?.OwnershipType === 'OrganizationOwned');
+  }
+  return ownershipCache.get(entityLogicalName);
 }
 
+/**
+ * Builds the RolePrivilege entries for one entity at the depths its ownership allows.
+ * Append/AppendTo are required for the entity's lookups to be usable.
+ * @param {{c?: string, r?: string, u?: string}} access
+ * @param {object} ids @param {boolean} isOrgOwned
+ * @returns {object[]}
+ */
+function buildEntityPrivileges(access, ids, isOrgOwned) {
+  const depthOf = requested => (isOrgOwned ? DEPTH.GLOBAL : requested);
+  const privilege = (depth, privilegeId) =>
+    ({ '@odata.type': 'Microsoft.Dynamics.CRM.RolePrivilege', Depth: depth, PrivilegeId: privilegeId });
+  const entries = [];
+  if (access.r && ids.read) entries.push(privilege(depthOf(access.r), ids.read));
+  if (access.c && ids.create) entries.push(privilege(depthOf(access.c), ids.create));
+  if (access.u && ids.write) entries.push(privilege(depthOf(access.u), ids.write));
+  const mayLink = access.c || access.u;
+  if (mayLink && ids.append) entries.push(privilege(depthOf(DEPTH.LOCAL), ids.append));
+  if (mayLink && ids.appendto) entries.push(privilege(depthOf(DEPTH.LOCAL), ids.appendto));
+  return entries;
+}
+
+/** ReplacePrivilegesRole is used, not Add: it is idempotent and makes the single role matrix the whole truth. */
 export async function applyRolePrivileges(cfg, token, solutionName, roleId, rolePrivileges) {
   const privilegeList = [];
-  for (const [entityLogicalName, rawAccess] of Object.entries(rolePrivileges)) {
-    const access = ORG_OWNED.has(entityLogicalName) ? toGlobalDepth(rawAccess) : rawAccess;
+  for (const [entityLogicalName, access] of Object.entries(rolePrivileges)) {
     const ids = await resolveEntityPrivileges(cfg, token, solutionName, entityLogicalName);
-    if (access.r && ids.read) {
-      privilegeList.push({ '@odata.type': 'Microsoft.Dynamics.CRM.RolePrivilege', Depth: access.r, PrivilegeId: ids.read });
-    }
-    if (access.c && ids.create) {
-      privilegeList.push({ '@odata.type': 'Microsoft.Dynamics.CRM.RolePrivilege', Depth: access.c, PrivilegeId: ids.create });
-    }
-    if (access.u && ids.write) {
-      privilegeList.push({ '@odata.type': 'Microsoft.Dynamics.CRM.RolePrivilege', Depth: access.u, PrivilegeId: ids.write });
-    }
-    // Append/AppendTo needed for lookups to work
-    if ((access.c || access.u) && ids.append) {
-      privilegeList.push({ '@odata.type': 'Microsoft.Dynamics.CRM.RolePrivilege', Depth: ORG_OWNED.has(entityLogicalName) ? DEPTH.GLOBAL : DEPTH.LOCAL, PrivilegeId: ids.append });
-    }
-    if ((access.c || access.u) && ids.appendto) {
-      privilegeList.push({ '@odata.type': 'Microsoft.Dynamics.CRM.RolePrivilege', Depth: ORG_OWNED.has(entityLogicalName) ? DEPTH.GLOBAL : DEPTH.LOCAL, PrivilegeId: ids.appendto });
-    }
+    const isOrgOwned = await isOrganizationOwned(cfg, token, solutionName, entityLogicalName);
+    privilegeList.push(...buildEntityPrivileges(access, ids, isOrgOwned));
   }
   if (privilegeList.length === 0) return;
   await apiPost(cfg, token, solutionName,
