@@ -9,6 +9,8 @@
     "build": "tsc && vite build",
     "build:check-size": "vite build && node scripts/checkBundleSize.js",
     "package": "npm run build && node scripts/packageSolution.js",
+    "build:singlefile": "tsc && vite build --config vite.singlefile.config.ts",
+    "package:singlefile": "npm run build:singlefile && node scripts/packageSolution.js",
     "package:version": "npm run build && node scripts/packageSolution.js --version",
     "deploy": "npm run build && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy.ps1",
     "deploy:cloud": "npm run build && node scripts/deploy-cloud.js",
@@ -55,6 +57,7 @@
     "jsdom": "^25.0.0",
     "typescript": "^5.5.4",
     "vite": "^5.4.2",
+    "vite-plugin-singlefile": "^2.3.3",
     "vitest": "^2.1.1",
     "vitest-axe": "^0.1.0"
   }
