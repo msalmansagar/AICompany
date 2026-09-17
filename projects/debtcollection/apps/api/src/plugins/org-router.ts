@@ -38,7 +38,7 @@ export const orgRouterPlugin = fp(async function registerOrgRouter(
   const hlOrg: OrgTarget = {
     orgKey: 'HL',
     baseUrl: options.config.DV_DATAVERSE_URL,
-    apiVersion: '9.2',
+    apiVersion: options.config.DV_API_VERSION,
   };
 
   const bfdOrg: OrgTarget | null = buildBfdOrg(options.config);
@@ -77,7 +77,7 @@ function buildBfdOrg(config: AppConfig): OrgTarget | null {
   return {
     orgKey: 'BFD',
     baseUrl: config.DV_BFD_DATAVERSE_URL,
-    apiVersion: '9.2',
+    apiVersion: config.DV_BFD_API_VERSION ?? config.DV_API_VERSION,
   };
 }
 

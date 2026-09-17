@@ -21,6 +21,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@dcp/types': path.resolve(__dirname, '../../packages/types/src/index.ts'),
+      '@dcp/domain': path.resolve(__dirname, '../../packages/domain/src/index.ts'),
       '@dcp/dataverse-client': path.resolve(
         __dirname,
         '../../packages/dataverse-client/src/index.ts',

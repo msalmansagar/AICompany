@@ -150,7 +150,11 @@ function buildOrgCredentials(
 
 function buildOrgTargetForKey(config: AppConfig, orgKey: string): OrgTarget {
   if (orgKey === 'BFD' && config.DV_BFD_DATAVERSE_URL !== undefined) {
-    return { orgKey: 'BFD', baseUrl: config.DV_BFD_DATAVERSE_URL, apiVersion: '9.2' };
+    return {
+      orgKey: 'BFD',
+      baseUrl: config.DV_BFD_DATAVERSE_URL,
+      apiVersion: config.DV_BFD_API_VERSION ?? config.DV_API_VERSION,
+    };
   }
-  return { orgKey: 'HL', baseUrl: config.DV_DATAVERSE_URL, apiVersion: '9.2' };
+  return { orgKey: 'HL', baseUrl: config.DV_DATAVERSE_URL, apiVersion: config.DV_API_VERSION };
 }

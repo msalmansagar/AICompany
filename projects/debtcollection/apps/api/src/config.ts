@@ -17,6 +17,15 @@ const ConfigSchema = z.object({
   DV_CLIENT_SECRET: z.string().min(1),
   /** OAuth2 scope for the HL CRM resource. */
   DV_SCOPE: z.string().min(1).default('https://hl-crm/.default'),
+  /**
+   * Web API version for the HL org — e.g. '9.1' on Dynamics 365 CE 9.1 on-premises, '9.2' on
+   * Dataverse. Configuration, never a constant in source: the same build must serve both platforms.
+   *
+   * **Required, with no default.** On-premises and cloud are equal deployment targets, so defaulting
+   * to either one would let a deployment silently issue calls for the wrong platform — an on-prem org
+   * answers `/api/data/v9.1/`, and a v9.2 path against it fails at runtime rather than at startup.
+   */
+  DV_API_VERSION: z.string().regex(/^\d+\.\d+$/, 'DV_API_VERSION must look like "9.1" or "9.2"'),
 
   // BFD org (BFD CRM) — optional, guarded by FEATURE_BFD
   FEATURE_BFD: z
@@ -28,6 +37,8 @@ const ConfigSchema = z.object({
   DV_BFD_CLIENT_ID: z.string().optional(),
   DV_BFD_CLIENT_SECRET: z.string().optional(),
   DV_BFD_SCOPE: z.string().optional(),
+  /** Web API version for the BFD org. Falls back to `DV_API_VERSION` when unset. */
+  DV_BFD_API_VERSION: z.string().regex(/^\d+\.\d+$/).optional(),
 
   // Auth — OIDC issuer used by BOTH user-token validation and service tokens
   AUTH_PROVIDER: z.enum(['adfs', 'azure-ad']).default('adfs'),

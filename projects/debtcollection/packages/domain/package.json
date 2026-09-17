@@ -1,5 +1,5 @@
 {
-  "name": "@dcp/dataverse-client",
+  "name": "@dcp/domain",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -13,18 +13,15 @@
   },
   "scripts": {
     "build": "tsc",
-    "type-check": "tsc --noEmit",
     "test": "vitest run",
+    "type-check": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@dcp/types": "*",
-    "@dcp/domain": "*"
+    "zod": "^3.24.0"
   },
   "devDependencies": {
-    "@types/node": "^22.10.0",
-    "@vitest/coverage-v8": "^2.1.0",
     "typescript": "^5.7.3",
-    "vitest": "^2.1.0"
+    "vitest": "^2.1.8"
   }
 }

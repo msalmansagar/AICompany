@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { DataverseClient } from '@dcp/dataverse-client';
+import type { OrgTarget } from '@dcp/types';
 
 /**
  * GET /health — service liveness (Article XIV).
@@ -12,7 +13,7 @@ import { DataverseClient } from '@dcp/dataverse-client';
  */
 export async function healthRoutes(app: FastifyInstance): Promise<void> {
   app.get('/health', { config: { skipAuth: true } }, async (request, reply) => {
-    const hlReachable = await probeOrg(app.hlOrgTarget.baseUrl);
+    const hlReachable = await probeOrg(app.hlOrgTarget);
     const bfdStatus = buildBfdStatus(app);
 
     const overallStatus = hlReachable ? 'ok' : 'degraded';
@@ -29,9 +30,9 @@ export async function healthRoutes(app: FastifyInstance): Promise<void> {
   });
 }
 
-async function probeOrg(baseUrl: string): Promise<boolean> {
+async function probeOrg(org: OrgTarget): Promise<boolean> {
   try {
-    const url = `${baseUrl}/api/data/v9.2/$metadata`;
+    const url = `${org.baseUrl}/api/data/v${org.apiVersion}/$metadata`;
     const response = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(3000) });
     return response.ok || response.status === 401; // 401 = reachable but auth needed
   } catch {

@@ -16,3 +16,5 @@ export type {
   BatchOperation,
   AlternateKeyOptions,
 } from './types.js';
+
+export { DataverseCrmAdapter } from './DataverseCrmAdapter.js';

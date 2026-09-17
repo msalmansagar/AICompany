@@ -20,6 +20,9 @@ export function makeTestConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     DV_CLIENT_ID: 'client-id',
     DV_CLIENT_SECRET: 'client-secret',
     DV_SCOPE: 'https://hl-crm/.default',
+    // Explicit, as production must be: the platform's Web API version is configuration.
+    // Tests that assert dual-platform behaviour override it (e.g. '9.1' for on-premises).
+    DV_API_VERSION: '9.2',
     FEATURE_BFD: false,
     AUTH_PROVIDER: 'adfs',
     AUTH_ISSUER_URL: 'https://adfs.example.com/adfs',

@@ -1,0 +1,18 @@
+# Debt Collection Platform — files that must never enter history.
+# The repository root already ignores node_modules, dist, bin, obj, .turbo and .env files;
+# this file adds what is specific to DCP.
+
+# Strong-name key. The assembly identity depends on it
+# (Qdb.DebtCollection.Plugins, PublicKeyToken=f70ee8facd683d55), so it is signing material:
+# losing it means a new identity that can never re-register over the organisation's assembly,
+# and committing it hands that identity to anyone who can read the repository.
+# It is backed up out of band — see KnownIssues KI-13.
+key.snk
+*.snk
+*.pfx
+
+# Base64 assembly dumps produced while inspecting a registered plugin assembly.
+*.b64
+
+# Provisioning and smoke run logs.
+*.log
