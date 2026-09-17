@@ -1,6 +1,6 @@
 # ADR-DCP-06 — PTP Kept/Broken evaluation against the latest MIS snapshot
 
-**Status:** Accepted (2026-09-14) · **Deciders:** architect, ceo
+**Status:** Superseded (2026-09-17) — PTP is a `qdb_collectionactivity` type; evaluation logic retained as a rule · originally Accepted 2026-09-14 · **Deciders:** architect, ceo
 **Drives:** FR-055/057/058/061/064, SC-02; §7 of `../phase-3-arch.md`. **Depends on:** ADR-DCP-05.
 
 ## Context
@@ -30,3 +30,15 @@ signal (CEO §7c); false Broken is reversible and audited.
 near-promised-date payment case; when the Payments feed arrives (P2) it becomes the authoritative Kept signal and
 this rule becomes the fallback.
 **Neutral:** evaluation is a scheduled job, not real-time — acceptable at this volume.
+
+## Superseded (2026-09-17, Phase 0)
+Original text retained above. Superseded because **Master Prompt §26** makes PTP a `qdb_collectionactivity`
+with Activity Type = Promise-to-Pay (physical PTP core fields: date, promised amount, status, amount received,
+broken date/reason, reschedule count; descriptive fields via Form Engine) — no dedicated `msst_dcpptprecord`
+entity, no PTP-specific REST route.
+
+**What survives:** the Kept / Partially Kept / Broken evaluation itself — arrears drop ≥ promised amount on
+the latest MIS position, the one-cycle latency grace, the audited manual Kept correction, the reminder under
+the stop-contact/consent gate — is retained as a **Rule Engine / background-sync rule** executed after each
+MIS synchronisation (see `docs/MISIntegration.md` §6 and ADR-DCP-10). It no longer depends on the retired
+PTP entity or on a Fastify endpoint; the manual correction becomes an activity outcome.

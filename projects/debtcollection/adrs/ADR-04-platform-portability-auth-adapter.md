@@ -1,6 +1,6 @@
 # ADR-DCP-04 — Platform portability and pluggable auth adapter
 
-**Status:** Accepted (2026-09-14) · **Deciders:** architect, ceo
+**Status:** Accepted — Confirmed and extended by ADR-DCP-10 (2026-09-17) · **Deciders:** architect, ceo
 **Drives:** NFR-020, NFR-005; §2, §4.6, §5.2 of `../phase-3-arch.md`.
 
 ## Context
@@ -40,3 +40,17 @@ scope.
 | msal-node only | Microsoft-first; adds a layer where a standards-level OIDC library already handles both providers |
 | Build now for cloud, port later | Guarantees a rewrite at migration; violates NFR-020 |
 | Use Custom APIs / Power Automate for orchestration | Cloud-only or availability-variable; breaks on-prem parity |
+
+## Confirmation and refinement (2026-09-17, Phase 0)
+- **Confirmed** by the Master Prompt §5–8 and Correction Prompt §1–2: on-prem 9.1 and Dataverse cloud are
+  **equal** targets (not "on-prem now, cloud later"); `IAuthAdapter` with `AdfsAdapter` / `AzureAdAdapter`
+  selected by configuration; both-platform feature set only; one signed `net471` plugin assembly;
+  containerised service. Extended to the whole product in **ADR-DCP-10**.
+- **Refined:** the blanket "do not use Custom APIs" becomes *"Custom API on cloud / Process (Custom) Action
+  on-prem, with identical plugin classes dispatching on `MessageName`, invoked by the same
+  `Xrm.WebApi.online.execute` call"* — the pattern already documented by the EDP and Form Engine runbooks.
+  Whether the QDB on-prem build exposes Custom API at all is `TBD — Requires QDB Confirmation`; the design
+  does not depend on it.
+- **Corrections still owed by the codebase** (recorded in `docs/CloudMigrationReadiness.md`): Web API version
+  `9.2` is hard-coded in `apps/api` (on-prem exposes `v9.1`) and the provisioning tooling authenticates only
+  against Entra ID. Both are configuration/tooling fixes, not business-code changes — scheduled for Phase 1.

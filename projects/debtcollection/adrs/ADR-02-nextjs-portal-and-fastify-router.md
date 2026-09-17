@@ -1,6 +1,6 @@
 # ADR-DCP-02 — Standalone Next.js portal + separate Fastify router, one monorepo
 
-**Status:** Accepted (2026-09-14) · **Deciders:** architect, ceo
+**Status:** Superseded by ADR-DCP-07 and ADR-DCP-09 (2026-09-17) · originally Accepted 2026-09-14 · **Deciders:** architect, ceo
 **Full context, alternatives, and consequences:** `../facts-and-analysis.md` §10 (carried by reference).
 **Supersedes:** the §6.2 web-resource recommendation. §6.1 (one codebase) and §6.3 (router is the only
 component talking to both orgs) are carried forward as constraints.
@@ -14,3 +14,16 @@ registration, hosting, a bank security review, PDPPL exposure on anything server
 later mobile client call it, and R-03/R-04 enforcement must be unbypassable. **No PII is server-rendered.**
 Phase 1 serves Housing Loan only; BFD behind a feature flag. The stack matches the CLAUDE.md defaults, so this
 ADR records only the hosting reversal and router placement — not the stack.
+
+## Superseded (2026-09-17, Phase 0)
+Original text retained above for the record. Superseded because:
+- **Master Prompt §10–11** mandates ONE React workspace delivered as a **full-page CRM web resource** opened from
+  CRM navigation under the CRM session — a standalone Next.js portal (which needs a Node server) cannot be a
+  web resource. The house already ships single-file web-resource bundles (Form Engine, Report Engine). →
+  **ADR-DCP-07**.
+- **Master Prompt §60 / Correction Prompt §36** reassess Fastify: ordinary CRM CRUD must not be gatewayed;
+  the service keeps live MIS access, background MIS sync, cross-org Customer 360, system-initiated
+  communication and monitoring. → **ADR-DCP-09**.
+- Still carried forward: one codebase; the Integration Service is the only component that talks to both
+  orgs (R-01); no PII server-rendered; BFD behind a feature flag / platform configuration.
+- Nothing is thrown away: `apps/web` was never built; `apps/api` is retargeted, not removed.

@@ -1,6 +1,6 @@
 # ADR-DCP-01 — Collection interactions as custom activity entities
 
-**Status:** Accepted (2026-09-14) · **Deciders:** architect, ceo
+**Status:** Accepted — Amended 2026-09-17 (see ADR-DCP-08) · **Deciders:** architect, ceo
 **Full context, alternatives, and consequences:** `../facts-and-analysis.md` §9 (carried by reference).
 
 ## Decision (summary)
@@ -23,3 +23,16 @@ Native Timeline aggregates both types for free (within one org); `ActivityPointe
 Costs: irreversible activity flag, no PartyList (multi-recipient needs explicit lookups), activities are
 deletable so immutability rests on the plugin, polymorphic lookups cost the frontend (read `_value` +
 `lookuplogicalname`, `$expand` the target type).
+
+## Amendment (2026-09-17, Phase 0 — Master Prompt §23, §32; Correction Prompt §40)
+- **Confirmed:** the first half — collection interactions as a **custom activity entity** (`IsActivity=true`),
+  polymorphic regarding, subject composed by plugin, immutability after Completed, outcome codes from
+  configuration, field visit as an activity type. Target name: `qdb_collectionactivity` (was
+  `msst_dcpcollectionaction`); type and outcome become lookups to `qdb_collectionactivitytype` /
+  `qdb_activityoutcome`.
+- **Superseded:** the second half — `msst_dcpcommunication` as a second custom activity type split on
+  privilege. Communications are the **existing `fax` (SMS/WhatsApp) and `email` entities**, sent through one
+  Communication Service — see **ADR-DCP-08**. The "records communications once" rule survives: the fax/email
+  row is the record; no duplicate activity per send unless a business rule requires it.
+- Consequence for constraint 3: stop-contact + consent are evaluated in the **Communication Service and the
+  plugin guard**, not the router (ADR-DCP-09).
