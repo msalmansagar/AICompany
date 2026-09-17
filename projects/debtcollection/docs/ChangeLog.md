@@ -3,6 +3,48 @@
 Newest first. Entries record what changed in the repository, the org, or the approved architecture.
 Phase 0 changed documentation only. **Phase 1 changed the repository and provisioned schema on the Cloud sandbox `org5869857f` — the only organisation authorised — and nothing else.**
 
+## 2026-09-17 — Phase 1 close-out (gate decisions executed)
+
+Detail in `docs/phases/Phase_1_Completion_Report.md` §10. Phase 2 remains not started.
+
+**KI-40 — the live `msst_` registration corrected.** `filteringattributes` cleared on
+`ImmutabilityGuardPlugin: Update of msst_dcpcollectionaction` and `… of msst_dcpcommunication`.
+Registration only: no code change, no assembly re-deployed, and the before/after capture in
+`docs/evidence/` shows 2 steps changed, 28 unchanged, 0 added, 0 removed. Verified live on both steps:
+a completed activity and a completed communication now refuse an ordinary field update, Delete stays
+blocked, and open records and the completion transition still work. 🔴 Clearing the filter alone did
+nothing — the pipeline caches the registration and the step must be cycled; `ensureStep` now does that
+on every filter reconciliation.
+
+**KI-42 / KI-04 — sandbox cleaned within the authorised scope.** The seven identified `SMOKE-` records
+were removed by `clean-qdb-smoke-data.mjs`, which disabled only the three `qdb_` Delete guards and
+restored them immediately; the guards were then re-proven (verify 19/19, smoke 13/13) and that run's
+own rows cleaned the same way. The canonical tables hold **zero** smoke records. The legacy `msst_`
+guard was never disabled and the Phase 0 `msst_` data was not in scope.
+
+**KI-45 — communication architecture confirmed and closed.** Communications stay on native records
+(SMS/WhatsApp → `fax`, Email → `email`, Warning Letter → the approved QDB document capability); DCP
+creates no communication entity of its own; the officer-facing unified Communication History is a
+read/aggregation model correlated to the Collection Case. Updated: `CommunicationArchitecture.md`
+§7 and §9, `SecurityModel.md` §5b, `APIContracts.md` §4.1, `ReactArchitecture.md` §5.1a,
+`TargetArchitecture.md` §6, `TestCases.md` TC-215–TC-222, known issues and tracker.
+
+**KI-43** classified *Legacy — pending `msst_` retirement*; no `qdb_` artefact depends on
+`AuditLogWriter`. **KI-44** left as an open QDB configuration dependency: no Contact or Account column
+was invented, created or inferred.
+
+**KI-12 — Phase 1 baseline committed** on `feat/dcp-phase1-foundation` as four atomic commits on top
+of `95dcb04d` (`08eee02c`, `98c36c66`, `86a9b254`, `3e3377f8`), nothing rewritten, and
+`feat/dcp-phase2-core-model` created from that baseline. A DCP `.gitignore` now keeps the strong-name
+key out of history — it was **not** ignored before this (KI-13).
+
+🔴 **Damage outside DCP during the git step.** Committing onto the DCP lineage required a branch
+switch that an ordinary checkout refused, and `git checkout -f` also discarded uncommitted edits to
+tracked files belonging to the Dynamic Form Engine branch: `CLAUDE.md` (recovered), the root
+`.gitignore` (candidate found, unconfirmed), `projects/state.yml` (not recoverable), three `.claude/`
+files (candidates only), and two pending hook deletions that were undone. No DCP work was affected.
+Recovery detail and the remedy are in the completion report §11.
+
 ## 2026-09-17 — Phase 1: QDB Foundation Refactoring (repository + sandbox `org5869857f`)
 
 Full detail in `docs/phases/Phase_1_Completion_Report.md`. This is the first entry that records a
