@@ -1,15 +1,15 @@
 ﻿# DCP-001 Plugin Registration
 
-Assembly: `Msst.DebtCollection.Plugins.dll` (strong-named, net471)
+Assembly: `Qdb.DebtCollection.Plugins.dll` (strong-named, net471)
 Solution: `msst_debtcollection` · Publisher prefix: `msst`
 
 ## 1. Build command
 
 `
-dotnet build projects/debtcollection/crm/plugins/Msst.DebtCollection.Plugins/Msst.DebtCollection.Plugins.csproj -c Release
+dotnet build projects/debtcollection/crm/plugins/Qdb.DebtCollection.Plugins/Qdb.DebtCollection.Plugins.csproj -c Release
 `
 
-Register the output from `bin/Release/net471/Msst.DebtCollection.Plugins.dll`.
+Register the output from `bin/Release/net471/Qdb.DebtCollection.Plugins.dll`.
 No ILMerge step is needed — the assembly carries no non-SDK dependencies.
 Register only after the schema agent has provisioned all entities. See §4.
 
@@ -118,7 +118,7 @@ suppression.  The matrix expansion and this mover update close that gap (FR-097)
 
 ## 3. Deployment notes
 
-- Register from `bin/Release/net471/Msst.DebtCollection.Plugins.dll`.
+- Register from `bin/Release/net471/Qdb.DebtCollection.Plugins.dll`.
 - Changing the strong-name key requires unregister + re-register (CRM-M-001).
 - After deploying a fix, the sandbox serves the old AppDomain on the first call.
   Wait 30-60 s and re-run once before diagnosing (GOT-007; CRM-M-004).
