@@ -112,46 +112,62 @@ moment the work landed. They are not reconstructed from memory.
 
 ### Segment ledger
 
-| # | From | To | Hours | Kind | Evidence / reason |
-|---|---|---|---:|---|---|
-| 1 | 18 Sep 15:23:35 | 18 Sep 16:31:14 | **1.127** | Execution | Phase 4 start record `b0e483d9` 16:03:48 · paging spike `398dfc81` 16:14:49 · paging contract `bb818b37` 16:31:14 |
-| — | 18 Sep 16:31:14 | 18 Sep 17:14:53 | 0.728 | **Blocked — awaiting approval/direction** | Work package 1 reported at the gate; no work produced while waiting |
-| 2 | 18 Sep 17:14:53 | *open* | — | Execution | MIS contract evidence analysis onward |
+Boundaries are **git commit timestamps** — machine records written when the work landed. Nothing here
+is reconstructed from memory, and each work package is closed out as it finishes rather than at the end.
 
-**Running totals as at 18 Sep 17:14:53 (+03:00):**
+| # | From | To | Hours | Kind | Evidence |
+|---|---|---|---:|---|---|
+| 1 | 18 Sep 15:23:35 | 18 Sep 16:31:14 | **1.127** | Execution | `b0e483d9` 16:03:48 · `398dfc81` 16:14:49 · `bb818b37` 16:31:14 |
+| — | 18 Sep 16:31:14 | 18 Sep 17:14:53 | 0.728 | **Blocked** | Awaiting gate approval after work package 1 |
+| 2 | 18 Sep 17:14:53 | 18 Sep 18:06:40 | **0.863** | Execution | `192c902f` 17:37:27 · `55287e0a` 17:44:13 · `b73ff461`/`ee44da0a` 18:06:40 |
+| — | 18 Sep 18:06:40 | 18 Sep 18:15:00 | 0.139 | **Blocked** | Awaiting approval of packages 2–4 |
+| 3 | 18 Sep 18:15:00 | *open* | — | Execution | Background synchronisation onward |
+
+**Running totals at 18 Sep 18:15:00 (+03:00):**
 
 | | Hours |
 |---|---:|
-| Wall-clock elapsed | 1.855 |
-| Inactive / blocked | 0.728 |
-| **Effective Claude execution** | **1.127** |
+| Wall-clock elapsed | 2.857 |
+| Inactive / blocked (approval waits) | 0.867 |
+| **Effective Claude execution** | **1.990** |
 | Original estimate | 19.0 |
-| Variance against effective execution | *not yet meaningful — 6 % of the estimate spent* |
 
-### Effort by work package — actual against estimate
+### Effort by work package — estimate against actual effective execution
 
-Updated as each package completes. Variance is measured against **effective execution time**.
+Actuals are taken from the commit boundaries above, captured as each package closed.
 
-| Work package | Estimate | Actual | Variance | Status |
+| Work package | Estimated | Actual effective | Variance | Status |
 |---|---:|---:|---:|---|
-| MIS Contract / Normalization | 1.5 | — | — | in progress |
-| MIS Service / Adapter | 2.0 | — | — | not started |
-| Background Synchronization | 2.0 | — | — | not started |
-| **Server-Side Paging** | **2.5** | **1.127** | **−1.373 (55 % of estimate)** | **complete** — includes the read-only spike, the contract, both fake adapters, 30 domain tests and the 16/16 live smoke |
-| Filtering / Sorting | 1.0 | — | — | partially delivered inside paging; remainder not started |
-| Strategy Execution Integration | 1.0 | — | — | not started |
-| Failure / Retry / Idempotency | 1.5 | — | — | not started |
-| Automated Testing | 3.0 | — | — | in progress |
-| Cloud Runtime Validation | 1.5 | — | — | in progress |
-| Regression | 1.0 | — | — | in progress |
-| Documentation / Gate Evidence | 2.0 | — | — | in progress |
+| Server-Side Paging | 2.50 h | **1.127 h** | **−1.373 h** | complete — spike, contract, both fakes, 30 domain tests, 16/16 live |
+| MIS Contract Analysis | *(inside Normalization's 1.5 h)* | **0.376 h** | — | complete — four documented claims corrected against real data |
+| MIS Normalization | 1.50 h (shared with the above) | **0.113 h** | **−1.011 h** combined | complete — 46 tests |
+| MIS Adapter / Fallback | 2.00 h | **0.374 h** | **−1.626 h** | complete — 3 providers, 25 tests |
+| Background Sync | 2.00 h | — | — | in progress |
+| Checkpoint / Restart | *(inside Background Sync)* | — | — | in progress |
+| Idempotency / Replay | 1.50 h | — | — | not started |
+| Eligibility / Strategy orchestration | 1.00 h | — | — | not started |
+| Filtering / Sorting | 1.00 h | *(delivered inside paging)* | — | substantially complete |
+| Performance / large volume | *(inside Automated Testing 3.0 h)* | — | — | not started |
+| Regression | 1.00 h | — | — | ongoing each milestone |
+| Cloud Runtime Validation | 1.50 h | *(0.2 h so far, inside paging)* | — | ongoing |
+| Documentation / Gate Evidence | 2.00 h | — | — | ongoing |
+| **Closed so far** | **6.50 h** | **1.990 h** | **−4.510 h** | 4 of 11 packages |
 
-**The original 19.0-hour estimate stands unmodified.** If remaining scope changes materially, an
-Estimate Update is issued as a new row below, and the original is preserved rather than edited.
+**The original 19.0-hour estimate stands unmodified.** Running at roughly 31 % of estimate on closed
+packages. That is not yet a reason to re-estimate: the four closed packages leaned heavily on Phase 1–3
+reuse, and the remaining ones — synchronisation, orchestration, large-volume testing and the 22-item
+gate — are the parts with the least existing scaffolding.
 
 ### Estimate updates
 
-*None issued.*
+*None issued.* An update will be recorded as a new row here, preserving the original, if remaining
+scope changes materially.
+
+### Development incidents, recorded rather than hidden
+
+| When | Incident | Resolution |
+|---|---|---|
+| 18 Sep 18:06 | A milestone commit landed while `turbo type-check` was failing: `exactOptionalPropertyTypes` rejected a possibly-undefined continuation in a test. Vitest passed it, and the commit had been chained behind a `grep` whose exit status masked the compiler error. | Fixed in `ee44da0a`; turbo green at 13/13. **Process change: type-check, tests and build are now run as an explicit gate that must return success before any milestone commit — a commit is not evidence that the build was healthy.** |
 
 ---
 

@@ -17,3 +17,5 @@ export type { BatchOutcome, RecordAction, RecordOutcome, SyncDependencies } from
 export { ENTITY_SETS as COLLECTION_ENTITY_SETS } from './qdbBindings.js';
 export { CollectionConfigurationService } from './CollectionConfigurationService.js';
 export type { CollectionRuntimeConfiguration } from './CollectionConfigurationService.js';
+export { BackgroundSyncRunner } from './BackgroundSyncRunner.js';
+export type { BackgroundSyncOptions, SyncRunReport } from './BackgroundSyncRunner.js';

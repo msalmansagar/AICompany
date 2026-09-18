@@ -314,3 +314,16 @@ export {
   type MisCallContext,
   type IMisDelinquencyService,
 } from './misService.js';
+export {
+  SyncModeSchema,
+  SynchronizationError,
+  ProcessingCheckpointSchema,
+  startCheckpoint,
+  advanceCheckpoint,
+  assertResumable,
+  describeSyncMode,
+  requireSupportedMode,
+  type SyncMode,
+  type ProcessingCheckpoint,
+  type ICheckpointStore,
+} from './synchronization.js';

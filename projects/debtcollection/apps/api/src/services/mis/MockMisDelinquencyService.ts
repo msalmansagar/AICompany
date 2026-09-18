@@ -173,8 +173,10 @@ export class MockMisDelinquencyService implements IMisDelinquencyService {
     if (!Number.isInteger(offset) || offset < 0) {
       throw new MisUnavailableError(`Checkpoint '${String(checkpoint)}' was not issued by this source`, 'Malformed');
     }
-    const page = await this.getArrearDetails({ pageSize, ...(offset > 0 ? {} : {}) }, context);
-    // Replay from the offset directly: the change feed's cursor is its own, not the page continuation.
+    // Read the rows directly. An earlier version called `getArrearDetails` purely to borrow its
+    // response envelope, which made a capability probe perform a data read — it consumed an injected
+    // fault and would cost a real request against a real source. The change feed's cursor is its own
+    // and has nothing to do with the page continuation.
     const matching = this.rawRows.slice(offset, offset + pageSize);
     const records: MisDelinquencyRecord[] = [];
     for (const raw of matching) {
@@ -186,13 +188,13 @@ export class MockMisDelinquencyService implements IMisDelinquencyService {
       if (result.ok) records.push(result.record);
     }
     const nextOffset = offset + matching.length;
-    return {
-      data: {
+    this.lastSuccessAt = this.now();
+    return liveResponse(
+      {
         records,
         ...(nextOffset < this.rawRows.length ? { nextCheckpoint: String(nextOffset) } : {}),
       },
-      meta: page.meta,
-    };
+      this.provider, this.options.misAsOfDate, this.lastSuccessAt, context.correlationId);
   }
 
   /** @inheritdoc */
