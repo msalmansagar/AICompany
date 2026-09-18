@@ -229,7 +229,7 @@ export class DataverseClient {
     extraHeaders: Record<string, string> = {},
   ): Promise<unknown> {
     return withRetry(async () => {
-      const headers = { ...await this.buildHeaders(requestOptions.correlationId), ...extraHeaders };
+      const headers = mergeHeaders(await this.buildHeaders(requestOptions.correlationId), extraHeaders);
       const fetchOptions: RequestInit = {
         method,
         headers: headers,
@@ -437,4 +437,28 @@ function throwIfBatchContainsError(responseText: string): void {
       status,
     );
   }
+}
+
+/**
+ * Merges request headers, combining `Prefer` rather than replacing it.
+ *
+ * `Prefer` is a comma-separated list, and every other header is a plain override. An earlier version
+ * spread the extra headers over the base ones, so adding `odata.maxpagesize` silently removed
+ * `odata.include-annotations="*"` — and with it every formatted value and every
+ * `lookuplogicalname`. Measured on org5869857f: a paged read returned only `@odata.etag`, while the
+ * same read with both preferences comma-joined returned the formatted value, the associated
+ * navigation property and the lookup's target table.
+ *
+ * That mattered more than it looked. The Customer lookup is polymorphic — contact for Housing Loan,
+ * account for BFD — and `lookuplogicalname` is how a reader tells them apart.
+ */
+export function mergeHeaders(
+  base: Record<string, string>,
+  extra: Record<string, string>,
+): Record<string, string> {
+  const merged = { ...base, ...extra };
+  if (base['Prefer'] && extra['Prefer']) {
+    merged['Prefer'] = `${base['Prefer']},${extra['Prefer']}`;
+  }
+  return merged;
 }
