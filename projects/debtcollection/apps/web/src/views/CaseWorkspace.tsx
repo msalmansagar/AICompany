@@ -58,7 +58,7 @@ export function CaseWorkspaceView({ caseId, onOpenCustomer }: {
       </Card>
     );
   }
-  if (state.status === 'loading') return <div className="grid-state" data-testid="case-loading">Loading case…</div>;
+  if (state.status === 'loading') return <div className="empty-state" data-testid="case-loading">Loading case…</div>;
   if (state.status === 'error') {
     return (
       <Card title="Case Detail">
@@ -123,7 +123,7 @@ function CaseHeader({ detail, onOpenCustomer }: {
         onOpenCustomer
           ? (
             <button
-              type="button" className="cmd-button" data-testid="open-customer-360"
+              type="button" className="btn" data-testid="open-customer-360"
               onClick={() => onOpenCustomer(detail.customerBusinessId)}
             >
               Customer 360
@@ -132,12 +132,12 @@ function CaseHeader({ detail, onOpenCustomer }: {
           : undefined
       }
     >
-      <div className="case-header-row">
+      <div className="action-row">
         <OrgBadge org={detail.organization} />
         <StatusPill status={detail.status} />
         <BucketPill bucket={detail.bucket} />
-        <span className="case-header-figure">{formatMoney(detail.totalArrears)} overdue</span>
-        <span className="case-header-figure">{formatCount(detail.dpd)} DPD</span>
+        <span className="chip">{formatMoney(detail.totalArrears)} overdue</span>
+        <span className="chip">{formatCount(detail.dpd)} DPD</span>
       </div>
       <StoredPositionNotice asOf={detail.misAsOfDate} syncedOn={detail.lastMisSyncOn} />
     </Card>

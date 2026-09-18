@@ -19,7 +19,7 @@ export function FreshnessIndicator({ meta, compact = false }: { meta: MisRespons
 
   return (
     <div
-      className={`freshness freshness-${stale ? 'cached' : 'live'}`}
+      className={stale ? 'freshness cached' : 'freshness live'}
       data-testid="freshness"
       data-freshness={meta.freshness}
       data-provider={meta.provider}
@@ -72,7 +72,7 @@ export function StaleReason({ meta }: { meta: MisResponseMeta }) {
  */
 export function StoredPositionNotice({ asOf, syncedOn }: { asOf?: string | undefined; syncedOn?: string | undefined }) {
   return (
-    <div className="freshness freshness-stored" data-testid="stored-position" data-freshness="Stored">
+    <div className="freshness stored" data-testid="stored-position" data-freshness="Stored">
       <Icon name="info" />
       <span className="freshness-label">Stored MIS position — not a live MIS read</span>
       <span className="freshness-detail">

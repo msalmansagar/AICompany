@@ -8,6 +8,11 @@ import type { ViewDefinition } from '../shell/routes.js';
  * Every one of these formats or arranges. None of them calculates: a bucket pill renders the bucket
  * MIS reported, an SLA chip renders the SLA the server worked out. The moment one of them started
  * deciding something, this application would have become a second implementation of the rules.
+ *
+ * **Class names are the prototype's.** A tone is chosen from a fixed set and written out in full —
+ * `pill ok`, `pill b3`, `org-badge HL` — never assembled from a value. A class name built at runtime
+ * cannot be checked against the stylesheet, and that is exactly how the first build shipped with
+ * seventy-one class names that matched no rule at all.
  */
 
 // ── Icon ─────────────────────────────────────────────────────────────────────
@@ -30,37 +35,34 @@ export function Card({ title, subtitle, children, actions }: {
 }) {
   return (
     <section className="section-card">
-      {(title || actions) && (
-        <header className="section-card-head">
-          <div>
-            {title && <h2 className="section-card-title">{title}</h2>}
-            {subtitle && <p className="section-card-sub">{subtitle}</p>}
-          </div>
-          {actions && <div className="section-card-actions">{actions}</div>}
-        </header>
-      )}
+      {title && <h3>{title}</h3>}
+      {subtitle && <div className="hint">{subtitle}</div>}
+      {actions && <div className="action-row">{actions}</div>}
       {children}
     </section>
   );
 }
 
-export interface Kpi { label: string; value: string; hint?: string; tone?: 'default' | 'warn' | 'bad' | 'good' }
+/** The prototype's five KPI tones. A tile with no tone is the neutral default. */
+export type Tone = 'ok' | 'warn' | 'bad' | 'info' | 'muted';
+
+export interface Kpi { label: string; value: string; hint?: string; tone?: Tone }
 
 /**
  * The KPI row.
  *
- * A value of `undefined` renders as `—` rather than `0`. The prototype's figures were mock data; a
- * fabricated count in a real workspace is worse than an honest blank, because nobody questions a
- * number that looks plausible.
+ * A value of `—` renders rather than `0`. The prototype's figures were mock data; a fabricated count
+ * in a real workspace is worse than an honest blank, because nobody questions a number that looks
+ * plausible.
  */
 export function KpiRow({ items }: { items: readonly Kpi[] }) {
   return (
     <div className="kpi-row">
       {items.map(kpi => (
-        <div key={kpi.label} className={`kpi kpi-${kpi.tone ?? 'default'}`}>
+        <div key={kpi.label} className={kpi.tone ? `kpi-tile ${kpi.tone}` : 'kpi-tile'}>
           <div className="kpi-label">{kpi.label}</div>
           <div className="kpi-value">{kpi.value}</div>
-          {kpi.hint && <div className="kpi-hint">{kpi.hint}</div>}
+          {kpi.hint && <div className="kpi-delta flat">{kpi.hint}</div>}
         </div>
       ))}
     </div>
@@ -91,79 +93,107 @@ export function Pivot({ tabs, activeId, onSelect, testId = 'pivot' }: {
 }) {
   const active = tabs.find(tab => tab.id === activeId) ?? tabs[0];
   return (
-    <div className="pivot" data-testid={testId}>
-      <div className="pivot-tabs" role="tablist">
+    <>
+      <div className="pivot" role="tablist" data-testid={testId}>
         {tabs.map(tab => (
           <button
             key={tab.id}
             type="button"
             role="tab"
             aria-selected={tab.id === active?.id}
-            className={`pivot-tab${tab.id === active?.id ? ' pivot-tab-active' : ''}`}
+            className={tab.id === active?.id ? 'pivot-tab active' : 'pivot-tab'}
             data-testid={`${testId}-tab-${tab.id}`}
             {...(tab.pendingPhase !== undefined ? { 'data-pending-phase': tab.pendingPhase } : {})}
             onClick={() => onSelect(tab.id)}
           >
             {tab.label}
-            {tab.pendingPhase !== undefined && <span className="pivot-tab-phase">P{tab.pendingPhase}</span>}
+            {tab.pendingPhase !== undefined && <span className="badge">P{tab.pendingPhase}</span>}
           </button>
         ))}
       </div>
-      <div className="pivot-panel" role="tabpanel" data-testid={`${testId}-panel-${active?.id ?? 'none'}`}>
+      <div role="tabpanel" data-testid={`${testId}-panel-${active?.id ?? 'none'}`}>
         {active?.render()}
       </div>
-    </div>
+    </>
   );
 }
 
 /** A tab, section or screen whose functionality a later phase owns. */
 export function PendingPhasePanel({ phase, what }: { phase: number; what: string }) {
   return (
-    <div className="pending-phase" data-testid={`pending-panel-${phase}`} data-owning-phase={phase}>
+    <div className="phase-notice" data-testid={`pending-panel-${phase}`} data-owning-phase={phase}>
       <Icon name="info" />
       <div>
         <strong>Phase {phase} owns this.</strong>
         <p>{what}</p>
-        <p className="pending-phase-note">No data is shown here, because none would be real.</p>
+        <p className="hint">No data is shown here, because none would be real.</p>
       </div>
     </div>
   );
 }
 
-/** Label/value pairs, as the approved summary panes lay them out. */
+/** Label/value pairs, as the approved read-only panes lay them out. */
 export function FieldList({ fields, testId = 'fields' }: {
   fields: readonly { label: string; value: ReactNode }[];
   testId?: string;
 }) {
   return (
-    <dl className="field-list" data-testid={testId}>
+    <div className="read-grid" data-testid={testId}>
       {fields.map(field => (
-        <div key={field.label} className="field-list-item">
-          <dt>{field.label}</dt>
-          <dd>{field.value}</dd>
+        <div key={field.label} className="read-pair">
+          <span className="rk">{field.label}</span>
+          <span className="rv">{field.value}</span>
         </div>
       ))}
-    </dl>
+    </div>
   );
 }
 
 // ── Pills, chips and badges ──────────────────────────────────────────────────
 
-/** The bucket exactly as MIS reported it. Nothing here derives a bucket from a DPD. */
+/**
+ * The bucket exactly as MIS reported it.
+ *
+ * The tone comes from a lookup onto the prototype's five bucket classes. **Nothing here derives a
+ * bucket from a DPD** — the mapping below is label-to-colour, not days-to-bucket.
+ */
+const BUCKET_TONE: Readonly<Record<string, string>> = {
+  '1-30': 'b1', '31-60': 'b2', '61-90': 'b3', '91-180': 'b4', '181-270': 'b4',
+  '271-360': 'b4', '361-500': 'b4', '501-1000': 'b4', '1001-2000': 'b4', '>2000': 'b4',
+};
+
 export function BucketPill({ bucket }: { bucket?: string | undefined }) {
-  if (!bucket) return <span className="pill pill-muted">—</span>;
-  return <span className={`pill bucket-${bucket.replace(/[^\w]/g, '')}`}>{bucket} DPD</span>;
+  if (!bucket) return <span className="pill muted">—</span>;
+  const tone = BUCKET_TONE[bucket];
+  return <span className={tone ? `pill ${tone}` : 'pill muted'}>{bucket} DPD</span>;
+}
+
+/**
+ * Maps a business status onto one of the prototype's five pill tones.
+ *
+ * This is the prototype's own `statusTone`, unchanged. It is presentation — which colour a word gets
+ * — and decides nothing: the status itself was set by the server.
+ */
+export function statusTone(status: string): Tone {
+  const s = status.toLowerCase();
+  if (/paid|kept|approved|resolved|accepted|settled|cured|restructured|completed/.test(s)) return 'ok';
+  if (/broken|rejected|breach|blocked|failed|suppressed|written off|legal action/.test(s)) return 'bad';
+  if (/pending|review|draft|disputed|escalated|deceased|open|due/.test(s)) return 'warn';
+  if (/new|assigned|in progress|follow|captured|proposed|referred|reopened/.test(s)) return 'info';
+  return 'muted';
 }
 
 export function StatusPill({ status }: { status?: string | undefined }) {
-  if (!status) return <span className="pill pill-muted">—</span>;
-  return <span className={`pill status-${status.toLowerCase().replace(/\s+/g, '-')}`}>{status}</span>;
+  if (!status) return <span className="pill muted">—</span>;
+  return <span className={`pill ${statusTone(status)}`}>{status}</span>;
 }
 
 /** The SLA state the server worked out. This renders it; it does not compute remaining time. */
-export function SlaChip({ label, tone }: { label?: string | undefined; tone?: 'ok' | 'warn' | 'breached' | undefined }) {
+export function SlaChip({ label, tone }: { label?: string | undefined; tone?: 'ok' | 'warn' | 'breach' | undefined }) {
   if (!label) return null;
-  return <span className={`chip chip-${tone ?? 'ok'}`}>{label}</span>;
+  if (tone === 'breach') return <span className="sla-chip breach">{label}</span>;
+  if (tone === 'warn') return <span className="sla-chip warn">{label}</span>;
+  return <span className="sla-chip">{label}</span>;
 }
 
 /**
@@ -174,7 +204,12 @@ export function SlaChip({ label, tone }: { label?: string | undefined; tone?: 'o
  */
 export function OrgBadge({ org }: { org?: string | undefined }) {
   if (!org) return null;
-  return <span className={`org-badge org-${org.toLowerCase()}`} title={`System of record: ${org}`}>{org}</span>;
+  const known = org === 'HL' || org === 'BFD';
+  return (
+    <span className={known ? `org-badge ${org}` : 'org-badge'} title={`System of record: ${org}`}>
+      {org}
+    </span>
+  );
 }
 
 // ── States ───────────────────────────────────────────────────────────────────
@@ -207,12 +242,12 @@ export function InfoBanner({ icon = 'info', children }: { icon?: string; childre
  */
 export function PendingPhaseNotice({ view }: { view: ViewDefinition }) {
   return (
-    <div className="pending-phase" data-testid={`pending-${view.id}`} data-owning-phase={view.phase}>
+    <div className="phase-notice" data-testid={`pending-${view.id}`} data-owning-phase={view.phase}>
       <Icon name="info" />
       <div>
         <strong>Not yet implemented — Phase {view.phase} owns this.</strong>
         {view.pendingSummary && <p>{view.pendingSummary}</p>}
-        <p className="pending-phase-note">
+        <p className="hint">
           The screen and its place in the workspace are preserved from the approved design. No data is
           shown here, because none would be real.
         </p>

@@ -3,21 +3,21 @@
   Organisation: org5869857f.crm4.dynamics.com
 
 ─── The build artefact ───
-  PASS  A single self-contained artefact exists — 344 KB
+  PASS  A single self-contained artefact exists — 347 KB
   PASS  It references no external script or stylesheet — nothing to resolve as a sibling under /WebResources
   PASS  It uses no absolute asset path — an absolute /assets path would 404 under a web-resource URL
+  PASS  The stylesheet carries the rules the shell renders against — 10 shell rules present, 46 KB of CSS
 
 ─── Upload ───
   PASS  Existing web resource updated — 0bd4fee5-97b3-f111-aaac-000d3abd8313
 
 ─── Publish ───
-  (the organisation is busy with another import; retrying in 10s — attempt 2 of 5)
-  PASS  Published — only this web resource — PublishXml accepted on attempt 2
+  PASS  Published — only this web resource — PublishXml accepted
 
 ─── Verification ───
   PASS  The web resource reads back from the organisation — qdb_dcp_workspace.html (DCP — Collection Workspace)
   PASS  It is stored as HTML — type=1
-  PASS  The stored content matches the artefact byte for byte — stored 343 KB, built 343 KB
+  PASS  The stored content matches the artefact byte for byte — stored 347 KB, built 347 KB
   PASS  The design tokens survived the round trip
   PASS  The workspace host element survived
 
@@ -28,4 +28,4 @@
   getGlobalContext answers, or that it can read data as the signed-in user.
   Those need a browser with a CRM session and are reported as pending.
 
-=== 10/10 checks passed ===
+=== 11/11 checks passed ===

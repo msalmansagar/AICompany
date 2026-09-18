@@ -15,6 +15,9 @@ import { VirtualizedRows } from './VirtualizedRows.js';
  * next page" look different to a user, and "empty because nothing matches" is not the same answer as
  * "empty because it failed" — a grid that shows the same grey shimmer for all three is telling the
  * user nothing.
+ *
+ * It renders the approved grid: `.grid-wrap` wrapping `table.grid`, with the prototype's sticky
+ * header, `.empty-row` for an empty result and `.empty-state` for a failure.
  */
 
 export interface DataGridColumn<T> {
@@ -23,6 +26,8 @@ export interface DataGridColumn<T> {
   /** The approved grid renders values; formatting only, never calculation. */
   render: (item: T) => ReactNode;
   width?: string;
+  /** Right-aligns and tabular-aligns the column, as the prototype's `.num` does. */
+  numeric?: boolean;
 }
 
 export interface DataGridProps<T, Q extends object> {
@@ -46,7 +51,8 @@ export function DataGrid<T, Q extends object>({
   query,
   rowKey,
   pageSize = 50,
-  rowHeight = 40,
+  // 44px is the approved row height — `table.grid tbody td` in the ported stylesheet.
+  rowHeight = 44,
   height = 520,
   onRowClick,
   emptyMessage = 'Nothing matches the current filters.',
@@ -56,59 +62,62 @@ export function DataGrid<T, Q extends object>({
   const paged = usePagedQuery<T, Q>({ fetchPage, query, pageSize, rowKey, enabled });
 
   if (paged.status === 'loadingFirst') {
-    return <div className="grid-state" data-testid={`${testId}-loading-first`}>Loading…</div>;
+    return <div className="empty-state" data-testid={`${testId}-loading-first`}>Loading…</div>;
   }
 
   if (paged.status === 'error' && paged.items.length === 0) {
     return (
-      <div className="grid-state grid-state-error" data-testid={`${testId}-error`}>
-        <div>{paged.error?.message ?? 'The list could not be loaded.'}</div>
-        <button type="button" onClick={paged.retry} data-testid={`${testId}-retry`}>Retry</button>
+      <div className="empty-state" data-testid={`${testId}-error`}>
+        <div className="es-title">The list could not be loaded.</div>
+        <div>{paged.error?.message ?? ''}</div>
+        <button type="button" className="btn" onClick={paged.retry} data-testid={`${testId}-retry`}>Retry</button>
       </div>
     );
   }
 
   if (paged.status === 'empty') {
-    return <div className="grid-state grid-state-empty" data-testid={`${testId}-empty`}>{emptyMessage}</div>;
+    return (
+      <div className="grid-wrap auto" data-testid={`${testId}-empty`}>
+        <table className="grid">
+          <thead><HeaderRow columns={columns} /></thead>
+          <tbody>
+            <tr className="empty-row"><td colSpan={columns.length}>{emptyMessage}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    );
   }
 
   return (
-    <div className="data-grid" data-testid={testId}>
-      <div className="data-grid-header" role="row">
-        {columns.map(column => (
-          <div key={column.key} role="columnheader" style={column.width ? { width: column.width } : undefined}>
-            {column.header}
-          </div>
-        ))}
-      </div>
-
+    <div data-testid={testId}>
       <VirtualizedRows
         items={paged.items}
         rowKey={rowKey}
         rowHeight={rowHeight}
         height={height}
+        columnCount={columns.length}
+        head={<HeaderRow columns={columns} />}
         onReachEnd={paged.loadMore}
         data-testid={`${testId}-viewport`}
         renderRow={item => (
-          <div
-            className="data-grid-row"
-            role="row"
+          <tr
+            className={onRowClick ? 'link-cell' : undefined}
             onClick={onRowClick ? () => onRowClick(item) : undefined}
           >
             {columns.map(column => (
-              <div key={column.key} role="cell" style={column.width ? { width: column.width } : undefined}>
+              <td key={column.key} className={column.numeric ? 'num' : undefined}>
                 {column.render(item)}
-              </div>
+              </td>
             ))}
-          </div>
+          </tr>
         )}
         footer={
-          <div className="data-grid-footer" data-testid={`${testId}-footer`}>
+          <div className="hint" data-testid={`${testId}-footer`}>
             {paged.status === 'loadingMore' && <span data-testid={`${testId}-loading-more`}>Loading more…</span>}
             {paged.status === 'error' && paged.items.length > 0 && (
               <span data-testid={`${testId}-page-error`}>
                 {paged.error?.message ?? 'The next page could not be loaded.'}{' '}
-                <button type="button" onClick={paged.retry}>Retry</button>
+                <button type="button" className="btn" onClick={paged.retry}>Retry</button>
               </span>
             )}
             {paged.endOfResults && paged.items.length > 0 && (
@@ -121,5 +130,21 @@ export function DataGrid<T, Q extends object>({
         }
       />
     </div>
+  );
+}
+
+function HeaderRow<T>({ columns }: { columns: readonly DataGridColumn<T>[] }) {
+  return (
+    <tr>
+      {columns.map(column => (
+        <th
+          key={column.key}
+          className={column.numeric ? 'num' : undefined}
+          style={column.width ? { width: column.width } : undefined}
+        >
+          {column.header}
+        </th>
+      ))}
+    </tr>
   );
 }

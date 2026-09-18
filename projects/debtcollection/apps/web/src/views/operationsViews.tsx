@@ -83,7 +83,7 @@ export function DelinquencyIntakeView() {
         title="Identity exceptions"
         subtitle="Facilities and customers intake could not match. Each one is a case that was not created."
         actions={
-          <label className="inline-toggle">
+          <label className="chip">
             <input
               type="checkbox" checked={openOnly} data-testid="exceptions-open-only"
               onChange={event => setOpenOnly(event.target.checked)}
@@ -133,7 +133,7 @@ export function PromiseToPayView({ view }: { view: ViewDefinition }) {
       <KpiRow items={[
         { label: 'Promises recorded', value: formatCountResult(counts['allPtps']) },
         { label: 'Active', value: formatCountResult(counts['activePtps']) },
-        { label: 'Kept', value: formatCountResult(counts['keptPtps']), tone: 'good' },
+        { label: 'Kept', value: formatCountResult(counts['keptPtps']), tone: 'ok' },
         { label: 'Broken', value: formatCountResult(counts['brokenPtps']), tone: 'bad' },
         // A rate is a calculation over two counts either of which may be capped, so it is left to the
         // phase that owns PTP evaluation rather than derived from figures that may be floors.
@@ -190,7 +190,7 @@ export function DashboardsView({ view }: { view: ViewDefinition }) {
         { label: 'Closed', value: formatCountResult(counts['closed']) },
       ]} />
       <Card title="Beyond counts" subtitle="What the approved dashboards show that a bounded count cannot answer.">
-        <ul className="plain-list">
+        <ul className="hint">
           <li>Overdue balance by bucket — needs aggregation the Web API does not perform (Phase 10).</li>
           <li>Roll rates and transition — needs period-over-period MIS, blocked on the transport contract (KI-53).</li>
           <li>Collector performance and SLA breach — needs the SLA model Phase 8 introduces.</li>

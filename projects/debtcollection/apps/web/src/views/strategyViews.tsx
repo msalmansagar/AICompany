@@ -69,7 +69,7 @@ export function SegmentationView() {
         title="Segmentation"
         subtitle="Strategy criteria as the organisation holds them, ordered by the priority that decides which one wins."
         actions={
-          <label className="inline-toggle">
+          <label className="chip">
             <input
               type="checkbox" checked={activeOnly} data-testid="segmentation-active-only"
               onChange={event => setActiveOnly(event.target.checked)}
@@ -131,7 +131,7 @@ export function StrategyRulesView({ view }: { view: ViewDefinition }) {
       <Card
         title={selected ? `Actions — ${selected.name}` : 'Actions — all strategies'}
         subtitle="What the strategy does once it applies. Authoring these is Phase 8."
-        actions={selected ? <button type="button" className="cmd-button" onClick={() => setSelected(undefined)}>Show all</button> : undefined}
+        actions={selected ? <button type="button" className="btn" onClick={() => setSelected(undefined)}>Show all</button> : undefined}
       >
         <DataGrid<StrategyActionRow, StrategyActionQuery>
           columns={ACTION_COLUMNS} fetchPage={fetchActions} query={actionQuery}
@@ -156,20 +156,20 @@ export function StrategyRulesView({ view }: { view: ViewDefinition }) {
 function RuleBuilderPlaceholder() {
   return (
     <Card title="Rule builder" subtitle="Preserved from the approved design and deliberately disabled.">
-      <fieldset className="rule-builder" disabled data-testid="rule-builder">
+      <fieldset className="field-grid" disabled data-testid="rule-builder">
         <legend>When all of these are true</legend>
-        <div className="rule-builder-row">
-          <select><option>Bucket</option></select>
-          <select><option>is</option></select>
-          <input type="text" placeholder="value" />
+        <div className="action-row">
+          <select className="fluent-select"><option>Bucket</option></select>
+          <select className="fluent-select"><option>is</option></select>
+          <input className="fluent-input" type="text" placeholder="value" />
         </div>
         <legend>Then do this</legend>
-        <div className="rule-builder-row">
-          <select><option>Action</option></select>
-          <select><option>Channel</option></select>
+        <div className="action-row">
+          <select className="fluent-select"><option>Action</option></select>
+          <select className="fluent-select"><option>Channel</option></select>
         </div>
       </fieldset>
-      <p className="pending-phase-note">
+      <p className="hint">
         Authoring belongs to Phase 8. The thresholds a rule compares against live in the QDB Rule
         Engine, never in this application.
       </p>

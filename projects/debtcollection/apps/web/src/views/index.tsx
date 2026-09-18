@@ -61,17 +61,17 @@ export function CasesView({ onOpenCase }: { onOpenCase?: (id: string) => void })
         row names the system of record.
       </InfoBanner>
 
-      <div className="filter-bar" data-testid="case-filters">
+      <div className="action-row" data-testid="case-filters">
         <label>
           Bucket
-          <select value={bucket} onChange={e => setBucket(e.target.value)} data-testid="filter-bucket">
+          <select className="fluent-select" value={bucket} onChange={e => setBucket(e.target.value)} data-testid="filter-bucket">
             <option value="">All</option>
             {Object.values(LABELS.BUCKET_LABELS).map(b => <option key={b} value={b}>{b}</option>)}
           </select>
         </label>
         <label>
           Status
-          <select value={status} onChange={e => setStatus(e.target.value)} data-testid="filter-status">
+          <select className="fluent-select" value={status} onChange={e => setStatus(e.target.value)} data-testid="filter-status">
             <option value="">All</option>
             {Object.values(LABELS.CASE_STATUS_LABELS).map(s => <option key={s} value={s}>{s}</option>)}
           </select>
@@ -79,7 +79,7 @@ export function CasesView({ onOpenCase }: { onOpenCase?: (id: string) => void })
         <label>
           Search
           <input
-            type="search" value={search} placeholder="Case number or customer id"
+            className="fluent-input" type="search" value={search} placeholder="Case number or customer id"
             data-testid="filter-search" onChange={e => setSearch(e.target.value)}
           />
         </label>
@@ -119,11 +119,11 @@ export function AuditView() {
       title="Audit trail"
       subtitle="Append-only technical and integration evidence. The largest table in the organisation, and never loaded whole."
     >
-      <div className="filter-bar">
+      <div className="action-row">
         <label>
           Source
           <input
-            type="search" value={search} placeholder="Filter by source"
+            className="fluent-input" type="search" value={search} placeholder="Filter by source"
             data-testid="audit-search" onChange={e => setSearch(e.target.value)}
           />
         </label>

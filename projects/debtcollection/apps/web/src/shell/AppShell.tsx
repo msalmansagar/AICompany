@@ -10,6 +10,12 @@ import { useHashRoute } from './useHashRoute.js';
  * Header, command bar, left navigation, content. The UCI styling is deliberate: this runs inside
  * Dynamics, and looking like part of it rather than like a foreign application embedded in a frame is
  * a large part of why the design was approved.
+ *
+ * **The class names here are the prototype's, not new ones.** `.app`, `.app-header`, `.app-title`,
+ * `.cmdbar`/`.cmd`, `.nav`/`.nav-item`, `.content`/`.scroll`/`.page` are what the ported stylesheets
+ * define. The first version of this file invented a parallel `.uci-*` vocabulary, so the ported CSS
+ * matched nothing and the workspace rendered as unstyled HTML inside Dynamics. A class name is part
+ * of the contract with the design, not an implementation detail of the component.
  */
 
 export interface AppShellProps {
@@ -26,65 +32,84 @@ export function AppShell({ commands, children }: AppShellProps) {
   const visible = viewsForRole(role);
 
   return (
-    <div className="uci-shell">
-      <header className="uci-header">
-        <div className="uci-brand">
-          <span className="uci-app">MSS Collections</span>
-          <span className="uci-divider" />
-          <span className="uci-area">Debt Collection</span>
-          <span className="uci-env" data-testid="environment">
-            {context.organizationUniqueName ?? 'CRM'}
-          </span>
+    <div className="app">
+      <header className="app-header">
+        <div className="app-title">
+          <span className="env">MSS Collections</span>
+          <span className="name">Debt Collection</span>
         </div>
+        <div className="header-spacer" />
+        <div className="env-name" data-testid="environment">
+          {context.organizationUniqueName ?? 'CRM'}
+        </div>
+        <div className="header-spacer" />
 
-        <div className="uci-search">
+        <div className="header-search">
           <Icon name="search" />
           <input type="search" placeholder="Search customer, case or QID" aria-label="Search" />
         </div>
 
-        <div className="uci-header-right">
-          <label className="uci-role">
-            <span className="uci-role-label">Role</span>
-            <select
-              value={role}
-              aria-label="Working role"
-              data-testid="role-switcher"
-              onChange={e => setRole(e.target.value as typeof role)}
-            >
-              {Object.entries(ROLE_LABELS).map(([key, label]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="uci-org">
-            <span className="uci-org-label">CRM</span>
-            <select
-              value={scope}
-              aria-label="Organisation scope"
-              data-testid="org-scope"
-              onChange={e => setScope(e.target.value as typeof scope)}
-            >
-              <option value="all">Both CRMs</option>
-              <option value="HL">Housing Loan</option>
-              <option value="BFD">BFD</option>
-            </select>
-          </label>
-
-          <span className="uci-user" title={context.userName}>{context.userName}</span>
+        <div className="role-pick" title="The working role. Presentation only — CRM security decides what you may read.">
+          <span className="rp-lbl">Role</span>
+          <select
+            className="fluent-select"
+            value={role}
+            aria-label="Working role"
+            data-testid="role-switcher"
+            onChange={e => setRole(e.target.value as typeof role)}
+          >
+            {Object.entries(ROLE_LABELS).map(([key, label]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+          </select>
         </div>
+
+        <div className="role-pick" title="Which CRM's records are in scope">
+          <span className="rp-lbl">CRM</span>
+          <select
+            className="fluent-select"
+            value={scope}
+            aria-label="Organisation scope"
+            data-testid="org-scope"
+            onChange={e => setScope(e.target.value as typeof scope)}
+          >
+            <option value="all">Both CRMs</option>
+            <option value="HL">Housing Loan</option>
+            <option value="BFD">BFD</option>
+          </select>
+        </div>
+
+        <div className="avatar" title={context.userName}>{initialsOf(context.userName)}</div>
       </header>
 
-      {commands && <nav className="uci-cmdbar" aria-label="Commands">{commands}</nav>}
-
-      <div className="uci-body">
+      <div className="body">
         <NavRail views={visible} activeId={route.view.id} onNavigate={route.go} />
-        <main className="uci-content" data-testid="content" data-view={route.view.id}>
-          {children}
+        <main className="content">
+          {commands && <div className="cmdbar" role="toolbar" aria-label="Commands">{commands}</div>}
+          <div className="scroll">
+            <div className="page" data-testid="content" data-view={route.view.id}>
+              <div className="page-head">
+                <div>
+                  <h1>{route.view.label}</h1>
+                  <div className="page-sub">{route.view.group}</div>
+                </div>
+              </div>
+              {children}
+            </div>
+          </div>
         </main>
       </div>
     </div>
   );
+}
+
+/** The avatar shows initials, as the prototype does — a full name does not fit a 28px circle. */
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  const first = parts[0]![0] ?? '';
+  const last = parts.length > 1 ? parts[parts.length - 1]![0] ?? '' : '';
+  return (first + last).toUpperCase();
 }
 
 /**
@@ -100,35 +125,37 @@ export function NavRail({ views, activeId, onNavigate }: {
   onNavigate: (viewId: string) => void;
 }) {
   return (
-    <nav className="uci-nav" aria-label="Workspace navigation" data-testid="nav-rail">
-      {GROUP_ORDER.map(group => {
-        const inGroup = views.filter(v => v.group === group);
-        if (inGroup.length === 0) return null;
-        return (
-          <div key={group} className="uci-nav-group">
-            <div className="uci-nav-group-label">{group}</div>
-            {inGroup.map(view => (
-              <button
-                key={view.id}
-                type="button"
-                className={`uci-nav-item${view.id === activeId ? ' is-active' : ''}`}
-                data-testid={`nav-${view.id}`}
-                data-pending={isPending(view) ? String(view.phase) : undefined}
-                aria-current={view.id === activeId ? 'page' : undefined}
-                onClick={() => onNavigate(view.id)}
-              >
-                <Icon name={view.icon} />
-                <span className="uci-nav-label">{view.label}</span>
-                {isPending(view) && (
-                  <span className="uci-nav-phase" title={`Phase ${view.phase} owns this functionality`}>
-                    P{view.phase}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        );
-      })}
+    <nav className="nav" aria-label="Workspace navigation" data-testid="nav-rail">
+      <div className="nav-scroll">
+        {GROUP_ORDER.map(group => {
+          const inGroup = views.filter(v => v.group === group);
+          if (inGroup.length === 0) return null;
+          return (
+            <div key={group}>
+              <div className="nav-group-label">{group}</div>
+              {inGroup.map(view => (
+                <button
+                  key={view.id}
+                  type="button"
+                  className={view.id === activeId ? 'nav-item active' : 'nav-item'}
+                  data-testid={`nav-${view.id}`}
+                  data-pending={isPending(view) ? String(view.phase) : undefined}
+                  aria-current={view.id === activeId ? 'page' : undefined}
+                  onClick={() => onNavigate(view.id)}
+                >
+                  <Icon name={view.icon} />
+                  <span>{view.label}</span>
+                  {isPending(view) && (
+                    <span className="nav-count" title={`Phase ${view.phase} owns this functionality`}>
+                      P{view.phase}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          );
+        })}
+      </div>
     </nav>
   );
 }
@@ -146,7 +173,7 @@ export function Command({ icon, label, onClick, pendingPhase }: {
   return (
     <button
       type="button"
-      className="uci-cmd"
+      className="cmd"
       disabled={disabled}
       data-testid={`cmd-${label.toLowerCase().replace(/\s+/g, '-')}`}
       title={disabled ? `Phase ${pendingPhase} owns this — not yet implemented` : label}
@@ -156,4 +183,9 @@ export function Command({ icon, label, onClick, pendingPhase }: {
       <span>{label}</span>
     </button>
   );
+}
+
+/** A divider between command groups, as the prototype's command bar uses. */
+export function CommandSeparator() {
+  return <div className="cmd-sep" />;
 }

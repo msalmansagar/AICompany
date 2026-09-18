@@ -14,6 +14,7 @@ import { ConfigurationView } from './views/ConfigurationView.js';
 import './styles/tokens.css';
 import './styles/components.css';
 import './styles/uci.css';
+import './styles/phase5.css';
 
 /**
  * The workspace root.
@@ -140,7 +141,7 @@ function HostMissing({ error }: { error: Error }) {
     <div className="host-missing" data-testid="host-missing" data-kind={kind}>
       <h1>Debt Collection Workspace</h1>
       <p>{error.message}</p>
-      <p className="host-missing-note">
+      <p className="hint">
         Open it from the Dynamics sitemap, or at
         <code> main.aspx?pagetype=webresource&amp;webresourceName=…</code> — the raw
         <code> /WebResources/ </code> path has no CRM context.

@@ -272,7 +272,7 @@ describe('a KPI is a platform count or an em dash, never an invention', () => {
     await openView('myday');
     const tiles = await screen.findAllByText('Overdue balance');
     expect(tiles.length).toBeGreaterThan(0);
-    const tile = tiles[0]!.closest('.kpi')!;
+    const tile = tiles[0]!.closest('.kpi-tile')!;
     expect(tile.textContent).toContain('—');
     expect(tile.textContent).toContain('Phase 10');
   });
@@ -281,7 +281,7 @@ describe('a KPI is a platform count or an em dash, never an invention', () => {
     install(fakeXrm({ qdb_collectioncase: [CASE_ROW] }));
     await openView('dashboards');
     const tiles = await screen.findAllByText('Open cases');
-    const tile = tiles[0]!.closest('.kpi')!;
+    const tile = tiles[0]!.closest('.kpi-tile')!;
     await waitFor(() => expect(tile.querySelector('.kpi-value')!.textContent).toBe('1'));
   });
 });

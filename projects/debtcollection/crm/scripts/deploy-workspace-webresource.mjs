@@ -107,6 +107,22 @@ async function main() {
     !/(src|href)="\//.test(html),
     'an absolute /assets path would 404 under a web-resource URL');
 
+  // The first deployment inside Dynamics rendered as unstyled HTML: the stylesheets were inlined
+  // correctly, and the components asked for class names none of them defined. Checking that
+  // `--primary` survived the round trip proved the CSS was *present*, which is not the same as the
+  // page being *styled*. So the artefact is now checked for the rules the shell actually needs.
+  const styles = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map(m => m[1]).join('\n');
+  const requiredRules = [
+    '.app-header', '.cmdbar', '.nav-item', '.content', '.page',
+    'table.grid', '.grid-wrap', '.kpi-tile', '.pill', '.section-card',
+  ];
+  const absentRules = requiredRules.filter(rule => !styles.includes(rule));
+  check('The stylesheet carries the rules the shell renders against',
+    absentRules.length === 0,
+    absentRules.length === 0
+      ? `${requiredRules.length} shell rules present, ${(styles.length / 1024).toFixed(0)} KB of CSS`
+      : `MISSING ${absentRules.join(', ')} — the workspace would render unstyled`);
+
   const token = await acquireToken(cfg);
 
   // ── Create or update ──────────────────────────────────────────────────────

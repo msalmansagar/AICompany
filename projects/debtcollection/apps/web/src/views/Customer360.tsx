@@ -49,7 +49,7 @@ export function Customer360View({ customerBusinessId, onOpenCase }: {
 
   if (!customerBusinessId) return <CustomerPicker {...(onOpenCase ? { onOpenCase } : {})} />;
   if (state.status === 'loading') {
-    return <div className="grid-state" data-testid="customer-loading">Loading customer…</div>;
+    return <div className="empty-state" data-testid="customer-loading">Loading customer…</div>;
   }
   if (state.status === 'error') {
     return (
@@ -186,7 +186,7 @@ function FacilitiesCard({ aggregate, onOpenCase }: {
       title="Facilities"
       subtitle="One row per facility this customer has a collection case for. A facility is MIS identity carried on the case, never a CRM record."
     >
-      <table className="static-grid" data-testid="customer-facilities">
+      <table className="grid" data-testid="customer-facilities">
         <thead>
           <tr>{FACILITY_COLUMNS.map(column => <th key={column.key} style={column.width ? { width: column.width } : undefined}>{column.header}</th>)}</tr>
         </thead>

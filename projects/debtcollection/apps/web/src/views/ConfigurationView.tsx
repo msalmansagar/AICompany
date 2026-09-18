@@ -51,7 +51,7 @@ export function ConfigurationView({ view }: { view: ViewDefinition }) {
       <PendingPhaseNotice view={view} />
       <SessionCard />
 
-      {state.status === 'loading' && <div className="grid-state" data-testid="config-loading">Loading configuration…</div>}
+      {state.status === 'loading' && <div className="empty-state" data-testid="config-loading">Loading configuration…</div>}
       {state.status === 'error' && (
         <Card title="Platform configuration">
           <EmptyState icon="warn" message={state.error?.message ?? 'The configuration could not be read.'} />
@@ -114,14 +114,14 @@ function ConfigurationCard({ row, isSelected, onSelect }: {
       subtitle={`${row.platformType ?? 'platform not set'} · ${row.environmentCode ?? 'environment not set'} · ${row.isActive ? 'active' : 'inactive'}`}
       actions={
         <button
-          type="button" className={`cmd-button${isSelected ? ' cmd-button-active' : ''}`}
+          type="button" className={isSelected ? 'btn primary' : 'btn'}
           data-testid={`select-config-${row.id}`} onClick={onSelect}
         >
           {isSelected ? 'Showing mappings' : 'Show mappings'}
         </button>
       }
     >
-      <div className="case-header-row"><OrgBadge org={row.organization} /></div>
+      <div className="action-row"><OrgBadge org={row.organization} /></div>
       <FieldList
         testId={`config-fields-${row.id}`}
         fields={[
@@ -185,14 +185,14 @@ function DisabledCommands() {
         A configuration this application could publish would make it a second source of platform truth.
         Publishing stays with the phase that owns configuration lifecycle.
       </InfoBanner>
-      <div className="command-row" data-testid="config-commands">
+      <div className="action-row" data-testid="config-commands">
         {commands.map(command => (
           <button
-            key={command.label} type="button" className="cmd-button" disabled
+            key={command.label} type="button" className="btn" disabled
             data-pending-phase={command.phase} title={`Phase ${command.phase} owns this`}
           >
             {command.label}
-            <span className="cmd-phase">P{command.phase}</span>
+            <span className="rel-tag">P{command.phase}</span>
           </button>
         ))}
       </div>
