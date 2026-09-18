@@ -47,7 +47,9 @@ describe('the mock provider', () => {
     expect(first.data.items).toHaveLength(10);
     expect(first.data.hasMore).toBe(true);
 
-    const second = await mis.getArrearDetails({ pageSize: 10, continuation: first.data.continuation });
+    const continuation = first.data.continuation;
+    if (!continuation) throw new Error('expected a continuation on a full first page');
+    const second = await mis.getArrearDetails({ pageSize: 10, continuation });
     const firstIds = new Set(first.data.items.map(r => r.facilityNumber));
     expect(second.data.items.some(r => firstIds.has(r.facilityNumber))).toBe(false);
   });
