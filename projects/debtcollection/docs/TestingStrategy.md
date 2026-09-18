@@ -171,6 +171,68 @@ inferred either. The standing rule is therefore:
 And the structural mitigation is the one that actually worked: **a live smoke per phase, run against the
 real organisation, which no fake can satisfy by agreeing with the code.**
 
+
+## 1D. Standing requirement — Dataverse query behaviour needs real Dataverse evidence (from KI-52, mandatory Phase 4 onward)
+
+KI-52 is closed as a defect. The finding it produced is not, and it is the reason this section exists.
+
+### What KI-52 actually demonstrated
+
+`StrategyRepository` selected a lookup by its storage column (`qdb_strategyid`). Dataverse accepts
+that and returns nothing for it, so every strategy resolved with **zero actions**. Every unit test
+passed the whole time — and they were not badly written. The in-memory `FakeCrmAdapter` answered with
+whichever column the code asked for, so:
+
+> **An in-memory or fake adapter can validate the same incorrect assumption as the production code.**
+
+A mock encodes the author's belief about the platform. When that belief is wrong, the mock agrees with
+the code and the test proves only that the code is self-consistent. No amount of unit testing closes
+this gap, because the gap *is* the shared assumption.
+
+This was the second instance. Phase 2 found the same class in navigation property names — a lookup's
+navigation name is bare when one relationship targets the table and `_<referencingEntity>`-suffixed
+when two do, and it is not inferable either.
+
+### The requirement
+
+From Phase 4 onward, **platform-specific query behaviour must not rely solely on mocked or in-memory
+tests.** Where the Cloud sandbox permits it, add real Dataverse integration or smoke evidence for:
+
+| Behaviour | Why a mock cannot settle it |
+|---|---|
+| lookups and `_<column>_value` | the storage column is accepted and returns nothing — KI-52 |
+| navigation properties | bare vs `_<referencingEntity>` suffix depends on how many relationships target the table |
+| `$select` | an unselected column is absent, not null; a mis-named one is silently ignored |
+| `$expand` | depth, cardinality and the `$select` inside an expand each behave differently from the flat case |
+| `$filter` | operator support, type coercion, null semantics and casing are the platform's, not ours |
+| `$orderby` | which columns are sortable, and how nulls and formatted values order |
+| paging | page size is a request, not a promise |
+| `@odata.nextLink` | an opaque continuation token — reconstructing it is the defect this rule exists to prevent |
+| alternate keys | the refusal text, the status code and which write paths the key actually governs |
+| formatted values | the annotation is only present when asked for, and the raw and formatted values differ |
+| FetchXML, where used | paging cookie semantics differ from OData continuation entirely |
+
+### How the two layers divide
+
+**Neither layer replaces the other, and the unit tests are not to be weakened.**
+
+| Layer | Answers | Runs |
+|---|---|---|
+| Unit / domain (Vitest, in-memory adapter) | *Is the logic right?* — decisions, ordering, refusals, idempotency, error handling | every commit, seconds |
+| Targeted Dataverse integration / smoke | *Is our belief about the platform right?* — the table above | per phase against `org5869857f`, and on demand |
+
+A fast unit test suite is what makes the integration suite affordable: the live run only has to cover
+the platform's behaviour, not the domain's.
+
+### Rules for the live evidence
+
+- Every live test names the organisation it ran against and refuses to run against any other.
+- Every live test cleans up what it creates, and proves it — "0 smoke record(s) remain".
+- A live test asserts the platform's *observed* behaviour, including its error text, rather than what
+  the documentation says it should be.
+- Where the sandbox genuinely cannot exercise something, say so in the phase report rather than
+  substituting a mock and calling it runtime evidence.
+
 ## 2. Test pyramid per layer (target)
 
 | Layer | Framework | Scope | Isolation rule |

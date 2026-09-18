@@ -3,6 +3,60 @@
 Newest first. Entries record what changed in the repository, the org, or the approved architecture.
 Phase 0 changed documentation only. **Phase 1 changed the repository and provisioned schema on the Cloud sandbox `org5869857f` — the only organisation authorised — and nothing else.**
 
+## 2026-09-18 — Phase 4 preparation / baseline housekeeping (documentation and tracker only)
+
+No code and no organisation change. Phase 3 (`77ed073e`, branch `feat/dcp-phase3-configuration`) is the
+approved baseline; `feat/dcp-phase4-mis-integration` is branched from it.
+
+### Project Tracker correction (mandatory before Phase 4)
+
+The tracker's *Phases*, *Test Baseline*, *Dual-Platform Check* and *TBD* sheets were kept current at
+every gate, but the row-level statuses on the **Tracker** sheet were never updated at the Phase 1 or
+Phase 2 close. Seventeen rows showed `Not Started` for work that had already shipped and been runtime
+validated.
+
+All statuses below come from the Phase 1 and Phase 2 Completion Reports and from evidence re-verified
+on `org5869857f` in this session — `verify-qdb-schema.mjs` 19/19 at 244/244, smokes 13/13 · 20/20 ·
+19/19. **No date, status or evidence was invented, and no Phase 2 implementation was changed.**
+
+| Rows | Correction |
+|---|---|
+| 69–71, 73, 74, 89 | `Not Started` → **Complete**, 100% — collection case, activity, activity type, snapshot, identity exception, snapshot eligibility columns. Actual start/finish 2026-09-18, the Phase 2 close |
+| 72 `qdb_activityoutcome` | → **Complete (schema), 60%**. Provisioned and verified, but **no application code reads or writes it yet**; functional and demo status remain Not Started |
+| 75 `qdb_integrationlog` | → **Withdrawn — never to be created**. Superseded by the QDB-confirmed reuse of `qdb_crmlogs`, which DCP writes unextended |
+| 76 contact/account `qdb_` extensions | → **Not Started, and must not be started** without QDB confirmation (KI-44). Verified: no `qdb_` column exists on `contact` or `account` |
+| 77 facility integration via mapping | → **Superseded**. The Phase 2 Facility Architecture clarification removed the scope: a case is created from the MIS business identity alone |
+| 61–64, 68 (Phase 1) | `Not Started` → **Complete**, 100% — publisher and solution, plugin assembly, platform configuration, platform mapping, `IsValidForQueue` |
+| 65 browser `ICrmAdapter` | **Still Not Started.** The service-side adapter is complete; the browser one over `Xrm.WebApi` arrives with the React Workspace |
+| 66 tooling auth + `DV_API_VERSION` | → **Development Complete, 80%.** KI-02 is fixed — no hard-coded `9.2` remains in application source. KI-03 is only partly closed: the adapter exists but has never run against an on-premises organisation |
+| 67 one source → two packages | **Still Not Started.** No solution package and no CI pipeline exist |
+| 92 snapshot key + idempotency | → **Complete — delivered in Phase 2**, ahead of its labelled phase |
+
+**Not corrected, and raised instead:** 28 rows carry the contradictory pair *Overall = "Development
+Complete", Completion = 0%*. These are Phase 0 rows describing the pre-existing `msst_` implementation,
+where "Development Complete" appears to mean *the legacy version exists* and 0% means *the `qdb_`
+migration had not begun*. Reinterpreting that column across 28 rows is a judgement about the original
+author's intent, so it is flagged in `Phase_3_Completion_Report.md` §2 rather than guessed at.
+
+### KI-52 closed as a defect; its finding retained as a standing requirement
+
+The defect — a Dataverse lookup selected by its storage column returns nothing, so every strategy
+resolved with zero actions — was fixed in Phase 3, audited across every Collection repository, and
+proved live. **Closed.**
+
+What it demonstrated is now a permanent rule, recorded in `TestingStrategy.md` §1D:
+
+> **An in-memory or fake adapter can validate the same incorrect assumption as the production code.**
+
+From Phase 4 onward, platform-specific query behaviour — lookups, `_<column>_value`, navigation
+properties, `$select`, `$expand`, `$filter`, `$orderby`, paging, `@odata.nextLink`, alternate keys,
+formatted values and FetchXML paging cookies where used — **must not rely solely on mocked or
+in-memory tests**. Where the Cloud sandbox permits it, real Dataverse integration or smoke evidence is
+required. Unit tests are not weakened: the fast suite proves the logic, the live suite proves our
+belief about the platform, and neither substitutes for the other.
+
+---
+
 ## 2026-09-18 — Phase 3: Configuration & Strategy Foundation (repository + sandbox `org5869857f`)
 
 Detail in `docs/phases/Phase_3_Completion_Report.md`. Built on `feat/dcp-phase2-core-model` in a
