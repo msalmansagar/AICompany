@@ -25,14 +25,17 @@ describe('the approved navigation is complete', () => {
   });
 
   it('gives every view an icon that exists in the ported set', () => {
+    expect(ICON_NAMES.length).toBeGreaterThan(50);
     for (const view of VIEWS) expect(ICON_NAMES).toContain(view.icon);
   });
 
   it('states an owning phase for every view', () => {
+    expect(VIEWS.length).toBe(21);
     for (const view of VIEWS) expect(view.phase).toBeGreaterThanOrEqual(5);
   });
 
   it('explains every future-phase view rather than leaving it blank', () => {
+    expect(VIEWS.filter(isPending).length).toBe(8);
     for (const view of VIEWS.filter(isPending)) {
       expect(view.pendingSummary, `${view.id} must say what it will do`).toBeTruthy();
     }
@@ -104,6 +107,7 @@ describe('the nav rail', () => {
 
   it('renders every visible view', () => {
     renderNav();
+    expect(viewsForRole('manager').length).toBeGreaterThan(0);
     for (const view of viewsForRole('manager')) {
       expect(screen.getByTestId(`nav-${view.id}`)).toBeInTheDocument();
     }
