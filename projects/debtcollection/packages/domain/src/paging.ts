@@ -191,8 +191,36 @@ function normalizeForFingerprint(value: unknown): unknown {
 
 // ── Encoding ─────────────────────────────────────────────────────────────────
 
-const encode = (value: string): string => Buffer.from(value, 'utf8').toString('base64url');
-const decode = (value: string): string => Buffer.from(value, 'base64url').toString('utf8');
+/**
+ * base64url, without Node's `Buffer`.
+ *
+ * `Buffer` does not exist in a browser, and this package ships to one: the React workspace imports
+ * the paging contract directly. The first version used `Buffer.from(...)`, so every list holding
+ * more than one page threw `ReferenceError: Buffer is not defined` the moment a continuation was
+ * created — Collection Cases, Delinquency Intake and the Audit Trail all failed, while Segmentation,
+ * Action Plan and Promise to Pay worked because their few rows fit in a single page and no
+ * continuation was ever made.
+ *
+ * Nothing caught it. Vitest runs on Node, so `Buffer` was a global in the unit tests; the platform
+ * spike and the live query smoke both ran from Node as well. Only a real browser lacks it.
+ *
+ * `btoa`/`atob` are latin1, so the text is taken through `TextEncoder`/`TextDecoder` rather than
+ * passed straight in — a continuation carries a query fingerprint, and a filter on an Arabic
+ * customer name is ordinary here, not exotic.
+ */
+const encode = (value: string): string => {
+  const bytes = new TextEncoder().encode(value);
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+};
+
+const decode = (value: string): string => {
+  const base64 = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+  const binary = atob(padded);
+  return new TextDecoder().decode(Uint8Array.from(binary, character => character.charCodeAt(0)));
+};
 
 /** Wraps a source's own token, together with the query it belongs to, into one opaque string. */
 export function makeContinuation(sourceToken: string, queryFingerprint: string): ContinuationToken {

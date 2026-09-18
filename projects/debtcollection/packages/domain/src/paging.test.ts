@@ -51,6 +51,34 @@ describe('the continuation token', () => {
     expect(readContinuation(token, FINGERPRINT)).toBe('a-platform-skiptoken');
   });
 
+  /**
+   * This package ships to a browser, and a browser has no `Buffer`.
+   *
+   * The encoder used `Buffer.from(...)`, so every list holding more than one page threw
+   * `ReferenceError: Buffer is not defined` in Dynamics the moment a continuation was created.
+   * Vitest runs on Node, so `Buffer` was a global here and the whole suite passed; the platform
+   * spike and the live query smoke both ran from Node too. Removing it for the duration of the test
+   * is the only way this file can stand in for a browser.
+   */
+  it('encodes and decodes with no Buffer in scope, as a browser has none', () => {
+    const original = Reflect.get(globalThis, 'Buffer');
+    expect(original, 'the guard is meaningless if Buffer was already absent').toBeDefined();
+    Reflect.deleteProperty(globalThis, 'Buffer');
+    try {
+      const token = makeContinuation('a-platform-skiptoken', FINGERPRINT);
+      expect(readContinuation(token, FINGERPRINT)).toBe('a-platform-skiptoken');
+    } finally {
+      Reflect.set(globalThis, 'Buffer', original);
+    }
+  });
+
+  it('round-trips text outside latin1, which btoa alone would corrupt', () => {
+    // A fingerprint carries filter values, and a filter on an Arabic name is ordinary here.
+    const arabic = 'قرض الإسكان — عبدالرحمن';
+    const token = makeContinuation(arabic, FINGERPRINT);
+    expect(readContinuation(token, FINGERPRINT)).toBe(arabic);
+  });
+
   it('survives a source token containing URL and XML punctuation', () => {
     const awkward = '<cookie pagenumber="2" pagingcookie="%3ccookie%20page%3d%221" istracking="False" />';
     const token = makeContinuation(awkward, FINGERPRINT);
