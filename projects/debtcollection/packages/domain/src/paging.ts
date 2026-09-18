@@ -147,11 +147,28 @@ export function resolvePageSize(requested: number | undefined, bounds: PageSizeB
  * Keys are sorted, and an absent property and an explicitly-undefined one fingerprint identically,
  * so `{ filter: 'x' }` and `{ filter: 'x', search: undefined }` are the same question.
  */
+/**
+ * Properties that do **not** determine which rows come back, and so must not invalidate a
+ * continuation. Everything else in the request does, and is fingerprinted automatically.
+ *
+ * Each exclusion is here for a measured reason, not for convenience:
+ *
+ *   • `pageSize` — the spike showed Dataverse accepts a different `maxpagesize` on a later page.
+ *   • `continuation` — the token cannot be part of its own identity.
+ *   • `includeTotalCount` — shapes the response *envelope*, not the result set. Asking for a count on
+ *     the first page and then paging without it is an ordinary thing to do, and a live run refused it
+ *     before this exclusion existed.
+ *   • `select` — shapes the projection. Dataverse's own continuation link carries the original
+ *     `$select` regardless, so a changed projection cannot take effect mid-walk anyway; refusing it
+ *     would be a false alarm about something the platform already ignores.
+ */
+const NON_NARROWING_KEYS = new Set(['pageSize', 'continuation', 'includeTotalCount', 'select']);
+
 export function fingerprintQuery(request: object): string {
   const entries = request as Record<string, unknown>;
   const shaping: Record<string, unknown> = {};
   for (const key of Object.keys(entries).sort()) {
-    if (key === 'pageSize' || key === 'continuation') continue;
+    if (NON_NARROWING_KEYS.has(key)) continue;
     const value = entries[key];
     // An absent criterion and an empty one are the same question: `sort: []` narrows nothing, and a
     // caller who writes it should not be refused a continuation issued without it.

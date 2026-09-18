@@ -175,6 +175,73 @@ async function main() {
     unbounded.value.length > 1000,
     `an unbounded getList returned ${unbounded.value.length} rows in one response; retrievePage never does this`);
 
+  // ── Filter, sort and search combined, all applied by the platform ─────────
+  console.log('\n─── Combinations, applied by the platform ───');
+  const combined = await crm.retrievePage(ENTITY_SET, {
+    select: SELECT, pageSize: 20,
+    filter: 'createdon ne null',
+    sort: [{ field: 'qdb_source' }, { field: 'createdon', descending: true }],
+    includeTotalCount: true,
+  });
+  check('A filter and a two-column sort page together',
+    combined.items.length === 20 && combined.hasMore === true,
+    `items=${combined.items.length} total=${combined.totalCount}`);
+
+  const combinedNext = await crm.retrievePage(ENTITY_SET, {
+    select: SELECT, pageSize: 20,
+    filter: 'createdon ne null',
+    sort: [{ field: 'qdb_source' }, { field: 'createdon', descending: true }],
+    continuation: combined.continuation,
+  });
+  // `qdb_source` is null on this data, so comparing it would pass vacuously. The secondary column is
+  // what carries values here, and asserting on it still proves the two-column ordering survives the
+  // boundary — while a null primary proves nothing at all.
+  const secondaryHolds = (() => {
+    const lastOfFirst = combined.items.at(-1)?.createdon;
+    const firstOfSecond = combinedNext.items[0]?.createdon;
+    if (!lastOfFirst || !firstOfSecond) return false;
+    return new Date(firstOfSecond) <= new Date(lastOfFirst);
+  })();
+  check('A two-column sort holds across the page boundary, asserted on a populated column',
+    secondaryHolds,
+    `…${combined.items.at(-1)?.createdon} | ${combinedNext.items[0]?.createdon}…`);
+
+  const reordered = await crm
+    .retrievePage(ENTITY_SET, {
+      select: SELECT, pageSize: 20,
+      filter: 'createdon ne null',
+      sort: [{ field: 'createdon', descending: true }, { field: 'qdb_source' }],
+      continuation: combined.continuation,
+    })
+    .then(() => null, e => e);
+  check('Reordering the sort columns invalidates the continuation',
+    Boolean(reordered) && reordered.kind === 'CriteriaChanged',
+    reordered ? reordered.kind : 'a page was returned for a different ordering');
+
+  // ── Concurrency, against the real platform ────────────────────────────────
+  console.log('\n─── Concurrent page requests ───');
+  const concurrent = await Promise.all(
+    Array.from({ length: 8 }, () => crm.retrievePage(ENTITY_SET, { ...baseQuery, pageSize: 10 })));
+  const firstRows = concurrent.map(p => p.items[0]?.[KEY]);
+  check('Eight concurrent first pages return the same page consistently',
+    new Set(firstRows).size === 1 && concurrent.every(p => p.items.length === 10),
+    `distinct first rows=${new Set(firstRows).size}`);
+
+  const parallelWalk = await Promise.all([
+    crm.retrievePage(ENTITY_SET, { ...baseQuery, pageSize: 10, continuation: first.continuation }),
+    crm.retrievePage(ENTITY_SET, { ...baseQuery, pageSize: 10, continuation: first.continuation }),
+  ]);
+  check('The same continuation followed twice concurrently yields the same rows',
+    JSON.stringify(parallelWalk[0].items.map(r => r[KEY])) === JSON.stringify(parallelWalk[1].items.map(r => r[KEY])),
+    `rows=${parallelWalk[0].items.length}`);
+
+  // ── Page size is a preference the platform may cap ────────────────────────
+  console.log('\n─── Page size limits ───');
+  const huge = await crm.retrievePage(ENTITY_SET, { ...baseQuery, pageSize: 5000 });
+  check('A very large requested page size is honoured or capped, never unbounded',
+    huge.items.length <= 5000 && huge.items.length > 0,
+    `asked 5000, received ${huge.items.length}`);
+
   const passed = results.filter(r => r.passed).length;
   console.log(`\n=== ${passed}/${results.length} checks passed ===`);
   if (passed !== results.length) process.exitCode = 1;

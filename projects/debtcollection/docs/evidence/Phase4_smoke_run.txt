@@ -13,7 +13,7 @@
   PASS  Sort order holds across the page boundary — …2026-08-24T22:05:28Z | 2026-08-24T22:05:28Z…
 
 ─── A complete walk ───
-  PASS  A walk to the end terminates on its own, with no continuation on the last page — 7 page(s), 1295 rows, 951 ms
+  PASS  A walk to the end terminates on its own, with no continuation on the last page — 7 page(s), 1295 rows, 976 ms
   PASS  Every row was seen exactly once across the whole walk — rows=1295 distinct=1295 duplicates=0
   PASS  The walk covered the set the count promised — walked 1295, count reported 1295
   PASS  Memory stayed bounded: no page held more than the requested size — 7 pages of at most 200, never the whole 1295-row set at once
@@ -30,4 +30,16 @@
 ─── The reason the page size is never optional ───
   PASS  Without a page size the platform returns the WHOLE table — so the contract always sets one — an unbounded getList returned 1295 rows in one response; retrievePage never does this
 
-=== 16/16 checks passed ===
+─── Combinations, applied by the platform ───
+  PASS  A filter and a two-column sort page together — items=20 total=1295
+  PASS  A two-column sort holds across the page boundary, asserted on a populated column — …2026-08-24T22:05:29Z | 2026-08-24T22:05:29Z…
+  PASS  Reordering the sort columns invalidates the continuation — CriteriaChanged
+
+─── Concurrent page requests ───
+  PASS  Eight concurrent first pages return the same page consistently — distinct first rows=1
+  PASS  The same continuation followed twice concurrently yields the same rows — rows=10
+
+─── Page size limits ───
+  PASS  A very large requested page size is honoured or capped, never unbounded — asked 5000, received 1295
+
+=== 22/22 checks passed ===
