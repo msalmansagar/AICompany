@@ -74,10 +74,18 @@ export const PlatformConfigurationSchema = z.object({
   /** Ruleset codes the Collection services evaluate; no defaults, per ADR-DCP-11. */
   eligibilityRulesetCode: z.string().min(1).optional(),
   contactHoldRulesetCode: z.string().min(1).optional(),
+  /** The customer type this deployment's cases carry when MIS does not say. Configuration, never a constant. */
+  defaultCustomerType: z.enum(['Individual', 'SME', 'Corporate']).optional(),
   /** Snapshot retention policy. Deliberately has no default — the choice is QDB's. */
   snapshotPolicy: z.enum(['AllReceived', 'EligibleOnly', 'ChangedOnly']).optional(),
   /** Field-level mappings for this deployment. */
   mappings: z.array(FieldMappingSchema),
+  /**
+   * The JSON bag in qdb_featureflags. Collection settings that are provisional or policy — the
+   * snapshot key composition, the episode reopen policy, the eligibility operation name — are read
+   * from here by collectionSettings.ts, and none has a default.
+   */
+  featureFlags: z.record(z.unknown()).optional(),
 });
 export type PlatformConfiguration = z.infer<typeof PlatformConfigurationSchema>;
 

@@ -29,6 +29,8 @@ const CONFIGURATION_COLUMNS = [
   'qdb_eligibilityrulesetcode',
   'qdb_contactholdrulesetcode',
   'qdb_snapshotpolicy',
+  'qdb_customertype',
+  'qdb_featureflags',
   'qdb_isactive',
 ];
 
@@ -71,6 +73,12 @@ const ORGANIZATION_CODE_VALUE: Record<OrganizationCode, number> = {
 const PLATFORM_TYPE_BY_VALUE: Record<number, PlatformType> = {
   100000120: 'OnPrem',
   100000121: 'Cloud',
+};
+
+const CUSTOMER_TYPE_BY_VALUE: Record<number, 'Individual' | 'SME' | 'Corporate'> = {
+  100000020: 'Individual',
+  100000021: 'SME',
+  100000022: 'Corporate',
 };
 
 const SNAPSHOT_POLICY_BY_VALUE: Record<number, 'AllReceived' | 'EligibleOnly' | 'ChangedOnly'> = {
@@ -138,6 +146,8 @@ export class PlatformConfigurationService implements IPlatformConfigurationServi
       ...optional('eligibilityRulesetCode', row['qdb_eligibilityrulesetcode']),
       ...optional('contactHoldRulesetCode', row['qdb_contactholdrulesetcode']),
       ...optional('snapshotPolicy', SNAPSHOT_POLICY_BY_VALUE[row['qdb_snapshotpolicy'] as number]),
+      ...optional('defaultCustomerType', CUSTOMER_TYPE_BY_VALUE[row['qdb_customertype'] as number]),
+      ...optional('featureFlags', parseFeatureFlags(row['qdb_featureflags'], organizationCode)),
       mappings,
     });
   }
@@ -191,6 +201,21 @@ function toFieldMapping(row: CrmRecord): FieldMapping | null {
     field: String(row['qdb_crmfieldlogicalname'] ?? ''),
     isRequired: row['qdb_isrequired'] === true,
   };
+}
+
+/**
+ * The feature-flag memo holds JSON. A malformed value is a configuration error to surface, not an
+ * empty bag to proceed with: the Collection settings inside it have no defaults.
+ */
+function parseFeatureFlags(raw: unknown, organizationCode: string): Record<string, unknown> | undefined {
+  if (raw === null || raw === undefined || raw === '') return undefined;
+  if (typeof raw !== 'string') throw new PlatformConfigurationError(`qdb_featureflags for ${organizationCode} is not text`);
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); } catch { throw new PlatformConfigurationError(`qdb_featureflags for ${organizationCode} is not valid JSON`); }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new PlatformConfigurationError(`qdb_featureflags for ${organizationCode} must be a JSON object`);
+  }
+  return parsed as Record<string, unknown>;
 }
 
 /** Includes a key only when the organisation actually supplied a value. */

@@ -179,3 +179,30 @@ describe('PlatformConfigurationService', () => {
     expect(crm.queries).toHaveLength(4);
   });
 });
+
+describe('PlatformConfigurationService — Phase 2 settings', () => {
+  it('parses the feature-flag JSON so Collection settings can be read from it', async () => {
+    const { service } = buildService({
+      ...happyRows,
+      qdb_platformconfigurations: [{ ...configurationRow, qdb_featureflags: '{"snapshotKeyComposition":["sourceSystem","facilityNumber","snapshotDate"]}' }],
+    });
+    const configuration = await service.getConfiguration('HL');
+    expect(configuration.featureFlags).toEqual({ snapshotKeyComposition: ['sourceSystem', 'facilityNumber', 'snapshotDate'] });
+  });
+
+  it('refuses malformed feature-flag JSON rather than proceeding with an empty bag', async () => {
+    const { service } = buildService({
+      ...happyRows,
+      qdb_platformconfigurations: [{ ...configurationRow, qdb_featureflags: '{not json' }],
+    });
+    await expect(service.getConfiguration('HL')).rejects.toThrow(/not valid JSON/);
+  });
+
+  it('reads the deployment default customer type from its choice value', async () => {
+    const { service } = buildService({
+      ...happyRows,
+      qdb_platformconfigurations: [{ ...configurationRow, qdb_customertype: 100000020 }],
+    });
+    expect((await service.getConfiguration('HL')).defaultCustomerType).toBe('Individual');
+  });
+});
