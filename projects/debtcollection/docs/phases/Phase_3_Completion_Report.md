@@ -104,12 +104,31 @@ non-test source and scripts. No build artefact, `dist/`, `node_modules/`, `bin/`
 is in the change set, and a credential scan of every changed file and every evidence transcript found
 nothing.
 
-> **One observation for the gate, not a Phase 3 change.** The tracker's *Phases*, *Test Baseline*,
-> *Dual-Platform Check* and *TBD* sheets were kept current at each gate, but the row-level statuses on
-> the **Tracker** sheet were never updated at the Phase 1 or Phase 2 close — rows 69–77 still read
-> *Not Started* for entities that have been live since 2026-09-18. Phase 3 updated its own rows (78–81,
-> 87, 88, 90) and left the earlier rows alone rather than restating another phase's completion. They
-> should be corrected, and it is a five-minute job whenever you want it done.
+> **Tracker back-fill (2026-09-18, after the gate report was first written).** The tracker's *Phases*,
+> *Test Baseline*, *Dual-Platform Check* and *TBD* sheets were kept current at each gate, but the
+> row-level statuses on the **Tracker** sheet were never updated at the Phase 1 or Phase 2 close.
+> Seventeen rows have now been back-filled from verified evidence, and **five of them are not simply
+> "done"** — the back-fill was a per-row judgement, not a bulk mark-complete:
+>
+> | Row | Was | Now |
+> |---|---|---|
+> | 61–64, 68 (Phase 1) | Not Started | **Complete** — publisher/solution, plugin assembly, platform configuration and mapping, `IsValidForQueue` |
+> | 65 — browser `ICrmAdapter` (Xrm.WebApi) | Not Started | **Still not started.** The *service-side* adapter is complete; the browser one arrives with the React Workspace |
+> | 66 — tooling auth + `DV_API_VERSION` | Not Started | **Development Complete, 80%.** KI-02 is fixed (no hard-coded `9.2` in application source); KI-03 is only partly closed — the adapter exists but has never run against an on-prem organisation |
+> | 67 — one source → two packages | Not Started | **Still not started.** No solution package and no CI pipeline exist |
+> | 69–71, 73, 74, 89 (Phase 2) | Not Started | **Complete** — case, activity, activity type, snapshot, identity exception, snapshot eligibility columns |
+> | 72 — `qdb_activityoutcome` | Not Started | **Complete (schema), 60%.** Provisioned and verified, but **no code reads it yet** |
+> | 75 — `qdb_integrationlog` | Not Started | **Withdrawn — never to be created.** Superseded by the reuse of `qdb_crmlogs` |
+> | 76 — contact/account `qdb_` extensions | Not Started | **Not Started, and must not be started** without QDB confirmation (KI-44). Verified: no `qdb_` column exists on `contact` or `account` |
+> | 77 — facility integration via mapping | Not Started | **Superseded.** DCP does not depend on a CRM facility entity (Phase 2 clarification) |
+> | 92 — snapshot key + idempotency | Not Started | **Complete — delivered in Phase 2**, ahead of its labelled phase |
+>
+> **Still outstanding, and left alone deliberately:** 28 rows carry the contradictory pair
+> *Overall = "Development Complete", Completion = 0%*. These are Phase 0 rows describing the
+> pre-existing `msst_` implementation, where "Development Complete" appears to mean *the legacy version
+> exists* and 0% means *the `qdb_` migration had not begun*. Several have since been completed by the
+> Phase 1 retarget. Reinterpreting that column's meaning across 28 rows is a judgement about what the
+> original author intended, so it is raised here rather than guessed at.
 
 ---
 
