@@ -1,0 +1,33 @@
+=== qdb_ Phase 4 smoke — server-side paging against the platform ===
+
+  Organisation: org5869857f.crm4.dynamics.com
+
+─── The first page ───
+  PASS  A page is bounded by the requested size, not the size of the table — asked 25, received 25 of 1295 matching rows
+  PASS  The total is reported without fetching the whole set — totalCount=1295
+  PASS  A continuation is offered while more rows exist — hasMore=true
+  PASS  The continuation is opaque — no platform token leaks through it — eyJzb3VyY2VUb2tlbiI6Imh0dHBzOi8vb3JnNTg2OTg1N2Yu…
+
+─── Walking forward ───
+  PASS  The second page returns rows, and none of them were on the first — page2=25 overlap=0
+  PASS  Sort order holds across the page boundary — …2026-08-24T22:05:28Z | 2026-08-24T22:05:28Z…
+
+─── A complete walk ───
+  PASS  A walk to the end terminates on its own, with no continuation on the last page — 7 page(s), 1295 rows, 951 ms
+  PASS  Every row was seen exactly once across the whole walk — rows=1295 distinct=1295 duplicates=0
+  PASS  The walk covered the set the count promised — walked 1295, count reported 1295
+  PASS  Memory stayed bounded: no page held more than the requested size — 7 pages of at most 200, never the whole 1295-row set at once
+
+─── Refusals, on the live platform ───
+  PASS  A continuation this service never issued is refused, not silently restarted — InvalidContinuation: The continuation token could not be read. It was not produced by this service, o
+  PASS  A continuation reused after the filter changed is refused (CriteriaChanged) — CriteriaChanged: The continuation token belongs to a different query. The filter, sort or search changed, s
+  PASS  A continuation reused after the sort changed is refused — CriteriaChanged
+
+─── Filtering, at the source ───
+  PASS  A filter that matches nothing returns an empty page, not an error — items=0 hasMore=false total=0
+  PASS  A page size of one is honoured, and still offers a continuation — items=1 hasMore=true
+
+─── The reason the page size is never optional ───
+  PASS  Without a page size the platform returns the WHOLE table — so the contract always sets one — an unbounded getList returned 1295 rows in one response; retrievePage never does this
+
+=== 16/16 checks passed ===

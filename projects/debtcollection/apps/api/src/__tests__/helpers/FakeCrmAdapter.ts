@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import type { CrmCallContext, CrmQuery, CrmRecord, CrmReference, ICrmAdapter } from '@dcp/domain';
+import type {
+  CrmCallContext, CrmPageQuery, CrmQuery, CrmRecord, CrmReference, ICrmAdapter, Page,
+} from '@dcp/domain';
+import { buildPage, fingerprintQuery, makeContinuation, readContinuation } from '@dcp/domain';
 
 /**
  * An in-memory organisation behind the CRM seam, so the real repositories and services run end to
@@ -15,6 +18,13 @@ export class FakeCrmAdapter implements ICrmAdapter {
   readonly touchedEntitySets = new Set<string>();
   /** Every retrieveMultiple, so a test can count reads of one table (cache behaviour). */
   readonly queries: { entity: string; query: CrmQuery }[] = [];
+  /** Every retrievePage, so a test can prove a walk asked for the pages it claims to have asked for. */
+  readonly pageQueries: { entity: string; query: CrmPageQuery }[] = [];
+  /**
+   * Rows this fake will return in one page regardless of what was asked for, so "the source returned
+   * fewer rows than requested" is testable. Unset means honour the requested size.
+   */
+  shortPageSize?: number;
   readonly writes: { kind: 'create' | 'update'; entity: string; id: string; values: CrmRecord }[] = [];
   readonly executed: { operation: string; parameters: CrmRecord }[] = [];
   /** Optional fault injection: throw when creating in this entity set with a matching predicate. */
@@ -42,6 +52,54 @@ export class FakeCrmAdapter implements ICrmAdapter {
     this.touchedEntitySets.add(entity);
     const row = this.rows(entity).find(r => r[key.field] === key.value);
     return row ? pick(row, select) : null;
+  }
+
+  /**
+   * One page, modelling what Dataverse was measured doing — not what would be convenient.
+   *
+   * KI-52 is the reason this comment exists: a fake that simply agrees with the caller proves
+   * nothing. So this fake reproduces the behaviours the spike found on `org5869857f`
+   * (`docs/evidence/Phase4_dataverse_paging_spike.txt`), including the awkward ones:
+   *
+   *   • the continuation is opaque and is rejected if the filter, sort or search changed;
+   *   • a page may come back SHORT without meaning the end — only a missing continuation means that;
+   *   • the last page carries no continuation at all;
+   *   • an invalid continuation is refused rather than silently restarting at page one.
+   *
+   * What it cannot prove is that the real platform still behaves this way. That is what
+   * `smoke-qdb-phase4.mjs` is for, and why the standing rule requires both.
+   */
+  async retrievePage(entity: string, query: CrmPageQuery, _context?: CrmCallContext): Promise<Page<CrmRecord>> {
+    this.touchedEntitySets.add(entity);
+    this.pageQueries.push({ entity, query });
+
+    const fingerprint = fingerprintQuery(query);
+    const offset = query.continuation ? Number(readContinuation(query.continuation, fingerprint)) : 0;
+    if (!Number.isInteger(offset) || offset < 0) {
+      throw new Error(`FakeCrmAdapter received a continuation it did not issue: ${String(offset)}`);
+    }
+
+    const predicate = parseFilter(query.filter);
+    let rows = this.rows(entity).filter(predicate);
+    if (query.search) {
+      const needle = query.search.toLowerCase();
+      rows = rows.filter(r => Object.values(r).some(v => typeof v === 'string' && v.toLowerCase().includes(needle)));
+    }
+    for (const sort of [...(query.sort ?? [])].reverse()) {
+      rows = [...rows].sort((a, b) => compare(a[sort.field], b[sort.field]) * (sort.descending ? -1 : 1));
+    }
+
+    const size = Math.min(this.shortPageSize ?? query.pageSize, query.pageSize);
+    const slice = rows.slice(offset, offset + size);
+    const nextOffset = offset + slice.length;
+    const hasMore = nextOffset < rows.length;
+
+    return buildPage(
+      slice.map(r => pick(r, query.select)),
+      query.pageSize,
+      hasMore ? makeContinuation(String(nextOffset), fingerprint) : undefined,
+      query.includeTotalCount ? rows.length : undefined,
+    );
   }
 
   async retrieveMultiple(entity: string, query: CrmQuery, _context?: CrmCallContext): Promise<CrmRecord[]> {

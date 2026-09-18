@@ -56,6 +56,46 @@ export class DataverseClient {
     return result as ODataListResult<T>;
   }
 
+  /**
+   * GET one page of a list, with the page size the platform actually honours.
+   *
+   * `Prefer: odata.maxpagesize` is not optional. Measured on org5869857f: without it the platform
+   * returned all 1,295 rows of a table in a single response
+   * (`docs/evidence/Phase4_dataverse_paging_spike.txt`). There is no safe default, so this method
+   * always sends one.
+   */
+  async getPage<T>(
+    entity: string,
+    options: ODataQueryOptions,
+    pageSize: number,
+    requestOptions: RequestOptions = {},
+  ): Promise<ODataListResult<T>> {
+    const url = buildListUrl(this.baseUrl, this.apiVersion, entity, options);
+    const result = await this.executeRequest('GET', url, undefined, requestOptions, {
+      Prefer: `odata.maxpagesize=${pageSize}`,
+    });
+    return result as ODataListResult<T>;
+  }
+
+  /**
+   * Follow an `@odata.nextLink` exactly as the platform gave it.
+   *
+   * The link is absolute and carries an opaque `$skiptoken` — paging-cookie XML — so it is followed
+   * verbatim and never reconstructed. The page size is **not** carried by the link: measured on
+   * org5869857f, following the same link without re-sending the header returned the remaining 1,290
+   * rows. It is therefore re-sent on every continuation.
+   */
+  async getNextPage<T>(
+    nextLink: string,
+    pageSize: number,
+    requestOptions: RequestOptions = {},
+  ): Promise<ODataListResult<T>> {
+    const result = await this.executeRequest('GET', nextLink, undefined, requestOptions, {
+      Prefer: `odata.maxpagesize=${pageSize}`,
+    });
+    return result as ODataListResult<T>;
+  }
+
   /** GET a single record by GUID. */
   async getById<T>(
     entity: string,
@@ -186,9 +226,10 @@ export class DataverseClient {
     url: string,
     body: Record<string, unknown> | undefined,
     requestOptions: RequestOptions,
+    extraHeaders: Record<string, string> = {},
   ): Promise<unknown> {
     return withRetry(async () => {
-      const headers = await this.buildHeaders(requestOptions.correlationId);
+      const headers = { ...await this.buildHeaders(requestOptions.correlationId), ...extraHeaders };
       const fetchOptions: RequestInit = {
         method,
         headers: headers,

@@ -66,6 +66,7 @@ export type {
 export type {
   CrmRecord,
   CrmReference,
+  CrmPageQuery,
   CrmQuery,
   CrmCallContext,
   ICrmAdapter,
@@ -259,3 +260,19 @@ export type { CaseNumberSourceKind } from './caseNumbering.js';
 
 export { RuleEngineOperationsSchema } from './collectionSettings.js';
 export type { RuleEngineOperations } from './collectionSettings.js';
+export {
+  PagingError,
+  SortSchema,
+  PageSizeBoundsSchema,
+  resolvePageSize,
+  fingerprintQuery,
+  makeContinuation,
+  readContinuation,
+  buildPage,
+  finalPage,
+  type ContinuationToken,
+  type Sort,
+  type PageRequest,
+  type Page,
+  type PageSizeBounds,
+} from './paging.js';

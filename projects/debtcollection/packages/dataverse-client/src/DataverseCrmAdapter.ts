@@ -1,9 +1,18 @@
 import type {
   CrmCallContext,
+  CrmPageQuery,
   CrmQuery,
   CrmRecord,
   CrmReference,
   ICrmAdapter,
+  Page,
+  Sort,
+} from '@dcp/domain';
+import {
+  buildPage,
+  fingerprintQuery,
+  makeContinuation,
+  readContinuation,
 } from '@dcp/domain';
 import { CrmApiError } from './CrmApiError.js';
 import type { DataverseClient } from './DataverseClient.js';
@@ -51,6 +60,40 @@ export class DataverseCrmAdapter implements ICrmAdapter {
   ): Promise<CrmRecord[]> {
     const result = await this.client.getList<CrmRecord>(entity, toODataOptions(query), context);
     return result.value;
+  }
+
+  /**
+   * @inheritdoc
+   *
+   * Every decision here is grounded in what org5869857f actually did when asked, recorded in
+   * `docs/evidence/Phase4_dataverse_paging_spike.txt`:
+   *
+   *   • the page size is sent on **every** request, including continuations, because the nextLink
+   *     does not carry it and omitting it returns the rest of the table;
+   *   • the nextLink is followed **verbatim**. It is absolute and its `$skiptoken` is paging-cookie
+   *     XML — opaque. Rebuilding it is the defect KI-52 taught us not to commit;
+   *   • `$top` is never used for paging. The platform treats it as a bound on the whole result set
+   *     and suppresses continuation entirely.
+   */
+  async retrievePage(
+    entity: string,
+    query: CrmPageQuery,
+    context: CrmCallContext = {},
+  ): Promise<Page<CrmRecord>> {
+    const fingerprint = fingerprintQuery(query);
+    const result = query.continuation
+      ? await this.client.getNextPage<CrmRecord>(
+          readContinuation(query.continuation, fingerprint), query.pageSize, context)
+      : await this.client.getPage<CrmRecord>(
+          entity, toPageOptions(query), query.pageSize, context);
+
+    const nextLink = result['@odata.nextLink'];
+    return buildPage(
+      result.value,
+      query.pageSize,
+      nextLink ? makeContinuation(nextLink, fingerprint) : undefined,
+      result['@odata.count'],
+    );
   }
 
   /** @inheritdoc */
@@ -103,5 +146,20 @@ function toODataOptions(query: CrmQuery): {
     ...(query.orderBy
       ? { orderBy: `${query.orderBy.field}${query.orderBy.descending ? ' desc' : ' asc'}` }
       : {}),
+  };
+}
+
+/** Maps the paged query onto OData options. Sort is a list, because ties span page boundaries. */
+function toPageOptions(query: CrmPageQuery): {
+  select: string[]; filter?: string; orderBy?: string; count?: boolean;
+} {
+  const orderBy = (query.sort ?? [])
+    .map((s: Sort) => `${s.field}${s.descending ? ' desc' : ' asc'}`)
+    .join(',');
+  return {
+    select: query.select,
+    ...(query.filter ? { filter: query.filter } : {}),
+    ...(orderBy ? { orderBy } : {}),
+    ...(query.includeTotalCount ? { count: true } : {}),
   };
 }

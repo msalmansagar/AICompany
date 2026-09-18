@@ -12,6 +12,8 @@
  * masters belong to QDB and differ between the Housing Loan and BFD deployments.
  */
 
+import type { ContinuationToken, Page, Sort } from './paging.js';
+
 /** A record as the Collection layer sees it: plain values, no platform types. */
 export type CrmRecord = Record<string, unknown>;
 
@@ -33,6 +35,25 @@ export interface CrmQuery {
   orderBy?: { field: string; descending?: boolean };
   /** Maximum rows to return. */
   top?: number;
+}
+
+/**
+ * A page of a large result set, requested from the source rather than narrowed in memory.
+ *
+ * `select`, `filter`, `sort` and `search` are applied by the platform. `pageSize` is required —
+ * there is no safe default, because a source asked for no page size may return everything.
+ */
+export interface CrmPageQuery {
+  select: string[];
+  pageSize: number;
+  /** Opaque continuation from a previous page. Absent means the first page. */
+  continuation?: ContinuationToken;
+  filter?: string;
+  /** Ordering, most significant first. Ties can span a page boundary, so order deliberately. */
+  sort?: readonly Sort[];
+  search?: string;
+  /** Ask the source for a total. Only honoured where it is cheap; never inferred. */
+  includeTotalCount?: boolean;
 }
 
 /** Context carried through every call so a request can be traced end to end. */
@@ -60,8 +81,17 @@ export interface ICrmAdapter {
     context?: CrmCallContext,
   ): Promise<CrmRecord | null>;
 
-  /** Reads the records matching a query. */
+  /** Reads the records matching a query. Bounded sets only — use `retrievePage` for large ones. */
   retrieveMultiple(entity: string, query: CrmQuery, context?: CrmCallContext): Promise<CrmRecord[]>;
+
+  /**
+   * Reads ONE page of a large result set, server-side.
+   *
+   * This exists beside `retrieveMultiple` rather than replacing it: the Phase 1-3 repositories read
+   * bounded configuration and single records, where a page would be noise. Anything that can grow
+   * with the book — delinquency lists, case lists, activity history, snapshots — uses this.
+   */
+  retrievePage(entity: string, query: CrmPageQuery, context?: CrmCallContext): Promise<Page<CrmRecord>>;
 
   /** Creates a record and returns its primary key. */
   create(entity: string, values: CrmRecord, context?: CrmCallContext): Promise<string>;

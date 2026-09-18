@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CrmQuery, CrmRecord, ICrmAdapter } from '@dcp/domain';
+import type { CrmQuery, CrmRecord, ICrmAdapter, Page } from '@dcp/domain';
 import { PlatformConfigurationService } from '../services/PlatformConfigurationService.js';
 
 /** Option values as provisioned under the QDB publisher on 2026-09-17. */
@@ -42,6 +42,8 @@ class FakeCrmAdapter implements ICrmAdapter {
 
   async retrieve(): Promise<CrmRecord | null> { throw new Error('not used'); }
   async retrieveByKey(): Promise<CrmRecord | null> { throw new Error('not used'); }
+  /** Platform configuration is one row per organisation; it is never paged, so this stays unused. */
+  async retrievePage(): Promise<Page<CrmRecord>> { throw new Error('not used'); }
   async create(): Promise<string> { throw new Error('not used'); }
   async update(): Promise<void> { throw new Error('not used'); }
   async execute(): Promise<unknown> { throw new Error('not used'); }
