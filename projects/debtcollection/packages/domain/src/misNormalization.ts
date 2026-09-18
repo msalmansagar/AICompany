@@ -158,13 +158,47 @@ export function readDayFirstDate(value: unknown): { iso?: string; malformed?: st
  * in the taxonomy coerces — there is no month 31, 61 or 91 — which is exactly why this defect hides:
  * it damages one bucket, and that bucket is the largest one.
  */
+const MILLISECONDS_PER_DAY = 86_400_000;
+
+/**
+ * The calendar days a coerced date could have meant, most likely first.
+ *
+ * A spreadsheet serial denotes a calendar date and carries no timezone, so no parser artefact may be
+ * allowed to change which date that is. Two artefacts are real and both were observed on the live
+ * Housing Loan report:
+ *
+ *   * **Timezone.** SheetJS materialises the serial as *local* midnight. On a machine in Qatar
+ *     (+03:00) 30 January becomes `2026-01-29T21:00Z`, whose UTC components say the 29th.
+ *   * **Drift.** SheetJS's serial arithmetic lands eight seconds short, at `23:59:52` on the 29th —
+ *     so reading the components of *either* frame still says the 29th.
+ *
+ * Truncating is therefore the wrong operation; the value is rounded to the nearest midnight instead,
+ * in both the UTC and the local frame. Reading UTC components alone lost all 1,670 coerced rows —
+ * 38 % of the book — to `unknown`: the exact failure this function exists to prevent, reintroduced
+ * by the fix for it. Every unit test passed, because each one built its date with `Date.UTC` at
+ * exact midnight and so met neither artefact.
+ *
+ * Trying both frames cannot invent a bucket. A month-day pair has a month of at most 12 and a day of
+ * at most 31, so `1-30` is the only code in the taxonomy a date can ever produce — there is nothing
+ * for a second candidate to collide with.
+ */
+function calendarDayCandidates(value: Date): readonly string[] {
+  const localOffsetMs = -value.getTimezoneOffset() * 60_000;
+  return [0, localOffsetMs].map(offset => {
+    const midnight = new Date(Math.round((value.getTime() + offset) / MILLISECONDS_PER_DAY) * MILLISECONDS_PER_DAY);
+    return `${midnight.getUTCMonth() + 1}-${midnight.getUTCDate()}`;
+  });
+}
+
 export function readArrearBucket(value: unknown): { bucket?: ArrearBucketCode; unknown?: string } {
   if (value === null || value === undefined || value === '') return {};
 
   if (value instanceof Date) {
-    const recovered = `${value.getUTCMonth() + 1}-${value.getUTCDate()}`;
-    const parsed = ConfirmedArrearBucketSchema.safeParse(recovered);
-    return parsed.success ? { bucket: parsed.data } : { unknown: `date ${value.toISOString().slice(0, 10)}` };
+    for (const candidate of calendarDayCandidates(value)) {
+      const parsed = ConfirmedArrearBucketSchema.safeParse(candidate);
+      if (parsed.success) return { bucket: parsed.data };
+    }
+    return { unknown: `date ${value.toISOString().slice(0, 10)}` };
   }
 
   const text = readText(value);

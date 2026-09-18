@@ -118,6 +118,60 @@ describe('the arrear bucket survives the export coercion', () => {
     expect(readArrearBucket(new Date(Date.UTC(1999, 0, 30))).bucket).toBe('1-30');
   });
 
+  /**
+   * A spreadsheet serial carries no timezone, and SheetJS materialises it as LOCAL midnight. On a
+   * machine in Qatar (+03:00) that is `2026-01-29T21:00Z`, whose UTC components say the 29th — so a
+   * recovery reading only UTC dropped all 1,670 coerced rows, 38 % of the book. Every test here
+   * passed, because every one of them built its date with `Date.UTC`.
+   */
+  it('recovers 1-30 from a locally-constructed date, as a real parser produces', () => {
+    expect(readArrearBucket(new Date(2026, 0, 30)).bucket).toBe('1-30');
+  });
+
+  it('recovers 1-30 from the exact value SheetJS returns east of Greenwich', () => {
+    // 30 January 2026, local midnight at +03:00.
+    expect(readArrearBucket(new Date('2026-01-29T21:00:00.000Z')).bucket).toBe('1-30');
+  });
+
+  /**
+   * SheetJS's serial arithmetic lands eight seconds short of midnight, so the value is
+   * `23:59:52` on the 29th in local time and `20:59:52` in UTC — the 29th in both frames. This is
+   * the literal value the live Housing Loan report produced for 1,670 rows.
+   */
+  it('recovers 1-30 despite the parser landing seconds short of midnight', () => {
+    expect(readArrearBucket(new Date('2026-01-29T20:59:52.000Z')).bucket).toBe('1-30');
+  });
+
+  /**
+   * The guarantee, stated as a range rather than as one lucky value.
+   *
+   * Rounding in the UTC frame recovers the calendar day whenever the producing machine's offset is
+   * inside ±12 hours, which covers every offset Qatar's estate can present and every offset in
+   * ordinary commercial use. A test naming a single extreme offset would pass or fail depending on
+   * the runner's own timezone, which is an accidental green rather than evidence.
+   */
+  it('recovers 1-30 whatever offset the producing machine used, across ±12 hours', () => {
+    const utcMidnight = Date.UTC(2026, 0, 30);
+    const offsets = [-11, -8, -5, 0, 3, 5.5, 8, 11];
+    expect(offsets.length, 'the sweep must have offsets to try').toBeGreaterThan(0);
+    for (const hours of offsets) {
+      const asProduced = new Date(utcMidnight - hours * 3_600_000);
+      expect(readArrearBucket(asProduced).bucket, `offset ${hours}`).toBe('1-30');
+    }
+  });
+
+  it('still refuses a date that is genuinely not a bucket, at any offset', () => {
+    for (const hours of [-8, 0, 3, 11]) {
+      const asProduced = new Date(Date.UTC(2026, 6, 15) - hours * 3_600_000);
+      expect(readArrearBucket(asProduced).unknown, `offset ${hours}`).toContain('2026-07-1');
+    }
+  });
+
+  it('recovers 1-30 from a locally-constructed date west of Greenwich too', () => {
+    // 30 January 2026, local midnight at −05:00, where UTC runs ahead into the 30th anyway.
+    expect(readArrearBucket(new Date('2026-01-30T05:00:00.000Z')).bucket).toBe('1-30');
+  });
+
   it('reads every other bucket as the string it stayed', () => {
     for (const code of ['31-60', '61-90', '91-180', '181-270', '271-360', '361-500', '501-1000', '1001-2000', '>2000']) {
       expect(readArrearBucket(code).bucket, code).toBe(code);

@@ -3,6 +3,78 @@
 Newest first. Entries record what changed in the repository, the org, or the approved architecture.
 Phase 0 changed documentation only. **Phase 1 changed the repository and provisioned schema on the Cloud sandbox `org5869857f` — the only organisation authorised — and nothing else.**
 
+## 2026-09-19 — The real arrear report, and the defect loading it exposed
+
+Branch `feat/dcp-phase5-react-workspace`. Data and one domain fix; **no schema change**.
+
+### The defect
+
+`readArrearBucket` recovers the `1-30` bucket from the date the export coerces it into — the KI-55
+mitigation, protecting the largest bucket in the portfolio. It read `getUTCMonth()`/`getUTCDate()`
+off the value.
+
+Loading the real `HousingLoanArrearReport.xlsx` for the first time recovered **nothing**: all 1,670
+coerced rows came back `unrecognised (date 2026-01-29)`. Two parser artefacts, both present in the
+live file, defeat a UTC read:
+
+* SheetJS materialises an Excel serial as **local** midnight, so on a machine in Qatar (+03:00)
+  30 January is `2026-01-29T21:00Z` — the 29th in UTC;
+* its serial arithmetic lands **eight seconds short**, at `23:59:52` on the 29th — so the 29th is
+  what *both* frames read.
+
+**38 % of the book would have been ingested with no bucket at all**, which is exactly the failure
+KI-55 exists to prevent, reintroduced by the fix for it. Every unit test passed throughout: each one
+built its date with `Date.UTC` at exact midnight and so met neither artefact.
+
+Fixed by rounding to the nearest midnight — truncating is the wrong operation on a value that denotes
+a calendar day — and trying both the UTC and the local frame. It cannot invent a bucket: a month-day
+pair has a month of at most 12 and a day of at most 31, so `1-30` is the only code in the taxonomy a
+date can ever produce. Recorded as **KI-61**.
+
+Four regression tests: a locally-constructed date, the literal value SheetJS returns, a ±12-hour
+sweep of producing offsets, and a genuine non-bucket date at several offsets. One earlier draft of
+the sweep passed only because the runner sits at +03:00; it was replaced, and the suite is now green
+under `TZ=UTC` as well as Asia/Qatar.
+
+**KI-62** was found in the same run: `qdb_firstarreardate` is the only `DateOnly` column on
+`qdb_delinquencysnapshot`, and a timestamp is rejected outright rather than truncated. Read from
+metadata, not assumed — the same family as KI-52 and KI-57.
+
+### The data
+
+`crm/scripts/load-arrear-report.mts` loads the report through the **production normalizer** rather
+than parsing the columns again, so the recovery is demonstrated end to end against the real file
+instead of asserted in a unit test. Distribution after normalization, matching the raw file exactly:
+
+| Bucket | Facilities |
+|---|---:|
+| 1-30 | **1,670** (all recovered from a coerced date) |
+| 31-60 | 311 |
+| 61-90 | 227 |
+| 91-180 | 318 |
+| 181-270 | 203 |
+| 271-360 | 123 |
+| 361-500 | 142 |
+| 501-1000 | 391 |
+| 1001-2000 | 424 |
+| >2000 | 548 |
+| not reported | 1 |
+
+**Identity is pseudonymised.** The report carries real names, Qatari ID numbers, account numbers and
+mobile numbers for 3,778 people, and `org5869857f` is shared with other engagements. The purpose —
+seeing the buckets — needs the financial figures and the distribution, which are loaded exactly as
+reported; it does not need the identities. Every amount, DPD, arrear date, product and QCB deceased
+flag is the real value.
+
+Marked `ARR-`, distinct from `SMOKE-` and from the `DEMO-` scenario so each set is removable without
+touching the others. `--remove` takes it out through the same guard-disable/restore/verify path.
+
+`xlsx` (SheetJS, Apache-2.0) adopted in the **root** devDependencies — tooling scope only. Nothing
+the platform ships parses a spreadsheet, and putting the reader in a runtime package would have
+implied otherwise. Recorded in `dependencies.md` §12 with the date-handling caution above.
+
+---
+
 ## 2026-09-18 — Phase 5: React Collection Workspace (repository + one web resource)
 
 Detail in `docs/phases/Phase_5_Completion_Report.md`. Branch `feat/dcp-phase5-react-workspace`, from

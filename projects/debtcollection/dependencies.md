@@ -98,3 +98,27 @@ FakeXrmEasy v1 is MIT but effectively unmaintained with partial D365 9.x coverag
 | 6 | PDF generation (RTL) | ADOPT | puppeteer/puppeteer · Apache 2.0 |
 | 7 | Dashboard charts | ADOPT | recharts/recharts · MIT |
 | 8 | CRM plugin test harness | BUILD | Moq + `IOrganizationService` mocks · MIT |
+
+---
+
+## 12. Spreadsheet reader for the MIS evidence file (tooling only)
+
+Repo: [SheetJS/sheetjs](https://github.com/SheetJS/sheetjs) · Package: `xlsx` v0.18.5 · Licence: Apache-2.0
+Verdict: **ADOPT — tooling scope only**, added 2026-09-19 (Phase 5)
+
+The only MIS evidence that exists is two spreadsheet exports (KI-53), and `crm/scripts/load-arrear-report.mts`
+reads the Housing Loan Arrear Report so the sandbox can show the real bucket distribution. SheetJS is
+the de-facto standard reader, Apache-2.0, and needs no native build.
+
+It lives in the **root** `devDependencies`, beside `turbo`, `typescript` and `prettier` — not in
+`apps/api`. Nothing the platform ships parses a spreadsheet: `IMisDelinquencyService` is
+transport-neutral by design (ADR-DCP-16), and when QDB supplies a real MIS transport it will not be
+a file. Putting the reader in a runtime package would have implied otherwise. `npm install` placed it
+in `apps/api` by default and it was moved deliberately.
+
+**A caution carried from the adoption**, because it cost a 38 % data loss before it was found
+(KI-61): SheetJS materialises an Excel date serial as **local** midnight, and its serial arithmetic
+lands eight seconds short — so a cell holding 30 January arrives as `2026-01-29T23:59:52` local. Any
+code reading date components off a SheetJS value must round to the nearest day and consider both the
+UTC and the local frame. `readArrearBucket` now does; nothing else in the platform reads a date from
+a spreadsheet, and nothing else should start without re-reading this paragraph.
