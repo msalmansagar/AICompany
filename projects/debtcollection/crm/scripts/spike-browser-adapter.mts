@@ -77,8 +77,14 @@ function realHttpXrm(apiBase: string, token: string): XrmLike & { calls: string[
         return get(`${apiBase}/${setNameFor(logicalName)}(${id})${options}`);
       },
       async retrieveMultipleRecords(logicalName: string, options = '', maxPageSize?: number) {
-        // The client API accepts either a fresh options string or a previously returned nextLink.
-        const url = options.startsWith('http') ? options : `${apiBase}/${setNameFor(logicalName)}${options}`;
+        // The real client API composes the URL itself and refuses anything that is not an options
+        // string: "UciError: Option Parameter should begin with \"?\"". The shim enforces the same
+        // rule, because a stand-in more permissive than the thing it stands for proves nothing — an
+        // earlier version accepted an absolute nextLink and hid a defect that only Dynamics found.
+        if (!options.startsWith('?')) {
+          throw new Error('UciError: Option Parameter should begin with "?" — received: ' + options.slice(0, 80));
+        }
+        const url = `${apiBase}/${setNameFor(logicalName)}${options}`;
         const body = await get(url, maxPageSize);
         return {
           entities: (body['value'] ?? []) as Record<string, unknown>[],

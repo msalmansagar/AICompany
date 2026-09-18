@@ -90,10 +90,13 @@ export class XrmCrmAdapter implements ICrmAdapter {
   async retrievePage(entity: string, query: CrmPageQuery, _context: CrmCallContext = {}): Promise<Page<CrmRecord>> {
     const fingerprint = fingerprintQuery(query);
 
-    // A continuation is the platform's own nextLink, followed verbatim. Xrm.WebApi accepts it in
-    // place of the options string, which is how the client API expresses "next page".
+    // A continuation carries the platform's own nextLink, which is an absolute URL. `Xrm.WebApi`
+    // will not take one: it requires an options string and refuses anything else with
+    // "UciError: Option Parameter should begin with \"?\"". So the link is reduced to its query
+    // string, which is what the client API wants and still carries the `$skiptoken` together with
+    // the original `$select`, `$filter` and `$orderby`.
     const options = query.continuation
-      ? readContinuation(query.continuation, fingerprint)
+      ? toOptionsString(readContinuation(query.continuation, fingerprint))
       : buildOptions({
         select: query.select,
         ...(query.filter !== undefined ? { filter: query.filter } : {}),
@@ -183,6 +186,30 @@ export const DEFAULT_LOGICAL_NAMES: Readonly<Record<string, string>> = {
   contacts: 'contact',
   accounts: 'account',
 };
+
+/**
+ * Reduces a continuation to the options string `Xrm.WebApi` accepts.
+ *
+ * Dataverse returns `@odata.nextLink` as an absolute URL, and the service-side client follows it
+ * verbatim — correct there, because it issues the HTTP request itself. The browser client API does
+ * not: it composes the URL from the entity name and refuses an absolute one outright with
+ * *"UciError: Option Parameter should begin with `?`"*.
+ *
+ * The first version passed the link straight through. The node shim in the platform spike accepted
+ * it, because the shim built the URL itself — so the harness was more permissive than the thing it
+ * stood for, and following a continuation was never actually exercised. A shim that tolerates what
+ * the real API rejects proves the code works against the shim.
+ */
+export function toOptionsString(continuationOrOptions: string): string {
+  if (continuationOrOptions.startsWith('?')) return continuationOrOptions;
+  const query = continuationOrOptions.indexOf('?');
+  if (query < 0) {
+    throw new Error(
+      `A continuation must carry a query string; received "${continuationOrOptions.slice(0, 80)}". ` +
+      'Xrm.WebApi builds the URL itself and takes only options beginning with "?".');
+  }
+  return continuationOrOptions.slice(query);
+}
 
 /** Builds the OData option string the client API takes. Sort is a list; ties span page boundaries. */
 export function buildOptions(query: {

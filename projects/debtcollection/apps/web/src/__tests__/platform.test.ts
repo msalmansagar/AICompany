@@ -7,7 +7,7 @@ import {
   toApiVersion,
   type XrmLike,
 } from '../platform/crmContext.js';
-import { DEFAULT_LOGICAL_NAMES, XrmCrmAdapter, buildOptions } from '../platform/XrmCrmAdapter.js';
+import { DEFAULT_LOGICAL_NAMES, XrmCrmAdapter, buildOptions, toOptionsString } from '../platform/XrmCrmAdapter.js';
 
 /** A client API stand-in. The live spike proves the platform's side; this proves ours. */
 function fakeXrm(overrides: Partial<{
@@ -181,6 +181,35 @@ describe('the options string the adapter emits', () => {
   });
 
   /**
+   * `Xrm.WebApi` composes the request URL itself and refuses anything that is not an options
+   * string — "UciError: Option Parameter should begin with \"?\"". Dataverse returns its
+   * `@odata.nextLink` as an absolute URL, so following a continuation has to reduce it.
+   *
+   * This went undetected because the node shim in the platform spike built the URL itself and
+   * happily accepted the absolute link: the stand-in was more permissive than the real thing, so
+   * the continuation path passed against the shim and failed in Dynamics. The shim now enforces the
+   * same rule.
+   */
+  it('reduces a continuation nextLink to the options string the client API accepts', () => {
+    const nextLink = 'https://org5869857f.crm4.dynamics.com/api/data/v9.2/qdb_collectioncases'
+      + '?$select=qdb_casenumber&$filter=statecode%20eq%200&$skiptoken=%3ccookie%20page%3d%221%22%2f%3e';
+    const options = toOptionsString(nextLink);
+    expect(options.startsWith('?'), options.slice(0, 40)).toBe(true);
+    expect(options).toContain('$skiptoken=');
+    expect(options).toContain('$select=qdb_casenumber');
+    expect(options).not.toContain('https://');
+  });
+
+  it('leaves an options string that already begins with ? alone', () => {
+    expect(toOptionsString('?$select=a&$top=1')).toBe('?$select=a&$top=1');
+  });
+
+  it('refuses a continuation carrying no query string rather than sending it', () => {
+    expect(() => toOptionsString('https://org.crm4.dynamics.com/api/data/v9.2/qdb_collectioncases'))
+      .toThrow(/must carry a query string/);
+  });
+
+  /**
    * A count asks for no columns. Sending `$select=` blank is rejected by the platform — "'select'
    * and 'expand' cannot be both null or empty" — which the live query smoke caught and no mocked
    * adapter would have: a stand-in accepts whatever string it is handed.
@@ -223,7 +252,16 @@ describe('paging through the client API', () => {
     expect(page.hasMore).toBe(false);
   });
 
-  it('follows a continuation verbatim instead of rebuilding it', async () => {
+  /**
+   * The platform's paging position is followed, never recomputed — but it is handed over as an
+   * options string, because `Xrm.WebApi` builds the URL itself.
+   *
+   * This test previously asserted the absolute `nextLink` was passed through unchanged, which is
+   * what the service-side client does and what the node shim tolerated. In Dynamics it produced
+   * "UciError: Option Parameter should begin with \"?\"" on every list with a second page. The test
+   * encoded the defect, so it had to change with the fix.
+   */
+  it('follows a continuation by its query string, not by rebuilding the query', async () => {
     const link = 'https://org/api/data/v9.2/qdb_crmlogses?$skiptoken=%3Ccookie%20page%3D%222%22%2F%3E';
     const seen: string[] = [];
     const adapter = new XrmCrmAdapter(fakeXrm({
@@ -234,7 +272,24 @@ describe('paging through the client API', () => {
     const first = await adapter.retrievePage('qdb_crmlogses', { select: ['activityid'], pageSize: 1 });
     await adapter.retrievePage('qdb_crmlogses', { select: ['activityid'], pageSize: 1, continuation: first.continuation! });
 
-    expect(seen[1]).toBe(link);
+    expect(seen).toHaveLength(2);
+    expect(seen[1]!.startsWith('?'), `the client API refuses anything else: ${seen[1]}`).toBe(true);
+    // The platform's own position is carried through untouched; only the origin and path are dropped.
+    expect(seen[1]).toBe('?$skiptoken=%3Ccookie%20page%3D%222%22%2F%3E');
+  });
+
+  it('never hands the client API an option string that does not begin with ?', async () => {
+    const seen: string[] = [];
+    const adapter = new XrmCrmAdapter(fakeXrm({
+      nextLink: 'https://org/api/data/v9.2/qdb_crmlogses?$skiptoken=abc',
+      onRetrieveMultiple: (_l, options) => { if (options !== undefined) seen.push(options); },
+    }));
+
+    const first = await adapter.retrievePage('qdb_crmlogses', { select: ['activityid'], pageSize: 1, includeTotalCount: true });
+    await adapter.retrievePage('qdb_crmlogses', { select: ['activityid'], pageSize: 1, continuation: first.continuation! });
+
+    expect(seen.length, 'no calls were observed').toBeGreaterThan(1);
+    for (const options of seen) expect(options.startsWith('?'), options.slice(0, 60)).toBe(true);
   });
 
   it('refuses a continuation carried across a changed filter', async () => {
