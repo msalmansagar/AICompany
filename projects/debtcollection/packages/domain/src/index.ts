@@ -276,3 +276,22 @@ export {
   type Page,
   type PageSizeBounds,
 } from './paging.js';
+export {
+  NormalizationProblemSchema,
+  ConfirmedArrearBucketSchema,
+  ARREAR_BUCKET_CODES,
+  HOUSING_LOAN_COLUMNS,
+  isEmptyRow,
+  normalizeHousingLoanRow,
+  readArrearBucket,
+  readDayFirstDate,
+  readNumber,
+  readQcbDeceased,
+  readText,
+  type RawMisRow,
+  type NormalizationContext,
+  type NormalizationProblem,
+  type NormalizationResult,
+  type NormalizationFailure,
+  type NormalizationSuccess,
+} from './misNormalization.js';
