@@ -52,6 +52,33 @@ async function send(cfg, token, method, path, body) {
   return { ok: false, message };
 }
 
+/**
+ * Publishes, retrying while the organisation says something else is publishing or importing.
+ *
+ * `org5869857f` is shared with other engagements, and a solution import elsewhere makes the platform
+ * refuse a concurrent publish outright. That is a busy signal, not a defect in this deployment, and
+ * treating it as a failure would leave the web resource uploaded but unserved — the worst of the two
+ * states, because the upload check passes and nothing says the file is stale.
+ *
+ * Only that one condition is retried. Any other refusal is returned immediately: retrying a genuine
+ * error is how a script turns a clear failure into a slow one.
+ */
+async function publishWithRetry(cfg, token, parameterXml, maxAttempts = 5) {
+  const BUSY = /another \[?(Import|Publish)\]?|another solution at the same time/i;
+  let last = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    last = await send(cfg, token, 'POST', '/PublishXml', { ParameterXml: parameterXml });
+    if (last.ok) return { ...last, attempts: attempt };
+    if (!BUSY.test(last.message ?? '')) return { ...last, attempts: attempt };
+    if (attempt < maxAttempts) {
+      const waitSeconds = attempt * 10;
+      console.log(`  (the organisation is busy with another import; retrying in ${waitSeconds}s — attempt ${attempt + 1} of ${maxAttempts})`);
+      await new Promise(resolve => setTimeout(resolve, waitSeconds * 1000));
+    }
+  }
+  return { ...last, attempts: maxAttempts };
+}
+
 async function main() {
   const publish = process.argv.includes('--publish');
   console.log('=== Deploying the Collection Workspace web resource ===\n');
@@ -117,8 +144,9 @@ async function main() {
     // A web resource is not served until it is published. Publishing only this component keeps the
     // blast radius to the file just uploaded, on an organisation shared with other engagements.
     const parameterXml = `<importexportxml><webresources><webresource>${id}</webresource></webresources></importexportxml>`;
-    const published = await send(cfg, token, 'POST', '/PublishXml', { ParameterXml: parameterXml });
-    check('Published — only this web resource', published.ok, published.ok ? 'PublishXml accepted' : published.message);
+    const published = await publishWithRetry(cfg, token, parameterXml);
+    check('Published — only this web resource', published.ok,
+      published.ok ? `PublishXml accepted${published.attempts > 1 ? ` on attempt ${published.attempts}` : ''}` : published.message);
   } else {
     console.log('\n  (skipped publish — pass --publish to publish this component)');
   }

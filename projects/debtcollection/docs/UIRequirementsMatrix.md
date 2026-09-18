@@ -260,16 +260,52 @@ Recorded per the instruction that any material visible deviation carries a reaso
 
 ---
 
-## I. Coverage summary
+## I. Coverage summary — as built
 
 | | Count |
 |---|---:|
 | Views in the approved prototype | **21** |
 | Views present in the React navigation | **21 (100 %)** |
-| Functional in Phase 5 | 13 |
-| Preserved with a stated owning phase | 8 |
+| Views with a Phase 5 implementation bound to the router | **13** |
+| Views preserved with a stated owning phase, showing no data | **8** |
 | Shared components mapped | 31 |
 | Design tokens preserved | 143 |
 | Icons preserved | 63 |
 | Mock collections re-pointed or phase-assigned | 22 |
 | Elements silently dropped | **0** |
+
+Enforced rather than asserted: `apps/web/src/shell/routes.ts` is the single source of navigation
+truth, and `views.test.tsx` walks **every** Phase 5 view through the real application bootstrap and
+fails if the router has nothing bound to it. That test was verified by removing a route on purpose
+and confirming it failed. A separate test asserts the eight later-phase views each render a notice
+carrying their owning phase.
+
+---
+
+## J. What each Phase 5 view actually does now
+
+| View | Reads | Bounded by |
+|---|---|---|
+| My Day | open cases; three `$count` KPIs | the shared `DataGrid` |
+| Work Queues | open cases across both organisations | the shared `DataGrid` |
+| Collection Cases | cases, filtered by bucket, status, free text and organisation scope | the shared `DataGrid` — the phase's proving ground |
+| Customer & Loan 360 | one customer's cases, their CRM record (contact or account), their facilities, their MIS snapshots | one bounded page of cases; the snapshot list is paged |
+| Case Detail | one case; its activities, promises, snapshots and correlated log entries | each tab's own paged grid |
+| Delinquency Intake | snapshots, identity exceptions, three `$count` KPIs | two paged grids |
+| Segmentation Matrix | collection strategies and their criteria | paged |
+| Strategy Rules | strategies and their actions; the rule builder, disabled | two paged grids |
+| Action Plan | active strategy actions | paged |
+| Promise to Pay | PTP-typed activities; four `$count` KPIs | paged |
+| Dashboards | six `$count` KPIs, scoped by organisation | counts only, no rows |
+| Audit Trail | `qdb_crmlogs`, the largest table in the organisation | paged, 100 at a time |
+| Configuration | platform configurations, their field mappings, the resolved CRM session; four disabled commands | bounded by nature |
+
+## K. What the eight preserved views show
+
+Each keeps its navigation entry, its group, its icon and its place. Each renders a notice carrying
+`data-owning-phase` and a sentence saying what it will do. **None renders data**, because none would
+be real: Communication and Template Library (Phase 7); Disputes, Restructuring, Legal Hand-off and
+Deceased & Claims (Phase 9, no entity exists for any of them); Portfolio MIS (Phase 10, blocked by
+KI-53 — no MIS transport contract); Approvals (Phase 10, no entity exists).
+
+---

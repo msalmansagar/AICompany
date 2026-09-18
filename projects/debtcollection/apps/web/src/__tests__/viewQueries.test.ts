@@ -13,7 +13,7 @@ import {
 import { loadCustomerAggregate } from '../data/customerAggregate.js';
 import { COUNT_CAP, countMatching, formatCountResult } from '../data/counts.js';
 import { readChoice, readLookupTable } from '../data/rowReaders.js';
-import { CASE_STATUS_LABELS, READ_REGISTRY, toAttributeName } from '../data/schema.js';
+import { CASE_STATUS_LABELS, ENTITY_SETS, READ_REGISTRY, toAttributeName } from '../data/schema.js';
 
 /**
  * The reads behind the Phase 5 views.
@@ -389,6 +389,14 @@ describe('every column the workspace reads is registered', () => {
     expect(toAttributeName('_qdb_strategyid_value')).toBe('qdb_strategyid');
     expect(toAttributeName('qdb_casenumber')).toBe('qdb_casenumber');
     expect(toAttributeName(`_qdb_customerid_value${ANNOTATION}`)).toBeUndefined();
+  });
+
+  it('registers a column for every entity set a query module reads', () => {
+    const registered = new Set(READ_REGISTRY.map(entry => entry.entitySet));
+    expect(registered.size).toBe(READ_REGISTRY.length);
+    for (const entitySet of Object.values(ENTITY_SETS)) {
+      expect(registered.has(entitySet), `${entitySet} is reachable but unregistered`).toBe(true);
+    }
   });
 
   it('registers no duplicate column within an entity', () => {

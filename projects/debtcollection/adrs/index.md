@@ -18,6 +18,7 @@
 | ADR-DCP-14 | Assignment configuration selects an engine; DCP builds no routing algorithm | Accepted (Phase 3) | 2026-09-18 | user, architect |
 | ADR-DCP-15 | A Collection Case number has exactly two sources, and DCP invents no format | Accepted (Phase 3) | 2026-09-18 | user, architect |
 | ADR-DCP-16 | MIS integration is transport-neutral, and paging is a platform contract | Accepted (Phase 4) | 2026-09-18 | user, architect |
+| ADR-DCP-17 | The workspace reads through the signed-in CRM session, and decides nothing | Accepted (Phase 5) | 2026-09-18 | user, architect |
 
 Status values: Proposed | Accepted | Amended | Deprecated | Superseded (in part).
 Superseded ADRs are never deleted (Master Prompt §84): original text is retained and a dated section names
@@ -28,3 +29,5 @@ decisions governed by the QDB Master Prompt and Correction Prompt, pending the u
 **ADR-12** is the Phase 2 gate decision on KI-46 (cure). **ADR-13–ADR-15** are the Phase 3 decisions on
 the Rule Engine seam, assignment and case numbering; each was authorised by the user in the Phase 3 scope
 and is backed by live sandbox evidence rather than intent.
+**ADR-17** is the Phase 5 decision on how the React workspace reaches CRM and what it is forbidden to
+decide; it is backed by a live query smoke and a live column verifier, not by unit tests alone.

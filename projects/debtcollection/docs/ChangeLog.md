@@ -3,6 +3,73 @@
 Newest first. Entries record what changed in the repository, the org, or the approved architecture.
 Phase 0 changed documentation only. **Phase 1 changed the repository and provisioned schema on the Cloud sandbox `org5869857f` — the only organisation authorised — and nothing else.**
 
+## 2026-09-18 — Phase 5: React Collection Workspace (repository + one web resource)
+
+Detail in `docs/phases/Phase_5_Completion_Report.md`. Branch `feat/dcp-phase5-react-workspace`, from
+the approved Phase 4 baseline `1fc87bfb`.
+
+**Status language, deliberately precise:** *React Collection Workspace Built and Deployed — Runtime
+Validation Inside Dynamics Pending an Authenticated Session.* The workspace is **not** described as
+runtime validated, because nobody has yet opened it in a browser with a CRM session (KI-56).
+
+### CRM / schema changes
+
+**None.** Canonical column count stays 244/244, verified live. No entity, column, choice, key, role,
+queue or step was created, altered or removed.
+
+**One web resource** was created and published on `org5869857f`: `qdb_dcp_workspace.html`
+(`0bd4fee5-97b3-f111-aaac-000d3abd8313`), 344 KB, a single self-contained file. A web resource is a
+file, not schema. Publishing was scoped to that one component, on an organisation shared with other
+engagements.
+
+Fourteen rows were seeded and deleted again by the live query smoke, all carrying the `SMOKE-` marker;
+the residue check reports **0**.
+
+### What was built
+
+| Area | Delivered |
+|---|---|
+| Frontend application | `apps/web` — Vite + React + TypeScript in the monorepo, `turbo`-built alongside `apps/api`; one self-contained artefact with no external script, stylesheet or absolute asset path |
+| Design system | The approved `prototype/` baseline **ported, not redesigned**: 143 design tokens, `components.css`, `uci.css`, 63 icons, verbatim |
+| Shell | One route table drives the nav rail, the router and role gating, so a view cannot exist in one and be missing from another. Hash routing, because a web resource does not own its path |
+| Platform seam | `XrmCrmAdapter implements ICrmAdapter` over `Xrm.WebApi`; `execute` refuses by name so decisions stay server-side; `findXrm` checks `parent` before `window` |
+| Large-data engine | One `DataGrid`: server-side paging on the Phase 4 contract, virtualization, infinite scroll, stale-response suppression, duplicate protection by stable identity, explicit loading / empty / error / end states |
+| Views | **21 of 21** present. 13 functional, 8 preserved with their owning phase stated and no data shown |
+| Column registry | `apps/web/src/data/schema.ts` — every `qdb_` name the browser knows, in one place, checked against live metadata |
+| Dual-CRM | One workspace, two CRMs. HL→contact and BFD→account resolved from each case's lookup annotation, never hard-coded |
+| Deployment | `deploy-workspace-webresource.mjs` — upload, publish one component, read back and compare byte for byte |
+
+### Defects found and fixed
+
+| Found by | Defect |
+|---|---|
+| Phase 5 spike, against the platform | **A Phase 4 defect**: `Prefer: odata.maxpagesize` *replaced* `odata.include-annotations="*"` instead of joining it, so paged reads silently lost formatted values and lookup annotations. Headers now merge; 5 regression tests; Phase 4 smoke still 22/22 |
+| Phase 5 query smoke, first run | An activity's lookups need the suffixed navigation property (`qdb_collectioncaseid_qdb_collectionactivity`) on write — the bare attribute name is rejected (KI-57) |
+| Phase 5 query smoke, first run | An empty `$select` is rejected by Dataverse; `buildOptions` now omits it. Every KPI count would have failed at runtime (KI-58) |
+| My own review | Two spike assertions were vacuous — one against a table that is empty between smoke runs, one containing a literal `|| true`. Replaced, and the standing test-quality audit came out of it |
+| My own review | `maxWindowSize` returned a mid-scroll window rather than an upper bound, so a DOM-bound assertion failed at the top of a list. Reframed as a bound |
+| My own review | The UI Requirements Matrix claimed 10 functional views and 55 icons; the route table has 13 and the port carried 63. Corrected, and a test now asserts the matrix and the route table agree |
+| My own review | The project tracker's Phases sheet was one row out of alignment, showing unauthorised Phase 6 as In Progress. Corrected (KI-60) |
+
+### Evidence, all against `org5869857f`
+
+* Browser-adapter spike **16/16**, run before the views were built
+* Live query smoke **45/45**, the views' own query modules, 0 residue
+* Column verifier **11/11** across 173 column names
+* Web resource deployed and published **10/10**, byte for byte
+* Phase 1–4 live regression **13/13 · 20/20 · 19/19 · 22/22**; schema **244/244**
+* 848 TypeScript tests (plus 10 tooling), 129 C#, type-check clean, build clean
+
+### What is deliberately not claimed
+
+The workspace has never been opened inside Dynamics. Whether it loads in the host, whether
+`getGlobalContext` answers, whether assets resolve under `/WebResources/`, and whether reads succeed
+as a signed-in collection officer rather than as the service principal are all **pending an
+authenticated interactive session** (KI-56, R-P5-1, R-P5-2). No untested assumption is recorded as
+Passed.
+
+---
+
 ## 2026-09-18 — Phase 4: MIS Integration Architecture & Processing Pipeline (repository only)
 
 Detail in `docs/phases/Phase_4_Completion_Report.md`. Branch `feat/dcp-phase4-mis-integration`, from

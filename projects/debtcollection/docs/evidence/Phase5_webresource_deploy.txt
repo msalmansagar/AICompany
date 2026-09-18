@@ -11,7 +11,8 @@
   PASS  Existing web resource updated — 0bd4fee5-97b3-f111-aaac-000d3abd8313
 
 ─── Publish ───
-  PASS  Published — only this web resource — PublishXml accepted
+  (the organisation is busy with another import; retrying in 10s — attempt 2 of 5)
+  PASS  Published — only this web resource — PublishXml accepted on attempt 2
 
 ─── Verification ───
   PASS  The web resource reads back from the organisation — qdb_dcp_workspace.html (DCP — Collection Workspace)

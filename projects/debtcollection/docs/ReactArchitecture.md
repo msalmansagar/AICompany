@@ -1,11 +1,153 @@
-# DCP — React Collection Workspace Architecture (Phase 0)
+# DCP — React Collection Workspace Architecture
 
-**Status:** proposal for review · 2026-09-17 · non-destructive. Implements Master Prompt §10–12,
-§63–65, §67 and Correction Prompt §5, §13–19, §30, §33. Canonical names come from
-`EntityDictionary.md` / `FieldDictionary.md`; MIS behaviour from `MISIntegration.md`.
+**Status:** **Part I — as built in Phase 5** (2026-09-18) · **Part II — the Phase 0 proposal**
+(2026-09-17), kept because it records why each decision was taken. Where the two differ, Part I is
+what exists, and §0.9 lists every deviation with its reason.
 
-**Nothing in this document exists yet.** The repository has no `apps/web`; the 22-screen prototype
-under `prototype/` is reference material only (§11).
+Implements Master Prompt §10–12, §63–65, §67 and Correction Prompt §5, §13–19, §30, §33. Canonical
+names come from `EntityDictionary.md` / `FieldDictionary.md`; MIS behaviour from `MISIntegration.md`.
+
+> The Phase 0 text below said "nothing in this document exists yet". That is no longer true, and
+> Part I replaces it rather than leaving a reader to work out which half is real.
+
+---
+
+# Part I — As built
+
+## 0.1 What exists
+
+`apps/web` is a Vite + React + TypeScript workspace in the monorepo, built by `turbo` alongside
+`apps/api` and the four packages. It produces **one self-contained file** — no external script, no
+external stylesheet, no absolute asset path — deployed as the web resource
+`qdb_dcp_workspace.html` on `org5869857f` and published.
+
+| | |
+|---|---|
+| Source | `apps/web/src` — 27 modules, 4,682 lines, plus 1,763 lines of tests |
+| Artefact | `apps/web/dist/index.html`, **344 KB** (96 KB gzipped), against a 5 MB on-premises limit |
+| Web resource | `qdb_dcp_workspace.html`, id `0bd4fee5-97b3-f111-aaac-000d3abd8313` |
+| Opened at | `main.aspx?pagetype=webresource&webresourceName=qdb_dcp_workspace.html` |
+| Tests | 191 in `@dcp/web`; 45 live checks in `smoke-qdb-phase5.mts`; 16 in the platform spike |
+
+## 0.2 The layers, and what each is forbidden to do
+
+```
+ App                       resolves the CRM session once, refuses clearly if there is not one
+  └ AppShell               UCI chrome, nav rail from ONE route table, role switcher, org scope
+     └ views/*             layout and wording only — no threshold, no derivation, no decision
+        └ DataGrid         the single large-data engine: paging, virtualization, states
+           └ usePagedQuery request-state machine, stale suppression, duplicate protection
+        └ data/*Queries    shaping and narrowing; every $filter composed here and sent to the source
+           └ data/schema   EVERY qdb_ name the browser knows, in one registry
+              └ XrmCrmAdapter   transport only, over Xrm.WebApi
+```
+
+Two prohibitions hold the whole design together, and both are tested rather than asserted:
+
+* **No business rule lives in React.** No file under `apps/web/src` compares a DPD against a
+  threshold, derives a bucket from a DPD, decides eligibility or resolves a strategy.
+  `noBusinessLogic.test.ts` runs five patterns over every source file — a DPD compared against a
+  threshold, a money figure compared against one, a bucket derived from a DPD, an `isEligible`-shaped
+  outcome, an SLA threshold — and **each pattern is itself proved to catch the thing it forbids**, so
+  the check cannot quietly become five ways of matching nothing. `platform.test.ts` additionally
+  asserts that the adapter's own method names contain no decision verb.
+* **Nothing is fetched and then reduced.** There is no prop that loads everything, no client-side
+  filter and no client-side sort. A narrowing that is not in the query does not happen.
+
+## 0.3 Startup, as implemented
+
+`findXrm` checks `parent`, then `window`, then `top`. The order is not cosmetic: a full-page web
+resource runs in an iframe whose **parent** carries `Xrm`, and the opposite order is exactly the trap
+that produced a blank Form Engine designer — a page that works at the raw `/WebResources/` path and
+fails at `main.aspx`, which is the only URL a user ever opens.
+
+`readCrmContext` then reads `getClientUrl()`, `getVersion()` (`9.1.x` → `9.1`, `9.2.x` → `9.2`),
+`userSettings` and `organizationSettings`. **No URL and no API version is a constant.** When there is
+no `Xrm`, the workspace renders a panel naming the problem instead of an empty shell.
+
+The platform configuration row (`qdb_platformconfiguration`) remains the authority on what differs
+between deployments — customer table, ruleset codes, snapshot policy — and the Configuration view
+displays it. The workspace deliberately does **not** infer on-premises versus cloud from the API
+version: an inference in the UI could disagree with the row every adapter reads, and be believed.
+
+## 0.4 The large-data engine
+
+One component, used by every list that can grow with the book.
+
+| Property | How it is achieved | Measured |
+|---|---|---|
+| Server-side paging | `Xrm.WebApi` `maxPageSize` + the returned `nextLink`, wrapped in the Phase 4 opaque `ContinuationToken` | 100,000-row population: **50 rows fetched** |
+| Virtualization | spacer-based windowing; rendered rows bounded by `ceil(height/rowHeight) + 2×overscan` | **16 DOM rows**, independent of population *and* page size |
+| Infinite scroll | scroll-position end trigger, `inFlight` guard | 30 rapid scroll events ⇒ **at most one** extra request |
+| Stale suppression | monotonic sequence number; a late response for an old query is discarded | tested |
+| Duplicate protection | append by stable row identity, never by array index | **0 duplicates** at every population |
+| Criteria change | query fingerprint drives reset: cancel, discard the continuation, re-request page one | tested; the continuation is refused server-side too |
+
+A page size is never optional. The Phase 4 spike established that a Dataverse read without a bound
+returns the entire table, and the browser adapter therefore always sends one.
+
+## 0.5 One workspace, two CRMs
+
+`OrgContext` carries `all` (the default), `HL` or `BFD`, and turns that into a `$filter` fragment the
+**source** applies. Every case, promise and audit row shows an `OrgBadge` naming its system of record.
+
+Which table holds a customer is read from the case's own polymorphic lookup annotation —
+`_qdb_customerid_value@Microsoft.Dynamics.CRM.lookuplogicalname` — so contact-for-HL and
+account-for-BFD is observed, never hard-coded. An unknown third table is refused with a named error
+rather than read as though it were a contact.
+
+## 0.6 Honesty rules the views implement
+
+These are design decisions, not gaps:
+
+| Rule | Implementation |
+|---|---|
+| A KPI is a platform count or an em dash | `useCounts` issues `$count` with `pageSize` 1; a figure that cannot be counted shows `—` plus the phase that will supply it. Dataverse's 5,000 cap is reported as `5,000+`, never as an exact total |
+| A cached or stored figure is never shown as live MIS | `StoredPositionNotice` labels case and snapshot figures "Stored MIS position — not a live MIS read", with as-of and recorded-at |
+| A later-phase screen keeps its place and says so | `PendingView` / `PendingPhasePanel` carry `data-owning-phase`; no data is rendered, because none would be real |
+| An unsourced column is preserved, not dropped | Customer 360 keeps Collateral, Guarantor and Insurance and marks them *not yet sourced* — no canonical field exists, and adding one would be a schema change (Phase 9) |
+| Authoring that belongs elsewhere is visible and disabled | the strategy rule builder and the four configuration commands render disabled with their owning phase |
+| Role gating is presentation only | `viewsForRole` hides nav entries; every read still runs as the signed-in user, and CRM's security is what permits or refuses it |
+
+## 0.7 The column registry, and why it exists
+
+`apps/web/src/data/schema.ts` holds every `qdb_` entity set, column and proven choice table the
+browser knows. Queries import from it; views never see a `qdb_` name.
+
+It exists because KI-52 was a column that *looked* right, passed every unit test and returned nothing
+from the real platform. `crm/scripts/verify-view-columns.mts` reads the same constant the queries use
+and asks the organisation whether each attribute exists — **173 names, 11/11** — and
+`smoke-qdb-phase5.mts` goes further, running the query modules themselves against seeded rows to
+prove the values arrive in the shape the screens render.
+
+Choice labels appear in the registry **only** where the option values are already proven by the
+service layer and its live smokes. Elsewhere the renderer uses the platform's own formatted value and
+falls back to an em dash. No option value is guessed, because a wrong label is a confident lie rather
+than a visible gap.
+
+## 0.8 Deployment
+
+`crm/scripts/deploy-workspace-webresource.mjs` uploads the single artefact, publishes only that
+component, reads it back and compares it byte for byte. It states plainly what it does **not** prove:
+that the workspace loads inside Dynamics, that `getGlobalContext` answers, or that it can read as the
+signed-in user. Those need an authenticated browser session.
+
+## 0.9 Deviations from the Phase 0 proposal
+
+| Proposed | Built | Why |
+|---|---|---|
+| `apps/workspace` | `apps/web` | Matches `apps/api`; no other significance |
+| Fluent UI v9 components | the prototype's own CSS and 63 ported icons | Phase 5 was a conversion, not a redesign. The approved baseline is a hand-built UCI-styled design system; replacing it with Fluent would have changed the approved appearance |
+| A `packages/sdk` Collection SDK with repositories | `apps/web/src/data/*Queries.ts` over the existing `ICrmAdapter` | The repositories exist already, in `apps/api`. A second set in the browser would be the duplication the architecture forbids |
+| `IFormEngine` / `IProcessEngine` / `IRuleEngine` / `IAssignmentEngine` facades in the browser | not built | Those engines are reached through server-side operations, and `XrmCrmAdapter.execute` refuses by design — `Xrm.WebApi.execute` needs per-parameter metadata this seam does not carry. Keeping the decision server-side is the point |
+| Platform profile loaded at startup and cached per session | the Configuration view reads it; adapters do not branch on it yet | Nothing in Phase 5 needs to branch: the customer table comes from the lookup annotation on each case, which is stronger than a cached profile because it is observed per record |
+| Playwright E2E | not run | It needs an authenticated interactive CRM session, which is the boundary this phase stops at. Not claimed as passed |
+
+---
+
+# Part II — The Phase 0 proposal
+
+*Retained as written on 2026-09-17. Read it for the reasoning; read Part I for what exists.*
 
 ---
 

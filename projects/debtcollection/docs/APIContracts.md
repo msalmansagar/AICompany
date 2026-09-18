@@ -29,6 +29,83 @@ new entity nor a new engine — both are rulesets addressed by pointers held in 
 
 ## 2. Browser-side contracts
 
+### 2.0 As built in Phase 5 — where §2.1–§2.3 differ from what exists
+
+§2.1–§2.3 below are the Phase 0 proposal. The browser half was built in Phase 5 and differs in four
+ways that matter to a caller. Each difference is a decision recorded in **ADR-DCP-17**, not a
+shortfall.
+
+| Proposed | Built | Why |
+|---|---|---|
+| A browser-specific `ICrmAdapter` shape with `get`, `associate`, `disassociate`, `getCurrentUser`, `getUserRoles`, `getMetadata` | `XrmCrmAdapter implements ICrmAdapter` — the **same** interface Phases 2–4 proved service-side: `retrieve`, `retrieveByKey`, `retrieveMultiple`, `retrievePage`, `create`, `update`, `execute` | One interface, two transports. A second shape would have meant a second set of contracts to keep in step, and the domain packages already type against this one |
+| `Result<T>` returns | values, with errors thrown | Matches the service-side adapter. A 404 on `retrieve` is the one modelled absence, and returns `null` |
+| `execute` invokes a Custom API or Process Action | **`execute` refuses, by name** | `Xrm.WebApi.execute` needs a request object carrying per-parameter metadata this seam does not carry. Half-working would be worse than refusing, and engine calls belong on the Integration Service where the decision is server-side (ADR-DCP-13) |
+| `Page<T> = { rows, nextLink?, totalCount? }` | the Phase 4 `Page<T> = { items, hasMore, appliedPageSize, continuation?, totalCount? }` with an **opaque** `ContinuationToken` | A raw `nextLink` in the caller's hands is a URL they can edit. The Phase 4 contract fingerprints the query, so a continuation reused after the criteria changed is refused rather than silently answering the wrong question |
+| `IAuthContext` with `acquireServiceToken` | **not built** | Nothing in Phase 5 calls the Integration Service from the browser. Every read goes through the CRM session that already exists, so no second authentication path is needed — and the on-premises answer (AD FS bearer vs Windows-integrated) is still `TBD — Requires QDB Confirmation` |
+
+#### 2.0.1 What the browser adapter reads, and how
+
+```ts
+// apps/web/src/platform/XrmCrmAdapter.ts
+retrievePage(entity: string, query: CrmPageQuery): Promise<Page<CrmRecord>>
+```
+
+* `entity` is an **entity set** name; the adapter translates it to the logical name `Xrm.WebApi`
+  wants. Irregular names are listed, not derived — `qdb_crmlogses → qdb_crmlogs` is the one the
+  naive plural rule gets wrong.
+* A page size is **always** sent as `maxPageSize`. A Dataverse read without a bound returns the whole
+  table (Phase 4 spike), so a page size is never optional.
+* A continuation is the platform's own `nextLink`, wrapped opaquely and followed verbatim.
+* `$select` is omitted entirely when no column is wanted — a count asks for none, and a blank
+  `$select` is rejected outright (KI-58).
+
+#### 2.0.2 `CrmContext` — resolved once, from the host
+
+```ts
+interface CrmContext {
+  clientUrl: string;        // getGlobalContext().getClientUrl()
+  apiVersion: string;       // '9.1' | '9.2', from getVersion() — read, never assumed
+  apiBase: string;          // composed from the two above
+  userId: string;
+  userName: string;
+  languageId: number;
+  securityRoleIds: readonly string[];
+  organizationUniqueName?: string;
+}
+```
+
+`findXrm` checks `parent`, then `window`, then `top`. A full-page web resource runs in an iframe whose
+**parent** carries `Xrm`; the opposite order is what produced a blank Form Engine designer — a page
+that works at the raw `/WebResources/` path and fails at `main.aspx`, the only URL a user opens.
+
+Whether the deployment is on-premises or cloud is **not** inferred from the API version. The
+authoritative answer is `qdb_platformconfiguration.qdb_platformtype`, which every adapter reads.
+
+#### 2.0.3 Read contracts the views use
+
+Each is a function of `(adapter) → (request) → Promise<Page<Row>>`, so every list in the workspace
+shares one paging contract and one engine. Column names come from `apps/web/src/data/schema.ts` and
+appear nowhere else.
+
+| Contract | Narrowed by | Source applies |
+|---|---|---|
+| `createCaseQuery` | organisation scope, bucket, status, customer business id, free text, open-only, sort | `$filter`, `$orderby` |
+| `createActivityQuery` / `createPtpQuery` | case id, promises-only | `$filter`, `$orderby qdb_ptpdate desc` |
+| `createSnapshotQuery` | case id, customer business id, facility number | `$filter`, `$orderby qdb_snapshotdate desc` |
+| `createStrategyQuery` | active-only, free text | `$filter`, `$orderby qdb_priority` |
+| `createStrategyActionQuery` | strategy id, active-only | `$filter`, `$orderby qdb_sequence` |
+| `createIdentityExceptionQuery` | open-only | `$filter`, `$orderby qdb_receiveddate desc` |
+| `createAuditQuery` | source text, correlation id | `$filter`, `$orderby createdon desc` |
+| `createPlatformMappingQuery` | configuration id | `$filter`, `$orderby qdb_name` |
+| `retrievePlatformConfigurations` | — (bounded by nature, `$top=50`) | `$orderby qdb_name` |
+| `countMatching` | any filter fragment | `$count=true`, `maxPageSize=1` |
+| `loadCustomerAggregate` | customer business id | `$filter`; one bounded page, `isComplete` false when more exist |
+
+**Nothing above decides anything.** No threshold, bucket derivation, eligibility check or strategy
+resolution appears in `apps/web`, and two tests grep the source to keep it that way.
+
+---
+
 ### 2.1 `ICrmAdapter` — one implementation over `Xrm.WebApi` (MP §62)
 
 ```ts

@@ -297,6 +297,89 @@ run · duplicate observation across runs · page read failure · restart after p
 batch failure · continuation loop · short page · empty page with a continuation · invalid
 continuation · criteria changed mid-walk.
 
+## 1F. Phase 5 test result — measured 2026-09-18
+
+| Suite | Result | Note |
+|---|---|---|
+| TS vitest — `@dcp/web` | **191 / 191** | New package: shell and routing, platform adapter, large-data engine, frontend volume, the views themselves, and query shaping against real row forms |
+| TS vitest — `@dcp/domain` | 298 / 298 | Unchanged — Phase 5 added no domain rule, which is the point |
+| TS vitest — `@dcp/api` | 313 / 313 | Unchanged in count; two vacuous assertions in `large-volume-paging` replaced with populated-data assertions |
+| TS vitest — `@dcp/dataverse-client` | **32 / 32** | +5: the `Prefer` header merge, which is the Phase 4 defect the Phase 5 spike found |
+| TS vitest — `@dcp/auth-adapters` | 14 / 14 | Unchanged |
+| Tooling — `node:test` | 10 / 10 | Unchanged |
+| C# xUnit | 129 / 129 | Unchanged — Phase 5 changed no plugin |
+| **Live spike — `spike-browser-adapter.mts`** | **16 / 16** | Read-only, run **before** the views were built, against `org5869857f` |
+| **Live smoke — `smoke-qdb-phase5.mts`** | **45 / 45** | The views' own query modules against 14 seeded, marked rows; cleans up; **0 residue** |
+| **Live verification — `verify-view-columns.mts`** | **11 / 11** | 173 column names checked against live metadata; read-only |
+| **Web resource deploy** | **10 / 10** | Uploaded, published, read back byte for byte |
+| Live regression — Phase 1 / 2 / 3 / 4 | **13 / 20 / 19 / 22** | All green after the Phase 5 changes |
+| Live verification — `verify-qdb-schema.mjs` | 19 / 19 | 244 / 244 columns; no schema change |
+| Frontend volume (synthetic, in memory) | 10 / 10 | 10K / 50K / 100K |
+| **React workspace runtime inside Dynamics** | **never run** | Needs an authenticated interactive CRM session (KI-56). **Not claimed as passed** |
+
+### What the frontend volume run measured
+
+The evidence that matters is not that a 100,000-object array can be created. It is what the browser
+**did not do**:
+
+| Population | Page size | Rows requested | Requests | DOM rows | Bound | Duplicates |
+|---:|---:|---:|---:|---:|---:|---:|
+| 10,000 | 50 | 50 | 1 | 16 | 22 | 0 |
+| 50,000 | 50 | 50 | 1 | 16 | 22 | 0 |
+| 100,000 | 50 | 50 | 1 | 16 | 22 | 0 |
+| 100,000 | 1,000 | 1,000 | 1 | 16 | 22 | 0 |
+
+At 100,000 rows with page size 50: **0.05 % fetched, 0.016 % rendered.** The DOM bound is independent
+of both the population and the page size, which is the property that makes it an engine rather than a
+tuning. Populations are generated lazily — a page materialised on demand — so the test itself does not
+do the thing it checks the application does not do.
+
+---
+
+## 1G. Standing requirement — a test that cannot fail is not evidence (Phase 5, permanent)
+
+A green suite is not, by itself, evidence. Two assertions written during the Phase 5 spike were green
+and proved nothing: one compared a column that is null on every row of a table that is empty between
+smoke runs, and one contained a literal `|| true`.
+
+**From Phase 5 onward, every new test is audited for this class of defect before the gate.**
+`crm/scripts/audit-test-quality.mjs` scans for the patterns that make green cheap:
+
+| Pattern | Why it is worthless |
+|---|---|
+| `\|\| true`, `expect(true).toBe(true)` | Cannot fail |
+| An empty `catch {}` in a test | Turns a thrown assertion into a pass |
+| `for (const x of collection)` with no prior population assertion | Asserts nothing when the collection is empty |
+| `expect(x?.y).toBeUndefined()` / `.toBeFalsy()` / `.not.toBe()` | Passes when `x` is absent, which is usually not what was meant |
+| `expect(rows).toEqual([])` | Passes when the query silently returned nothing |
+| `expect(rows).toBeTruthy()` | An empty array is truthy |
+| An `it()` block with no `expect`, `assert`, `.rejects` or `.resolves` | Cannot fail |
+
+It **reports**; a human decides. A loop over a constant table is fine, a loop over a query result is
+not. What the audit prevents is the finding going *unnoticed*.
+
+Two rules follow from it and are not negotiable:
+
+* **Where a test requires records, it asserts the prerequisite population before testing the
+  behaviour.** "Every row matches" is trivially true of no rows.
+* **A test that executes zero meaningful assertions does not count as runtime evidence**, whatever
+  the summary line says.
+
+The audit is itself held to the standard. Its first run reported 50 false positives (body extraction
+stopped at the first `})`, truncating every test containing an inline object) and its second reported
+one (a naive brace counter miscounting a `}` inside a string literal). Brace matching is now quote-
+and comment-aware, because an audit that cries wolf is worse than no audit — people stop reading it.
+
+### 1G.1 The generated-test trap
+
+A `for` loop that generates `it()` blocks produces **no tests at all** if its list is empty, and the
+suite still reports green. Phase 5 has three such loops, and each is preceded by a test asserting the
+list's length. The router-completeness loop was additionally verified by removing a route on purpose
+and confirming the suite failed — a test believed to catch something, and a test known to, are
+different things.
+
+---
+
 ## 2. Test pyramid per layer (target)
 
 | Layer | Framework | Scope | Isolation rule |
