@@ -3,6 +3,82 @@
 Newest first. Entries record what changed in the repository, the org, or the approved architecture.
 Phase 0 changed documentation only. **Phase 1 changed the repository and provisioned schema on the Cloud sandbox `org5869857f` — the only organisation authorised — and nothing else.**
 
+## 2026-09-18 — Phase 3: Configuration & Strategy Foundation (repository + sandbox `org5869857f`)
+
+Detail in `docs/phases/Phase_3_Completion_Report.md`. Built on `feat/dcp-phase2-core-model` in a
+separate worktree; the main checkout was not touched.
+
+### Schema change — KI-47 (the only organisation change in Phase 3)
+
+| Change | Detail |
+|---|---|
+| Added | `qdb_delinquencysnapshot.qdb_facilitysourcesystem` — String, `MaxLength = 50`, display name *Facility Source System* |
+| Why | The snapshot is the append-only record of an MIS position. Facility identity is `facilityNumber` **+** `sourceSystem`; the snapshot carried only the number. The source system was recoverable from the composed idempotency key when the composition happened to include it — recoverable is not the same as recorded. |
+| Deliberately not | `ApplicationRequired`. Historical rows predate the column and a required column would make them invalid retrospectively. It is also **not** the sole source of the source system: the key composition remains independent, per the approval. |
+| Canonical column count | 243 → **244**; verified live at 244/244 |
+| Platforms | Identical on both. String attributes with an explicit `MaxLength` behave the same on 9.1 and on Dataverse; nothing cloud-only was used |
+| Migration impact | None. New rows only. **No historical or sandbox row was back-filled**, per the approval |
+| Managed/unmanaged | Unmanaged addition to the existing `qdb_` solution, same as every Phase 1 column |
+| Approval | User, at the Phase 2 gate, 2026-09-18 |
+
+No other entity, column, choice, key, role, queue or step was created, altered or removed. `crmi_autonumberingsetup`,
+`qdb_autonumberconfig`, `qdb_crmlogs`, the customer master, BFD Facility Limit, HL Customer Product and every
+`msst_` component are untouched.
+
+### Repository
+
+**New domain modules** (`packages/domain/src/`) — `ruleEngine.ts` (the `IRuleEngine` facade, provenance,
+fail-closed contracts), `strategy.ts` (strategy and action configuration, effectivity, resolution and its
+named refusals), `assignment.ts` (assignment configuration, `IAssignmentEngine`, `UnavailableSmartAssignment`),
+`caseNumbering.ts` (the two case-number sources).
+
+**New services** (`apps/api/src/services/collection/`) — `RuleEngineClient` (the three operations, response
+validation, technical logging), `StubRuleEngine` (tests and demos only, self-identifying), `StrategyRepository`,
+`StrategyService`, `AssignmentRepository`/`AssignmentService`, `CollectionConfigurationService`
+(+ `requireRulesetCode`).
+
+**Removed** — `eligibilityEvaluators.ts` and `StaticEligibilityEvaluator`. Eligibility is now one decision on
+the `IRuleEngine` facade rather than its own evaluator hierarchy (ADR-DCP-13). `DelinquencySyncService` takes
+`ruleEngine` in place of `eligibility`, and `caseNumbering`.
+
+**Defect fixed — KI-52.** `StrategyRepository` selected lookups by their storage column
+(`qdb_strategyid`). Dataverse accepts that and returns nothing for it, so every strategy action looked
+unparented and every strategy resolved with zero actions. Unit tests passed throughout — the in-memory fake
+answers with whichever column the code asks for. Fixed to `_qdb_strategyid_value` /
+`_qdb_activitytypeid_value`, audited across every Collection repository, and the now-dead bare bindings were
+removed so the mistake cannot be repeated by autocomplete. **Found by the live smoke, which is the only layer
+that could have found it.**
+
+**Two regressions fixed in the existing smokes**, both real:
+- the Phase 1 transition assertion still encoded the pre-KI-46 matrix (it used `New → Settled` as its example
+  of a refusal). It now uses `New → In Progress`; the Settled path is proved by the Phase 2 smoke.
+- the Phase 2 smoke was wired to the evaluator that Phase 3 replaced.
+
+### Architecture decisions recorded
+
+| ADR | Decision |
+|---|---|
+| **ADR-DCP-12** | MIS determines financial cure; DCP owns the Collection lifecycle transition (closes KI-46) |
+| **ADR-DCP-13** | Every configurable Collection decision goes through the Rule Engine facade, and fails closed |
+| **ADR-DCP-14** | Assignment configuration selects an engine; DCP builds no routing algorithm |
+| **ADR-DCP-15** | A Collection Case number has exactly two sources, and DCP invents no format |
+
+### Tests
+
+| Suite | Result |
+|---|---|
+| TypeScript unit/integration | **428 passed** — domain 199, api 188, dataverse-client 27, auth-adapters 14 |
+| C# plugin tests | **129 passed** |
+| Type-check + build | 13/13 turbo tasks |
+| Phase 1 live smoke (regression) | **13/13** |
+| Phase 2 live smoke (regression) | **20/20** |
+| Phase 3 live smoke | **19/19** |
+| Schema verification | **19/19**, canonical columns **244/244** |
+
+No existing test was weakened. Every live smoke cleans up after itself; "0 smoke record(s) remain" on each run.
+
+---
+
 ## 2026-09-18 — Phase 2: Core Collection Data Model (repository + sandbox `org5869857f`)
 
 Detail in `docs/phases/Phase_2_Completion_Report.md`. Built on `feat/dcp-phase2-core-model` in a

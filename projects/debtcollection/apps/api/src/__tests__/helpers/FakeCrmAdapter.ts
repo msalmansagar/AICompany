@@ -13,6 +13,8 @@ import type { CrmCallContext, CrmQuery, CrmRecord, CrmReference, ICrmAdapter } f
 export class FakeCrmAdapter implements ICrmAdapter {
   readonly tables = new Map<string, Map<string, CrmRecord>>();
   readonly touchedEntitySets = new Set<string>();
+  /** Every retrieveMultiple, so a test can count reads of one table (cache behaviour). */
+  readonly queries: { entity: string; query: CrmQuery }[] = [];
   readonly writes: { kind: 'create' | 'update'; entity: string; id: string; values: CrmRecord }[] = [];
   readonly executed: { operation: string; parameters: CrmRecord }[] = [];
   /** Optional fault injection: throw when creating in this entity set with a matching predicate. */
@@ -44,6 +46,7 @@ export class FakeCrmAdapter implements ICrmAdapter {
 
   async retrieveMultiple(entity: string, query: CrmQuery, _context?: CrmCallContext): Promise<CrmRecord[]> {
     this.touchedEntitySets.add(entity);
+    this.queries.push({ entity, query });
     const predicate = parseFilter(query.filter);
     let rows = this.rows(entity).filter(predicate);
     if (query.orderBy) {

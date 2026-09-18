@@ -287,3 +287,93 @@ SME/Corporate population may legitimately use exposure, different grace conventi
 segmentation boundaries on the same build. The same applies to portfolio segmentation
 (`qdb_strategyrulesetcode`): the operational/recovery split suggested by the HL data is a documented
 **recommendation**, and no boundary such as ">2000 DPD = Recovery" is fixed in the architecture.
+
+## 12. Collection Strategy, Strategy Action and Assignment configuration (Phase 3)
+
+Three configuration tables became live surfaces in Phase 3. All three follow the same discipline, and
+none of them contains a decision: they contain the *data* a decision is made from.
+
+### 12.1 `qdb_collectionstrategy`
+
+| Column | Meaning |
+|---|---|
+| `qdb_code` | What the strategy ruleset returns. **This is the join between the Rule Engine and the configuration** — the ruleset never returns a record or a GUID |
+| `qdb_priority` | Lower wins when the ruleset names more than one code. **A tie is a refusal, not a coin toss** |
+| `qdb_isactive` | A deactivated strategy is never selected, even if the ruleset names it |
+| `qdb_effectivefrom` / `qdb_effectiveto` | Inclusive-from, exclusive-to. Outside the window the strategy is not usable, and naming it is an error rather than a silent skip |
+| `qdb_noautomatedcontact` | Marks a strategy whose actions must not send automatically |
+| criteria columns | Customer type, product, DPD from/to, arrears from/to, exposure from/to, risk level, NPL flag, broken-PTP count, legal status, restructure status. **Read by the ruleset; not evaluated by DCP** (KI-51) |
+
+### 12.2 `qdb_strategyaction`
+
+Ordered by `qdb_sequence`; `qdb_dayoffset` is relative to the action's trigger event. `qdb_isactive = false`
+retires an action without deleting history. `qdb_communicationchannel` is read back as a **label** from the
+provisioned choice, never as a raw option value. `qdb_activitytypeid` resolves to the activity type's
+**code**, so no GUID appears in configuration or in source.
+
+### 12.3 `qdb_assignmentconfiguration`
+
+Same activation, priority and effectivity rules. `qdb_assignmentmethod` is exactly the provisioned choice —
+`RoundRobin`, `Load`, `Territory`, `SmartAssignment`, `Manual`. `qdb_smartassignmentref` is an **opaque
+handle** that DCP passes through unread.
+
+> **DCP performs no routing.** Where the configuration selects `SmartAssignment` and QDB's capability has
+> not been supplied, the platform refuses and says what must be confirmed (KI-09, ADR-DCP-14). No fallback
+> algorithm exists, deliberately.
+
+### 12.4 What an administrator sees when configuration is wrong
+
+Every one of these is a named error carrying the column to fix — none of them is a default:
+
+| Situation | Result |
+|---|---|
+| Ruleset names a code with no configuration | `NotFound` — *"the strategy ruleset selected 'X', which no Collection Strategy configuration defines"* |
+| Ruleset returns no codes | `NoneApplicable` — *"no applicable strategy for this case"* |
+| Two usable strategies share the top priority | `Conflict` — naming the count and the priority |
+| The named strategy is inactive or outside its effective window | `NotEffective` |
+| No active, effective assignment configuration | `NoneApplicable` |
+| Two assignment configurations share the top priority | `Conflict` |
+| Configuration selects `SmartAssignment` with no adapter | `Unavailable`, citing KI-09 |
+
+All of them are written to `qdb_crmlogs` before they are raised.
+
+## 13. Feature flags used by the Collection runtime (`qdb_featureflags`, JSON)
+
+```jsonc
+{
+  // How the snapshot idempotency key is composed. No default — a wrong composition either
+  // duplicates observations or collides them, so the deployment must state it.
+  "snapshotKeyComposition": ["sourceSystem", "facilityNumber", "snapshotDate"],
+
+  // Operation names for the three Rule Engine decisions. Custom API on cloud, Process Action
+  // on-prem, same names. No default: an unconfigured decision is refused, never guessed.
+  "ruleEngineOperations": {
+    "eligibility":  "qdb_dcp_EvaluateEligibility",
+    "strategy":     "qdb_dcp_SelectStrategy",
+    "contactHold":  "qdb_dcp_EvaluateContactHold"
+  },
+
+  // "Provisional" (DCP composes the interim number) or "PlatformConfigured" (QDB's existing
+  // auto-number mechanism fills it and DCP omits the column). See ADR-DCP-15.
+  "caseNumbering": "Provisional"
+}
+```
+
+**Only two members of the Collection runtime configuration have a fallback**, and each is the
+conservative reading rather than a guess:
+
+- **episode policy** — no configured reopen window means a re-delinquency starts a **new episode**, which
+  is the rule the architecture already states;
+- **case numbering** — absent, DCP composes the interim number, because QDB's mechanism holds no
+  configuration row to defer to (KI-49).
+
+Everything else must be configured or the organisation cannot run Collection at all: a missing snapshot
+policy, eligibility ruleset or key composition **stops the organisation**, with an error naming the
+setting and the table it lives in. That is the Phase 1 principle applied unchanged — *no hidden defaults
+for critical business configuration*.
+
+### Caching
+
+`CollectionConfigurationService` reads the organisation once and caches the assembled runtime
+configuration for the configured TTL. `clearCache()` makes a published configuration change take effect
+without a restart. Both behaviours are tested.

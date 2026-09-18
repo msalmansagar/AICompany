@@ -140,10 +140,11 @@ async function main() {
     const sync = new services.DelinquencySyncService({
       configuration,
       customers: new services.CustomerResolutionService(crm, configuration),
-      eligibility: new services.StaticEligibilityEvaluator(() => decideOutcome, 'smoke-static-evaluator'),
+      ruleEngine: new services.StubRuleEngine({ eligibility: () => decideOutcome }),
       cases, snapshots, exceptions: new services.IdentityExceptionRepository(crm),
       logger: { log: async (e) => { logEntries.push(e); } },
       episodePolicy: {},
+      caseNumbering: 'Provisional',
       now: () => new Date().toISOString(),
     });
 

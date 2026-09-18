@@ -116,6 +116,61 @@ and the run ends with **0 smoke records**. Evidence: `docs/evidence/Phase2_smoke
 
 ---
 
+
+## 1C. Phase 3 test result — measured 2026-09-18
+
+| Suite | Files | Tests | Result |
+|---|---|---|---|
+| `@dcp/domain` | 14 | **199** | pass |
+| `@dcp/api` | 12 | **188** | pass |
+| `@dcp/dataverse-client` | 3 | **27** | pass |
+| `@dcp/auth-adapters` | 2 | **14** | pass |
+| Tooling (`crm/scripts/lib/tooling-auth.test.mjs`, node:test) | 1 | **10** | pass |
+| **TypeScript total** (excluding tooling) | **31** | **428** | pass — **+94 against the Phase 2 close (334)** |
+| C# `Qdb.DebtCollection.Plugins.Tests` | 1 assembly | **129** | pass |
+| Type-check + build (turbo) | 13 tasks | — | pass |
+
+| Live suite (sandbox `org5869857f`) | Result |
+|---|---|
+| `verify-qdb-schema.mjs` | **19/19**, canonical columns **244/244** |
+| `smoke-qdb-plugins.mjs` (Phase 1 regression) | **13/13** |
+| `smoke-qdb-phase2.mjs` (Phase 2 regression) | **20/20** |
+| `smoke-qdb-phase3.mjs` (new) | **19/19** |
+
+Every live suite removes its own rows; all three report *0 smoke record(s) remain*, and the Phase 3
+suite re-verifies that the three `ImmutabilityGuard` Delete steps are enabled and unfiltered afterwards.
+**No existing test was weakened.** Two existing tests were *corrected* because they had become wrong:
+
+- the Phase 1 transition assertion still encoded the pre-KI-46 matrix, using `New → Settled` as its
+  example of a refusal. It now asserts `New → In Progress`, which is still refused, and the Settled path
+  is proved by the Phase 2 smoke's cure check;
+- the Phase 2 smoke was wired to the eligibility evaluator that Phase 3 replaced with the Rule Engine
+  facade.
+
+### What Phase 3 added to the strategy
+
+**A source-level guard for policy thresholds** (`collection-portability.test.ts`). Every file under
+`services/collection` and `packages/domain/src` is scanned for a comparison between a collections figure
+— DPD, arrears, exposure, bucket, balance, instalment — and a numeric literal. The zero boundary is
+allowed and documented, because it is the arithmetic definition of "past due at all", not a policy band.
+This is the mechanical half of *"no thresholds in application source"*; the behavioural half is
+`strategy.test.ts`'s "carries criteria as data without interpreting them".
+
+### The lesson Phase 3 paid for — KI-52
+
+`StrategyRepository` selected lookups by their storage column (`qdb_strategyid`). Dataverse accepts that
+and returns nothing for it, so **every strategy resolved with zero actions**. The unit tests passed
+throughout, and they were right to: the in-memory fake answers with whichever column the code asks for,
+so the fake and the code shared the same wrong belief.
+
+This is the second instance of the same class — Phase 2 found that a navigation property name cannot be
+inferred either. The standing rule is therefore:
+
+> **A column's read name, write name and storage name are read from the organisation, never inferred.**
+
+And the structural mitigation is the one that actually worked: **a live smoke per phase, run against the
+real organisation, which no fake can satisfy by agreeing with the code.**
+
 ## 2. Test pyramid per layer (target)
 
 | Layer | Framework | Scope | Isolation rule |

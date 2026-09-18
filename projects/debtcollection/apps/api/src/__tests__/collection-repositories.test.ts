@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PlatformConfigurationError, openPromiseToPay, PTP_STATUS_CODES, ACTIVITY_STATUS_CODES } from '@dcp/domain';
-import { CollectionActivityRepository, CollectionCaseRepository, CustomerResolutionService } from '../services/collection/index.js';
+import { CollectionActivityRepository, CollectionCaseRepository, CustomerResolutionService, DelinquencySnapshotRepository } from '../services/collection/index.js';
 import { FakeCrmAdapter } from './helpers/FakeCrmAdapter.js';
 import { housingLoanConfiguration } from './helpers/collectionFixtures.js';
 
@@ -102,5 +102,31 @@ describe('CollectionActivityRepository — promise to pay', () => {
     const row = crm.rows('qdb_collectionactivities')[0]!;
     expect(row).toMatchObject({ qdb_relatedrecordtype: 'fax', qdb_relatedrecordid: '55555555-5555-4555-8555-555555555555' });
     expect(Object.keys(row).some(k => /body|channel|recipient/i.test(k))).toBe(false);
+  });
+});
+
+describe('DelinquencySnapshotRepository — source identity (KI-47)', () => {
+  const snapshot = {
+    customerBusinessId: '28912345678',
+    facility: { facilityNumber: '123456789', sourceSystem: 'HL' },
+    snapshotDate: '2026-06-30', receivedOn: '2026-07-01T02:00:00Z', integrationBatchId: 'B1',
+    dpd: 45, loanBalance: 800_000, totalArrears: 12_500,
+    eligibility: { outcome: 'GraceMonitor' as const, rulesetCode: 'R', rulesetVersion: '1', evaluatedOn: '2026-07-01T02:00:00Z' },
+  };
+
+  it('stores both halves of the facility identity as columns, not only inside the key', async () => {
+    const crm = new FakeCrmAdapter();
+    // A composition that deliberately omits the source system: the column must still be written.
+    await new DelinquencySnapshotRepository(crm, ['facilityNumber', 'snapshotDate']).appendIfAbsent(snapshot);
+    expect(crm.rows('qdb_delinquencysnapshots')[0]).toMatchObject({
+      qdb_facilitynumber: '123456789', qdb_facilitysourcesystem: 'HL',
+    });
+  });
+
+  it('does not require a case to append an observation', async () => {
+    const crm = new FakeCrmAdapter();
+    const result = await new DelinquencySnapshotRepository(crm, ['sourceSystem', 'facilityNumber', 'snapshotDate']).appendIfAbsent(snapshot);
+    expect(result).toEqual({ key: 'HL|123456789|2026-06-30', written: true });
+    expect(crm.rows('qdb_delinquencysnapshots')[0]!['_qdb_collectioncaseid_value']).toBeUndefined();
   });
 });

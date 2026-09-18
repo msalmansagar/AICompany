@@ -424,6 +424,73 @@ Names are proposals; the `qdb_dcp_` segment keeps DCP operations distinct from o
 
 ---
 
+
+## 6A. Rule Engine operations — implemented client side in Phase 3 (ADR-DCP-13)
+
+Three of the operations proposed in §6 are the Rule Engine's, and `RuleEngineClient` now calls all
+three. **The client exists; the operations do not yet** — creating them and their rulesets is QDB's
+(KI-48). The contract below is what the client sends and what it will accept.
+
+Each operation is unbound. On cloud it is a Custom API; on-premises a Process Action of the same name.
+Both are invoked through `ICrmAdapter.execute`, so nothing in the Collection services knows the platform.
+**The names are configuration** (`qdb_platformconfiguration.qdb_featureflags.ruleEngineOperations`), not
+constants — the values below are the proposed defaults for a deployment to set, not fallbacks in code.
+
+### `qdb_dcp_EvaluateEligibility`
+
+| Direction | Parameter | Type | Notes |
+|---|---|---|---|
+| In | `RulesetCode` | string | from `qdb_eligibilityrulesetcode` |
+| In | `Observation` | string (JSON) | the canonical MIS delinquency record |
+| In | `Customer` | string (JSON), nullable | null when identity resolution did not succeed — the ruleset sees an unresolved customer rather than a fabricated one |
+| In | `ActiveCase` | string (JSON), nullable | `{ id, status, episodeNumber }` when the facility already has an open episode |
+| Out | `Outcome` | string | **must** be one of `EligibleCreateCase` · `ExistingEpisodeUpdate` · `GraceMonitor` · `ExcludedSpecialHandling` · `IdentityException` · `FacilityException` |
+| Out | `Reason` | string, optional | recorded on the snapshot |
+| Out | `RulesetVersion` | string | **required** — a decision that cannot be attributed to a ruleset version is rejected |
+
+### `qdb_dcp_SelectStrategy`
+
+| Direction | Parameter | Type | Notes |
+|---|---|---|---|
+| In | `RulesetCode` | string | from `qdb_strategyrulesetcode` |
+| In | `Case` | string (JSON) | facility identity, status, episode, cached MIS position, organisation code |
+| In | `Customer` | string (JSON), nullable | |
+| Out | `StrategyCodes` | string[] — a single `StrategyCode` string is also accepted | **codes, never records.** Most specific first; an empty list means "no strategy applies", which is a refusal the caller must handle, not a default treatment |
+| Out | `Reason` | string, optional | |
+| Out | `RulesetVersion` | string | **required** |
+
+### `qdb_dcp_EvaluateContactHold`
+
+| Direction | Parameter | Type | Notes |
+|---|---|---|---|
+| In | `RulesetCode` | string | from `qdb_contactholdrulesetcode` |
+| In | `Customer` | string (JSON) | entity, id, business id |
+| In | `Channel` | string, nullable | the channel being attempted |
+| In | `CaseId` / `FacilityNumber` / `SourceSystem` | string, nullable | context only |
+| Out | `Hold` | boolean | |
+| Out | `Reason` | string, optional | |
+| Out | `RulesetVersion` | string | **required** |
+
+> The input carries **no deceased flag and no customer-master column**, by design — so a Contact Hold can
+> never be inferred from QCB DEAD by accident, and DCP never asserts which field is authoritative (KI-44).
+
+### Failure contract — the same for all three
+
+| Condition | Behaviour |
+|---|---|
+| No operation configured for the decision | Refused before any call, naming `qdb_featureflags.ruleEngineOperations` |
+| No ruleset code configured | Refused, naming the `qdb_platformconfiguration` column to set |
+| Operation absent from the organisation, or it throws | Refused, carrying the platform's own error |
+| Response outside the contract — bad `Outcome`, missing `RulesetVersion` | Refused. **An unattributable decision about a customer's debt is not a decision** |
+
+Every refusal is written to `qdb_crmlogs` with `errorCode = rule_engine_unusable`, the decision name and
+the ruleset code, then raised as `RuleEngineError`. Nothing is swallowed and nothing is defaulted — in
+particular an unreadable Contact Hold answer is a **refusal to contact**, never `hold: false`.
+
+Verified live on 2026-09-18 against `org5869857f`: an unconfigured operation name was refused before any
+call was made, and a configured-but-non-existent Custom API was refused rather than defaulted. Both
+refusals reached the technical log.
+
 ## 7. Error contract
 
 ```ts

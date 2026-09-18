@@ -204,4 +204,58 @@ export {
 } from './collectionSettings.js';
 export type { CollectionSettings } from './collectionSettings.js';
 
-export type { EligibilityInput, IEligibilityEvaluator } from './eligibility.js';
+export {
+  RulesetProvenanceSchema,
+  StrategySelectionSchema,
+  ContactHoldDecisionSchema as ContactHoldEvaluationSchema,
+  RuleEngineError,
+} from './ruleEngine.js';
+export type {
+  RulesetProvenance,
+  EligibilityInput,
+  IEligibilityEvaluator,
+  StrategyInput,
+  StrategySelection,
+  ContactHoldInput,
+  ContactHoldEvaluation,
+  IRuleEngine,
+} from './ruleEngine.js';
+
+export {
+  StrategyCriteriaSchema,
+  EffectivePeriodSchema,
+  StrategyActionSchema,
+  CollectionStrategySchema,
+  StrategyConfigurationError,
+  isEffective,
+  isUsable,
+  resolveApplicableStrategy,
+  orderedActions,
+} from './strategy.js';
+export type { StrategyCriteria, EffectivePeriod, StrategyAction, CollectionStrategy } from './strategy.js';
+
+export {
+  AssignmentMethodSchema,
+  AssignmentConfigurationSchema,
+  AssignmentOutcomeSchema,
+  AssignmentError,
+  UnavailableSmartAssignment,
+  resolveAssignmentConfiguration,
+} from './assignment.js';
+export type {
+  AssignmentMethod,
+  AssignmentConfiguration,
+  AssignmentOutcome,
+  AssignmentInput,
+  IAssignmentEngine,
+} from './assignment.js';
+
+export {
+  CaseNumberSourceKindSchema,
+  composeProvisionalCaseNumber as composeProvisionalCaseNumberFor,
+  caseNumberFor,
+} from './caseNumbering.js';
+export type { CaseNumberSourceKind } from './caseNumbering.js';
+
+export { RuleEngineOperationsSchema } from './collectionSettings.js';
+export type { RuleEngineOperations } from './collectionSettings.js';

@@ -127,3 +127,28 @@ to the `msst_` sets; migration maps by label/code, not by integer.
 4,357 delinquent accounts · 3,777 distinct customers · 3,905 bucket-customer counts (a customer may
 appear in more than one bucket) · 724 deceased-flagged rows. HL is 80–90 % of the book ⇒ ~5,000
 accounts platform-wide. Small data; nothing here needs elastic tables or cloud-only storage.
+
+## I. Implementation status on the sandbox — measured 2026-09-18 (end of Phase 3)
+
+Everything below was read back from `org5869857f`, not asserted from intent. `verify-qdb-schema.mjs`
+reports 19/19 and **244/244 canonical columns**.
+
+| Entity | Provisioned | Read/written by code | Notes |
+|---|---|---|---|
+| `qdb_collectioncase` | ✅ | ✅ Phase 2 + Phase 3 | `IsValidForQueue = true`; `qdb_casenumber_uk` alternate key proved live to refuse a duplicate |
+| `qdb_collectionactivity` | ✅ | ✅ Phase 2 | Custom activity; immutable once completed (KI-40 class of defect fixed on both registrations) |
+| `qdb_delinquencysnapshot` | ✅ | ✅ Phase 2 + Phase 3 | **+ `qdb_facilitysourcesystem` String(50) added in Phase 3 (KI-47)** — the only schema change in the phase |
+| `qdb_identityexception` | ✅ | ✅ Phase 2 | |
+| `qdb_collectionactivitytype` | ✅ | ✅ Phase 2 + Phase 3 | Activity types resolved to codes by `StrategyRepository`; never a GUID in source |
+| `qdb_activityoutcome` | ✅ | — | Provisioned; consumed from Phase 4 |
+| `qdb_collectionstrategy` | ✅ | ✅ Phase 3 | Criteria are **data the ruleset reads**, not a matcher DCP evaluates (KI-51, ADR-DCP-13) |
+| `qdb_strategyaction` | ✅ | ✅ Phase 3 | Ordered by `qdb_sequence`; inactive actions omitted; channel read as a label from the provisioned choice |
+| `qdb_assignmentconfiguration` | ✅ | ✅ Phase 3 | Configuration resolved; **routing deliberately not implemented** (ADR-DCP-14, KI-09) |
+| `qdb_platformconfiguration` | ✅ | ✅ Phase 2 + Phase 3 | Carries the three ruleset pointers and `qdb_featureflags`; assembled by `CollectionConfigurationService` |
+| `qdb_platformmapping` | ✅ | ✅ Phase 2 | Normalised child rows; no repurposing of unrelated QDB mapping tables |
+| `qdb_communicationtemplate` | ✅ | — | Provisioned; Communications is architecture-only until a later phase |
+| `qdb_crmlogs` **(existing)** | reused, **unextended** | ✅ | 12 `qdb_` columns, verified unchanged. Every Rule Engine and configuration refusal is written here |
+
+**No entity was created, altered or removed in Phase 3** beyond the single approved KI-47 column. In
+particular: no `qdb_collectioneligibility` (forbidden), no `qdb_communication` or per-channel
+communication entity (forbidden), no second auto-number table, no second technical log.

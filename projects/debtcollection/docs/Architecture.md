@@ -105,6 +105,11 @@ Both targets are equal. Platform and organisation differences live in `qdb_platf
 | ADR-DCP-08 | Communication via existing Fax/Email + one Communication Service | **New** |
 | ADR-DCP-09 | Integration Service (Fastify) responsibilities after Master Prompt §60 | **New** |
 | ADR-DCP-10 | Dual-platform single-codebase architecture | **New** |
+| ADR-DCP-11 | Collection Eligibility / Grace evaluation before case creation | **Accepted** at the Phase 1 gate; extended by ADR-DCP-13 |
+| ADR-DCP-12 | MIS determines financial cure; DCP owns the lifecycle transition | **Accepted** (Phase 2 gate, closes KI-46) |
+| ADR-DCP-13 | Rule Engine facade for eligibility, strategy and Contact Hold; fails closed | **Accepted** (Phase 3) |
+| ADR-DCP-14 | Assignment configuration selects an engine; no DCP routing algorithm | **Accepted** (Phase 3) |
+| ADR-DCP-15 | Case number has two sources; no invented format | **Accepted** (Phase 3) |
 
 Superseded ADRs are kept and marked; none are deleted.
 

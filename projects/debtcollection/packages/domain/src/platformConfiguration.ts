@@ -73,6 +73,7 @@ export const PlatformConfigurationSchema = z.object({
   facilityBusinessIdField: z.string().min(1).optional(),
   /** Ruleset codes the Collection services evaluate; no defaults, per ADR-DCP-11. */
   eligibilityRulesetCode: z.string().min(1).optional(),
+  strategyRulesetCode: z.string().min(1).optional(),
   contactHoldRulesetCode: z.string().min(1).optional(),
   /** The customer type this deployment's cases carry when MIS does not say. Configuration, never a constant. */
   defaultCustomerType: z.enum(['Individual', 'SME', 'Corporate']).optional(),

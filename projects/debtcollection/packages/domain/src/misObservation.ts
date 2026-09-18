@@ -121,7 +121,14 @@ export const MisDelinquencyRecordSchema = z.object({
 });
 export type MisDelinquencyRecord = z.infer<typeof MisDelinquencyRecordSchema>;
 
-/** True when MIS reports the facility as delinquent. */
+/**
+ * True when MIS reports the facility as delinquent.
+ *
+ * Zero is not a policy threshold — it is the arithmetic definition of "past due at all", and it is
+ * what separates a delinquent facility from a cured one. Every boundary that *is* policy (a DPD band,
+ * an arrears floor, a grace period) belongs in the ruleset; `collection-portability.test.ts` enforces
+ * that, and allows this comparison for the same reason.
+ */
 export function isDelinquent(record: Pick<MisDelinquencyRecord, 'dpd'>): boolean {
   return record.dpd > 0;
 }

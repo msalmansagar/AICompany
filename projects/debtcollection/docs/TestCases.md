@@ -250,3 +250,108 @@ Status legend as above; **Passed** here means an automated test exists and passe
 | TC-332 | A failing record is isolated; the batch continues and the failure is logged | E | `delinquency-sync.test.ts` | Passed |
 | TC-333 | Cloud regression — Phase 1 verification and smoke still pass after the registration change | L | `verify-qdb-schema.mjs` 19/19, `smoke-qdb-plugins.mjs` 13/13 | Passed |
 | TC-334 | Existing Phase 1 tests unchanged and green | U | all suites | Passed |
+
+## I. Phase 3 — Configuration & Strategy foundation (implemented 2026-09-18)
+
+`U` unit · `E` end-to-end over the in-memory organisation · `L` live on `org5869857f`.
+**Passed** means an automated test exists and passed on 2026-09-18.
+
+### Rule Engine integration
+
+| ID | Scenario | Type | Where | Status |
+|---|---|---|---|---|
+| TC-340 | Eligibility calls the **configured** operation by name — the name is never a constant | U + L | `rule-engine-client.test.ts`, Phase 3 smoke | Passed |
+| TC-341 | The decision comes back with the ruleset version that made it | U | `rule-engine-client.test.ts` | Passed |
+| TC-342 | Every eligibility outcome in the approved set is admitted, and only the two case-bearing ones create a case | U | `eligibility.test.ts` (`should_cover_every_outcome_between_the_two_groups`) | Passed |
+| TC-343 | An outcome outside the approved set is refused | U | `rule-engine-client.test.ts` | Passed |
+| TC-344 | A decision with no ruleset version is refused — an unattributable decision is not a decision | U | `rule-engine-client.test.ts` | Passed |
+| TC-345 | An empty response is refused rather than defaulted | U | `rule-engine-client.test.ts` | Passed |
+| TC-346 | Missing eligibility configuration stops the organisation, naming the column to set | U + E | `collection-configuration.test.ts`, `delinquency-sync.test.ts` | Passed |
+| TC-347 | An unconfigured **operation name** is refused before any call is made | U + L | `rule-engine-client.test.ts`, Phase 3 smoke | Passed |
+| TC-348 | An operation the organisation does not expose is refused, not defaulted | L | Phase 3 smoke (non-existent Custom API) | Passed |
+| TC-349 | Every refusal reaches `qdb_crmlogs` with an actionable code | U + L | `rule-engine-client.test.ts`, Phase 3 smoke | Passed |
+| TC-350 | The client never returns a decision it could not read | U | `rule-engine-client.test.ts` | Passed |
+
+### Strategy configuration and selection
+
+| ID | Scenario | Type | Where | Status |
+|---|---|---|---|---|
+| TC-351 | The ruleset selects a code; the service resolves the configured strategy | U + E + L | `strategy.test.ts`, `strategy-and-assignment.test.ts`, Phase 3 smoke | Passed |
+| TC-352 | The ruleset's order is honoured — the first applicable code it offers wins | U | `strategy.test.ts` | Passed |
+| TC-353 | "No strategy applies" is a refusal (`NoneApplicable`), not a default treatment | U + E + L | all three | Passed |
+| TC-354 | A code with no configuration is refused by kind (`NotFound`) | U + E + L | all three | Passed |
+| TC-355 | A deactivated strategy is refused even when the ruleset names it | U + E | `strategy.test.ts`, `strategy-and-assignment.test.ts` | Passed |
+| TC-356 | A strategy outside its effective window is refused (`NotEffective`) | U + E | same | Passed |
+| TC-357 | Two usable strategies sharing the top priority are a `Conflict`, not a coin toss | U + E | same | Passed |
+| TC-358 | A duplicate code is broken by priority where one clearly wins | U | `strategy.test.ts` | Passed |
+| TC-359 | The refusal names the conflict clearly enough to fix the configuration | U | `strategy.test.ts` | Passed |
+| TC-360 | The resolution is logged with the ruleset version that chose it | E | `strategy-and-assignment.test.ts` | Passed |
+
+### Strategy actions
+
+| ID | Scenario | Type | Where | Status |
+|---|---|---|---|---|
+| TC-361 | Actions are returned in `qdb_sequence` order | U + E + L | `strategy.test.ts`, service test, Phase 3 smoke | Passed |
+| TC-362 | A deactivated action is omitted | U + E + L | same | Passed |
+| TC-363 | An equal sequence is broken by name, so the order is stable rather than arbitrary | U | `strategy.test.ts` | Passed |
+| TC-364 | The communication channel is read as a **label** from the provisioned choice, never a raw option value | E + L | service test, Phase 3 smoke | Passed |
+| TC-365 | The activity type is resolved to its **code**, never a lookup GUID | E | `strategy-and-assignment.test.ts` | Passed |
+| TC-366 | Actions are linked to their strategy by the lookup's `_value` form (KI-52 regression) | L | Phase 3 smoke | Passed |
+
+### No policy in application source
+
+| ID | Scenario | Type | Where | Status |
+|---|---|---|---|---|
+| TC-367 | Strategy criteria are carried as data and never interpreted | U | `strategy.test.ts` (`no thresholds in code`) | Passed |
+| TC-368 | **No file in the Collection source compares DPD, arrears, exposure, a bucket or a balance against a literal.** The zero boundary is allowed and documented: it is the definition of "past due", not a policy band | U (source scan) | `collection-portability.test.ts` | Passed |
+| TC-369 | Shared Collection logic names no CRM facility entity and branches on no organisation code | U (source scan) | `collection-portability.test.ts` | Passed |
+
+### Assignment
+
+| ID | Scenario | Type | Where | Status |
+|---|---|---|---|---|
+| TC-370 | The assignment method choice is exactly the provisioned set, not a superset | U | `assignment.test.ts` | Passed |
+| TC-371 | A method the organisation does not offer is rejected | U | `assignment.test.ts` | Passed |
+| TC-372 | The method is read as a label from the provisioned choice | E + L | service test, Phase 3 smoke | Passed |
+| TC-373 | The only active, effective configuration is chosen; lowest priority wins | U | `assignment.test.ts` | Passed |
+| TC-374 | No active, effective configuration is a refusal | U + E | `assignment.test.ts`, service test | Passed |
+| TC-375 | A priority tie is a `Conflict`, not a choice | U + E | same | Passed |
+| TC-376 | The case is handed to the engine the configuration names | E | `strategy-and-assignment.test.ts` | Passed |
+| TC-377 | A configured method with no engine wired is refused | E | same | Passed |
+| TC-378 | **Smart Assignment refuses rather than routing, citing KI-09, and invents nothing** | U + E + L | `assignment.test.ts`, service test, Phase 3 smoke | Passed |
+
+### Contact Hold (KI-44)
+
+| ID | Scenario | Type | Where | Status |
+|---|---|---|---|---|
+| TC-379 | A hold decision returns with its provenance | U | `rule-engine-client.test.ts` | Passed |
+| TC-380 | An unreadable hold answer is a **refusal to contact**, never read as "no hold" | U | `rule-engine-client.test.ts` | Passed |
+| TC-381 | The request carries only identity and channel — **no invented deceased flag, no customer-master column** | U | `rule-engine-client.test.ts` | Passed |
+| TC-382 | An unconfigured Contact Hold ruleset fails closed, naming `qdb_contactholdrulesetcode` | U + L | `collection-configuration.test.ts`, Phase 3 smoke | Passed |
+
+### Case numbering (KI-49)
+
+| ID | Scenario | Type | Where | Status |
+|---|---|---|---|---|
+| TC-383 | The provisional number is composed from business identity and is unique per facility and episode | U | `caseNumbering.test.ts` | Passed |
+| TC-384 | `PlatformConfigured` returns nothing, so the column is omitted and QDB's mechanism fills it | U | `caseNumbering.test.ts` | Passed |
+| TC-385 | Exactly two sources exist — DCP builds no third numbering engine | U | `caseNumbering.test.ts` | Passed |
+| TC-386 | A case is created carrying the provisional number | L | Phase 3 smoke | Passed |
+| TC-387 | **A duplicate case number is refused by the `qdb_casenumber_uk` alternate key**, not by application code | L | Phase 3 smoke — "Entity Key Case Number violated" | Passed |
+| TC-388 | QDB's auto-number mechanism is present and unextended; no cloud-only `AutoNumberFormat` was introduced | L | `verify-qdb-schema.mjs` | Passed |
+
+### Platform configuration, caching, regression
+
+| ID | Scenario | Type | Where | Status |
+|---|---|---|---|---|
+| TC-389 | The runtime configuration assembles from the organisation for one org code | E + L | `collection-configuration.test.ts`, Phase 3 smoke | Passed |
+| TC-390 | A missing snapshot policy, eligibility ruleset or key composition stops the organisation | E | `collection-configuration.test.ts` | Passed |
+| TC-391 | A configured strategy ruleset code is returned; an unconfigured one refuses | E + L | same, Phase 3 smoke | Passed |
+| TC-392 | The organisation is read once and the second call is served from cache | E | `collection-configuration.test.ts` | Passed |
+| TC-393 | After `clearCache()` the organisation is read again, so a published change takes effect | E | `collection-configuration.test.ts` | Passed |
+| TC-394 | **KI-47** — `qdb_facilitysourcesystem` exists on the snapshot, String(50) | L | Phase 3 smoke; `verify-qdb-schema.mjs` 244/244 | Passed |
+| TC-395 | The three `ImmutabilityGuard` Delete steps are restored, enabled and unfiltered after every cleanup | L | Phase 3 smoke | Passed |
+| TC-396 | Every smoke row is removed — "0 smoke record(s) remain" | L | Phase 1, 2 and 3 smokes | Passed |
+| TC-397 | **Phase 1 regression** after the KI-47 schema change | L | `smoke-qdb-plugins.mjs` 13/13 | Passed |
+| TC-398 | **Phase 2 regression** after the KI-47 schema change | L | `smoke-qdb-phase2.mjs` 20/20 | Passed |
+| TC-399 | On-prem compatibility — no cloud-only construct in any Phase 3 path (static) | U | `dual-platform.test.ts`, `collection-portability.test.ts` | Passed (static only — **no on-prem runtime validation**, KI-08) |

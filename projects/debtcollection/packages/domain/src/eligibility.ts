@@ -91,29 +91,5 @@ export function shouldPersistSnapshot(
   return createsOrUpdatesCase(outcome);
 }
 
-// ── Evaluation port (Phase 2) ────────────────────────────────────────────────
-
-import type { MisDelinquencyRecord } from './misObservation.js';
-import type { ResolvedCustomer } from './customerResolution.js';
-
-/**
- * Everything the configured ruleset may consider. No threshold appears here or anywhere in
- * application source: the ruleset decides, this type only carries the facts to it.
- */
-export interface EligibilityInput {
-  record: MisDelinquencyRecord;
-  /** Present when identity resolution succeeded; absent means the ruleset sees an unresolved customer. */
-  customer?: ResolvedCustomer;
-  /** The facility's open case, if one exists — an existing episode is a criterion the ruleset may use. */
-  activeCase?: { id: string; status: string; episodeNumber: number };
-  rulesetCode: string;
-}
-
-/**
- * The port through which Collection Eligibility / Grace is evaluated (ADR-DCP-11). The production
- * implementation calls the Rule Engine by name — a Custom API on cloud, a Process Action on-premises —
- * through `ICrmAdapter.execute`. A missing or empty ruleset must fail closed and loud, never default.
- */
-export interface IEligibilityEvaluator {
-  evaluate(input: EligibilityInput, context: { correlationId?: string }): Promise<EligibilityDecision>;
-}
+// The evaluation port moved to `ruleEngine.ts` in Phase 3: eligibility is one of three decisions the
+// Rule Engine owns, and keeping the three together is what stops a second decision path appearing.

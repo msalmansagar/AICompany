@@ -15,9 +15,9 @@ const NAME_MAX_LENGTH = 100;
  * Appends Delinquency Snapshots. Append only: there is no update method, and the plugin refuses
  * one anyway. Replay idempotency is a lookup on the configured key before every append.
  *
- * The source system is not a physical column on the snapshot today (see the Phase 2 schema note):
- * it is carried inside the composed key when the deployment's composition includes it, and is
- * otherwise implied by the organisation the snapshot lives in.
+ * Both halves of the canonical facility identity are stored explicitly — the number and the source
+ * system (KI-47). The idempotency key may also carry the source system, but a key is an
+ * implementation mechanism; the business data model does not depend on being able to parse one.
  */
 export class DelinquencySnapshotRepository {
   constructor(
@@ -56,6 +56,7 @@ function toValues(snapshot: DelinquencySnapshot, key: string): CrmRecord {
     [SNAPSHOT.snapshotKey]: key,
     [SNAPSHOT.customerBusinessId]: snapshot.customerBusinessId,
     [SNAPSHOT.facilityNumber]: snapshot.facility.facilityNumber,
+    [SNAPSHOT.facilitySourceSystem]: snapshot.facility.sourceSystem,
     [SNAPSHOT.snapshotDate]: snapshot.snapshotDate,
     [SNAPSHOT.receivedOn]: snapshot.receivedOn,
     [SNAPSHOT.integrationBatchId]: snapshot.integrationBatchId,

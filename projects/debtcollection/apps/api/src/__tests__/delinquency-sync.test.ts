@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CASE_STATUS_CODES, CollectionSettingsError } from '@dcp/domain';
 import { DelinquencySyncService } from '../services/collection/index.js';
+import { StubRuleEngine } from '../services/collection/index.js';
 import { buildHarness, delinquentRecord, housingLoanConfiguration, MemoryLogger } from './helpers/collectionFixtures.js';
 import { FakeCrmAdapter } from './helpers/FakeCrmAdapter.js';
 
@@ -62,7 +63,7 @@ describe('a new delinquent facility', () => {
   it('records the ruleset version that judged the facility eligible', async () => {
     const h = buildHarness();
     await h.service.processRecord(delinquentRecord());
-    expect(h.crm.rows(CASES)[0]!['qdb_eligibilityrulesetversion']).toBe('test-evaluator');
+    expect(h.crm.rows(CASES)[0]!['qdb_eligibilityrulesetversion']).toBe('stub-rule-engine');
   });
 
   it('writes a snapshot linked to the new case', async () => {
@@ -185,7 +186,7 @@ describe('customer resolution outcomes', () => {
     const h = buildHarness({ seedCustomer: false });
     await h.service.processRecord(delinquentRecord());
     const [snapshot] = h.crm.rows(SNAPSHOTS);
-    expect(snapshot).toMatchObject({ qdb_customerbusinessid: '28912345678', qdb_facilitynumber: '123456789', qdb_eligibilityoutcome: 100000264 });
+    expect(snapshot).toMatchObject({ qdb_customerbusinessid: '28912345678', qdb_facilitynumber: '123456789', qdb_facilitysourcesystem: 'HL', qdb_eligibilityoutcome: 100000264 });
     expect(snapshot!['_qdb_collectioncaseid_value']).toBeUndefined();
   });
 
@@ -265,9 +266,9 @@ describe('failing closed', () => {
     expect(() => new DelinquencySyncService({
       configuration: { ...housingLoanConfiguration, snapshotPolicy: undefined },
       customers: { resolve: async () => { throw new Error('unused'); } },
-      eligibility: { evaluate: async () => { throw new Error('unused'); } },
+      ruleEngine: new StubRuleEngine({}),
       cases: h.cases, snapshots: h.snapshots, exceptions: { create: async () => 'x' } as never,
-      logger: new MemoryLogger(), episodePolicy: {}, now: () => 'now',
+      logger: new MemoryLogger(), episodePolicy: {}, caseNumbering: 'Provisional', now: () => 'now',
     })).toThrow(CollectionSettingsError);
   });
 
@@ -276,9 +277,9 @@ describe('failing closed', () => {
     expect(() => new DelinquencySyncService({
       configuration: { ...housingLoanConfiguration, eligibilityRulesetCode: undefined },
       customers: { resolve: async () => { throw new Error('unused'); } },
-      eligibility: { evaluate: async () => { throw new Error('unused'); } },
+      ruleEngine: new StubRuleEngine({}),
       cases: h.cases, snapshots: h.snapshots, exceptions: { create: async () => 'x' } as never,
-      logger: new MemoryLogger(), episodePolicy: {}, now: () => 'now',
+      logger: new MemoryLogger(), episodePolicy: {}, caseNumbering: 'Provisional', now: () => 'now',
     })).toThrow(CollectionSettingsError);
   });
 

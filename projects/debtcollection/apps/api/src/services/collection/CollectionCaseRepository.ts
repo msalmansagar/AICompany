@@ -1,7 +1,8 @@
 import {
   caseStatusFromCode,
-  composeProvisionalCaseNumber,
+  caseNumberFor,
   type CachedMisPosition,
+  type CaseNumberSourceKind,
   type CaseResolutionType,
   type CaseStatus,
   type CaseSummary,
@@ -73,7 +74,7 @@ export class CollectionCaseRepository {
   /** Creates the case. The default status is left to the plugin (DefaultStatusAssigner → New). */
   async create(collectionCase: CollectionCase, context: CrmCallContext = {}): Promise<string> {
     const values: CrmRecord = {
-      [CASE.caseNumber]: collectionCase.caseNumber,
+      ...(collectionCase.caseNumber ? { [CASE.caseNumber]: collectionCase.caseNumber } : {}),
       [CASE.customerBusinessId]: collectionCase.customerBusinessId,
       [CASE.facilityNumber]: collectionCase.facility.facilityNumber,
       [CASE.facilitySourceSystem]: collectionCase.facility.sourceSystem,
@@ -119,9 +120,16 @@ export class CollectionCaseRepository {
     await this.crm.update({ entity: ENTITY_SETS.collectionCase, id: caseId }, { [CASE.closedDate]: closedDate }, context);
   }
 
-  /** Composes the provisional case number (KI-39: until QDB auto-number covers the table). */
-  provisionalCaseNumber(facility: FacilityIdentity, episodeNumber: number): string {
-    return composeProvisionalCaseNumber(facility, episodeNumber);
+  /**
+   * The case number to write, as a fragment to spread into the create payload.
+   *
+   * With `PlatformConfigured` numbering the fragment is empty: the column is omitted entirely so the
+   * QDB mechanism fills it. Writing an empty string instead would collide on the
+   * `qdb_casenumber_uk` alternate key the moment a second case was created (KI-49).
+   */
+  caseNumberFor(kind: CaseNumberSourceKind, facility: FacilityIdentity, episodeNumber: number): { caseNumber?: string } {
+    const number = caseNumberFor(kind, facility, episodeNumber);
+    return number === undefined ? {} : { caseNumber: number };
   }
 }
 

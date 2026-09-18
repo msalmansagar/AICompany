@@ -9,6 +9,7 @@
 
 import { z } from 'zod';
 import { CaseStatus, CASE_STATUS_CODES } from './caseLifecycle.js';
+import { composeProvisionalCaseNumber } from './caseNumbering.js';
 import { CachedMisPositionSchema, FacilityIdentitySchema } from './misObservation.js';
 import { CustomerMasterEntitySchema } from './customerResolution.js';
 import { OrganizationCodeSchema } from './platformConfiguration.js';
@@ -29,8 +30,11 @@ export const CaseCustomerRefSchema = z.object({
 
 export const CollectionCaseSchema = z.object({
   id: z.string().uuid().optional(),
-  /** Primary name. Provisional composition until QDB's auto-number configuration covers this table (KI-39). */
-  caseNumber: z.string().min(1),
+  /**
+   * Primary name. Absent when the deployment leaves numbering to the configured QDB mechanism, which
+   * fills the column itself (KI-49); present when DCP composes the interim number.
+   */
+  caseNumber: z.string().min(1).optional(),
   customer: CaseCustomerRefSchema,
   /** The business identifier copied at create for search and reporting; the master is contact/account. */
   customerBusinessId: z.string().min(1),
@@ -55,14 +59,7 @@ export type CollectionCase = z.infer<typeof CollectionCaseSchema>;
 export const CaseSummarySchema = CollectionCaseSchema.pick({
   id: true, caseNumber: true, facility: true, episodeNumber: true, status: true,
   cachedPosition: true, cureDate: true, closedDate: true, openDate: true,
-}).extend({ id: z.string().uuid() });
+}).extend({ id: z.string().uuid(), caseNumber: z.string() });
 export type CaseSummary = z.infer<typeof CaseSummarySchema>;
 
-/**
- * Composes the provisional case number from business identity: unique per facility and episode by
- * construction, and readable. Replaced by QDB's auto-number configuration once that covers the table;
- * until then this is identity, not an invented numbering policy.
- */
-export function composeProvisionalCaseNumber(facility: { facilityNumber: string; sourceSystem: string }, episodeNumber: number): string {
-  return `${facility.sourceSystem}-${facility.facilityNumber}-E${episodeNumber}`;
-}
+export { composeProvisionalCaseNumber };

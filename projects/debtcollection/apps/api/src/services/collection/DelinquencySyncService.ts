@@ -14,8 +14,9 @@ import {
   type EpisodePolicy,
   type FacilityIdentity,
   type ICollectionLogger,
+  type CaseNumberSourceKind,
   type ICustomerResolver,
-  type IEligibilityEvaluator,
+  type IRuleEngine,
   type MisDelinquencyRecord,
   type PlatformConfiguration,
   type ResolvedCustomer,
@@ -51,12 +52,15 @@ export interface BatchOutcome {
 export interface SyncDependencies {
   configuration: PlatformConfiguration;
   customers: ICustomerResolver;
-  eligibility: IEligibilityEvaluator;
+  /** The Rule Engine facade. Eligibility is one of its decisions; nothing else may decide it. */
+  ruleEngine: IRuleEngine;
   cases: CollectionCaseRepository;
   snapshots: DelinquencySnapshotRepository;
   exceptions: IdentityExceptionRepository;
   logger: ICollectionLogger;
   episodePolicy: EpisodePolicy;
+  /** Whether DCP composes the case number or the configured QDB mechanism does (KI-49). */
+  caseNumbering: CaseNumberSourceKind;
   /** Injected clock, so cure dates and reopen windows are testable. */
   now: () => string;
 }
@@ -139,7 +143,7 @@ export class DelinquencySyncService {
     }
 
     const activeCase = await this.deps.cases.findActiveByFacility(facility, context);
-    const decision = await this.deps.eligibility.evaluate({
+    const decision = await this.deps.ruleEngine.evaluateEligibility({
       record, customer: resolution.customer, rulesetCode: this.rulesetCode,
       ...(activeCase ? { activeCase: { id: activeCase.id, status: activeCase.status, episodeNumber: activeCase.episodeNumber } } : {}),
     }, context);
@@ -166,7 +170,7 @@ export class DelinquencySyncService {
     switch (action.kind) {
       case 'Create': {
         const caseId = await this.deps.cases.create({
-          caseNumber: this.deps.cases.provisionalCaseNumber(facility, action.episodeNumber),
+          ...this.deps.cases.caseNumberFor(this.deps.caseNumbering, facility, action.episodeNumber),
           customer: { entity: customer.entity, id: customer.id },
           customerBusinessId: customer.businessId,
           facility,

@@ -29,6 +29,9 @@ export const ENTITY_SETS = {
   collectionActivity: 'qdb_collectionactivities',
   collectionActivityType: 'qdb_collectionactivitytypes',
   identityException: 'qdb_identityexceptions',
+  collectionStrategy: 'qdb_collectionstrategies',
+  strategyAction: 'qdb_strategyactions',
+  assignmentConfiguration: 'qdb_assignmentconfigurations',
 } as const;
 
 /** Single-valued navigation properties, as the organisation reports them (ReferencingEntityNavigationPropertyName). */
@@ -85,6 +88,7 @@ export const SNAPSHOT = {
   snapshotKey: 'qdb_snapshotkey',
   customerBusinessId: 'qdb_customerbusinessid',
   facilityNumber: 'qdb_facilitynumber',
+  facilitySourceSystem: 'qdb_facilitysourcesystem',
   snapshotDate: 'qdb_snapshotdate',
   receivedOn: 'qdb_receivedon',
   integrationBatchId: 'qdb_integrationbatchid',
@@ -205,4 +209,115 @@ export function caseStateCodeOf(status: CaseStatus): 0 | 1 {
 /** Builds an `@odata.bind` payload entry for a lookup. */
 export function bind(navigation: string, entitySet: string, id: string): Record<string, string> {
   return { [`${navigation}@odata.bind`]: `/${entitySet}(${id})` };
+}
+
+// ── Phase 3: configuration entities ──────────────────────────────────────────
+
+export const STRATEGY = {
+  id: 'qdb_collectionstrategyid',
+  code: 'qdb_code',
+  name: 'qdb_name',
+  priority: 'qdb_priority',
+  isActive: 'qdb_isactive',
+  effectiveFrom: 'qdb_effectivefrom',
+  effectiveTo: 'qdb_effectiveto',
+  ruleCode: 'qdb_rulecode',
+  noAutomatedContact: 'qdb_noautomatedcontact',
+  description: 'qdb_description',
+  customerType: 'qdb_customertype',
+  productType: 'qdb_producttype',
+  dpdFrom: 'qdb_dpdfrom',
+  dpdTo: 'qdb_dpdto',
+  arrearsFrom: 'qdb_arrearsfrom',
+  arrearsTo: 'qdb_arrearsto',
+  exposureFrom: 'qdb_exposurefrom',
+  exposureTo: 'qdb_exposureto',
+  riskLevel: 'qdb_risklevel',
+  nplFlag: 'qdb_nplflag',
+  brokenPtpCountFrom: 'qdb_brokenptpcountfrom',
+  legalStatus: 'qdb_legalstatus',
+  restructureStatus: 'qdb_restructurestatus',
+} as const;
+
+export const STRATEGY_ACTION = {
+  id: 'qdb_strategyactionid',
+  name: 'qdb_name',
+  sequence: 'qdb_sequence',
+  dayOffset: 'qdb_dayoffset',
+  triggerEvent: 'qdb_triggerevent',
+  communicationChannel: 'qdb_communicationchannel',
+  queueName: 'qdb_queuename',
+  requiresApproval: 'qdb_requiresapproval',
+  isMandatory: 'qdb_ismandatory',
+  stopOnPayment: 'qdb_stoponpayment',
+  stopOnPtp: 'qdb_stoponptp',
+  escalateIfNotCompleted: 'qdb_escalateifnotcompleted',
+  escalationHours: 'qdb_escalationhours',
+  processCode: 'qdb_processcode',
+  ruleCode: 'qdb_rulecode',
+  isActive: 'qdb_isactive',
+  /**
+   * A lookup is read by its `_<column>_value` form, and that is the form `$select` must name.
+   * Selecting the storage column (`qdb_strategyid`) is accepted and returns nothing for it — the
+   * rows come back looking unparented. Writes do not use these at all; they bind through
+   * `NAVIGATION`, whose property names are read from the organisation.
+   */
+  strategyLookupValue: '_qdb_strategyid_value',
+  activityTypeLookupValue: '_qdb_activitytypeid_value',
+} as const;
+
+export const ASSIGNMENT = {
+  id: 'qdb_assignmentconfigurationid',
+  name: 'qdb_name',
+  method: 'qdb_assignmentmethod',
+  priority: 'qdb_priority',
+  isActive: 'qdb_isactive',
+  effectiveFrom: 'qdb_effectivefrom',
+  effectiveTo: 'qdb_effectiveto',
+  customerType: 'qdb_customertype',
+  productType: 'qdb_producttype',
+  region: 'qdb_region',
+  riskLevel: 'qdb_risklevel',
+  legalStatus: 'qdb_legalstatus',
+  slaHours: 'qdb_slahours',
+  smartAssignmentRef: 'qdb_smartassignmentref',
+} as const;
+
+/** `qdb_assignment_method`, exactly as provisioned. */
+export const ASSIGNMENT_METHOD_VALUES = {
+  RoundRobin: 100000220,
+  Load: 100000221,
+  Territory: 100000222,
+  SmartAssignment: 100000223,
+  Manual: 100000224,
+} as const;
+
+/** `qdb_trigger_event`, exactly as provisioned. */
+export const TRIGGER_EVENT_VALUES = {
+  DayOffset: 100000240,
+  BucketChange: 100000241,
+  BrokenPTP: 100000242,
+  Cure: 100000243,
+  NewDelinquency: 100000244,
+  SLA: 100000245,
+  Manual: 100000246,
+} as const;
+
+/** `qdb_communication_channel`, exactly as provisioned. */
+export const COMMUNICATION_CHANNEL_VALUES = {
+  SMS: 100000100,
+  WhatsApp: 100000101,
+  Email: 100000102,
+  Call: 100000103,
+  OfficialLetter: 100000104,
+} as const;
+
+/**
+ * Turns a choice integer back into its label. A value the organisation holds but this build does not
+ * know returns `undefined` — the caller then leaves the field absent rather than inventing a meaning
+ * for a number it cannot name.
+ */
+export function labelOf<T extends Record<string, number>>(values: T, raw: unknown): Extract<keyof T, string> | undefined {
+  if (typeof raw !== 'number') return undefined;
+  return (Object.keys(values) as Extract<keyof T, string>[]).find(key => values[key] === raw);
 }

@@ -361,6 +361,67 @@ capability produces a Warning Letter, remain `TBD — Requires QDB Confirmation`
 
 ---
 
+## 7a. The configuration and decision layer (implemented, Phase 3, 2026-09-18)
+
+Phase 2 established what a Collection Case *is*. Phase 3 establishes **what decides anything about it**,
+and the answer is: never this platform.
+
+```
+                    ┌─────────────────────────────────────────────┐
+   MIS observation  │  QDB Rule Engine  (Custom API / Process     │
+        │           │  Action — same operation names, both        │
+        ▼           │  platforms, resolved from configuration)    │
+  ┌───────────┐     └───────────────▲─────────────────────────────┘
+  │ Sync /    │   IRuleEngine       │  eligibility · strategy · contact hold
+  │ Workspace ├─────────────────────┘     (facts in, decision + version out)
+  └─────┬─────┘
+        │  a strategy *code*, not a record
+        ▼
+  ┌──────────────────────────────────────────────────────────┐
+  │ Configuration, read from the organisation                │
+  │  qdb_collectionstrategy  → qdb_strategyaction            │
+  │  qdb_assignmentconfiguration                             │
+  │  qdb_platformconfiguration (+ qdb_featureflags)          │
+  └─────┬────────────────────────────────────────────────────┘
+        │  resolved: active? effective? one winner?
+        ▼
+   Collection Case lifecycle (Phase 2)      Assignment → IAssignmentEngine
+                                              └─ SmartAssignment: QDB's, not ours
+```
+
+### The three rules this layer exists to keep
+
+**1. No threshold is in application source.** Not a DPD band, not an arrears floor, not an exposure
+range, not a grace period. The Rule Engine holds them, where a business user can see and version them.
+This is now enforced two ways: behaviourally (`strategy.test.ts` — criteria are carried as data and
+never interpreted) and mechanically (`collection-portability.test.ts` scans every Collection source file
+for a comparison between a collections figure and a numeric literal). See ADR-DCP-13.
+
+**2. No critical configuration receives a hidden default.** A missing snapshot policy, eligibility
+ruleset or snapshot key composition **stops the organisation**, with an error naming the setting and the
+table it lives in. Only two members have a fallback — episode policy (*a re-delinquency starts a new
+episode*, the rule the architecture already states) and case numbering (*DCP composes the interim
+number*, because QDB's mechanism holds no configuration row to defer to) — and each is the conservative
+reading rather than a guess. See `ConfigurationGuide.md` §13.
+
+**3. Every refusal is named, logged and actionable.** `NotFound`, `NoneApplicable`, `Conflict`,
+`NotEffective`, `Unavailable`, `rule_engine_unusable` — each says which configuration to fix, and each
+reaches `qdb_crmlogs` before it is raised. Nothing silently chooses a strategy; nothing silently sends;
+nothing silently routes.
+
+### What DCP deliberately does **not** own
+
+| Decision | Owner | How DCP behaves without it |
+|---|---|---|
+| Is this delinquency worth a case? | Rule Engine ruleset | Refuses, naming `qdb_eligibilityrulesetcode` |
+| Which strategy treats this case? | Rule Engine ruleset | Refuses, naming `qdb_strategyrulesetcode` |
+| May we contact this customer? (FR-097) | Rule Engine ruleset over a QDB-confirmed source | Refuses. **No Contact or Account column was invented; no deceased flag is passed** (KI-44) |
+| Which officer or queue gets the case? | QDB Smart Assignment | Refuses, citing KI-09. **No routing algorithm exists in DCP** (ADR-DCP-14) |
+| What does a case number look like? | QDB auto-number, once configured | Composes an obviously interim number from business identity (ADR-DCP-15) |
+| Is the debt cured? | **MIS** | Records the lifecycle transition MIS's answer implies — and nothing more (ADR-DCP-12) |
+
+Each of those is a live-proven refusal, not a design intention: see `Phase_3_Completion_Report.md` §7–§12.
+
 ## 8. Security model (MP §53–55) — see `SecurityModel.md`
 
 Layer 1 CRM data security (roles, BU, teams, ownership, field security on contact/account PII

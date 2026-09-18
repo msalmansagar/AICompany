@@ -17,12 +17,27 @@
 import { z } from 'zod';
 import { EpisodePolicySchema } from './episode.js';
 import { SnapshotKeyCompositionSchema } from './snapshot.js';
+import { CaseNumberSourceKindSchema } from './caseNumbering.js';
 import type { PlatformConfiguration } from './platformConfiguration.js';
+
+/**
+ * Names of the Rule Engine operations this deployment exposes — a Custom API on cloud, a Process
+ * Action on-premises. Each is optional because a deployment may not have configured that decision
+ * yet; asking for one that is unset fails closed rather than defaulting to a name that might exist.
+ */
+export const RuleEngineOperationsSchema = z.object({
+  eligibility: z.string().min(1).optional(),
+  strategy: z.string().min(1).optional(),
+  contactHold: z.string().min(1).optional(),
+}).strict();
+export type RuleEngineOperations = z.infer<typeof RuleEngineOperationsSchema>;
 
 export const CollectionSettingsSchema = z.object({
   snapshotKeyComposition: SnapshotKeyCompositionSchema.optional(),
   episodePolicy: EpisodePolicySchema.optional(),
-  eligibilityOperation: z.string().min(1).optional(),
+  ruleEngineOperations: RuleEngineOperationsSchema.optional(),
+  /** Whether DCP composes the case number or the configured QDB mechanism does (KI-49). */
+  caseNumbering: CaseNumberSourceKindSchema.optional(),
 }).strict();
 export type CollectionSettings = z.infer<typeof CollectionSettingsSchema>;
 
@@ -39,11 +54,8 @@ export class CollectionSettingsError extends Error {
  */
 export function readCollectionSettings(featureFlags: Record<string, unknown> | undefined): CollectionSettings {
   if (!featureFlags) return {};
-  const picked = {
-    ...('snapshotKeyComposition' in featureFlags ? { snapshotKeyComposition: featureFlags['snapshotKeyComposition'] } : {}),
-    ...('episodePolicy' in featureFlags ? { episodePolicy: featureFlags['episodePolicy'] } : {}),
-    ...('eligibilityOperation' in featureFlags ? { eligibilityOperation: featureFlags['eligibilityOperation'] } : {}),
-  };
+  const keys = ['snapshotKeyComposition', 'episodePolicy', 'ruleEngineOperations', 'caseNumbering'] as const;
+  const picked = Object.fromEntries(keys.filter(k => k in featureFlags).map(k => [k, featureFlags[k]]));
   const parsed = CollectionSettingsSchema.safeParse(picked);
   if (!parsed.success) {
     throw new CollectionSettingsError(`Collection settings in the feature flags are malformed: ${parsed.error.message}`);

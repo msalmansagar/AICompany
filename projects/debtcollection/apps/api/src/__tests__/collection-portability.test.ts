@@ -20,6 +20,20 @@ const roots = [
 const FORBIDDEN_PHYSICAL_NAMES = ['qdb_facilitylimit', 'qdb_customerproduct', 'facilitylimit', 'customerproduct', 'qdb_facilityid', 'crmi_'];
 const ORGANISATION_BRANCHES = [/===\s*['"](HL|BFD)['"]/, /case\s+['"](HL|BFD)['"]\s*:/];
 
+/**
+ * A collections policy threshold compared against a literal — `dpd > 30`, `totalArrears < 5000`,
+ * an exposure band, a bucket boundary. Every one of these belongs in a Rule Engine ruleset where a
+ * business user can see and version it (ADR-DCP-11, ADR-DCP-13).
+ *
+ * `> 0` and `=== 0` are allowed on purpose: zero is not a policy boundary, it is the arithmetic
+ * definition of "past due at all", which is what separates a delinquent facility from a cured one.
+ */
+const THRESHOLD_TERMS = String.raw`dpd|arrear|arrears|exposure|bucket|balance|instal?lment|outstanding`;
+const THRESHOLD_COMPARISONS = [
+  new RegExp(String.raw`\b[A-Za-z_.]*(?:${THRESHOLD_TERMS})[A-Za-z_]*\s*(?:<=?|>=?|===|!==)\s*-?(?!0\b)\d`, 'i'),
+  new RegExp(String.raw`(?<!\w)-?(?!0\b)\d+\s*(?:<=?|>=?)\s*[A-Za-z_.]*(?:${THRESHOLD_TERMS})`, 'i'),
+];
+
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap(name => {
     const path = join(dir, name);
@@ -50,4 +64,11 @@ describe('shared Collection logic', () => {
       for (const pattern of ORGANISATION_BRANCHES) expect(code, `${file} branches on HL/BFD`).not.toMatch(pattern);
     },
   );
+
+  it.each(files)('%s holds no DPD, arrears, exposure or bucket threshold', (file) => {
+    const code = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    for (const pattern of THRESHOLD_COMPARISONS) {
+      expect(code, `${file} compares a collections figure against a literal; that rule belongs in the ruleset`).not.toMatch(pattern);
+    }
+  });
 });

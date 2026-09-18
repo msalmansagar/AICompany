@@ -180,6 +180,12 @@ const snapshotAttrs = [
   // Source identity — required at persist, straight from the MIS payload, never from a CRM lookup.
   piiStrAttr('qdb_customerbusinessid',   'Customer Business ID',       50,  'ApplicationRequired'),
   strAttr('qdb_facilitynumber',          'Facility Number',            50,  'ApplicationRequired'),
+  // The other half of the canonical facility identity. Added 2026-09-18 (KI-47, approved): the
+  // identity is facility number + source system, so the observation must carry both explicitly.
+  // The idempotency key may also include it, but a key is an implementation mechanism and must never
+  // be the only place the business data model can be read from. Not ApplicationRequired: existing
+  // rows predate the column, and a value is written by every new observation.
+  strAttr('qdb_facilitysourcesystem',    'Facility Source System',     50),
   dtAttr('qdb_snapshotdate',             'Snapshot Date (As Of)',      'ApplicationRequired'),
   dtAttr('qdb_receivedon',               'Received On',                'ApplicationRequired'),
   strAttr('qdb_integrationbatchid',      'Integration Batch ID',       100, 'ApplicationRequired'),

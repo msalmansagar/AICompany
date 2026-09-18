@@ -27,6 +27,7 @@ const STATUS = {
   caseNew: 100000600,
   caseAssigned: 100000601,
   caseSettled: 100000613,
+  caseInProgress: 100000602,
   activityOpen: 100000640,
   activityCompleted: 100000644,
   ptpActive: 100000080,
@@ -115,10 +116,17 @@ async function checkCaseDefaultStatus(cfg, token, stamp) {
   return caseId;
 }
 
-/** StatusTransitionValidator permits New → Assigned and refuses New → Settled. */
+/**
+ * StatusTransitionValidator permits New → Assigned and refuses New → In Progress.
+ *
+ * The refusal used to be New → Settled. KI-46 made Settled a universal target — MIS determines
+ * financial cure, and a case may be cured from any working state — so the transition that still
+ * proves the matrix is one that skips assignment. The Settled path itself is exercised live by the
+ * Phase 2 smoke, which records a cure and reads the resolution back.
+ */
 async function checkCaseTransitions(cfg, token, caseId) {
-  const refusedJump = await patch(cfg, token, 'qdb_collectioncases', caseId, { statuscode: STATUS.caseSettled });
-  record('Case New → Settled refused (StatusTransitionValidator)',
+  const refusedJump = await patch(cfg, token, 'qdb_collectioncases', caseId, { statuscode: STATUS.caseInProgress });
+  record('Case New → In Progress refused, assignment cannot be skipped (StatusTransitionValidator)',
     refusedJump !== null && /not permitted/i.test(refusedJump),
     refusedJump ? refusedJump.split('\n')[0].slice(0, 120) : 'no error raised');
 

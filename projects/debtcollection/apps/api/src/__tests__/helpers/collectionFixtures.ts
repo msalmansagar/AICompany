@@ -7,10 +7,10 @@ import {
   DelinquencySnapshotRepository,
   DelinquencySyncService,
   IdentityExceptionRepository,
-  StaticEligibilityEvaluator,
+  StubRuleEngine,
 } from '../../services/collection/index.js';
 import type { SyncDependencies } from '../../services/collection/index.js';
-import type { EligibilityInput, EligibilityOutcome, EpisodePolicy } from '@dcp/domain';
+import type { CaseNumberSourceKind, EligibilityInput, EligibilityOutcome, EpisodePolicy, IRuleEngine } from '@dcp/domain';
 
 /** A Housing Loan deployment: customers on contact, the national id on the OOB governmentid column. */
 export const housingLoanConfiguration: PlatformConfiguration = {
@@ -64,6 +64,8 @@ export function buildHarness(options: {
   configuration?: PlatformConfiguration;
   decide?: (input: EligibilityInput) => EligibilityOutcome;
   episodePolicy?: EpisodePolicy;
+  caseNumbering?: CaseNumberSourceKind;
+  ruleEngine?: IRuleEngine;
   seedCustomer?: boolean;
 } = {}): Harness {
   const configuration = options.configuration ?? housingLoanConfiguration;
@@ -81,12 +83,13 @@ export function buildHarness(options: {
   const deps: SyncDependencies = {
     configuration,
     customers: new CustomerResolutionService(crm, configuration),
-    eligibility: new StaticEligibilityEvaluator(options.decide ?? (() => 'EligibleCreateCase'), 'test-evaluator'),
+    ruleEngine: options.ruleEngine ?? new StubRuleEngine({ eligibility: options.decide ?? (() => 'EligibleCreateCase') }),
     cases,
     snapshots,
     exceptions: new IdentityExceptionRepository(crm),
     logger,
     episodePolicy: options.episodePolicy ?? {},
+    caseNumbering: options.caseNumbering ?? 'Provisional',
     now: () => now.value,
   };
   return { crm, logger, service: new DelinquencySyncService(deps), cases, snapshots, activities, contactId, now };
