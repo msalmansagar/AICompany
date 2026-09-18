@@ -5,7 +5,12 @@ import { useHashRoute } from './shell/useHashRoute.js';
 import { isPending, type ViewDefinition } from './shell/routes.js';
 import { findXrm, readCrmContext, CrmContextError } from './platform/crmContext.js';
 import { XrmCrmAdapter } from './platform/XrmCrmAdapter.js';
-import { AuditView, CasesView, MyDayView, PendingView, QueuesView, SimpleReadView } from './views/index.js';
+import { AuditView, CasesView, MyDayView, PendingView, QueuesView } from './views/index.js';
+import { CaseWorkspaceView } from './views/CaseWorkspace.js';
+import { Customer360View } from './views/Customer360.js';
+import { ActionPlanView, SegmentationView, StrategyRulesView } from './views/strategyViews.js';
+import { DashboardsView, DelinquencyIntakeView, PromiseToPayView } from './views/operationsViews.js';
+import { ConfigurationView } from './views/ConfigurationView.js';
 import './styles/tokens.css';
 import './styles/components.css';
 import './styles/uci.css';
@@ -45,7 +50,12 @@ function Workspace() {
   const route = useHashRoute();
   return (
     <AppShell commands={<Commands view={route.view} />}>
-      <ViewHost view={route.view} onOpenCase={id => route.go('case', id)} />
+      <ViewHost
+        view={route.view}
+        {...(route.recordId !== undefined ? { recordId: route.recordId } : {})}
+        onOpenCase={id => route.go('case', id)}
+        onOpenCustomer={customerBusinessId => route.go('customer', customerBusinessId)}
+      />
     </AppShell>
   );
 }
@@ -57,32 +67,47 @@ function Workspace() {
  * so. That is the UI Requirements Matrix enforced at runtime: every route resolves to something, and
  * nothing resolves to invented data.
  */
-function ViewHost({ view, onOpenCase }: { view: ViewDefinition; onOpenCase: (id: string) => void }) {
+function ViewHost({ view, recordId, onOpenCase, onOpenCustomer }: {
+  view: ViewDefinition;
+  recordId?: string | undefined;
+  onOpenCase: (id: string) => void;
+  onOpenCustomer: (customerBusinessId: string) => void;
+}) {
   if (isPending(view)) return <PendingView view={view} />;
 
   switch (view.id) {
     case 'myday': return <MyDayView onOpenCase={onOpenCase} />;
     case 'queues': return <QueuesView onOpenCase={onOpenCase} />;
     case 'cases': return <CasesView onOpenCase={onOpenCase} />;
+    case 'case': return <CaseWorkspaceView caseId={recordId} onOpenCustomer={onOpenCustomer} />;
+    case 'customer': return <Customer360View customerBusinessId={recordId} onOpenCase={onOpenCase} />;
+    case 'intake': return <DelinquencyIntakeView />;
+    case 'buckets': return <SegmentationView />;
+    case 'rules': return <StrategyRulesView view={view} />;
+    case 'actionplan': return <ActionPlanView view={view} />;
+    case 'ptp': return <PromiseToPayView view={view} />;
+    case 'dashboards': return <DashboardsView view={view} />;
+    case 'admin': return <ConfigurationView view={view} />;
     case 'audit': return <AuditView />;
     default:
-      return <SimpleReadView view={view} description={describeBacking(view)} />;
+      // Every Phase 5 view above resolves to an implementation, and every later-phase view resolved
+      // to `PendingView` at the top. A route reaching here would mean the route table and this switch
+      // disagree, which is a defect rather than a screen — a test asserts it cannot happen.
+      return <UnroutedView view={view} />;
   }
 }
 
-function describeBacking(view: ViewDefinition): string {
-  const backing: Record<string, string> = {
-    customer: 'Aggregated around the CRM customer — contact for Housing Loan, account for BFD. Not a separate customer master.',
-    case: 'The Collection Case and its related records.',
-    intake: 'Delinquency snapshots, identity exceptions and synchronisation run reports.',
-    buckets: 'Collection Strategy criteria, read as configuration.',
-    rules: 'Collection Strategy and Strategy Action configuration.',
-    actionplan: 'The strategy actions resolved for a case.',
-    ptp: 'Promise-to-Pay activities.',
-    dashboards: 'Bounded operational counts.',
-    admin: 'Platform configuration and mapping.',
-  };
-  return backing[view.id] ?? 'Reads the approved configuration for this area.';
+/** A Phase 5 view with no implementation. It should be unreachable, and it says so rather than hiding. */
+function UnroutedView({ view }: { view: ViewDefinition }) {
+  return (
+    <div className="host-missing" data-testid="unrouted-view" data-view={view.id}>
+      <h1>{view.label}</h1>
+      <p>
+        This view is declared as Phase 5 in the route table but has no implementation bound to it.
+        That is a defect in the router, not a screen that is still to come.
+      </p>
+    </div>
+  );
 }
 
 /** The approved command bar. Later-phase commands stay visible and disabled rather than vanishing. */

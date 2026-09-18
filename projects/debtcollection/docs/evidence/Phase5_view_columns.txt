@@ -1,0 +1,23 @@
+=== Every column the workspace reads, checked against the organisation ===
+
+  Organisation: org5869857f.crm4.dynamics.com
+
+  PASS  qdb_collectioncases → qdb_collectioncase: every read column exists — 30 columns
+  PASS  qdb_collectionactivities → qdb_collectionactivity: every read column exists — 20 columns
+  PASS  qdb_delinquencysnapshots → qdb_delinquencysnapshot: every read column exists — 18 columns
+  PASS  qdb_collectionstrategies → qdb_collectionstrategy: every read column exists — 23 columns
+  PASS  qdb_strategyactions → qdb_strategyaction: every read column exists — 18 columns
+  PASS  qdb_identityexceptions → qdb_identityexception: every read column exists — 12 columns
+  PASS  qdb_platformconfigurations → qdb_platformconfiguration: every read column exists — 18 columns
+  PASS  qdb_platformmappings → qdb_platformmapping: every read column exists — 11 columns
+  PASS  qdb_crmlogses → qdb_crmlogs: every read column exists — 7 columns
+  PASS  contacts → contact: every read column exists — 9 columns
+  PASS  accounts → account: every read column exists — 7 columns
+
+  173 column names checked against live metadata.
+
+  NOT proven by this script: that a query returns the values a screen expects, or
+  that the workspace runs inside Dynamics. Existence is necessary, not sufficient —
+  KI-52 was a column that existed and still returned nothing when selected wrongly.
+
+=== 11/11 checks passed ===

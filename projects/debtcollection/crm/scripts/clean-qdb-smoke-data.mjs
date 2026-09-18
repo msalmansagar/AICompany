@@ -42,6 +42,7 @@ const SMOKE_TABLES = [
   { entitySet: 'qdb_collectionstrategies', label: 'collection strategy', markerField: 'qdb_name', idField: 'qdb_collectionstrategyid', guarded: false },
   { entitySet: 'qdb_assignmentconfigurations', label: 'assignment configuration', markerField: 'qdb_name', idField: 'qdb_assignmentconfigurationid', guarded: false },
   { entitySet: 'qdb_collectionactivitytypes', label: 'activity type (reference data)', markerField: 'qdb_code', idField: 'qdb_collectionactivitytypeid', guarded: false },
+  { entitySet: 'qdb_platformmappings', label: 'platform mapping (smoke)', markerField: 'qdb_name', idField: 'qdb_platformmappingid', guarded: false },
   { entitySet: 'qdb_platformconfigurations', label: 'platform configuration (smoke)', markerField: 'qdb_environmentcode', idField: 'qdb_platformconfigurationid', guarded: false },
   { entitySet: 'contacts', label: 'contact (smoke customer)', markerField: 'governmentid', idField: 'contactid', guarded: false },
 ];

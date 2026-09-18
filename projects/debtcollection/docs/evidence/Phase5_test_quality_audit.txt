@@ -1,6 +1,6 @@
-=== Test-quality audit — 44 test file(s) scanned ===
+=== Test-quality audit — 46 test file(s) scanned ===
 
-── MEDIUM (19)
+── MEDIUM (20)
    apps/api/src/__tests__/collection-portability.test.ts:64  [assert-nothing-when-empty]
       for (const pattern of ORGANISATION_BRANCHES) expect(code, `${file} branches on HL/BFD`).not.toMa
       why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
@@ -19,10 +19,13 @@
    apps/web/src/__tests__/performance.test.tsx:218  [assert-nothing-when-empty]
       for (const m of measurements) {
       why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
-   apps/web/src/__tests__/platform.test.ts:279  [assert-nothing-when-empty]
+   apps/web/src/__tests__/performance.test.tsx:224  [assert-nothing-when-empty]
+      for (const m of measurements.filter(x => x.population === 100_000)) {
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+   apps/web/src/__tests__/platform.test.ts:295  [assert-nothing-when-empty]
       for (const method of ['retrieve', 'retrieveByKey', 'retrieveMultiple', 'retrievePage', 'create',
       why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
-   apps/web/src/__tests__/platform.test.ts:290  [assert-nothing-when-empty]
+   apps/web/src/__tests__/platform.test.ts:306  [assert-nothing-when-empty]
       for (const forbidden of ['dpd', 'arrear', 'bucket', 'eligib', 'strategy']) {
       why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
    crm/scripts/lib/tooling-auth.test.mjs:21  [assert-nothing-when-empty]
@@ -63,7 +66,7 @@
    apps/api/src/__tests__/platform-configuration-service.test.ts:138  [empty-array-equality]
       expect(configuration.mappings).toEqual([]);
       why: Asserting an empty array passes when the query silently returned nothing.
-   apps/web/src/__tests__/platform.test.ts:285  [empty-array-equality]
+   apps/web/src/__tests__/platform.test.ts:301  [empty-array-equality]
       expect(names.filter(n => /decide|evaluate|calculate|score|assign|eligib/i.test(n))).toEqual([]);
       why: Asserting an empty array passes when the query silently returned nothing.
    packages/domain/src/paging.test.ts:160  [empty-array-equality]
@@ -73,5 +76,5 @@
       expect(page.items).toEqual([]);
       why: Asserting an empty array passes when the query silently returned nothing.
 
-23 finding(s). Each needs a human decision: a loop over a constant table is
+24 finding(s). Each needs a human decision: a loop over a constant table is
 fine, a loop over a query result is not. The point is that none of them goes unnoticed.

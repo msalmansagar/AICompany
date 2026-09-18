@@ -63,6 +63,26 @@ export function StaleReason({ meta }: { meta: MisResponseMeta }) {
   );
 }
 
+/**
+ * What the case and snapshot tables hold: the position MIS reported when it last reported.
+ *
+ * This is **not** a live MIS read, and the difference matters enough to be stated on screen rather
+ * than inferred. The MIS transport contract does not exist yet (KI-53), so no screen in this phase
+ * can show a live figure — and a stored figure presented without qualification would read as one.
+ */
+export function StoredPositionNotice({ asOf, syncedOn }: { asOf?: string | undefined; syncedOn?: string | undefined }) {
+  return (
+    <div className="freshness freshness-stored" data-testid="stored-position" data-freshness="Stored">
+      <Icon name="info" />
+      <span className="freshness-label">Stored MIS position — not a live MIS read</span>
+      <span className="freshness-detail">
+        <span data-testid="stored-asof">As of {formatStamp(asOf)}</span>
+        <span data-testid="stored-synced">Recorded {formatStamp(syncedOn)}</span>
+      </span>
+    </div>
+  );
+}
+
 function formatStamp(value: string | undefined): string {
   if (!value) return '—';
   const date = new Date(value);

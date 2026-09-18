@@ -67,6 +67,86 @@ export function KpiRow({ items }: { items: readonly Kpi[] }) {
   );
 }
 
+/**
+ * The prototype's `DC.pivot`: a tab strip whose panels are all present.
+ *
+ * A tab owned by a later phase keeps its place and is still selectable — it says which phase owns it
+ * rather than disappearing, so the approved information architecture stays intact. Hiding it would
+ * quietly shrink the design; faking its contents would be worse.
+ */
+export interface PivotTab {
+  id: string;
+  label: string;
+  /** Rendered when the tab is active. */
+  render: () => ReactNode;
+  /** Set when a later phase owns the tab's functionality. */
+  pendingPhase?: number;
+}
+
+export function Pivot({ tabs, activeId, onSelect, testId = 'pivot' }: {
+  tabs: readonly PivotTab[];
+  activeId: string;
+  onSelect: (id: string) => void;
+  testId?: string;
+}) {
+  const active = tabs.find(tab => tab.id === activeId) ?? tabs[0];
+  return (
+    <div className="pivot" data-testid={testId}>
+      <div className="pivot-tabs" role="tablist">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={tab.id === active?.id}
+            className={`pivot-tab${tab.id === active?.id ? ' pivot-tab-active' : ''}`}
+            data-testid={`${testId}-tab-${tab.id}`}
+            {...(tab.pendingPhase !== undefined ? { 'data-pending-phase': tab.pendingPhase } : {})}
+            onClick={() => onSelect(tab.id)}
+          >
+            {tab.label}
+            {tab.pendingPhase !== undefined && <span className="pivot-tab-phase">P{tab.pendingPhase}</span>}
+          </button>
+        ))}
+      </div>
+      <div className="pivot-panel" role="tabpanel" data-testid={`${testId}-panel-${active?.id ?? 'none'}`}>
+        {active?.render()}
+      </div>
+    </div>
+  );
+}
+
+/** A tab, section or screen whose functionality a later phase owns. */
+export function PendingPhasePanel({ phase, what }: { phase: number; what: string }) {
+  return (
+    <div className="pending-phase" data-testid={`pending-panel-${phase}`} data-owning-phase={phase}>
+      <Icon name="info" />
+      <div>
+        <strong>Phase {phase} owns this.</strong>
+        <p>{what}</p>
+        <p className="pending-phase-note">No data is shown here, because none would be real.</p>
+      </div>
+    </div>
+  );
+}
+
+/** Label/value pairs, as the approved summary panes lay them out. */
+export function FieldList({ fields, testId = 'fields' }: {
+  fields: readonly { label: string; value: ReactNode }[];
+  testId?: string;
+}) {
+  return (
+    <dl className="field-list" data-testid={testId}>
+      {fields.map(field => (
+        <div key={field.label} className="field-list-item">
+          <dt>{field.label}</dt>
+          <dd>{field.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 // ── Pills, chips and badges ──────────────────────────────────────────────────
 
 /** The bucket exactly as MIS reported it. Nothing here derives a bucket from a DPD. */

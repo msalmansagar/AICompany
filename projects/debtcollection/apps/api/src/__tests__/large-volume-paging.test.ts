@@ -145,6 +145,8 @@ describe('filter, sort and search at volume, applied by the source', () => {
   it('applies a DPD range at the source and pages the result', async () => {
     const mis = misFor(10_000);
     const page = await mis.getArrearDetails({ pageSize: 100, dpdFrom: 500, dpdTo: 600 });
+    // The population is asserted first: "every row matches" is trivially true of no rows.
+    expect(page.data.items.length).toBeGreaterThan(0);
     expect(page.data.items.every(r => r.dpd >= 500 && r.dpd <= 600)).toBe(true);
     expect(page.data.totalCount).toBeGreaterThan(0);
     expect(page.data.totalCount).toBeLessThan(10_000);
@@ -167,8 +169,9 @@ describe('filter, sort and search at volume, applied by the source', () => {
       for (const r of page.data.items) { if (seen.has(r.facilityNumber)) duplicates++; seen.add(r.facilityNumber); }
       continuation = page.data.continuation;
     } while (continuation);
-    expect(duplicates).toBe(0);
+    // Zero duplicates across zero rows would prove nothing, so the population comes first.
     expect(seen.size).toBeGreaterThan(0);
+    expect(duplicates).toBe(0);
   }, 120_000);
 
   it('refuses a continuation carried across a changed filter, even at volume', async () => {

@@ -192,7 +192,10 @@ export function buildOptions(query: {
   top?: number;
   count?: boolean;
 }): string {
-  const parts = [`$select=${query.select.join(',')}`];
+  // An empty `$select` is rejected by the platform — "'select' and 'expand' cannot be both null or
+  // empty" — so it is omitted rather than sent blank. A count asks for no columns, which is a real
+  // and correct request: what it wants is the number in the envelope, not the rows.
+  const parts = query.select.length > 0 ? [`$select=${query.select.join(',')}`] : [];
   if (query.filter) parts.push(`$filter=${query.filter}`);
   if (query.sort && query.sort.length > 0) {
     parts.push(`$orderby=${query.sort.map(s => `${s.field}${s.descending ? ' desc' : ' asc'}`).join(',')}`);

@@ -179,6 +179,22 @@ describe('the options string the adapter emits', () => {
     expect(buildOptions({ select: ['a'], count: true })).toContain('$count=true');
     expect(buildOptions({ select: ['a'] })).not.toContain('$count');
   });
+
+  /**
+   * A count asks for no columns. Sending `$select=` blank is rejected by the platform — "'select'
+   * and 'expand' cannot be both null or empty" — which the live query smoke caught and no mocked
+   * adapter would have: a stand-in accepts whatever string it is handed.
+   */
+  it('omits $select entirely when no column is wanted, rather than sending it blank', () => {
+    const options = buildOptions({ select: [], count: true });
+    expect(options).not.toContain('$select');
+    expect(options).toBe('?$count=true');
+  });
+
+  it('still produces a valid option string when a count is the only thing asked for', () => {
+    expect(buildOptions({ select: [], filter: 'statecode eq 0', count: true }))
+      .toBe('?$filter=statecode eq 0&$count=true');
+  });
 });
 
 describe('paging through the client API', () => {

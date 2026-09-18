@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
 import { DataGrid, type DataGridColumn } from '../data/DataGrid.js';
 import {
-  createAuditQuery, createCaseQuery, LABELS, type AuditRow, type CaseQuery, type CaseRow,
+  createAuditQuery, createCaseQuery, LABELS, type AuditQuery, type AuditRow, type CaseQuery, type CaseRow,
 } from '../data/collectionQueries.js';
+import { formatCountResult, useCounts, type CountRequest } from '../data/counts.js';
+import { ENTITY_SETS } from '../data/schema.js';
 import {
   BucketPill, Card, EmptyState, InfoBanner, KpiRow, OrgBadge, PendingPhaseNotice, StatusPill,
   formatCount, formatDate, formatMoney,
@@ -110,7 +112,7 @@ export function AuditView() {
   const { adapter } = useCrmSession();
   const [search, setSearch] = useState('');
   const fetchPage = useMemo(() => createAuditQuery(adapter), [adapter]);
-  const query = useMemo(() => (search ? { search } : {}), [search]);
+  const query = useMemo<AuditQuery>(() => (search ? { search } : {}), [search]);
 
   return (
     <Card
@@ -126,7 +128,7 @@ export function AuditView() {
           />
         </label>
       </div>
-      <DataGrid<AuditRow, { search?: string }>
+      <DataGrid<AuditRow, AuditQuery>
         columns={AUDIT_COLUMNS}
         fetchPage={fetchPage}
         query={query}
@@ -142,6 +144,11 @@ export function AuditView() {
 // ── My Day ───────────────────────────────────────────────────────────────────
 
 export function MyDayView({ onOpenCase }: { onOpenCase?: (id: string) => void }) {
+  const { adapter } = useCrmSession();
+  const { scopeFilter } = useOrg();
+  const requests = useMemo<readonly CountRequest[]>(() => myDayCounts(scopeFilter), [scopeFilter]);
+  const counts = useCounts(adapter, requests);
+
   return (
     <>
       <InfoBanner>
@@ -149,24 +156,43 @@ export function MyDayView({ onOpenCase }: { onOpenCase?: (id: string) => void })
         row names the system of record.
       </InfoBanner>
       {/*
-        The prototype's KPI tiles were mock figures. Real bounded counts arrive with the per-KPI
-        queries; until a KPI has one, it shows an em dash rather than an invented number.
+        The prototype's KPI tiles were mock figures. A tile here is either a count the platform
+        answered or an em dash naming the phase that will supply it. Overdue balance needs a sum over
+        the portfolio, which the Web API does not compute and which must not be faked by adding up one
+        page of rows.
       */}
       <KpiRow items={[
-        { label: 'My open cases', value: '—', hint: 'Bounded count' },
-        { label: 'Overdue balance', value: '—' },
-        { label: 'Due today', value: '—' },
-        { label: 'SLA breached', value: '—', tone: 'warn' },
-        { label: 'Promised this week', value: '—' },
+        { label: 'Open cases', value: formatCountResult(counts['open']) },
+        { label: 'Overdue balance', value: '—', hint: 'Needs portfolio aggregation (Phase 10)' },
+        { label: 'Active promises', value: formatCountResult(counts['ptpActive']) },
+        { label: 'Broken promises', value: formatCountResult(counts['ptpBroken']), tone: 'warn' },
+        { label: 'SLA breached', value: '—', hint: 'Needs the SLA model (Phase 8)' },
       ]} />
       <Card
         title="Today's follow-ups"
-        subtitle="Ordered by remaining SLA. Opening a case routes the read to the owning CRM."
+        subtitle="Open cases, worst days-past-due first. Opening one routes the read to the CRM that owns it."
       >
         <CasesView {...(onOpenCase ? { onOpenCase } : {})} />
       </Card>
     </>
   );
+}
+
+/**
+ * My Day's counts.
+ *
+ * "My" is deliberately absent: the workspace does not filter by the signed-in user's id here, because
+ * ownership on a case is a CRM owner and the correct question is one CRM already answers through its
+ * own views. Counting "cases owned by me" from the browser would encode an assignment rule, and
+ * assignment is Smart Assignment's (KI-09). These are portfolio counts within the active scope.
+ */
+function myDayCounts(scopeFilter: string | undefined): readonly CountRequest[] {
+  const and = (clause: string) => (scopeFilter ? `${scopeFilter} and ${clause}` : clause);
+  return [
+    { key: 'open', entitySet: ENTITY_SETS.collectionCase, filter: and('statecode eq 0') },
+    { key: 'ptpActive', entitySet: ENTITY_SETS.collectionCase, filter: and('statuscode eq 100000604') },
+    { key: 'ptpBroken', entitySet: ENTITY_SETS.collectionCase, filter: and('statuscode eq 100000605') },
+  ];
 }
 
 // ── Work Queues ──────────────────────────────────────────────────────────────
@@ -185,16 +211,7 @@ export function QueuesView({ onOpenCase }: { onOpenCase?: (id: string) => void }
   );
 }
 
-// ── Views whose backing exists but whose functionality is later ──────────────
-
-export function ReadOnlyPlaceholder({ view, children }: { view: ViewDefinition; children?: React.ReactNode }) {
-  return (
-    <>
-      {view.pendingSummary && <PendingPhaseNotice view={view} />}
-      {children}
-    </>
-  );
-}
+// ── Views owned by a later phase ─────────────────────────────────────────────
 
 /**
  * A view owned by a later phase.
@@ -211,18 +228,6 @@ export function PendingView({ view }: { view: ViewDefinition }) {
           icon={view.icon}
           message={`${view.label} is part of Phase ${view.phase}. The screen is preserved here so the approved workspace is complete; its behaviour arrives with that phase.`}
         />
-      </Card>
-    </div>
-  );
-}
-
-/** Simple read views that have a real backing table but whose authoring belongs to a later phase. */
-export function SimpleReadView({ view, description }: { view: ViewDefinition; description: string }) {
-  return (
-    <div data-testid={`view-${view.id}`}>
-      {view.pendingSummary && <PendingPhaseNotice view={view} />}
-      <Card title={view.label} subtitle={description}>
-        <EmptyState icon={view.icon} message="Connected to its configuration table; the list arrives with this view's data wiring." />
       </Card>
     </div>
   );
