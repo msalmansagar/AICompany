@@ -110,6 +110,7 @@ Both targets are equal. Platform and organisation differences live in `qdb_platf
 | ADR-DCP-13 | Rule Engine facade for eligibility, strategy and Contact Hold; fails closed | **Accepted** (Phase 3) |
 | ADR-DCP-14 | Assignment configuration selects an engine; no DCP routing algorithm | **Accepted** (Phase 3) |
 | ADR-DCP-15 | Case number has two sources; no invented format | **Accepted** (Phase 3) |
+| ADR-DCP-16 | MIS integration transport-neutral; paging a platform contract | **Accepted** (Phase 4) |
 
 Superseded ADRs are kept and marked; none are deleted.
 

@@ -17,6 +17,7 @@
 | ADR-DCP-13 | Every configurable Collection decision goes through the Rule Engine facade, and fails closed | Accepted (Phase 3) | 2026-09-18 | user, architect |
 | ADR-DCP-14 | Assignment configuration selects an engine; DCP builds no routing algorithm | Accepted (Phase 3) | 2026-09-18 | user, architect |
 | ADR-DCP-15 | A Collection Case number has exactly two sources, and DCP invents no format | Accepted (Phase 3) | 2026-09-18 | user, architect |
+| ADR-DCP-16 | MIS integration is transport-neutral, and paging is a platform contract | Accepted (Phase 4) | 2026-09-18 | user, architect |
 
 Status values: Proposed | Accepted | Amended | Deprecated | Superseded (in part).
 Superseded ADRs are never deleted (Master Prompt §84): original text is retained and a dated section names

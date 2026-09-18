@@ -3,6 +3,57 @@
 Newest first. Entries record what changed in the repository, the org, or the approved architecture.
 Phase 0 changed documentation only. **Phase 1 changed the repository and provisioned schema on the Cloud sandbox `org5869857f` — the only organisation authorised — and nothing else.**
 
+## 2026-09-18 — Phase 4: MIS Integration Architecture & Processing Pipeline (repository only)
+
+Detail in `docs/phases/Phase_4_Completion_Report.md`. Branch `feat/dcp-phase4-mis-integration`, from
+the approved Phase 3 baseline `77ed073e`.
+
+**Status language, deliberately precise:** *MIS Integration Architecture & Processing Pipeline
+Complete — Production MIS Transport Contract Pending QDB.* Cloud Dataverse is **Runtime Tested**; the
+MIS production API is **Not Tested — Contract Pending**; Dynamics 365 CE 9.1 on-premises remains
+**Compatible by Design — Runtime Test Pending**.
+
+### CRM / schema changes
+
+**None.** Canonical column count stays 244/244, verified live. No entity, column, choice, key, role,
+queue or step was created, altered or removed. Nothing was written to the sandbox by the large-volume
+tests, which run entirely in memory.
+
+### What was built
+
+| Area | Delivered |
+|---|---|
+| **Server-side paging** | `packages/domain/src/paging.ts` — required bounded page size, opaque continuation, query fingerprint, short-page semantics. `ICrmAdapter.retrievePage` added **beside** `retrieveMultiple`, so no existing repository changed |
+| **MIS contract evidence** | `docs/MISContractEvidence.md` — every finding classified Confirmed / DCP abstraction / Mock assumption / TBD |
+| **Normalization** | `misNormalization.ts` — the boundary no raw payload crosses, answerable to measured data |
+| **MIS providers** | `IMisDelinquencyService`; `MockMisDelinquencyService`, `ApiMisDelinquencyService` (fails closed), `CachedFallbackMisService` |
+| **Synchronisation** | `synchronization.ts` + `BackgroundSyncRunner` — restartable, page-bounded, checkpoint after persistence |
+| **Orchestration** | `CaseStrategyOrchestrator` — strategy after eligibility, never destroying a case |
+
+### Defects found and fixed during the phase, recorded as development evidence
+
+| # | Defect | How it was found |
+|---|---|---|
+| 1 | A milestone commit landed while type-check was failing, because the commit was chained behind a `grep` whose exit status masked it | Noticed immediately after; fixed in `ee44da0a`. **Process changed: type-check, tests and build now run as an explicit gate returning exit 0 before any milestone commit** |
+| 2 | `advanceCheckpoint` spread "previous minus continuation" *after* the incremented counters, so the final page silently reverted a run's own tally — 25 records reported as 20 | Synchronisation unit tests |
+| 3 | A change-feed capability probe performed a real data read, consuming an injected fault and costing a request | Synchronisation unit tests |
+| 4 | `fingerprintQuery` covered only filter, sort and search, so a changed `dpdFrom` left a continuation valid and paging carried into a population the caller had stopped asking about | Large-volume tests |
+| 5 | The fix for 4 was then over-strict: `includeTotalCount` shapes the response envelope, not the result set, so counting on page one and paging without it was wrongly refused | **The live Dataverse smoke** — unit tests had accepted it |
+| 6 | A live assertion passed vacuously: a two-column sort was checked on `qdb_source`, which is null in that data | Reading the passing output rather than trusting the tick |
+| 7 | The paging spike's own first run guessed the entity set and primary key — `qdb_crmlogs`/`qdb_crmlogsid` rather than `qdb_crmlogses`/`activityid` | The 404 it produced; both were then read from metadata |
+
+Defects 4, 5 and 7 are all the KI-52 class. They are why §1D of the Testing Strategy now requires both
+layers, and why the spike ran before the design rather than after it.
+
+### Tests
+
+TypeScript **652** (+224: domain 298, api 313, dataverse-client 27, auth-adapters 14); tooling 10;
+C# **129** unchanged. Live: Phase 1 13/13, Phase 2 20/20, Phase 3 19/19, **Phase 4 22/22**, schema
+19/19 at 244/244, zero residue. No existing test was weakened.
+
+---
+
+
 ## 2026-09-18 — Phase 4 preparation / baseline housekeeping (documentation and tracker only)
 
 No code and no organisation change. Phase 3 (`77ed073e`, branch `feat/dcp-phase3-configuration`) is the

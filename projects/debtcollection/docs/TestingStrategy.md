@@ -233,6 +233,70 @@ the platform's behaviour, not the domain's.
 - Where the sandbox genuinely cannot exercise something, say so in the phase report rather than
   substituting a mock and calling it runtime evidence.
 
+
+## 1E. Phase 4 test result — measured 2026-09-18
+
+| Suite | Files | Tests | Result |
+|---|---|---|---|
+| `@dcp/domain` | 17 | **298** | pass |
+| `@dcp/api` | 16 | **313** | pass |
+| `@dcp/dataverse-client` | 3 | **27** | pass |
+| `@dcp/auth-adapters` | 2 | **14** | pass |
+| Tooling (node:test) | 1 | **10** | pass |
+| **TypeScript total** | **38** | **652** | pass — **+224 against the Phase 3 close (428)** |
+| C# `Qdb.DebtCollection.Plugins.Tests` | 1 assembly | **129** | pass — unchanged; Phase 4 changed no plugin |
+| Type-check + build (turbo) | 13 + 5 tasks | — | pass |
+
+| Live suite (sandbox `org5869857f`) | Result |
+|---|---|
+| `verify-qdb-schema.mjs` | **19/19**, canonical columns **244/244** — no Phase 4 schema change |
+| `smoke-qdb-plugins.mjs` (Phase 1 regression) | **13/13** |
+| `smoke-qdb-phase2.mjs` (Phase 2 regression) | **20/20** |
+| `smoke-qdb-phase3.mjs` (Phase 3 regression) | **19/19** |
+| `smoke-qdb-phase4.mjs` (new) | **22/22** |
+| `spike-dataverse-paging.mjs` (read-only) | **15/16** answered — the sixteenth was the script's own page cap, not a platform answer |
+| Smoke residue | **none** |
+
+### The two-layer rule, applied in anger
+
+§1D made real Dataverse evidence mandatory for platform query behaviour. Phase 4 is the first phase
+to run under it, and the rule paid for itself three times:
+
+1. **Before designing anything**, a read-only spike asked the platform how paging behaves. It found
+   that an unbounded read returns the whole table, and that the page size is *not* carried by the
+   continuation link — two facts no mock would have produced, because a mock encodes the author's
+   belief.
+2. The spike's **own first run was wrong**: it guessed the entity set (`qdb_crmlogs`) and the primary
+   key (`qdb_crmlogsid`). Both were read from metadata instead — the set is `qdb_crmlogses` and the
+   key is `activityid`, because it is a custom activity. The same lesson, a third time.
+3. The **live** smoke then caught an over-strict fingerprint that every unit test had accepted:
+   including `includeTotalCount` made a perfectly ordinary call sequence — count on page one, page
+   without it afterwards — fail as changed criteria.
+
+### What large-volume testing covers, and what it does not
+
+10,000, 50,000 and 100,000-record populations are exercised **in memory**. Nothing is written to the
+shared QDB sandbox: creating a hundred thousand rows in an organisation shared with EDP, CWFD and DFE
+to satisfy a test would be vandalism. Real Dataverse paging keeps its own targeted live coverage.
+
+Measured at volume: zero duplicates across every walk; clean termination; page count tracking page
+size rather than a hidden limit; **heap growth for a 100K walk no greater than for a 10K walk**, which
+is the property paging exists for; source-side narrowing of 100K to one facility; filter, search and
+combined filter-plus-paging; twenty concurrent first pages; concurrent continuations of two different
+queries that do not cross; and a 10K end-to-end run that checkpoints every page and resumes from page
+three after a failure to finish all 10,000.
+
+**Production-scale stress, load and soak certification remains Phase 11.** These tests establish
+behaviour and the absence of accumulation, not capacity.
+
+### Failure isolation coverage
+
+Malformed row · missing customer identity · malformed facility identity · unknown customer ·
+normalization failure · refusing Rule Engine · persistence failure · duplicate observation within a
+run · duplicate observation across runs · page read failure · restart after page failure · partial
+batch failure · continuation loop · short page · empty page with a continuation · invalid
+continuation · criteria changed mid-walk.
+
 ## 2. Test pyramid per layer (target)
 
 | Layer | Framework | Scope | Isolation rule |

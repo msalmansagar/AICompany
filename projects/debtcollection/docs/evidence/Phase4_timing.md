@@ -171,16 +171,74 @@ scope changes materially.
 
 ---
 
-## Completion
+## Completion — final
 
-*Recorded at the end of the phase from the machine clock — not reconstructed.*
+Captured from the machine clock at the moment the phase closed, not reconstructed.
 
 | | |
 |---|---|
-| Revised estimated hours | — |
-| Revised expected completion | — |
-| Actual completion time (Asia/Qatar) | — |
-| Actual elapsed hours | — |
-| Blocked time | — |
-| Effective Claude execution time | — |
-| Estimate variance | — |
+| **Completion (machine, UTC)** | `2026-09-18T18:02:36.819Z` |
+| **Completion (Asia/Qatar)** | **Friday, 18 September 2026 at 21:02:36 GMT+03:00** |
+| **Original estimated effort** | **19.00 h** — never modified |
+| Original expected completion | 2026-09-19 10:23:35 (+03:00) |
+| Revised estimate | **none issued** |
+| **Actual wall-clock elapsed** | **5.650 h** |
+| **Inactive / blocked** | **0.867 h** (two approval waits) |
+| **Effective Claude execution** | **4.783 h** |
+| **Variance against effective execution** | **−14.217 h** |
+| **Percentage of original estimate consumed** | **25.2 %** |
+
+### Segment ledger — final
+
+| # | From | To | Hours | Kind | Evidence |
+|---|---|---|---:|---|---|
+| 1 | 15:23:35 | 16:31:14 | **1.127** | Execution | `b0e483d9` · `398dfc81` · `bb818b37` |
+| — | 16:31:14 | 17:14:53 | 0.728 | **Blocked** | Approval wait after work package 1 |
+| 2 | 17:14:53 | 18:06:40 | **0.863** | Execution | `192c902f` · `55287e0a` · `b73ff461` · `ee44da0a` |
+| — | 18:06:40 | 18:15:00 | 0.139 | **Blocked** | Approval wait after packages 2–4 |
+| 3 | 18:15:00 | 21:02:36 | **2.793** | Execution | `52942ea9` · `2bf445dc` · `d20552cd` · documentation and gate |
+| | | **Totals** | **4.783 exec / 0.867 blocked / 5.650 wall** | | |
+
+### Effort by work package — estimate against actual effective execution
+
+| Work package | Estimated | Actual effective | Variance | Consumed |
+|---|---:|---:|---:|---:|
+| Server-Side Paging | 2.50 | **1.127** | −1.373 | 45 % |
+| MIS Contract Analysis | *(within Normalization)* | **0.376** | — | — |
+| MIS Normalization | 1.50 | **0.113** | −1.011 *(combined with the above)* | 33 % |
+| MIS Adapter / Fallback | 2.00 | **0.374** | −1.626 | 19 % |
+| Background Sync + Checkpoint/Restart | 2.00 | **1.544** | −0.456 | 77 % |
+| Strategy orchestration + Idempotency/Replay | 2.50 | **0.690** | −1.810 | 28 % |
+| Large-volume / Performance | *(within Automated Testing)* | *(within the above)* | — | — |
+| Filtering / Sorting | 1.00 | *(delivered inside paging)* | — | — |
+| Cloud Runtime Validation | 1.50 | **0.109** | −1.391 | 7 % |
+| Regression | 1.00 | *(within each milestone)* | — | — |
+| Automated Testing | 3.00 | *(distributed across packages)* | — | — |
+| Documentation / Gate Evidence | 2.00 | **0.450** | −1.550 | 23 % |
+| **TOTAL** | **19.00** | **4.783** | **−14.217** | **25.2 %** |
+
+Test counts are not distributed as a separate line because tests were written alongside each package
+rather than afterwards; their cost is inside the package rows.
+
+### Calibration notes for Phases 5–11
+
+Offered as observation, not as a rule — one phase is one data point.
+
+1. **Reuse dominates.** The four fastest packages all sat on Phase 1–3 foundations: the pipeline,
+   the domain decisions, the repositories, the Rule Engine facade and the live-smoke harness already
+   existed. Phase 5 has far less to inherit — there is no React workspace, no browser `ICrmAdapter`
+   and no component library — so a similar discount should **not** be assumed.
+2. **The slowest package was the one with no precedent.** Background synchronisation consumed 77 % of
+   its estimate against an average of about 25 %, because checkpointing, restart semantics and failure
+   isolation had no existing shape to follow. That is the better predictor for genuinely new work.
+3. **Live validation is cheap; discovering platform behaviour is not.** Cloud validation took 0.109 h,
+   but the read-only spike that preceded the design sat inside the paging package and was a large part
+   of its 1.127 h. Budget the *investigation*, not the *verification*.
+4. **Documentation scaled with the number of decisions, not the volume of code.** 0.450 h covered an
+   ADR, three Known Issues, six risks, a testing section, a change-log entry, the tracker and a
+   22-item report.
+5. **Blocked time was 15 % of wall-clock** across two approval waits. Phases with more gates should
+   expect that share to rise.
+
+A reasonable Phase 5 estimate should therefore lean on observation 2 rather than on this phase's
+headline 25 %.
