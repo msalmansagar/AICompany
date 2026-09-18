@@ -32,6 +32,15 @@ import { PLUGIN_STEPS, SOLUTION_NAME } from './lib/qdb-plugin-steps.mjs';
 const AUTHORISED_ORG = 'org5869857f';
 export const SMOKE_MARKER = 'SMOKE-';
 
+/**
+ * The demonstration dataset uses its OWN marker, deliberately.
+ *
+ * This cleanup removes every row matching the marker it is given — not only the rows the current run
+ * created. Sharing a prefix would therefore mean the next smoke test silently deleted the data
+ * someone was using to look at the workspace, with a green run and no indication anything had gone.
+ */
+export const DEMO_MARKER = 'DEMO-';
+
 /** Tables the smoke tests write, the column that carries the marker, and whether a guard blocks Delete. Children before parents. */
 const SMOKE_TABLES = [
   { entitySet: 'qdb_collectionactivities', label: 'collection activity', markerField: 'qdb_activitynumber', idField: 'activityid', guarded: true },
@@ -70,11 +79,11 @@ async function write(cfg, token, method, path, body) {
 }
 
 /** Finds every row in the smoke tables whose marker column starts with the marker. */
-export async function findSmokeRows(cfg, token) {
+export async function findSmokeRows(cfg, token, marker = SMOKE_MARKER) {
   const found = [];
   for (const table of SMOKE_TABLES) {
     const result = await apiGet(cfg, token, SOLUTION_NAME,
-      `/${table.entitySet}?$select=${table.idField},${table.markerField}&$filter=startswith(${table.markerField},'${SMOKE_MARKER}')`);
+      `/${table.entitySet}?$select=${table.idField},${table.markerField}&$filter=startswith(${table.markerField},'${marker}')`);
     for (const row of result?.value ?? []) {
       found.push({ ...table, id: row[table.idField], name: String(row[table.markerField]) });
     }
@@ -149,15 +158,15 @@ async function deleteRows(cfg, token, rows) {
 }
 
 /** Runs the whole cleanup; exported so the Phase 2 smoke can call it as its last step. */
-export async function cleanSmokeData({ cfg, token, confirmed }) {
+export async function cleanSmokeData({ cfg, token, confirmed, marker = SMOKE_MARKER }) {
   console.log('\n─── Records identified ───');
-  const rows = await findSmokeRows(cfg, token);
+  const rows = await findSmokeRows(cfg, token, marker);
   if (rows.length === 0) {
     console.log('  None. There is no smoke residue to remove.');
     return { residue: [], deleted: 0 };
   }
   for (const row of rows) console.log(`  ${row.label.padEnd(32)} ${row.id}  ${row.name}`);
-  console.log(`  ${rows.length} record(s) — every one matched on the "${SMOKE_MARKER}" marker.`);
+  console.log(`  ${rows.length} record(s) — every one matched on the "${marker}" marker.`);
 
   console.log('\n─── Checking for anything else that references them ───');
   const unexpected = await findUnexpectedReferences(cfg, token, rows);
