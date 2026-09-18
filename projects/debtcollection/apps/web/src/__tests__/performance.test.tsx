@@ -218,8 +218,13 @@ afterAll(() => {
   for (const m of measurements) {
     console.log(line([m.population, m.pageSize, m.rowsRequested, m.requests, m.domRows, m.domBound, m.duplicates]));
   }
-  const largest = measurements.reduce((a, b) => (a.population > b.population ? a : b));
-  console.log(`\n  At ${largest.population.toLocaleString()} rows the browser requested ${largest.rowsRequested} ` +
-    `and rendered ${largest.domRows} — ${(largest.rowsRequested / largest.population * 100).toFixed(3)}% fetched, ` +
-    `${(largest.domRows / largest.population * 100).toFixed(4)}% rendered.`);
+  // Every 100,000-row configuration is reported with its page size. A single summary line that
+  // picked one of them would read as though it described them all.
+  console.log('');
+  for (const m of measurements.filter(x => x.population === 100_000)) {
+    const fetched = (m.rowsRequested / m.population * 100).toFixed(3);
+    const rendered = (m.domRows / m.population * 100).toFixed(4);
+    console.log(`  At ${m.population.toLocaleString()} rows, page size ${m.pageSize}: requested ` +
+      `${m.rowsRequested} and rendered ${m.domRows} — ${fetched}% fetched, ${rendered}% rendered.`);
+  }
 });

@@ -4,5 +4,5 @@
       50000        50        50        1       16        22          0
      100000        50        50        1       16        22          0
      100000      1000      1000        1       16        22          0
-
-  At 100,000 rows the browser requested 1000 and rendered 16 — 1.000% fetched, 0.0160% rendered.
+  At 100,000 rows, page size 50: requested 50 and rendered 16 — 0.050% fetched, 0.0160% rendered.
+  At 100,000 rows, page size 1000: requested 1000 and rendered 16 — 1.000% fetched, 0.0160% rendered.
