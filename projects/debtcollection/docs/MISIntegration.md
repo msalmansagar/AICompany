@@ -112,15 +112,33 @@ buckets counts in both; the mock must reproduce this.
 
 ---
 
-## 5. Identity and facility resolution (CP §38)
+## 5. Identity and facility resolution (CP §38; Facility clarification 2026-09-18)
 
 ```
- ArrearDetail ── customerId / nationalId ──▶ Platform Mapping ──▶ contact (HL) | account (BFD)
-              ── facilityId (Account Number) ▶ Platform Mapping ──▶ <facility entity>.<business id field>
-        found both  → case matching (§6)
-        not found   → qdb_identityexception (reason, source, batch, correlation, payload) — no case, no master created
-        duplicates  → exception (DuplicateCustomer / DuplicateFacility)
+ ArrearDetail ── nationalId (QID, primary) ──▶ configured customer master ──▶ contact (HL) | account (BFD)
+              ── customerNumber (cross-check, where mapped)
+              ── facilityNumber + sourceSystem ──▶ VALIDATED, NOT LOOKED UP ──▶ this is the facility
+        customer found, facility identity valid → eligibility (§5a) → case matching (§6)
+        customer not found / duplicate / mismatch → qdb_identityexception — no case, no master created
+        facility identity missing / malformed      → qdb_identityexception (InvalidIdentifier) — no case
 ```
+
+**The facility is its MIS business identity.** `facilityNumber` plus `sourceSystem` identifies the
+facility on the Collection Case and the snapshot, and nothing in the pipeline asks the organisation
+for a facility record. BFD's *Facility Limit* and HL's *Customer Product* are not consulted, are not
+required, and are not the source of any delinquency value; a missing row in either is not an
+exception. They remain available as **optional enrichment and navigation** once a business requirement
+for it is demonstrated, and any relationship to them would be a per-deployment extension outside the
+shared schema.
+
+A Facility Exception therefore means exactly one thing: the MIS identity itself could not be
+processed — the number is empty, contains whitespace or control characters, exceeds the column, or the
+source system is missing. Whether the final uniqueness composition needs a further MIS identifier is
+`TBD` against the actual MIS contract and is not guessed.
+
+Customer identity follows F4: the national id is primary, the MIS customer number cross-checks it where
+the deployment maps a column for it, a disagreement is an `IdentifierMismatch` exception rather than a
+choice, and a mobile number is never an input — `CustomerIdentitySchema` is strict.
 
 Stable business ids are used, never GUIDs alone (MP §18).
 
@@ -133,7 +151,7 @@ configurable evaluation runs through `IRuleEngine` against the ruleset named by
 `qdb_platformconfiguration.qdb_eligibilityrulesetcode`.
 
 ```
- MIS Delinquency ▶ Identity Resolution ▶ Facility Resolution ▶ ELIGIBILITY / GRACE ▶ Strategy Evaluation
+ MIS Delinquency ▶ Identity Resolution ▶ Facility Identity (MIS, validated) ▶ ELIGIBILITY / GRACE ▶ Strategy Evaluation
                                                                       │
    ┌──────────────────┬──────────────────┬──────────────────┬─────────┴────────┬──────────────────┐
    ▼                  ▼                  ▼                  ▼                  ▼                  ▼

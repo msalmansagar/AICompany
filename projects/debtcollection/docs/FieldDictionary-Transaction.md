@@ -48,6 +48,12 @@ Legend and conventions: `FieldDictionary.md`. Entity = table heading.
 | Remarks | qdb_remarks | memo | 4000 | O | — | U | Y | — | Free notes | Y | Y | CbD | CbD | — | new | |
 | Correlation ID | qdb_correlationid | string | 100 | O | — | I | RO | — | Sync correlation of the last write | Y | Y | CbD | CbD | — | new | |
 
+**Universal targets (Phase 2 amendment, 2026-09-18 — KI-46).** Two statuses are reachable from every
+non-terminal state: *Deceased/Insurance Review* (decision 3, 2026-09-16) and *Settled* (Phase 2 — MIS
+reports a cure whenever the customer pays, and a case in any working state must then be able to close).
+Neither is added to Under Legal Action, Deceased/Insurance Review, Settled, Closed or Written Off. The
+matrix is code in `StatusTransitionMatrix.cs` with a parity-tested TypeScript mirror in `@dcp/domain`.
+
 ### `qdb_collectioncase.statuscode` values (carried from the existing matrix; integer values will differ under the `qdb` publisher)
 
 | Label | State | Existing value | Notes |
@@ -152,6 +158,12 @@ complaint/dispute (type, root cause, SLA…) are **Form Engine configuration** k
 Update and Delete are blocked by `ImmutabilityGuard` for every role, sysadmin included.
 
 ### Source-identity block — persistable without any CRM resolution (gate correction 8)
+
+> **Phase 2 note (2026-09-18):** the canonical observation carries a `sourceSystem` alongside the
+> facility number, and the case stores it (`qdb_facilitysourcesystem`), but this table has no column
+> for it. It is carried inside `qdb_snapshotkey` where the configured composition includes it and is
+> otherwise implied by the organisation. A `qdb_facilitysourcesystem` string(50) column is **proposed,
+> not added** — KI-47.
 
 An `IdentityException` or `FacilityException` observation must be storable and later reprocessable **even
 though no CRM customer, facility or case GUID was resolved**. These columns are therefore **required at

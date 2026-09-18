@@ -30,7 +30,7 @@ Grace evaluation** runs after identity and facility resolution and before any ca
 ```
 MIS Delinquency
    → Identity Resolution        (QID primary · Customer Number cross-check → contact/account)
-   → Facility Resolution        (qdb_facilitynumber → configured facility entity)
+   → Facility Identity          (qdb_facilitynumber + source system from MIS — validated, never looked up)
    → ELIGIBILITY / GRACE RULES  (IRuleEngine · configured ruleset)
    → Strategy Evaluation
    → Create Case │ Update Existing Case │ Monitor Without Case │ Exclude
@@ -73,6 +73,13 @@ link optional, which the ERD and field dictionary must state explicitly.
 records — is recorded as **sample evidence and an HL default recommendation, not a constant**. The actual
 thresholds and the cure/grace period remain `TBD — Requires QDB Confirmation`
 (`CurrentStateAssessment.md` §10 item 17).
+
+## Facility clarification (2026-09-18, Phase 2)
+The "Facility Resolution" stage above never resolves a CRM facility record. The facility is its MIS
+business identity — facility number plus source system — validated for shape and carried on the case
+and the snapshot. BFD's Facility Limit and HL's Customer Product are optional enrichment only; their
+absence is not a Facility Exception and they are not consulted for eligibility, DPD, arrears, bucket or
+balance. See `TargetArchitecture.md` §5a.
 
 ## Alternatives considered
 

@@ -10,6 +10,15 @@ Compatibility columns use the CP §1 vocabulary. Nothing here is provisioned.
 | Existing | The `msst_` component it replaces, if any (`SchemaMigration_msst_to_qdb.md`) |
 | On-Prem / Cloud | *Compatible by design* unless a genuine platform limitation is named |
 
+## Source of truth (Phase 2, 2026-09-18)
+
+The table in `TargetArchitecture.md` §5a is the contract behind every entity below. In short: CRM owns
+the customer (contact for HL, account for BFD); **MIS owns facility identity and the current position**;
+`qdb_delinquencysnapshot` owns history; `qdb_collectioncase` owns the lifecycle;
+`qdb_collectionactivity` owns actions and promises; native `fax` / `email` / the approved document
+capability own communications. BFD Facility Limit and HL Customer Product are **optional enrichment
+only** — no entity here depends on them, and the shared schema carries no lookup to them.
+
 ## A. Transaction entities
 
 | Logical name | Display | Kind | Ownership | Activities? | Existing | Purpose | On-Prem 9.1 | Cloud |

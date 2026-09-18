@@ -3,6 +3,44 @@
 Newest first. Entries record what changed in the repository, the org, or the approved architecture.
 Phase 0 changed documentation only. **Phase 1 changed the repository and provisioned schema on the Cloud sandbox `org5869857f` — the only organisation authorised — and nothing else.**
 
+## 2026-09-18 — Phase 2: Core Collection Data Model (repository + sandbox `org5869857f`)
+
+Detail in `docs/phases/Phase_2_Completion_Report.md`. Built on `feat/dcp-phase2-core-model` in a
+separate worktree; the main checkout was not touched.
+
+**Domain model** (`@dcp/domain`): the MIS observation and its two identities (customer — strict, a
+mobile number cannot be identity; facility — the MIS number plus source system, validated, never
+looked up); customer resolution rules (QID primary, customer-number cross-check, mismatch is an
+exception); the case and its lifecycle (TypeScript mirror of the plugin matrix, parity-tested); the
+activity with promise-to-pay as a type; the delinquency episode rules; the snapshot with a
+configuration-composed idempotency key; Collection settings read from the platform feature flags with
+no defaults.
+
+**Services** (`apps/api/src/services/collection`): `DelinquencySyncService` — the approved pipeline,
+facility identity → customer → eligibility → episode decision → case → snapshot, one outcome per record,
+failures isolated; repositories over `ICrmAdapter` with every `qdb_` column in one bindings file;
+`CustomerResolutionService`; `RuleEngineEligibilityEvaluator` (operation name from configuration,
+contract provisional — KI-48) and a deterministic evaluator for tests and demonstration.
+
+**Plugin**: `ActiveCaseGuard` — one active case per facility per episode, facility identified by MIS
+identity, registered on Create and on reactivation. **Matrix amendment (KI-46):** Settled joined
+Deceased/Insurance Review as a universal transition target, because the approved matrix left most
+working states with no path to closure after a cure.
+
+**Facility clarification honoured:** no Facility Limit, no Customer Product, no facility lookup — a
+portability test fails the build if shared logic names either table. **Source-of-truth table** added
+to `TargetArchitecture.md` §5a and reflected in the Entity Dictionary, API Contracts, MIS Integration
+§5, ADR-05 and ADR-11.
+
+**Organisation** (`org5869857f` only): assembly patched, 1 plugin type, 2 steps, 1 image. **No schema
+change.** One schema addition is proposed and not made (KI-47: a source-system column on the
+snapshot). Smoke residue: **zero** — the Phase 2 smoke cleans up after itself and re-verifies the guards.
+
+**Tests**: domain 30 → **164**, API 49 → **129**, C# 105 → **129**; dataverse-client 27, auth 14,
+tooling 10 unchanged. Live: verify **19/19**, Phase 1 smoke **13/13**, Phase 2 smoke **20/20**.
+
+**Not started**: Phase 3.
+
 ## 2026-09-17 — Phase 1 close-out (gate decisions executed)
 
 Detail in `docs/phases/Phase_1_Completion_Report.md` §10. Phase 2 remains not started.

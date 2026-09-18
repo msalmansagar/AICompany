@@ -272,6 +272,23 @@ business/compliance decision — `TBD — Requires QDB Confirmation` (F6). Archi
 
 ---
 
+### 3A.4 Phase 2 implementation — what exists in code (2026-09-18)
+
+| Contract | Where | Note |
+|---|---|---|
+| `MisDelinquencyRecord`, `CustomerIdentity` (strict), `FacilityIdentity`, `checkFacilityIdentity` | `@dcp/domain` `misObservation.ts` | the canonical observation; a mobile number cannot be identity structurally |
+| `ICustomerResolver`, `decideCustomerResolution` | `customerResolution.ts` + `CustomerResolutionService` | QID primary, customer number cross-check where mapped, mismatch → exception |
+| `IEligibilityEvaluator` | `eligibility.ts`; `RuleEngineEligibilityEvaluator` (operation name from configuration, contract provisional — KI-48), `StaticEligibilityEvaluator` (tests/demo) | no threshold in code |
+| `decideEpisodeAction`, `EpisodePolicy` | `episode.ts` | Create / Update / Reopen / Cure / Ignore; reopen window is configuration, default is a new episode |
+| `CollectionCase`, `CaseStatus`, `CASE_TRANSITIONS` | `collectionCase.ts`, `caseLifecycle.ts` | parity-tested against `StatusTransitionMatrix.cs` |
+| `CollectionActivity`, `PromiseToPay`, `PTP_TRANSITIONS` | `collectionActivity.ts`, `activityLifecycle.ts` | PTP is an activity; `relatedRecord` correlates to a native communication without copying it |
+| `DelinquencySnapshot`, `composeSnapshotKey` | `snapshot.ts` | key composition from configuration; refuses to default |
+| `DelinquencySyncService.processBatch/processRecord` | `apps/api/src/services/collection` | the pipeline of `MISIntegration.md` §5–§7, one outcome per record, failures isolated |
+| Repositories over `ICrmAdapter` | `CollectionCaseRepository`, `DelinquencySnapshotRepository`, `CollectionActivityRepository`, `IdentityExceptionRepository` | the only code that names a `qdb_` column is `qdbBindings.ts` |
+
+The HTTP surface in §5 and the operations in §6 are still proposals; Phase 2 delivered the service
+layer beneath them, exercised through tests and the live smoke rather than through routes.
+
 ## 4. `CommunicationService` (MP §37) — one shared package, browser and service
 
 ```ts

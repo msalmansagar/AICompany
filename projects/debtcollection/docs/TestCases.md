@@ -207,3 +207,46 @@ No case here may assert a specific composition as the approved one.
 | TC-542 | Source-identity columns (`qdb_customerbusinessid`, `qdb_facilitynumber`, `qdb_snapshotdate`, `qdb_receivedon`, `qdb_integrationbatchid`) are present on every persisted observation | T | B | Not Started |
 | TC-543 | An unresolved observation can be **reprocessed later** from its stored source identifiers alone, after the customer/facility is created in CRM | F | B | Not Started |
 | TC-544 | No CRM lookup on `qdb_delinquencysnapshot` is mandatory (metadata check) | T | B | Not Started |
+
+## H. Phase 2 — Core Collection model (implemented 2026-09-18)
+
+Status legend as above; **Passed** here means an automated test exists and passed on 2026-09-18.
+`U` unit (Vitest / xUnit), `E` end-to-end over the in-memory organisation, `L` live on `org5869857f`.
+
+| ID | Scenario | Type | Where | Status |
+|---|---|---|---|---|
+| TC-300 | Every valid case transition in the matrix is allowed; every other pair refused | U | `caseLifecycle.test.ts`, C# `StatusTransitionValidatorTests` | Passed |
+| TC-301 | The TypeScript matrix equals the plugin matrix, state by state and code by code | U | `caseLifecycle.test.ts` parity | Passed |
+| TC-302 | Settled reachable from every non-terminal state; not from terminal ones (KI-46) | U | `caseLifecycle.test.ts`, C# `StatusTransitionMatrixCureTests` | Passed |
+| TC-303 | One active case per facility per episode — second observation updates, does not create | E + L | `delinquency-sync.test.ts`, smoke | Passed |
+| TC-304 | A second active case for the facility is refused by `ActiveCaseGuard` (Create and reactivation) | U + L | C# `ActiveCaseGuardTests`, smoke | Passed |
+| TC-305 | Same customer, multiple MIS facilities → one case each | E + L | `delinquency-sync.test.ts`, smoke | Passed |
+| TC-306 | Same facility number in two source systems → two facilities, two cases | E | `delinquency-sync.test.ts` | Passed |
+| TC-307 | Cure: Settled, cure date, resolution Cured; closure by a configured rule, not the sync | E + L | `delinquency-sync.test.ts`, smoke | Passed |
+| TC-308 | Re-delinquency after closure opens a new episode (normal rule) | E + L | `delinquency-sync.test.ts`, smoke | Passed |
+| TC-309 | Re-delinquency inside a configured reopen window reopens the episode | E | `delinquency-sync.test.ts`, `episode.test.ts` | Passed |
+| TC-310 | Customer resolved on the national id; cross-checked by customer number where mapped | U + E | `customerResolution.test.ts`, repositories test | Passed |
+| TC-311 | Unresolved customer → identity exception row, snapshot on source identity, no case | E + L | `delinquency-sync.test.ts`, smoke | Passed |
+| TC-312 | Duplicate customer and identifier mismatch → exceptions, never a guess | E | `delinquency-sync.test.ts` | Passed |
+| TC-313 | A mobile number can never be customer identity (structural) | U + E | `misObservation.test.ts`, `delinquency-sync.test.ts` | Passed |
+| TC-314 | Case created with **no** CRM facility lookup — only contacts, cases and snapshots are touched | E + L | `delinquency-sync.test.ts` (`touchedEntitySets`), smoke | Passed |
+| TC-315 | Case processed when HL Customer Product does not exist | E | `delinquency-sync.test.ts` | Passed |
+| TC-316 | Case processed without a BFD Facility Limit relationship (account master) | E | `delinquency-sync.test.ts` | Passed |
+| TC-317 | MIS facility identity carried on the case and snapshot | E + L | `delinquency-sync.test.ts`, smoke | Passed |
+| TC-318 | Missing / malformed MIS facility identity → facility exception, no customer lookup | U + E + L | `misObservation.test.ts`, `delinquency-sync.test.ts`, smoke | Passed |
+| TC-319 | No facility exception merely because no CRM facility record exists | E | `delinquency-sync.test.ts` | Passed |
+| TC-320 | Activity created with type resolved by code; opens at Open | E + L | repositories test, smoke | Passed |
+| TC-321 | Activity lifecycle: promise Active → Kept, completion, then immutable | U + E + L | `activityLifecycle.test.ts`, repositories test, smoke | Passed |
+| TC-322 | PTP is a Collection Activity: promise facts on the activity, opens Active | U + E + L | `collectionActivity.test.ts`, smoke | Passed |
+| TC-323 | Snapshot immutable (Update and Delete refused) | L | Phase 1 smoke (still passing) | Passed |
+| TC-324 | Snapshot without a case for GraceMonitor / exception outcomes | E + L | `delinquency-sync.test.ts`, smoke | Passed |
+| TC-325 | Snapshot retains MIS source identity (customer id, facility number, source system in key) | U + E | `snapshot.test.ts`, `delinquency-sync.test.ts` | Passed |
+| TC-326 | Replay idempotency: same observation → same key → no second row | U + E + L | `snapshot.test.ts`, `delinquency-sync.test.ts`, smoke | Passed |
+| TC-327 | Snapshot key composition is configuration; empty or partial composition refused | U | `snapshot.test.ts`, `collectionSettings.test.ts` | Passed |
+| TC-328 | Customer lookup binds contact for HL and account for BFD from one column | E + L | `delinquency-sync.test.ts`, smoke | Passed |
+| TC-329 | Shared Collection logic names no Facility Limit / Customer Product and branches on no organisation code | U | `collection-portability.test.ts` | Passed |
+| TC-330 | Activity correlates to a native communication by reference; carries no message body, channel or recipient | U + E | `collectionActivity.test.ts`, repositories test | Passed |
+| TC-331 | Sync fails closed without a snapshot policy or an eligibility ruleset | E | `delinquency-sync.test.ts` | Passed |
+| TC-332 | A failing record is isolated; the batch continues and the failure is logged | E | `delinquency-sync.test.ts` | Passed |
+| TC-333 | Cloud regression — Phase 1 verification and smoke still pass after the registration change | L | `verify-qdb-schema.mjs` 19/19, `smoke-qdb-plugins.mjs` 13/13 | Passed |
+| TC-334 | Existing Phase 1 tests unchanged and green | U | all suites | Passed |

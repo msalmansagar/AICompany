@@ -305,3 +305,22 @@ What should have happened: the untracked tree should have been committed to a te
 the other branch's edits stashed, before any forced checkout. `-f` was the wrong instrument for
 "the untracked files are the ones I want to keep".
 
+
+### Recovery outcome (2026-09-18)
+
+Carried out on the main checkout, on `feat/dfe-six-point-batch`, before any Phase 2 work:
+
+| File | Outcome |
+|---|---|
+| `CLAUDE.md` | restored byte-identical from the dangling object (`78b07440`) |
+| root `.gitignore` | restored from `ab66f7ee` — the committed file plus `.claude/resume/` |
+| `.claude/settings.json` | restored from `521fe535` — the hook rename to `resume-inject.js` / `resume-write.js` |
+| `.claude/constitution.md`, `.claude/agents/frontend.md` | restored from `305199c9` / `677074e7` — the `agentation` adoption, consistent with the CLAUDE.md edit |
+| `.claude/sessions/log.md` | restored from `e0eea51d` with the entry the live hook had appended since re-added |
+| `session-start.js`, `session-end.js` | the pending deletions re-applied; `settings.json` now points at the surviving hooks |
+| `projects/state.yml` | **lost** — no surviving object; not reconstructed |
+
+Every restored file's content came verbatim from a git object and was checked against the committed
+version as a pure addition or the exact known rename; nothing was guessed. The DCP branches were
+confirmed intact at `df56a047` (local = origin) before and after. Phase 2 runs in a separate worktree
+(`.claude/worktrees/dcp-phase2`) so the main checkout is not touched again.

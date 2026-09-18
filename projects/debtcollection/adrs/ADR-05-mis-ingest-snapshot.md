@@ -73,3 +73,23 @@ Two consequences for the snapshot:
 
 Append-only immutability, the batch reference, the verbatim bucket and the idempotency key are unchanged.
 Eligibility thresholds are ruleset configuration, never application source.
+
+## Phase 2 implementation (2026-09-18)
+- **Implemented** as `DelinquencySyncService` (`apps/api/src/services/collection`) over `ICrmAdapter`:
+  facility identity check → customer resolution → eligibility through `IEligibilityEvaluator` →
+  episode decision (`decideEpisodeAction`) → case create / update / reopen / cure → snapshot per policy.
+- **Facility clarification honoured:** the sync never resolves a CRM facility record. The MIS facility
+  number and source system identify the facility on the case and the snapshot. Decision 2's "resolve
+  to existing … facility entities" is withdrawn in favour of MIS identity; Facility Limit and Customer
+  Product are optional enrichment only.
+- **Idempotency:** `qdb_snapshotkey` is composed from parts named in configuration
+  (`snapshotKeyComposition` in the platform feature flags) drawn from the candidate vocabulary in
+  §7.1 of `MISIntegration.md`. It has no default: an unconfigured deployment cannot persist snapshots.
+  A replayed observation is detected on the alternate key before any write.
+- **Cure:** a zero-DPD observation against an open case records the cure date and resolution and moves
+  the case to Settled; closure is a configured rule, not this sync. To make that legal from every
+  working state, Settled joined Deceased/Insurance Review as a universal transition target (see
+  `docs/FieldDictionary-Transaction.md` statuscode section and `KnownIssues.md` KI-46).
+- **Snapshot source system:** the canonical observation carries `sourceSystem`; the physical table has
+  no column for it yet. It is carried inside the composed key where the composition includes it and is
+  otherwise implied by the organisation. A column is proposed, not added (KI-47).

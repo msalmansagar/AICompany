@@ -71,6 +71,51 @@ minimum, deletes everything the guard permits, and prints what it could not remo
 
 ---
 
+## 1B. Phase 2 test result — measured 2026-09-18
+
+| Suite | Runner | Passed | Failed | Change against Phase 1 |
+|---|---|---|---|---|
+| `@dcp/domain` | Vitest | **164** | 0 | +134: case matrix (with C# parity), activity/PTP matrix (with C# parity), MIS observation and facility identity, customer resolution rules, episode rules, snapshot key composition, activity correlation, Collection settings |
+| `@dcp/api` | Vitest | **129** | 0 | +80: the synchronisation pipeline end to end over an in-memory organisation (real repositories, real services), repositories and resolution service, the portability guard, configuration feature flags |
+| `@dcp/dataverse-client` | Vitest | **27** | 0 | unchanged |
+| `@dcp/auth-adapters` | Vitest | **14** | 0 | unchanged |
+| Tooling (`crm/scripts/lib/*.test.mjs`) | node:test | **10** | 0 | unchanged |
+| `Qdb.DebtCollection.Plugins.Tests` | xUnit + Moq | **129** | 0 | +24: `ActiveCaseGuard` (7), the Settled universal target (17); one existing test re-pointed from New → Settled to New → Closed because the former is now legal |
+| Live verification `verify-qdb-schema.mjs` — cloud `org5869857f` | node script | **19** | 0 | 12/12 steps after the guard registration |
+| Live smoke `smoke-qdb-phase2.mjs` — cloud `org5869857f` | node script over `apps/api/dist` | **20** | 0 | new — see below |
+| Live smoke `smoke-qdb-plugins.mjs` (Phase 1) | node script | **13** | 0 | still passes |
+| Live smoke — on-premises 9.1 | — | — | — | **still never run**: no on-premises organisation for DCP (KI-22) |
+
+Nothing was deleted or weakened. The `msst_`-bound legacy tests (`customers.test.ts`, `identity-exceptions.test.ts`, `AuditLogWriterTests`, `StopContactQueueMoverTests`) are untouched and green.
+
+### What the Phase 2 smoke proves, and how
+
+`smoke-qdb-phase2.mjs` imports the **built Integration Service** (`apps/api/dist`) and runs the real
+`DelinquencySyncService`, repositories and `DataverseCrmAdapter` against the organisation — the code
+that will run in production, not a re-implementation for the test. Twenty checks, in order: platform
+configuration and feature flags read from `qdb_platformconfiguration`; a MIS observation becomes a
+case bound to the contact through the Customer lookup, identified by facility number and source
+system with no facility record consulted, opened at New by the plugin, with the cached position and a
+linked snapshot; a replay updates the case and writes **no** second snapshot (alternate key); a bucket
+move writes one; a second active case for the facility is **refused by `ActiveCaseGuard`**; a second
+facility for the same customer gets its own case; a promise to pay opens Active, is kept, completed
+and then frozen by `ImmutabilityGuard`; a cure moves a New case to Settled (the matrix amendment,
+live); closure followed by re-delinquency opens episode 2; an unknown customer and a malformed facility
+identity become exception rows and no case; a GraceMonitor decision keeps a snapshot without a case.
+Every row is removed afterwards by `clean-qdb-smoke-data.mjs`, the guards are restored and re-verified,
+and the run ends with **0 smoke records**. Evidence: `docs/evidence/Phase2_smoke_run.txt`.
+
+### Two rules that earned their keep
+
+- **The in-memory organisation refuses OData it does not understand.** A repository cannot start
+  relying on a filter the fake happens to ignore; the test breaks instead.
+- **Navigation property names are read from the organisation, not inferred.** The snapshot's case
+  lookup is `qdb_collectioncaseid` while the activity's is
+  `qdb_collectioncaseid_qdb_collectionactivity` — the platform suffixes only when a second relationship
+  targets the same table. The first smoke run caught this; the unit tests could not.
+
+---
+
 ## 2. Test pyramid per layer (target)
 
 | Layer | Framework | Scope | Isolation rule |

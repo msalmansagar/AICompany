@@ -290,6 +290,33 @@ strategy recommendation for QDB confirmation** (`HousingLoanDataAnalysis.md` F1)
 automated contact is prohibited above 2000 DPD is `TBD — Requires QDB Confirmation` and, when answered,
 becomes a strategy/eligibility configuration — BRD FR-033's "no automated contact" rule is the mechanism.
 
+## 5a. Source of truth — who owns what (confirmed 2026-09-18, Phase 2)
+
+This table is the contract every service, dictionary and test in Phase 2 is written against. Where
+two systems could both answer a question, this says which one the Debt Collection Platform believes.
+
+| Domain | Authoritative source | What DCP does with it |
+|---|---|---|
+| Customer | **CRM** — `contact` for HL, `account` for BFD | resolves MIS identifiers to it; never creates another master |
+| Facility / account identity | **MIS** — the facility/account number plus its source system | carries it on the case and snapshot; that *is* the facility |
+| Current DPD / bucket / arrears / balance | **MIS** | reads live; caches selected values on the case, marked as cache |
+| Historical delinquency observation | **`qdb_delinquencysnapshot`** | appends, never updates; key composition is configuration |
+| Collection lifecycle | **`qdb_collectioncase`** | one active case per facility per delinquency episode |
+| Collection actions and promise to pay | **`qdb_collectionactivity`** | one operational record; PTP is an activity type |
+| SMS / WhatsApp | **Dynamics `fax`** | creates the record; the existing QDB workflow delivers |
+| Email | **Dynamics `email`** | creates the record; existing Dynamics/QDB processing delivers |
+| Warning Letter | **approved QDB document capability** | reuses it; source to be confirmed |
+| CRM Facility Limit (BFD) / Customer Product (HL) | **optional enrichment and navigation only** | never a dependency — not for case creation, eligibility, DPD, arrears, bucket or balance |
+
+Two consequences follow and are enforced in code, not left to discipline:
+
+- **No CRM facility record is required for anything.** `checkFacilityIdentity` validates the MIS
+  identity; a Facility Exception is raised only when that identity is missing, malformed or ambiguous
+  — never because Facility Limit or Customer Product has no matching row. The portability test
+  (`collection-portability.test.ts`) fails the build if shared Collection logic names either table.
+- **If CRM and MIS disagree on a delinquency value, MIS wins.** The case's cached position is written
+  from MIS and stamped with the MIS as-of date and the sync time; the UI must show it as cached.
+
 ## 6. Communication (MP §32–40)
 
 ```
