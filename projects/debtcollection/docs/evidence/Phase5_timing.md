@@ -42,7 +42,7 @@ ADR-DCP-07's full-page web-resource target, explicitly dual-CRM.
 | Admin | Configuration *(manager)* |
 
 **Shared assets to preserve:** 25 helper functions (`bucketPill`, `orgBadge`, `slaChip`, `statusPill`,
-`statusTone`, `money`, `moneyM`, `pct`, `toast`, `share`, plus the data selectors), **55 icons**,
+`statusTone`, `money`, `moneyM`, `pct`, `toast`, `share`, plus the data selectors), **63 icons**,
 **143 design tokens**, `components.css` (21 KB), `uci.css` (14 KB), 22 mock data collections including
 `ORGS` (HL/BFD) and `ROLES` (officer/manager/rm/legal).
 
@@ -72,7 +72,7 @@ That is why this estimate is not a Phase 4-shaped number.
 | # | Work package | Hours | What is in it |
 |---:|---|---:|---|
 | 1 | Frontend scaffold & monorepo wiring | 1.50 | `apps/web` (Vite + React + TS), turbo pipeline, vitest, single-bundle build aimed at a web resource |
-| 2 | Design system port | 2.00 | 143 tokens, `components.css`, `uci.css`, 55 icons → React styling primitives, preserving the approved visual intent |
+| 2 | Design system port | 2.00 | 143 tokens, `components.css`, `uci.css`, 63 icons → React styling primitives, preserving the approved visual intent |
 | 3 | App shell, navigation & routing | 2.00 | UCI chrome, left nav over all 21 views with role gating and badge counts, command bar, role switcher, deep-link routing |
 | 4 | Browser `ICrmAdapter` + CRM context adapter | 2.00 | `Xrm.WebApi` implementation of the **existing** interface incl. `retrievePage`; API version from `GlobalContext`; org URL and API base resolution. **Tracker row 65, Not Started** |
 | 5 | Dual-CRM (HL/BFD) context | 1.00 | One workspace, controlled routing/context; contact vs account customer master; no frontend customer or facility master |

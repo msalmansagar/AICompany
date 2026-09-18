@@ -64,8 +64,10 @@ available and are **hidden rather than faked** where it is not.
 | 20 | Oversight | Audit Trail | all | — | `qdb_crmlogs` + native audit | **P5 (read)** |
 | 21 | Admin | Configuration | manager | — | `qdb_platformconfiguration`, `qdb_platformmapping` | **P5 (read)** · authoring **P8–10** |
 
-**Coverage: 21 of 21 views present in the React navigation.** 10 functional in Phase 5, 11 preserved
-as navigable screens that state plainly which phase owns them.
+**Coverage: 21 of 21 views present in the React navigation.** **13** functional in Phase 5 (the ten
+marked P5 plus the three marked *P5 read*), **8** preserved as navigable screens that state plainly
+which phase owns them. The route table in `apps/web/src/shell/routes.ts` is the enforced copy of this
+table, and a test asserts both counts against it.
 
 ---
 
@@ -102,7 +104,7 @@ The prototype's 31-function shell is the component contract. Each becomes a Reac
 | `tokens.css` — **143 tokens** | Ported verbatim as CSS custom properties under `<ThemeProvider>` | P5 |
 | `components.css` (21 KB) | Refactored into component-scoped styles, visual output preserved | P5 |
 | `uci.css` (14 KB) | Retained — it is what makes the workspace look native inside Dynamics | P5 |
-| `icons.js` — **55 icons** | `<Icon name>` over the same SVG set | P5 |
+| `icons.js` — **63 icons** | `<Icon name>` over the same SVG set | P5 |
 | Layout conventions (card grid, section card, split list/detail) | Preserved | P5 |
 
 **No token is replaced, renamed or re-valued in Phase 5.** Any material visible deviation is recorded
@@ -264,10 +266,10 @@ Recorded per the instruction that any material visible deviation carries a reaso
 |---|---:|
 | Views in the approved prototype | **21** |
 | Views present in the React navigation | **21 (100 %)** |
-| Functional in Phase 5 | 10 |
-| Preserved with a stated owning phase | 11 |
+| Functional in Phase 5 | 13 |
+| Preserved with a stated owning phase | 8 |
 | Shared components mapped | 31 |
 | Design tokens preserved | 143 |
-| Icons preserved | 55 |
+| Icons preserved | 63 |
 | Mock collections re-pointed or phase-assigned | 22 |
 | Elements silently dropped | **0** |
