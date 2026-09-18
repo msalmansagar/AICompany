@@ -252,7 +252,9 @@ async function load(cfg: Config, token: string, limit?: number) {
   const contactIds = await createAll(cfg, token, 'contacts', [...byCustomer.values()].map(row => ({
     set: 'contacts',
     body: {
-      firstname: 'Arrear', lastname: `${row.pseudoName} (${MARKER}synthetic)`,
+      // `pseudoName` already reads "Arrear Customer 0001", so the given name is the first word of it
+      // rather than another "Arrear" — the first load rendered "Arrear Arrear Customer 0001".
+      firstname: 'Arrear', lastname: `${row.pseudoName.replace(/^Arrear /, '')} (synthetic)`,
       governmentid: row.pseudoQid,
     },
   })));

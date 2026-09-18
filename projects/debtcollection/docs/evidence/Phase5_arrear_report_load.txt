@@ -1,0 +1,36 @@
+=== Housing Loan Arrear Report — LOAD ===
+
+  Organisation: org5869857f.crm4.dynamics.com
+  Marker: ARR- (distinct from SMOKE- and DEMO-)
+
+─── Reading the report ───
+  HousingLoanArrearReport.xlsx — as of 30/06/2026
+  4358 facility rows, 1 skipped for a missing key
+
+─── Bucket distribution, after the production normalizer ───
+   1670  1-30
+    548  >2000
+    424  1001-2000
+    391  501-1000
+    318  91-180
+    311  31-60
+    227  61-90
+    203  181-270
+    142  361-500
+    123  271-360
+      1  unrecognised (undefined)
+
+  1670 rows recovered to 1-30 from a date the export coerced (KI-55).
+
+─── Writing ───
+  contacts: 100/3778  contacts: 200/3778  contacts: 300/3778  contacts: 400/3778  contacts: 500/3778  contacts: 600/3778  contacts: 700/3778  contacts: 800/3778  contacts: 900/3778  contacts: 1000/3778  contacts: 1100/3778  contacts: 1200/3778  contacts: 1300/3778  contacts: 1400/3778  contacts: 1500/3778  contacts: 1600/3778  contacts: 1700/3778  contacts: 1800/3778  contacts: 1900/3778  contacts: 2000/3778  contacts: 2100/3778  contacts: 2200/3778  contacts: 2300/3778  contacts: 2400/3778  contacts: 2500/3778  contacts: 2600/3778  contacts: 2700/3778  contacts: 2800/3778  contacts: 2900/3778  contacts: 3000/3778  contacts: 3100/3778  contacts: 3200/3778  contacts: 3300/3778  contacts: 3400/3778  contacts: 3500/3778  contacts: 3600/3778  contacts: 3700/3778  contacts: 3778/3778
+  cases: 100/4358  cases: 200/4358  cases: 300/4358  cases: 400/4358  cases: 500/4358  cases: 600/4358  cases: 700/4358  cases: 800/4358  cases: 900/4358  cases: 1000/4358  cases: 1100/4358  cases: 1200/4358  cases: 1300/4358  cases: 1400/4358  cases: 1500/4358  cases: 1600/4358  cases: 1700/4358  cases: 1800/4358  cases: 1900/4358  cases: 2000/4358  cases: 2100/4358  cases: 2200/4358  cases: 2300/4358  cases: 2400/4358  cases: 2500/4358  cases: 2600/4358  cases: 2700/4358  cases: 2800/4358  cases: 2900/4358  cases: 3000/4358  cases: 3100/4358  cases: 3200/4358  cases: 3300/4358  cases: 3400/4358  cases: 3500/4358  cases: 3600/4358  cases: 3700/4358  cases: 3800/4358  cases: 3900/4358  cases: 4000/4358  cases: 4100/4358  cases: 4200/4358  cases: 4300/4358  cases: 4358/4358
+  snapshots: 100/4358  snapshots: 200/4358  snapshots: 300/4358  snapshots: 400/4358  snapshots: 500/4358  snapshots: 600/4358  snapshots: 700/4358  snapshots: 800/4358  snapshots: 900/4358  snapshots: 1000/4358  snapshots: 1100/4358  snapshots: 1200/4358  snapshots: 1300/4358  snapshots: 1400/4358  snapshots: 1500/4358  snapshots: 1600/4358  snapshots: 1700/4358  snapshots: 1800/4358  snapshots: 1900/4358  snapshots: 2000/4358  snapshots: 2100/4358  snapshots: 2200/4358  snapshots: 2300/4358  snapshots: 2400/4358  snapshots: 2500/4358  snapshots: 2600/4358  snapshots: 2700/4358  snapshots: 2800/4358  snapshots: 2900/4358  snapshots: 3000/4358  snapshots: 3100/4358  snapshots: 3200/4358  snapshots: 3300/4358  snapshots: 3400/4358  snapshots: 3500/4358  snapshots: 3600/4358  snapshots: 3700/4358  snapshots: 3800/4358  snapshots: 3900/4358  snapshots: 4000/4358  snapshots: 4100/4358  snapshots: 4200/4358  snapshots: 4300/4358  snapshots: 4358/4358
+
+─── Loaded ───
+  3778 contacts (synthetic identity)
+  4358 collection cases
+  4358 delinquency snapshots
+  724 of them flagged deceased per QCB
+
+  Remove with:  node ... load-arrear-report.mts --remove
