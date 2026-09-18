@@ -19,3 +19,5 @@ export { CollectionConfigurationService } from './CollectionConfigurationService
 export type { CollectionRuntimeConfiguration } from './CollectionConfigurationService.js';
 export { BackgroundSyncRunner } from './BackgroundSyncRunner.js';
 export type { BackgroundSyncOptions, SyncRunReport } from './BackgroundSyncRunner.js';
+export { CaseStrategyOrchestrator } from './CaseStrategyOrchestrator.js';
+export type { StrategyAssignment } from './CaseStrategyOrchestrator.js';

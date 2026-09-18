@@ -44,6 +44,9 @@ export const NAVIGATION = {
   activityCase: 'qdb_collectioncaseid_qdb_collectionactivity',
   activityRegardingCase: 'regardingobjectid_qdb_collectioncase_qdb_collectionactivity',
   activityType: 'qdb_activitytypeid_qdb_collectionactivity',
+  // Read from ManyToOneRelationships on 2026-09-18: only one relationship targets
+  // qdb_collectionstrategy, so the navigation name stays the bare attribute.
+  caseStrategy: 'qdb_strategyid',
 } as const;
 
 /** Entity set of each customer master, for `@odata.bind`. */

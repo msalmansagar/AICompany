@@ -131,17 +131,45 @@ export function resolvePageSize(requested: number | undefined, bounds: PageSizeB
 // ── Query identity ───────────────────────────────────────────────────────────
 
 /**
- * A stable fingerprint of everything that shapes a result set, excluding the page size and the
- * continuation itself.
+ * A stable fingerprint of everything that shapes a result set.
  *
- * Page size is excluded because changing it mid-walk is legitimate — the spike showed Dataverse
- * accepts a different `maxpagesize` on a later page. Filter, sort and search are included because
- * changing any of them means the caller is asking a different question, and an old token would then
- * point into the wrong result set.
+ * It covers **every property of the request except `pageSize` and `continuation`**, and that breadth
+ * is deliberate rather than tidy. An earlier version named only `filter`, `sort` and `search`, which
+ * silently failed to notice a changed `dpdFrom` on a MIS query: the continuation was accepted and
+ * paging carried on into a population the caller was no longer asking about. Enumerating the request
+ * means a source can add its own narrowing — buckets, a DPD range, a facility number — and get the
+ * protection automatically instead of remembering to ask for it.
+ *
+ * The two exclusions are the two things that legitimately change mid-walk. Page size is one: the
+ * spike showed Dataverse accepts a different `maxpagesize` on a later page. The continuation is the
+ * other, obviously.
+ *
+ * Keys are sorted, and an absent property and an explicitly-undefined one fingerprint identically,
+ * so `{ filter: 'x' }` and `{ filter: 'x', search: undefined }` are the same question.
  */
-export function fingerprintQuery(request: Pick<PageRequest, 'filter' | 'sort' | 'search'>): string {
-  const sort = (request.sort ?? []).map(s => `${s.field}:${s.descending ? 'desc' : 'asc'}`).join(',');
-  return JSON.stringify({ filter: request.filter ?? '', sort, search: request.search ?? '' });
+export function fingerprintQuery(request: object): string {
+  const entries = request as Record<string, unknown>;
+  const shaping: Record<string, unknown> = {};
+  for (const key of Object.keys(entries).sort()) {
+    if (key === 'pageSize' || key === 'continuation') continue;
+    const value = entries[key];
+    // An absent criterion and an empty one are the same question: `sort: []` narrows nothing, and a
+    // caller who writes it should not be refused a continuation issued without it.
+    if (value === undefined || (Array.isArray(value) && value.length === 0)) continue;
+    shaping[key] = Array.isArray(value) ? value.map(normalizeForFingerprint) : normalizeForFingerprint(value);
+  }
+  return JSON.stringify(shaping);
+}
+
+/** Objects inside a request — a sort instruction, say — need their own key order pinned. */
+function normalizeForFingerprint(value: unknown): unknown {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return value;
+  const entry = value as Record<string, unknown>;
+  const stable: Record<string, unknown> = {};
+  for (const key of Object.keys(entry).sort()) {
+    if (entry[key] !== undefined) stable[key] = entry[key];
+  }
+  return stable;
 }
 
 // ── Encoding ─────────────────────────────────────────────────────────────────

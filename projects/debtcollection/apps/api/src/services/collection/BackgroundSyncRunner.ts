@@ -17,6 +17,7 @@ import {
   type SyncMode,
 } from '@dcp/domain';
 import type { DelinquencySyncService, RecordAction, RecordOutcome } from './DelinquencySyncService.js';
+import type { CaseStrategyOrchestrator } from './CaseStrategyOrchestrator.js';
 
 const SOURCE = buildLogSource('BackgroundSync');
 
@@ -46,6 +47,11 @@ export interface SyncRunReport {
   recordsFailed: number;
   /** Isolated per-record failures, so a run's problems are enumerable without trawling logs. */
   failures: readonly { facilityNumber: string; detail: string }[];
+  /** Cases that got a treatment, and cases that did not with the reason why. */
+  strategy: {
+    assigned: number;
+    unresolved: readonly { facilityNumber: string; reason: string }[];
+  };
   /** Set when the run stopped early. The checkpoint is still valid and resumable. */
   stoppedBecause?: string;
 }
@@ -80,6 +86,12 @@ export class BackgroundSyncRunner {
     private readonly checkpoints: ICheckpointStore,
     private readonly logger: ICollectionLogger,
     private readonly now: () => string = () => new Date().toISOString(),
+    /**
+     * Optional. When supplied, a case-bearing outcome is followed by a strategy decision through the
+     * Phase 3 Rule Engine facade. Absent, synchronisation still runs — a deployment with no strategy
+     * ruleset yet is a real and supported state, not a broken one.
+     */
+    private readonly strategyOrchestrator?: CaseStrategyOrchestrator,
   ) {}
 
   /**
@@ -95,6 +107,8 @@ export class BackgroundSyncRunner {
     let checkpoint = await this.resumeOrStart(options);
     const counts: Partial<Record<RecordAction, number>> = {};
     const failures: { facilityNumber: string; detail: string }[] = [];
+    const strategyUnresolved: { facilityNumber: string; reason: string }[] = [];
+    let strategyAssigned = 0;
     const seenFacilities = new Set<string>();
     const maxPages = options.maxPages ?? 10_000;
     let pagesRead = 0;
@@ -136,6 +150,18 @@ export class BackgroundSyncRunner {
           failed++;
           failures.push({ facilityNumber: record.facilityNumber, detail: outcome.detail ?? 'unspecified failure' });
         }
+
+        // Eligibility decided whether a case exists; strategy decides how it is treated. A strategy
+        // that cannot be resolved leaves the case untreated with a stated reason — it never undoes a
+        // case that MIS says is delinquent.
+        if (this.strategyOrchestrator && outcome.action !== 'Failed') {
+          const assignment = await this.strategyOrchestrator.apply(outcome, record,
+            record.correlationId ? { correlationId: record.correlationId } : {});
+          if (assignment.applied) strategyAssigned++;
+          else if (outcome.caseId) {
+            strategyUnresolved.push({ facilityNumber: record.facilityNumber, reason: assignment.reason ?? 'unstated' });
+          }
+        }
       }
 
       checkpoint = advanceCheckpoint(checkpoint, {
@@ -161,6 +187,7 @@ export class BackgroundSyncRunner {
       recordsProcessed: checkpoint.recordsProcessed,
       recordsFailed: checkpoint.recordsFailed,
       failures,
+      strategy: { assigned: strategyAssigned, unresolved: strategyUnresolved },
       ...(stoppedBecause !== undefined ? { stoppedBecause } : {}),
     };
   }
