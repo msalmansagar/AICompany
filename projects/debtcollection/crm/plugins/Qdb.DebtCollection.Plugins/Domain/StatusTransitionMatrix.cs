@@ -72,53 +72,59 @@ namespace Qdb.DebtCollection.Plugins.Domain
 
         // ── Allowed-transition maps ───────────────────────────────────────────────
 
-        // ── Deceased/Insurance Review as a universal escape hatch ───────────────
-        // DeceasedInsuranceReview is a permitted escape hatch from every non-terminal
-        // state (App §B.1, Build-step-1 decision 3, 2026-09-16). The five states
-        // that do NOT carry it are the terminal/already-there group:
-        //   UnderLegalAction, DeceasedInsuranceReview itself, Settled, Closed, WrittenOff.
+        // ── Two universal escape hatches ─────────────────────────────────────────
+        // DeceasedInsuranceReview is reachable from every non-terminal state (App §B.1,
+        // Build-step-1 decision 3, 2026-09-16): a death notice is honoured whatever the
+        // case was doing. Settled joined it in Phase 2 (2026-09-18): MIS reports a cure
+        // whenever the customer pays, and a case that is In Progress or Escalated at that
+        // moment still has to reach Closed - before this, most working states had no
+        // legal path to closure at all. The five states that carry neither are the
+        // terminal/already-there group:
+        //   UnderLegalAction, DeceasedInsuranceReview, Settled, Closed, WrittenOff.
+        // The TypeScript mirror (packages/domain caseLifecycle.ts) is parity-tested
+        // against this file.
 
         private static readonly Dictionary<int, HashSet<int>> CaseAllowed =
             new Dictionary<int, HashSet<int>>
             {
                 [CaseStatus.New] = new HashSet<int> {
                     CaseStatus.Assigned,
-                    CaseStatus.DeceasedInsuranceReview },
+                    CaseStatus.DeceasedInsuranceReview, CaseStatus.Settled },
                 [CaseStatus.Assigned] = new HashSet<int> {
                     CaseStatus.InProgress, CaseStatus.EscalatedToSupervisor,
-                    CaseStatus.DeceasedInsuranceReview },
+                    CaseStatus.DeceasedInsuranceReview, CaseStatus.Settled },
                 [CaseStatus.InProgress] = new HashSet<int> {
                     CaseStatus.PendingCustomerResponse, CaseStatus.PtpActive,
                     CaseStatus.RestructureReview, CaseStatus.PendingLegalReview,
-                    CaseStatus.DeceasedInsuranceReview, CaseStatus.EscalatedToSupervisor },
+                    CaseStatus.DeceasedInsuranceReview, CaseStatus.EscalatedToSupervisor, CaseStatus.Settled },
                 [CaseStatus.PendingCustomerResponse] = new HashSet<int> {
                     CaseStatus.InProgress, CaseStatus.PtpActive,
-                    CaseStatus.DeceasedInsuranceReview },
+                    CaseStatus.DeceasedInsuranceReview, CaseStatus.Settled },
                 [CaseStatus.PtpActive] = new HashSet<int> {
                     CaseStatus.PtpBroken, CaseStatus.InProgress, CaseStatus.Settled,
                     CaseStatus.DeceasedInsuranceReview },
                 [CaseStatus.PtpBroken] = new HashSet<int> {
                     CaseStatus.InProgress, CaseStatus.EscalatedToSupervisor,
                     CaseStatus.PendingLegalReview,
-                    CaseStatus.DeceasedInsuranceReview },
+                    CaseStatus.DeceasedInsuranceReview, CaseStatus.Settled },
                 [CaseStatus.RestructureReview] = new HashSet<int> {
                     CaseStatus.Restructured, CaseStatus.InProgress,
-                    CaseStatus.DeceasedInsuranceReview },
+                    CaseStatus.DeceasedInsuranceReview, CaseStatus.Settled },
                 [CaseStatus.Restructured] = new HashSet<int> {
                     CaseStatus.InProgress, CaseStatus.Settled,
                     CaseStatus.DeceasedInsuranceReview },
                 [CaseStatus.EscalatedToSupervisor] = new HashSet<int> {
                     CaseStatus.InProgress, CaseStatus.PendingLegalReview,
-                    CaseStatus.DeceasedInsuranceReview },
+                    CaseStatus.DeceasedInsuranceReview, CaseStatus.Settled },
                 [CaseStatus.PendingLegalReview] = new HashSet<int> {
                     CaseStatus.ReferredToLegal, CaseStatus.InProgress,
-                    CaseStatus.DeceasedInsuranceReview },
+                    CaseStatus.DeceasedInsuranceReview, CaseStatus.Settled },
                 [CaseStatus.ReferredToLegal] = new HashSet<int> {
                     CaseStatus.UnderLegalAction, CaseStatus.InProgress,
-                    CaseStatus.DeceasedInsuranceReview },
+                    CaseStatus.DeceasedInsuranceReview, CaseStatus.Settled },
                 [CaseStatus.Reopened] = new HashSet<int> {
                     CaseStatus.InProgress,
-                    CaseStatus.DeceasedInsuranceReview },
+                    CaseStatus.DeceasedInsuranceReview, CaseStatus.Settled },
 
                 // Terminal / already-there — DeceasedInsuranceReview NOT permitted as target.
                 [CaseStatus.UnderLegalAction] = new HashSet<int> {

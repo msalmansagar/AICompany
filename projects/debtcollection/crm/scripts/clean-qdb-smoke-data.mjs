@@ -1,17 +1,21 @@
 /**
  * clean-qdb-smoke-data.mjs
- * Removes the rows the `qdb_` smoke test leaves behind, and nothing else.
+ * Removes the rows the `qdb_` smoke tests leave behind, and nothing else.
  *
- * The smoke test has to exercise `ImmutabilityGuard`, and the guard then refuses to let it clean up
- * after itself: Delete on a collection case and on a snapshot is permanently blocked, and a
- * completed activity is frozen. That is correct behaviour, so removing the test rows means
+ * The smoke tests have to exercise `ImmutabilityGuard`, and the guard then refuses to let them
+ * clean up after themselves: Delete on a collection case and on a snapshot is permanently blocked,
+ * and a completed activity is frozen. That is correct behaviour, so removing the test rows means
  * temporarily disabling the three `qdb_` Delete steps — the minimum that can do the job.
+ *
+ * What counts as smoke data is decided per table by the facility number or record number the tests
+ * stamp with the smoke marker — never by a free-text match, and never by anything a real MIS feed
+ * could produce. Reference data the tests create (a contact, an activity type, a platform
+ * configuration row) is matched on the same marker and needs no guard disabled.
  *
  * Safety, in the order it is applied:
  *   • refuses to run against any organisation but the authorised sandbox;
- *   • only ever matches rows whose name/number begins with the smoke prefix;
  *   • prints what it found and stops unless `--confirm` is given;
- *   • reports anything else that references a row before deleting it;
+ *   • reports anything outside the smoke set that references a row before deleting it;
  *   • re-enables every step it disabled, including when a delete fails;
  *   • verifies the restored registration against the step table before exiting.
  *
@@ -26,13 +30,17 @@ import { loadConfig, acquireToken, apiGet, buildHeaders } from './lib/crm-client
 import { PLUGIN_STEPS, SOLUTION_NAME } from './lib/qdb-plugin-steps.mjs';
 
 const AUTHORISED_ORG = 'org5869857f';
-const SMOKE_PREFIX = 'SMOKE-';
+export const SMOKE_MARKER = 'SMOKE-';
 
-/** The tables the smoke test writes to, with the column its name lands in. */
+/** Tables the smoke tests write, the column that carries the marker, and whether a guard blocks Delete. Children before parents. */
 const SMOKE_TABLES = [
-  { entitySet: 'qdb_collectionactivities', label: 'collection activity', nameField: 'qdb_activitynumber', idField: 'activityid' },
-  { entitySet: 'qdb_delinquencysnapshots', label: 'delinquency snapshot', nameField: 'qdb_name', idField: 'qdb_delinquencysnapshotid' },
-  { entitySet: 'qdb_collectioncases', label: 'collection case', nameField: 'qdb_casenumber', idField: 'qdb_collectioncaseid' },
+  { entitySet: 'qdb_collectionactivities', label: 'collection activity', markerField: 'qdb_activitynumber', idField: 'activityid', guarded: true },
+  { entitySet: 'qdb_delinquencysnapshots', label: 'delinquency snapshot', markerField: 'qdb_facilitynumber', idField: 'qdb_delinquencysnapshotid', guarded: true },
+  { entitySet: 'qdb_identityexceptions', label: 'identity exception', markerField: 'qdb_facilitynumber', idField: 'qdb_identityexceptionid', guarded: false },
+  { entitySet: 'qdb_collectioncases', label: 'collection case', markerField: 'qdb_facilitynumber', idField: 'qdb_collectioncaseid', guarded: true },
+  { entitySet: 'qdb_collectionactivitytypes', label: 'activity type (reference data)', markerField: 'qdb_code', idField: 'qdb_collectionactivitytypeid', guarded: false },
+  { entitySet: 'qdb_platformconfigurations', label: 'platform configuration (smoke)', markerField: 'qdb_environmentcode', idField: 'qdb_platformconfigurationid', guarded: false },
+  { entitySet: 'contacts', label: 'contact (smoke customer)', markerField: 'governmentid', idField: 'contactid', guarded: false },
 ];
 
 /** The only steps this script may disable: the three that block a delete. */
@@ -40,7 +48,6 @@ const BLOCKING_STEP_NAMES = PLUGIN_STEPS
   .filter(step => step.pluginType === 'ImmutabilityGuardPlugin' && step.message === 'Delete')
   .map(step => `ImmutabilityGuardPlugin: Delete of ${step.entity} (PreValidation)`);
 
-/** Refuses to run against anything but the authorised sandbox. */
 function assertAuthorisedOrg(cfg) {
   const host = new URL(cfg.orgUrl).host;
   if (!host.startsWith(`${AUTHORISED_ORG}.`)) {
@@ -49,7 +56,6 @@ function assertAuthorisedOrg(cfg) {
   console.log(`  Organisation: ${host}`);
 }
 
-/** Sends a write and returns the refusal text, or null on success. */
 async function write(cfg, token, method, path, body) {
   const res = await fetch(`${cfg.apiBase}${path}`, {
     method, headers: buildHeaders(token, SOLUTION_NAME), ...(body ? { body: JSON.stringify(body) } : {}),
@@ -59,41 +65,34 @@ async function write(cfg, token, method, path, body) {
   try { return JSON.parse(text)?.error?.message ?? text; } catch { return text; }
 }
 
-/** Finds every row in the smoke tables whose name carries the smoke prefix. */
-async function findSmokeRows(cfg, token) {
+/** Finds every row in the smoke tables whose marker column starts with the marker. */
+export async function findSmokeRows(cfg, token) {
   const found = [];
   for (const table of SMOKE_TABLES) {
     const result = await apiGet(cfg, token, SOLUTION_NAME,
-      `/${table.entitySet}?$select=${table.idField},${table.nameField},statecode`);
+      `/${table.entitySet}?$select=${table.idField},${table.markerField}&$filter=startswith(${table.markerField},'${SMOKE_MARKER}')`);
     for (const row of result?.value ?? []) {
-      const name = String(row[table.nameField] ?? '');
-      if (!name.startsWith(SMOKE_PREFIX)) continue;
-      found.push({ ...table, id: row[table.idField], name, statecode: row.statecode });
+      found.push({ ...table, id: row[table.idField], name: String(row[table.markerField]) });
     }
   }
   return found;
 }
 
-/**
- * Reports anything outside the smoke set that points at a case being removed, so a row with real
- * work hanging off it is never deleted silently.
- */
+/** Reports anything outside the smoke set that points at a case being removed. */
 async function findUnexpectedReferences(cfg, token, rows) {
   const smokeIds = new Set(rows.map(r => r.id));
   const unexpected = [];
   for (const caseRow of rows.filter(r => r.entitySet === 'qdb_collectioncases')) {
-    const related = await apiGet(cfg, token, SOLUTION_NAME,
-      `/qdb_collectionactivities?$select=activityid,qdb_activitynumber&$filter=_qdb_collectioncaseid_value eq ${caseRow.id}`);
-    for (const activity of related?.value ?? []) {
-      if (!smokeIds.has(activity.activityid)) {
-        unexpected.push(`${caseRow.name} is referenced by activity ${activity.activityid} "${activity.qdb_activitynumber}", which is not part of the smoke set`);
+    for (const [set, idField] of [['qdb_collectionactivities', 'activityid'], ['qdb_delinquencysnapshots', 'qdb_delinquencysnapshotid']]) {
+      const related = await apiGet(cfg, token, SOLUTION_NAME, `/${set}?$select=${idField}&$filter=_qdb_collectioncaseid_value eq ${caseRow.id}`);
+      for (const child of related?.value ?? []) {
+        if (!smokeIds.has(child[idField])) unexpected.push(`case ${caseRow.name} is referenced by ${set} ${child[idField]}, which is not part of the smoke set`);
       }
     }
   }
   return unexpected;
 }
 
-/** Reads the three blocking steps. */
 async function readBlockingSteps(cfg, token) {
   const steps = [];
   for (const name of BLOCKING_STEP_NAMES) {
@@ -106,18 +105,15 @@ async function readBlockingSteps(cfg, token) {
   return steps;
 }
 
-/** Disables or re-enables the blocking steps. @param {boolean} enabled */
 async function setStepsEnabled(cfg, token, steps, enabled) {
   for (const step of steps) {
     const body = enabled ? { statecode: 0, statuscode: 1 } : { statecode: 1, statuscode: 2 };
-    const failure = await write(cfg, token, 'PATCH',
-      `/sdkmessageprocessingsteps(${step.sdkmessageprocessingstepid})`, body);
+    const failure = await write(cfg, token, 'PATCH', `/sdkmessageprocessingsteps(${step.sdkmessageprocessingstepid})`, body);
     if (failure) throw new Error(`Could not ${enabled ? 'enable' : 'disable'} '${step.name}': ${failure}`);
     console.log(`  ${enabled ? '[ENABLED] ' : '[DISABLED]'} ${step.name}`);
   }
 }
 
-/** Confirms the restored steps match what the step table says they should be. */
 async function verifyRestored(cfg, token) {
   const steps = await readBlockingSteps(cfg, token);
   let allGood = true;
@@ -134,7 +130,6 @@ async function verifyRestored(cfg, token) {
   return allGood;
 }
 
-/** Deletes the identified rows, children before parents. */
 async function deleteRows(cfg, token, rows) {
   const failures = [];
   for (const row of rows) {
@@ -149,65 +144,73 @@ async function deleteRows(cfg, token, rows) {
   return failures;
 }
 
-async function main() {
-  const confirmed = process.argv.includes('--confirm');
-  console.log(`=== qdb_ smoke-data cleanup${confirmed ? '' : ' (dry run — pass --confirm to delete)'} ===\n`);
-
-  const cfg = loadConfig();
-  assertAuthorisedOrg(cfg);
-  const token = await acquireToken(cfg);
-
+/** Runs the whole cleanup; exported so the Phase 2 smoke can call it as its last step. */
+export async function cleanSmokeData({ cfg, token, confirmed }) {
   console.log('\n─── Records identified ───');
   const rows = await findSmokeRows(cfg, token);
   if (rows.length === 0) {
     console.log('  None. There is no smoke residue to remove.');
-    return;
+    return { residue: [], deleted: 0 };
   }
-  for (const row of rows) {
-    console.log(`  ${row.label.padEnd(22)} ${row.id}  ${row.name}${row.statecode === 1 ? '  [completed]' : ''}`);
-  }
-  console.log(`  ${rows.length} record(s) — every one matched on the "${SMOKE_PREFIX}" prefix.`);
+  for (const row of rows) console.log(`  ${row.label.padEnd(32)} ${row.id}  ${row.name}`);
+  console.log(`  ${rows.length} record(s) — every one matched on the "${SMOKE_MARKER}" marker.`);
 
   console.log('\n─── Checking for anything else that references them ───');
   const unexpected = await findUnexpectedReferences(cfg, token, rows);
   if (unexpected.length > 0) {
     console.log('  STOPPING — these rows are referenced by records outside the smoke set:');
     for (const line of unexpected) console.log(`    ${line}`);
-    process.exit(1);
+    throw new Error('smoke cleanup refused: rows are referenced outside the smoke set');
   }
   console.log('  Nothing outside the smoke set references them.');
 
   if (!confirmed) {
     console.log('\nDry run. Re-run with --confirm to delete these records.');
-    return;
+    return { residue: rows, deleted: 0 };
   }
 
-  console.log('\n─── Temporarily disabling the three qdb_ Delete guards ───');
-  const steps = await readBlockingSteps(cfg, token);
-  await setStepsEnabled(cfg, token, steps, false);
-
+  const guarded = rows.filter(r => r.guarded);
+  const unguarded = rows.filter(r => !r.guarded);
   let failures = [];
-  try {
-    console.log('\n─── Deleting ───');
-    failures = await deleteRows(cfg, token, rows);
-  } finally {
-    console.log('\n─── Restoring the guards ───');
-    await setStepsEnabled(cfg, token, steps, true);
+
+  if (guarded.length > 0) {
+    console.log('\n─── Temporarily disabling the three qdb_ Delete guards ───');
+    const steps = await readBlockingSteps(cfg, token);
+    await setStepsEnabled(cfg, token, steps, false);
+    try {
+      console.log('\n─── Deleting guarded rows ───');
+      failures = await deleteRows(cfg, token, guarded);
+    } finally {
+      console.log('\n─── Restoring the guards ───');
+      await setStepsEnabled(cfg, token, steps, true);
+    }
+    console.log('\n─── Verifying the restored registration ───');
+    if (!(await verifyRestored(cfg, token))) throw new Error('guard registration did not restore cleanly');
   }
 
-  console.log('\n─── Verifying the restored registration ───');
-  const restored = await verifyRestored(cfg, token);
+  if (unguarded.length > 0) {
+    console.log('\n─── Deleting reference data (no guard involved) ───');
+    failures = failures.concat(await deleteRows(cfg, token, unguarded));
+  }
 
   console.log('\n─── Confirming no residue remains ───');
   const remaining = await findSmokeRows(cfg, token);
   console.log(`  ${remaining.length === 0 ? 'PASS' : 'FAIL'}  ${remaining.length} smoke record(s) remain`);
   for (const row of remaining) console.log(`    still present: ${row.label} ${row.name}`);
-
-  if (failures.length > 0 || !restored || remaining.length > 0) process.exit(1);
+  if (failures.length > 0 || remaining.length > 0) throw new Error('smoke cleanup incomplete');
   console.log('\nCleanup complete. The guards are registered and enabled exactly as before.');
+  return { residue: [], deleted: rows.length };
 }
 
-main().catch((err) => {
-  console.error('\n[FATAL]', err.message);
-  process.exit(1);
-});
+const isEntryPoint = process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/').split('/').pop());
+if (isEntryPoint) {
+  const confirmed = process.argv.includes('--confirm');
+  console.log(`=== qdb_ smoke-data cleanup${confirmed ? '' : ' (dry run — pass --confirm to delete)'} ===\n`);
+  const cfg = loadConfig();
+  assertAuthorisedOrg(cfg);
+  const token = await acquireToken(cfg);
+  cleanSmokeData({ cfg, token, confirmed }).catch((err) => {
+    console.error('\n[FATAL]', err.message);
+    process.exit(1);
+  });
+}

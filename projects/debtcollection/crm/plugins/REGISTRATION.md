@@ -148,3 +148,19 @@ field is absent (direct CRM UI write), the plugin falls back to
 
 The router also sets `msst_sourcepath` to `"Router"`. Direct UI writes leave
 the field absent; the plugin defaults to `"Plugin"`.
+
+## Phase 2 addendum (2026-09-18) — `ActiveCaseGuardPlugin`
+
+| Entity | Message | Stage | Mode | Filter | Image |
+|---|---|---|---|---|---|
+| `qdb_collectioncase` | Create | PreOperation (20) | Sync | — | — |
+| `qdb_collectioncase` | Update | PreOperation (20) | Sync | `statecode` | PreImage: `qdb_facilitynumber,qdb_facilitysourcesystem` |
+
+One active Collection Case per facility per delinquency episode, where the facility is its MIS identity
+(`qdb_facilitynumber` + `qdb_facilitysourcesystem`). Create is always checked; Update only when
+`statecode` is set back to Active (a reopening), which is why the filter and the pre-image exist. The
+step table is `crm/scripts/lib/qdb-plugin-steps.mjs`; registered on `org5869857f` on 2026-09-18
+(assembly patched, 1 type, 2 steps, 1 image; `verify-qdb-schema.mjs` reports 12/12 steps).
+
+The same assembly build carries the matrix amendment: Settled is reachable from every non-terminal
+state (`StatusTransitionMatrix.cs`, KI-46).

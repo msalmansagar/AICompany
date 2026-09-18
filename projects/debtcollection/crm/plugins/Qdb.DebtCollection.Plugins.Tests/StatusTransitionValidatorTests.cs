@@ -269,13 +269,14 @@ namespace Qdb.DebtCollection.Plugins.Tests
         }
 
         [Fact]
-        public void ValidateTransition_CasePreImageStatusCodeIs1_TreatsAsNewRefusesTransitionToSettled()
+        public void ValidateTransition_CasePreImageStatusCodeIs1_TreatsAsNewRefusesTransitionToClosed()
         {
-            // Arrange -- New -> Settled is not in the allowed matrix; normalising 1 to
-            // New must not open up disallowed transitions.
+            // Arrange -- New -> Closed is not in the allowed matrix; normalising 1 to
+            // New must not open up disallowed transitions. (New -> Settled became
+            // legal in Phase 2: a cure can arrive in any working state.)
             var validator = BuildCaseValidator(
                 fromCode: 1,
-                toCode: StatusTransitionMatrix.CaseStatus.Settled);
+                toCode: StatusTransitionMatrix.CaseStatus.Closed);
 
             // Act
             var ex = Assert.Throws<InvalidPluginExecutionException>(
@@ -283,7 +284,7 @@ namespace Qdb.DebtCollection.Plugins.Tests
 
             // Assert
             Assert.Contains("New", ex.Message);
-            Assert.Contains("Settled", ex.Message);
+            Assert.Contains("Closed", ex.Message);
         }
         private static StatusTransitionValidator BuildPtpValidator(int fromCode, int toCode)
         {

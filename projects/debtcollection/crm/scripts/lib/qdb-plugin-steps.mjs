@@ -56,6 +56,13 @@ export const PLUGIN_STEPS = [
   { pluginType: 'ImmutabilityGuardPlugin', entity: 'qdb_collectionactivity',  message: 'Delete', stage: 10, mode: 0, filterAttributes: '',          image: { alias: 'PreImage', attributes: 'statecode' } },
   { pluginType: 'ImmutabilityGuardPlugin', entity: 'qdb_collectioncase',      message: 'Delete', stage: 10, mode: 0, filterAttributes: '',          image: null },
 
+  // ── ActiveCaseGuardPlugin (Phase 2) ─────────────────────────────────────────
+  // One active case per facility per episode, where the facility is its MIS identity. Create is
+  // always checked; Update only when statecode is set back to Active, hence the filter and the
+  // pre-image carrying the two facility columns.
+  { pluginType: 'ActiveCaseGuardPlugin', entity: 'qdb_collectioncase', message: 'Create', stage: 20, mode: 0, filterAttributes: '',          image: null },
+  { pluginType: 'ActiveCaseGuardPlugin', entity: 'qdb_collectioncase', message: 'Update', stage: 20, mode: 0, filterAttributes: 'statecode', image: { alias: 'PreImage', attributes: 'qdb_facilitynumber,qdb_facilitysourcesystem' } },
+
   // ── ActivitySubjectComposerPlugin ───────────────────────────────────────────
   { pluginType: 'ActivitySubjectComposerPlugin', entity: 'qdb_collectionactivity', message: 'Create', stage: 20, mode: 0, filterAttributes: 'qdb_activitytypeid', image: null },
 ];
