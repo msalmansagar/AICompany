@@ -92,6 +92,69 @@ supplied.
 
 ---
 
+---
+
+## How time is counted
+
+Two clocks, kept apart on purpose.
+
+| | |
+|---|---|
+| **Wall-clock elapsed** | Start to finish on the calendar, including everything |
+| **Effective Claude execution time** | Only the periods in which work was actually being produced |
+
+A period is **not** effective execution time when the session is stopped, the machine sleeps, VS Code
+is closed, execution is paused, approval or input is being waited on, or an external QDB dependency
+prevents progress. Those are recorded as **inactive/blocked** with the reason.
+
+Segment boundaries are taken from **git commit timestamps**, which are machine records written at the
+moment the work landed. They are not reconstructed from memory.
+
+### Segment ledger
+
+| # | From | To | Hours | Kind | Evidence / reason |
+|---|---|---|---:|---|---|
+| 1 | 18 Sep 15:23:35 | 18 Sep 16:31:14 | **1.127** | Execution | Phase 4 start record `b0e483d9` 16:03:48 · paging spike `398dfc81` 16:14:49 · paging contract `bb818b37` 16:31:14 |
+| — | 18 Sep 16:31:14 | 18 Sep 17:14:53 | 0.728 | **Blocked — awaiting approval/direction** | Work package 1 reported at the gate; no work produced while waiting |
+| 2 | 18 Sep 17:14:53 | *open* | — | Execution | MIS contract evidence analysis onward |
+
+**Running totals as at 18 Sep 17:14:53 (+03:00):**
+
+| | Hours |
+|---|---:|
+| Wall-clock elapsed | 1.855 |
+| Inactive / blocked | 0.728 |
+| **Effective Claude execution** | **1.127** |
+| Original estimate | 19.0 |
+| Variance against effective execution | *not yet meaningful — 6 % of the estimate spent* |
+
+### Effort by work package — actual against estimate
+
+Updated as each package completes. Variance is measured against **effective execution time**.
+
+| Work package | Estimate | Actual | Variance | Status |
+|---|---:|---:|---:|---|
+| MIS Contract / Normalization | 1.5 | — | — | in progress |
+| MIS Service / Adapter | 2.0 | — | — | not started |
+| Background Synchronization | 2.0 | — | — | not started |
+| **Server-Side Paging** | **2.5** | **1.127** | **−1.373 (55 % of estimate)** | **complete** — includes the read-only spike, the contract, both fake adapters, 30 domain tests and the 16/16 live smoke |
+| Filtering / Sorting | 1.0 | — | — | partially delivered inside paging; remainder not started |
+| Strategy Execution Integration | 1.0 | — | — | not started |
+| Failure / Retry / Idempotency | 1.5 | — | — | not started |
+| Automated Testing | 3.0 | — | — | in progress |
+| Cloud Runtime Validation | 1.5 | — | — | in progress |
+| Regression | 1.0 | — | — | in progress |
+| Documentation / Gate Evidence | 2.0 | — | — | in progress |
+
+**The original 19.0-hour estimate stands unmodified.** If remaining scope changes materially, an
+Estimate Update is issued as a new row below, and the original is preserved rather than edited.
+
+### Estimate updates
+
+*None issued.*
+
+---
+
 ## Completion
 
 *Recorded at the end of the phase from the machine clock — not reconstructed.*
