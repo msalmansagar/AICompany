@@ -21,7 +21,7 @@
 
 import { loadConfig, acquireToken, apiGet } from './lib/crm-client.mjs';
 import { SOLUTION_NAME } from './lib/qdb-plugin-steps.mjs';
-import { READ_REGISTRY, toAttributeName } from '../../apps/web/src/data/schema.js';
+import { NAVIGATION_REGISTRY, READ_REGISTRY, toAttributeName } from '../../apps/web/src/data/schema.js';
 import { DEFAULT_LOGICAL_NAMES, XrmCrmAdapter } from '../../apps/web/src/platform/XrmCrmAdapter.js';
 import type { XrmLike } from '../../apps/web/src/platform/crmContext.js';
 
@@ -68,7 +68,33 @@ async function main() {
     );
   }
 
-  console.log(`\n  ${checked} column names checked against live metadata.`);
+  // ── Navigation properties ─────────────────────────────────────────────────
+  // A lookup's write name is not derivable from its read name: `qdb_collectioncaseid` is suffixed
+  // with the referencing entity on the activity and bare on the snapshot, decided by whether
+  // anything else points at the same table. Reading them back is the only way to be sure (KI-69).
+  console.log('');
+  for (const entity of [...new Set(NAVIGATION_REGISTRY.map(entry => entry.entity))]) {
+    const response = await apiGet(cfg, token, SOLUTION_NAME,
+      `/EntityDefinitions(LogicalName='${entity}')/ManyToOneRelationships` +
+      '?$select=ReferencingAttribute,ReferencingEntityNavigationPropertyName');
+    const actual = new Set((response?.value ?? []).map(
+      (relationship: { ReferencingEntityNavigationPropertyName: string }) =>
+        relationship.ReferencingEntityNavigationPropertyName));
+
+    const expected = NAVIGATION_REGISTRY.filter(entry => entry.entity === entity);
+    const missing = expected.filter(entry => !actual.has(entry.navigationProperty));
+    checked += expected.length;
+
+    check(
+      `${entity}: every lookup binds through a real navigation property`,
+      missing.length === 0,
+      missing.length === 0
+        ? expected.map(e => e.navigationProperty).join(', ')
+        : `MISSING ${missing.map(e => `${e.attribute} -> ${e.navigationProperty}`).join('; ')}`,
+    );
+  }
+
+  console.log(`\n  ${checked} column and navigation-property names checked against live metadata.`);
   console.log('\n  NOT proven by this script: that a query returns the values a screen expects, or');
   console.log('  that the workspace runs inside Dynamics. Existence is necessary, not sufficient —');
   console.log('  KI-52 was a column that existed and still returned nothing when selected wrongly.');

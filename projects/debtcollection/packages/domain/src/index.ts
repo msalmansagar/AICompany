@@ -70,7 +70,12 @@ export type {
   CrmQuery,
   CrmCallContext,
   ICrmAdapter,
+  IConcurrencyControlledWrites,
+  RowVersion,
+  VersionedRecord,
 } from './crm.js';
+
+export { CrmConcurrencyError, isConcurrencyConflict } from './crm.js';
 
 export {
   BusinessObjectSchema,

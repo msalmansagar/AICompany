@@ -14,10 +14,14 @@
   PASS  contacts → contact: every read column exists — 9 columns
   PASS  accounts → account: every read column exists — 7 columns
 
-  173 column names checked against live metadata.
+  PASS  qdb_collectionactivity: every lookup binds through a real navigation property — qdb_collectioncaseid_qdb_collectionactivity, qdb_activitytypeid_qdb_collectionactivity, qdb_outcomeid_qdb_collectionactivity
+  PASS  qdb_delinquencysnapshot: every lookup binds through a real navigation property — qdb_collectioncaseid
+  PASS  qdb_collectioncase: every lookup binds through a real navigation property — qdb_strategyid, qdb_assignedteamid, qdb_customerid_contact, qdb_customerid_account
+
+  181 column and navigation-property names checked against live metadata.
 
   NOT proven by this script: that a query returns the values a screen expects, or
   that the workspace runs inside Dynamics. Existence is necessary, not sufficient —
   KI-52 was a column that existed and still returned nothing when selected wrongly.
 
-=== 11/11 checks passed ===
+=== 14/14 checks passed ===

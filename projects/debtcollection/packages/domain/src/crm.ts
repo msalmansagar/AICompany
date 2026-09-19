@@ -102,3 +102,85 @@ export interface ICrmAdapter {
   /** Invokes a named server-side operation: a Custom API on cloud, a Process Action on-premises. */
   execute(operation: string, parameters: CrmRecord, context?: CrmCallContext): Promise<unknown>;
 }
+
+/**
+ * Optimistic concurrency, for the adapters that can offer it.
+ *
+ * Deliberately **not** part of `ICrmAdapter`. The workspace needs it — two collection officers work
+ * one case, and §12 requires stale-write detection — while the service-side adapter has no caller
+ * that does today. Widening the base interface would have forced an implementation that throws "not
+ * supported", which is the Liskov violation the coding standards name outright.
+ *
+ * So it is a separate, small capability an adapter may also implement, and a caller that needs it
+ * asks for this type rather than for `ICrmAdapter`. When the service side needs it — Phase 8
+ * automation writing alongside a human is the obvious moment — it implements this and nothing about
+ * the base contract moves.
+ *
+ * See ADR-DCP-18.
+ */
+export interface IConcurrencyControlledWrites {
+  /**
+   * Reads a record together with the version token needed to write it back safely.
+   *
+   * Separate from `retrieve` because most reads do not intend to write, and a caller holding a
+   * version it never uses invites the temptation to write without one.
+   */
+  retrieveVersioned(
+    reference: CrmReference,
+    select: string[],
+    context?: CrmCallContext,
+  ): Promise<VersionedRecord | null>;
+
+  /**
+   * Updates a record only if it still carries the version the caller read.
+   *
+   * Throws {@link CrmConcurrencyError} when it has moved — never silently overwrites.
+   */
+  updateVersioned(
+    reference: CrmReference,
+    values: CrmRecord,
+    expectedVersion: RowVersion,
+    context?: CrmCallContext,
+  ): Promise<RowVersion>;
+}
+
+/**
+ * A record's version, as the platform issues it.
+ *
+ * Branded so it cannot be confused with an ordinary string, and **opaque**: it is the platform's
+ * ETag, and no caller should parse, compare or construct one. Its only use is being handed back.
+ */
+export type RowVersion = string & { readonly __brand: 'RowVersion' };
+
+export interface VersionedRecord {
+  record: CrmRecord;
+  version: RowVersion;
+}
+
+/**
+ * The record moved between the read and the write.
+ *
+ * A distinct type because the UI must tell this apart from a generic save failure: "this record
+ * changed while you were editing it, reload and try again" is a different conversation from "the
+ * save failed". Phase 6 §11 requires the distinction, and a caller that cannot make it ends up
+ * showing a retry button that will fail the same way every time.
+ */
+export class CrmConcurrencyError extends Error {
+  readonly reference: CrmReference;
+  readonly expectedVersion: RowVersion;
+
+  constructor(reference: CrmReference, expectedVersion: RowVersion, platformMessage?: string) {
+    super(
+      `${reference.entity} ${reference.id} changed since it was read. ` +
+      'Reload the record and apply the change again.' +
+      (platformMessage ? ` Platform: ${platformMessage}` : ''));
+    this.name = 'CrmConcurrencyError';
+    this.reference = reference;
+    this.expectedVersion = expectedVersion;
+  }
+}
+
+/** Narrows an unknown error to a concurrency conflict, for callers that must branch on it. */
+export function isConcurrencyConflict(error: unknown): error is CrmConcurrencyError {
+  return error instanceof CrmConcurrencyError;
+}

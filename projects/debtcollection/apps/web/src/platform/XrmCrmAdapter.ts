@@ -9,10 +9,15 @@ import {
   type CrmRecord,
   type CrmReference,
   type ICrmAdapter,
+  type IConcurrencyControlledWrites,
   type Page,
   type Sort,
+  type VersionedRecord,
+  type RowVersion,
+  CrmConcurrencyError,
 } from '@dcp/domain';
 import type { XrmLike } from './crmContext.js';
+import { PRECONDITION_FAILED, type WriteTransport } from './writeTransport.js';
 
 /**
  * The browser half of `ICrmAdapter`, over `Xrm.WebApi`.
@@ -34,12 +39,87 @@ import type { XrmLike } from './crmContext.js';
  * The continuation this adapter issues is the same opaque, fingerprinted token the rest of the
  * platform uses, so a caller cannot tell — and must not care — which source produced it.
  */
-export class XrmCrmAdapter implements ICrmAdapter {
+export class XrmCrmAdapter implements ICrmAdapter, IConcurrencyControlledWrites {
   constructor(
     private readonly xrm: XrmLike,
     /** Overrides for entity sets whose logical name is not simply the set minus a trailing `s`. */
     private readonly logicalNameOverrides: Readonly<Record<string, string>> = DEFAULT_LOGICAL_NAMES,
+    /**
+     * The transport for concurrency-controlled writes (ADR-DCP-18).
+     *
+     * Absent, the versioned operations refuse rather than quietly falling back to an unguarded
+     * write — a silent downgrade to last-write-wins is the exact failure this exists to prevent.
+     */
+    private readonly writeTransport?: WriteTransport,
   ) {}
+
+  /**
+   * Reads a record with the version needed to write it back safely.
+   *
+   * The read goes through the write transport rather than `Xrm.WebApi`, because the version must be
+   * the one the *writer* will be compared against. Taking it from a different channel would be a
+   * guess that the two agree — and the whole point of this operation is not to guess.
+   */
+  async retrieveVersioned(
+    reference: CrmReference,
+    select: string[],
+    _context: CrmCallContext = {},
+  ): Promise<VersionedRecord | null> {
+    const transport = this.requireWriteTransport('read a record with its version');
+    const options = select.length > 0 ? `?$select=${select.join(',')}` : '';
+    const response = await transport.get(`/${reference.entity}(${reference.id})${options}`);
+
+    if (response.status === 404) return null;
+    if (response.status >= 400) {
+      throw new Error(`Reading ${reference.entity} ${reference.id} failed (${response.status}): ${response.message ?? ''}`);
+    }
+    if (!response.etag) {
+      throw new Error(
+        `${reference.entity} ${reference.id} came back with no version token, so it cannot be updated safely.`);
+    }
+    return { record: (response.body ?? {}) as CrmRecord, version: response.etag as RowVersion };
+  }
+
+  /**
+   * Updates a record only if it still carries the version the caller read.
+   *
+   * A `412` becomes a `CrmConcurrencyError`, which the UI must be able to tell apart from an
+   * ordinary save failure: "this record changed, reload it" and "the save failed" call for different
+   * words and different buttons.
+   */
+  async updateVersioned(
+    reference: CrmReference,
+    values: CrmRecord,
+    expectedVersion: RowVersion,
+    _context: CrmCallContext = {},
+  ): Promise<RowVersion> {
+    const transport = this.requireWriteTransport('update a record safely');
+    const response = await transport.patch(`/${reference.entity}(${reference.id})`, values, expectedVersion);
+
+    if (response.status === PRECONDITION_FAILED) {
+      throw new CrmConcurrencyError(reference, expectedVersion, response.message);
+    }
+    if (response.status >= 400) {
+      throw new Error(`Updating ${reference.entity} ${reference.id} failed (${response.status}): ${response.message ?? ''}`);
+    }
+    // A PATCH returns the new version in the ETag header. Where the platform omits it, the caller is
+    // told to re-read rather than handed a stale token that would fail on the next write.
+    if (!response.etag) {
+      throw new Error(
+        `${reference.entity} ${reference.id} was updated but returned no new version; re-read it before writing again.`);
+    }
+    return response.etag as RowVersion;
+  }
+
+  private requireWriteTransport(what: string): WriteTransport {
+    if (!this.writeTransport) {
+      throw new Error(
+        `Cannot ${what}: this adapter was built without a write transport. Concurrency-controlled ` +
+        'writes need one (ADR-DCP-18), and falling back to an unguarded write would silently ' +
+        'reintroduce last-write-wins.');
+    }
+    return this.writeTransport;
+  }
 
   /** @inheritdoc */
   async retrieve(reference: CrmReference, select: string[], _context: CrmCallContext = {}): Promise<CrmRecord | null> {

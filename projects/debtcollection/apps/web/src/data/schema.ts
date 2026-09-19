@@ -30,6 +30,62 @@ export const ENTITY_SETS = {
   account: 'accounts',
 } as const;
 
+/**
+ * The navigation property to bind each lookup through on a **write**.
+ *
+ * A lookup has three different names and they are not interchangeable:
+ *
+ * | | Example |
+ * |---|---|
+ * | read (`$select`, `$filter`) | `_qdb_collectioncaseid_value` |
+ * | **write** (`@odata.bind`) | `qdb_collectioncaseid_qdb_collectionactivity` |
+ * | storage (accepted, returns nothing) | `qdb_collectioncaseid` |
+ *
+ * **None of it is derivable.** `qdb_collectioncaseid` is suffixed with the referencing entity on
+ * `qdb_collectionactivity` — because `regardingobjectid` also targets the case, so the relationship
+ * name has to be unique — and is *not* suffixed on `qdb_delinquencysnapshot`, where nothing
+ * competes. The same attribute, two different navigation properties, decided by what else happens to
+ * point at the same table.
+ *
+ * Read from `ManyToOneRelationships.ReferencingEntityNavigationPropertyName`, never inferred, and
+ * checked against the organisation by `crm/scripts/verify-view-columns.mts`. This is the third time
+ * this family has cost real debugging — KI-52 (read form), KI-57 (write form), KI-69 (this) — which
+ * is why it is a registry rather than a habit.
+ *
+ * The polymorphic Customer lookup has **one navigation property per target**: binding a contact and
+ * binding an account are different property names, which is what makes HL and BFD work from one
+ * codebase without branching on the organisation.
+ */
+export const NAVIGATION_PROPERTIES = {
+  activityToCase: 'qdb_collectioncaseid_qdb_collectionactivity',
+  activityToType: 'qdb_activitytypeid_qdb_collectionactivity',
+  activityToOutcome: 'qdb_outcomeid_qdb_collectionactivity',
+  snapshotToCase: 'qdb_collectioncaseid',
+  caseToStrategy: 'qdb_strategyid',
+  caseToAssignedTeam: 'qdb_assignedteamid',
+  caseToCustomerContact: 'qdb_customerid_contact',
+  caseToCustomerAccount: 'qdb_customerid_account',
+} as const;
+
+/** Every navigation property above, with the entity and attribute it belongs to, for verification. */
+export const NAVIGATION_REGISTRY: readonly {
+  entity: string; attribute: string; navigationProperty: string;
+}[] = [
+  { entity: 'qdb_collectionactivity', attribute: 'qdb_collectioncaseid', navigationProperty: NAVIGATION_PROPERTIES.activityToCase },
+  { entity: 'qdb_collectionactivity', attribute: 'qdb_activitytypeid', navigationProperty: NAVIGATION_PROPERTIES.activityToType },
+  { entity: 'qdb_collectionactivity', attribute: 'qdb_outcomeid', navigationProperty: NAVIGATION_PROPERTIES.activityToOutcome },
+  { entity: 'qdb_delinquencysnapshot', attribute: 'qdb_collectioncaseid', navigationProperty: NAVIGATION_PROPERTIES.snapshotToCase },
+  { entity: 'qdb_collectioncase', attribute: 'qdb_strategyid', navigationProperty: NAVIGATION_PROPERTIES.caseToStrategy },
+  { entity: 'qdb_collectioncase', attribute: 'qdb_assignedteamid', navigationProperty: NAVIGATION_PROPERTIES.caseToAssignedTeam },
+  { entity: 'qdb_collectioncase', attribute: 'qdb_customerid', navigationProperty: NAVIGATION_PROPERTIES.caseToCustomerContact },
+  { entity: 'qdb_collectioncase', attribute: 'qdb_customerid', navigationProperty: NAVIGATION_PROPERTIES.caseToCustomerAccount },
+];
+
+/** Builds an `@odata.bind` entry: the one correct way to point a lookup at a record on a write. */
+export function bindLookup(navigationProperty: string, entitySet: string, id: string): Record<string, string> {
+  return { [`${navigationProperty}@odata.bind`]: `/${entitySet}(${id})` };
+}
+
 /** The lookup annotation that names which table a polymorphic lookup points at. */
 export const LOOKUP_TABLE_ANNOTATION = '@Microsoft.Dynamics.CRM.lookuplogicalname';
 
