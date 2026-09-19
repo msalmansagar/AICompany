@@ -18,6 +18,14 @@
 export interface WriteTransport {
   /** PATCH with an optional `If-Match`. Returns the platform's status and the new version. */
   patch(url: string, body: unknown, ifMatch?: string): Promise<WriteResponse>;
+  /**
+   * PATCH with `If-None-Match: *` — create only, refusing if the id already exists.
+   *
+   * Separate from `patch` because the two send opposite preconditions and mean opposite things, and
+   * because both fail with **412**. Keeping them distinct is what lets the adapter tell a duplicate
+   * submission from a stale write *by which request it made*, rather than by parsing a message.
+   */
+  createOnly(url: string, body: unknown): Promise<WriteResponse>;
   /** GET returning the record and its ETag, for reads that intend to write. */
   get(url: string): Promise<WriteResponse>;
 }
@@ -69,11 +77,19 @@ export class SameOriginWriteTransport implements WriteTransport {
     return this.send('PATCH', url, body, ifMatch);
   }
 
+  async createOnly(url: string, body: unknown): Promise<WriteResponse> {
+    // `*` here means "no version at all", i.e. the record must not exist — the exact opposite of
+    // `If-Match: *`, which means "any version, so long as it does exist" (KI-68).
+    return this.send('PATCH', url, body, undefined, '*');
+  }
+
   async get(url: string): Promise<WriteResponse> {
     return this.send('GET', url);
   }
 
-  private async send(method: string, url: string, body?: unknown, ifMatch?: string): Promise<WriteResponse> {
+  private async send(
+    method: string, url: string, body?: unknown, ifMatch?: string, ifNoneMatch?: string,
+  ): Promise<WriteResponse> {
     const headers: Record<string, string> = {
       Accept: 'application/json',
       'OData-MaxVersion': '4.0',
@@ -82,6 +98,7 @@ export class SameOriginWriteTransport implements WriteTransport {
     };
     if (body !== undefined) headers['Content-Type'] = 'application/json; charset=utf-8';
     if (ifMatch !== undefined) headers['If-Match'] = ifMatch;
+    if (ifNoneMatch !== undefined) headers['If-None-Match'] = ifNoneMatch;
 
     const response = await fetch(`${this.apiBase}${url}`, {
       method,

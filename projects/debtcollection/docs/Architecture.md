@@ -111,6 +111,8 @@ Both targets are equal. Platform and organisation differences live in `qdb_platf
 | ADR-DCP-14 | Assignment configuration selects an engine; no DCP routing algorithm | **Accepted** (Phase 3) |
 | ADR-DCP-15 | Case number has two sources; no invented format | **Accepted** (Phase 3) |
 | ADR-DCP-16 | MIS integration transport-neutral; paging a platform contract | **Accepted** (Phase 4) |
+| ADR-DCP-18 | Concurrency-controlled writes bypass `Xrm.WebApi` for a same-origin `fetch` | **Accepted** (Phase 6) — `ADR_Phase6_Writes.md` |
+| ADR-DCP-19 | Duplicate submission prevented by a client-chosen primary key, not by the UI | **Accepted** (Phase 6) — `ADR_Phase6_Writes.md` |
 
 Superseded ADRs are kept and marked; none are deleted.
 

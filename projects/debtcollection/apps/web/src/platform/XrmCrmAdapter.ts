@@ -13,6 +13,7 @@ import {
   type Page,
   type Sort,
   type VersionedRecord,
+  type IdempotentCreateResult,
   type RowVersion,
   CrmConcurrencyError,
 } from '@dcp/domain';
@@ -109,6 +110,37 @@ export class XrmCrmAdapter implements ICrmAdapter, IConcurrencyControlledWrites 
         `${reference.entity} ${reference.id} was updated but returned no new version; re-read it before writing again.`);
     }
     return response.etag as RowVersion;
+  }
+
+  /**
+   * Creates a record at an id the caller chose, once, however many times this is called.
+   *
+   * `If-None-Match: *` turns the platform's upsert-by-id into create-only, so a repeat is refused
+   * with `412` instead of producing a second activity. Proved against the organisation, including
+   * that the Create-stage plugins still fire — `DefaultStatusAssigner` and `ActivitySubjectComposer`
+   * both ran, which matters: an upsert that skipped them would leave the record in a state nothing
+   * else expects.
+   *
+   * A repeat returns `created: false` rather than throwing. The record the user asked for exists,
+   * which is success; raising an error over a correct outcome would be the wrong conversation.
+   *
+   * Both this and a stale write fail with 412, and they are told apart by **which request was
+   * made** rather than by reading the message — the two send opposite preconditions.
+   */
+  async createIdempotent(
+    entity: string,
+    id: string,
+    values: CrmRecord,
+    _context: CrmCallContext = {},
+  ): Promise<IdempotentCreateResult> {
+    const transport = this.requireWriteTransport('create a record idempotently');
+    const response = await transport.createOnly(`/${entity}(${id})`, values);
+
+    if (response.status === PRECONDITION_FAILED) return { id, created: false };
+    if (response.status >= 400) {
+      throw new Error(`Creating ${entity} ${id} failed (${response.status}): ${response.message ?? ''}`);
+    }
+    return { id, created: true };
   }
 
   private requireWriteTransport(what: string): WriteTransport {

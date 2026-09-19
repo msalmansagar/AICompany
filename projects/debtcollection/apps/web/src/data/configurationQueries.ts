@@ -129,6 +129,8 @@ export interface StrategyActionRow {
   strategyId?: string;
   strategyName?: string;
   activityType?: string;
+  /** The type's id — the only stable handle the Action Plan can correlate on. */
+  activityTypeId?: string;
 }
 
 export function toStrategyActionRow(row: CrmRow): StrategyActionRow {
@@ -154,6 +156,7 @@ export function toStrategyActionRow(row: CrmRow): StrategyActionRow {
     ...optional('strategyId', readText(row, '_qdb_strategyid_value')),
     ...optional('strategyName', readLookupName(row, '_qdb_strategyid_value')),
     ...optional('activityType', readLookupName(row, '_qdb_activitytypeid_value')),
+    ...optional('activityTypeId', readText(row, '_qdb_activitytypeid_value')),
   };
 }
 

@@ -81,6 +81,23 @@ export const NAVIGATION_REGISTRY: readonly {
   { entity: 'qdb_collectioncase', attribute: 'qdb_customerid', navigationProperty: NAVIGATION_PROPERTIES.caseToCustomerAccount },
 ];
 
+/**
+ * Entity sets the workspace only ever **writes to**, as the target of a lookup binding.
+ *
+ * Deliberately separate from `ENTITY_SETS`, which carries the sets the workspace *reads*: every
+ * member of that map is required to have a `READ_REGISTRY` entry whose columns are verified against
+ * live metadata, and a set with no columns to verify would either break that invariant or quietly
+ * weaken it. These two have no columns to register — only an id in a URL.
+ *
+ * Both names were confirmed against the organisation by the Phase 6 write smoke rather than
+ * pluralised by rule: the type's set is `qdb_collectionactivitytypes` while its lookup attribute is
+ * `qdb_activitytypeid`, so deriving either from the other produces a URL that 404s.
+ */
+export const BIND_TARGET_SETS = {
+  collectionActivityType: 'qdb_collectionactivitytypes',
+  activityOutcome: 'qdb_activityoutcomes',
+} as const;
+
 /** Builds an `@odata.bind` entry: the one correct way to point a lookup at a record on a write. */
 export function bindLookup(navigationProperty: string, entitySet: string, id: string): Record<string, string> {
   return { [`${navigationProperty}@odata.bind`]: `/${entitySet}(${id})` };

@@ -13,7 +13,7 @@
  * boundary is KI-67 and is stated rather than glossed: the OData semantics are identical, the
  * authentication is not.
  *
- * The shims are deliberately **stricter** than convenient:
+ * The shims live in `lib/node-workspace-harness.mts` and are deliberately **stricter** than convenient:
  *   • `Xrm.WebApi` refuses an options string that does not begin with `?`, as the real one does;
  *   • the write transport is the real `readResponse`, so a response parsed differently here than in
  *     production would prove nothing.
@@ -26,12 +26,11 @@
  *   node --import tsx --env-file="<path>/.env" crm/scripts/smoke-browser-writes.mts
  */
 
-import { loadConfig, acquireToken, buildHeaders, apiGet } from './lib/crm-client.mjs';
+import { loadConfig, acquireToken, apiGet } from './lib/crm-client.mjs';
 import { SOLUTION_NAME } from './lib/qdb-plugin-steps.mjs';
 import { cleanSmokeData, SMOKE_MARKER } from './clean-qdb-smoke-data.mjs';
-import { XrmCrmAdapter } from '../../apps/web/src/platform/XrmCrmAdapter.js';
-import { readResponse, READ_PREFER, WRITE_PREFER, type WriteResponse, type WriteTransport } from '../../apps/web/src/platform/writeTransport.js';
-import type { XrmLike } from '../../apps/web/src/platform/crmContext.js';
+import type { XrmCrmAdapter } from '../../apps/web/src/platform/XrmCrmAdapter.js';
+import { buildNodeHarness } from './lib/node-workspace-harness.mts';
 import { isConcurrencyConflict } from '@dcp/domain';
 import { NAVIGATION_PROPERTIES, bindLookup } from '../../apps/web/src/data/schema.js';
 
@@ -48,93 +47,6 @@ const check = (name: string, passed: boolean, detail = '') => {
   console.log(`  ${passed ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`);
 };
 
-/** Entity set for a logical name, so the shim can build the URL the client API hides. */
-const SET_FOR_LOGICAL: Record<string, string> = {
-  qdb_collectionactivity: 'qdb_collectionactivities',
-  qdb_collectionactivitytype: 'qdb_collectionactivitytypes',
-  qdb_collectioncase: 'qdb_collectioncases',
-  qdb_activityoutcome: 'qdb_activityoutcomes',
-  contact: 'contacts',
-  account: 'accounts',
-};
-const setFor = (logicalName: string) => SET_FOR_LOGICAL[logicalName] ?? `${logicalName}s`;
-
-function buildHarness(apiBase: string, token: string) {
-  const state = { reads: 0, writes: 0 };
-  const authHeaders = () => buildHeaders(token, SOLUTION_NAME) as Record<string, string>;
-
-  const xrm = {
-    Utility: { getGlobalContext: () => { throw new Error('not available outside a CRM session'); } },
-    WebApi: {
-      async retrieveRecord(logicalName: string, id: string, options = '') {
-        if (options && !options.startsWith('?')) {
-          throw new Error('UciError: Option Parameter should begin with "?"');
-        }
-        state.reads++;
-        const res = await fetch(`${apiBase}/${setFor(logicalName)}(${id})${options}`, {
-          headers: { ...authHeaders(), Prefer: 'odata.include-annotations="*"' },
-        });
-        if (!res.ok) throw Object.assign(new Error(String(res.status)), { status: res.status });
-        return res.json() as Promise<Record<string, unknown>>;
-      },
-      async retrieveMultipleRecords(logicalName: string, options = '', maxPageSize?: number) {
-        if (options && !options.startsWith('?')) {
-          throw new Error('UciError: Option Parameter should begin with "?"');
-        }
-        state.reads++;
-        const prefer = ['odata.include-annotations="*"'];
-        if (maxPageSize !== undefined) prefer.push(`odata.maxpagesize=${maxPageSize}`);
-        const res = await fetch(`${apiBase}/${setFor(logicalName)}${options}`, {
-          headers: { ...authHeaders(), Prefer: prefer.join(',') },
-        });
-        if (!res.ok) throw new Error(`${res.status}: ${(await res.text()).slice(0, 200)}`);
-        const body = await res.json() as Record<string, unknown>;
-        return {
-          entities: (body['value'] ?? []) as Record<string, unknown>[],
-          ...(body['@odata.nextLink'] ? { nextLink: String(body['@odata.nextLink']) } : {}),
-          ...(body['@odata.count'] !== undefined ? { '@odata.count': body['@odata.count'] } : {}),
-        };
-      },
-      async createRecord(logicalName: string, values: Record<string, unknown>) {
-        state.writes++;
-        const res = await fetch(`${apiBase}/${setFor(logicalName)}`, {
-          method: 'POST', headers: authHeaders(), body: JSON.stringify(values),
-        });
-        if (!res.ok) throw new Error(`${res.status}: ${(await res.text()).slice(0, 300)}`);
-        return { id: (res.headers.get('OData-EntityId')?.match(/\(([^)]+)\)$/) ?? [])[1] ?? '' };
-      },
-      async updateRecord(logicalName: string, id: string, values: Record<string, unknown>) {
-        state.writes++;
-        const res = await fetch(`${apiBase}/${setFor(logicalName)}(${id})`, {
-          method: 'PATCH', headers: authHeaders(), body: JSON.stringify(values),
-        });
-        if (!res.ok) throw new Error(`${res.status}: ${(await res.text()).slice(0, 300)}`);
-        return { id };
-      },
-    },
-  } as unknown as XrmLike;
-
-  /** The production transport's parsing, over node's credential. */
-  const transport: WriteTransport = {
-    async get(url: string): Promise<WriteResponse> {
-      state.reads++;
-      const res = await fetch(`${apiBase}${url}`, {
-        headers: { ...authHeaders(), Prefer: READ_PREFER },
-      });
-      return readResponse(res);
-    },
-    async patch(url: string, body: unknown, ifMatch?: string): Promise<WriteResponse> {
-      state.writes++;
-      const headers = { ...authHeaders() };
-      headers['Prefer'] = WRITE_PREFER;
-      if (ifMatch !== undefined) headers['If-Match'] = ifMatch;
-      const res = await fetch(`${apiBase}${url}`, { method: 'PATCH', headers, body: JSON.stringify(body) });
-      return readResponse(res);
-    },
-  };
-
-  return { adapter: new XrmCrmAdapter(xrm, undefined, transport), state, transport };
-}
 
 async function main() {
   console.log('=== Phase 6 early gate — the workspace write path against the real platform ===\n');
@@ -147,7 +59,7 @@ async function main() {
   console.log(`  Organisation: ${host}`);
 
   const token = await acquireToken(cfg);
-  const { adapter, state, transport } = buildHarness(cfg.apiBase, token);
+  const { adapter, counters, transport } = buildNodeHarness(cfg.apiBase, token);
 
   try {
     // ── Reference data the writes bind to ─────────────────────────────────────
@@ -325,7 +237,7 @@ async function main() {
     check('and it too is a save failure, not a conflict',
       ptpRefusal !== null && !isConcurrencyConflict(ptpRefusal), 'classified correctly');
 
-    console.log(`\n  HTTP: ${state.reads} reads, ${state.writes} writes through the production classes.`);
+    console.log(`\n  HTTP: ${counters.reads} reads, ${counters.writes} writes through the production classes.`);
     void transport;
   } finally {
     console.log('\n─── Cleanup (failure-safe) ───');

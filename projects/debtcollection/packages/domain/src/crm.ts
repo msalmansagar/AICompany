@@ -120,6 +120,28 @@ export interface ICrmAdapter {
  */
 export interface IConcurrencyControlledWrites {
   /**
+   * Creates a record at an id the caller chose, once, however many times this is called.
+   *
+   * The id **is** the idempotency key. A form generates one when it opens, not once per click, so a
+   * double-click, a retry after a lost response, or a resubmitted request all carry the same id and
+   * the second one is refused by the platform rather than creating a second activity.
+   *
+   * Returns whether this call was the one that created it. A repeat is **not an error**: from the
+   * user's point of view the record is saved, which is what they asked for. Treating it as a failure
+   * would show an error over a correct outcome.
+   *
+   * Disabling a button is not a substitute. The dangerous case is the one where the client never
+   * learned what happened — request sent, response lost, user presses again — and no amount of UI
+   * state helps there.
+   */
+  createIdempotent(
+    entity: string,
+    id: string,
+    values: CrmRecord,
+    context?: CrmCallContext,
+  ): Promise<IdempotentCreateResult>;
+
+  /**
    * Reads a record together with the version token needed to write it back safely.
    *
    * Separate from `retrieve` because most reads do not intend to write, and a caller holding a
@@ -142,6 +164,18 @@ export interface IConcurrencyControlledWrites {
     expectedVersion: RowVersion,
     context?: CrmCallContext,
   ): Promise<RowVersion>;
+}
+
+export interface IdempotentCreateResult {
+  id: string;
+  /**
+   * `true` when this call created the record, `false` when it already existed.
+   *
+   * Both are success. The distinction is worth returning because a caller may want to say "saved"
+   * versus "already saved", and because a `false` on a first submission would mean the id was not
+   * as fresh as the caller believed — which is worth noticing.
+   */
+  created: boolean;
 }
 
 /**

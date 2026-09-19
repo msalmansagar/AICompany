@@ -135,6 +135,8 @@ export interface ActivityRow {
   followUpDate?: string;
   amount?: number;
   activityType?: string;
+  /** The type's id, which is what correlates an activity with a planned action. */
+  activityTypeId?: string;
   ownerName?: string;
   status?: string;
   createdOn?: string;
@@ -153,7 +155,7 @@ export interface PtpRow extends ActivityRow {
   brokenReason?: string;
 }
 
-function toActivityRow(row: CrmRow): ActivityRow {
+export function toActivityRow(row: CrmRow): ActivityRow {
   return {
     id: String(row['activityid']),
     subject: readText(row, 'subject') ?? '—',
@@ -162,6 +164,7 @@ function toActivityRow(row: CrmRow): ActivityRow {
     ...optional('followUpDate', readText(row, 'qdb_followupdate')),
     ...optional('amount', readNumber(row, 'qdb_amount')),
     ...optional('activityType', readLookupName(row, '_qdb_activitytypeid_value')),
+    ...optional('activityTypeId', readText(row, '_qdb_activitytypeid_value')),
     ...optional('ownerName', readLookupName(row, '_ownerid_value')),
     ...optional('status', readChoice(row, 'statuscode')),
     ...optional('createdOn', readText(row, 'createdon')),

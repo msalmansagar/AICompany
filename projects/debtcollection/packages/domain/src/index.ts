@@ -73,6 +73,7 @@ export type {
   IConcurrencyControlledWrites,
   RowVersion,
   VersionedRecord,
+  IdempotentCreateResult,
 } from './crm.js';
 
 export { CrmConcurrencyError, isConcurrencyConflict } from './crm.js';
@@ -335,3 +336,25 @@ export {
   type ProcessingCheckpoint,
   type ICheckpointStore,
 } from './synchronization.js';
+
+export {
+  ActivityOutcomeConfigSchema,
+  PROMISE_TYPE_CODES,
+  planCreateActivity,
+  planCompleteActivity,
+  planActivityTransition,
+  planFollowUp,
+  planCreatePromise,
+  planPromiseTransition,
+  describePromiseVerification,
+} from './activityOperations.js';
+export type {
+  ActivityOutcomeConfig,
+  OperationRefusal,
+  OperationResult,
+  ActivityWritePlan,
+  CompleteActivityPlan,
+  CreateActivityRequest,
+  CompleteActivityRequest,
+  CreatePromiseRequest,
+} from './activityOperations.js';

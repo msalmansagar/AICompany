@@ -7,9 +7,10 @@
  * and a completed activity is frozen. That is correct behaviour, so removing the test rows means
  * temporarily disabling the three `qdb_` Delete steps — the minimum that can do the job.
  *
- * What counts as smoke data is decided per table by the facility number or record number the tests
- * stamp with the smoke marker — never by a free-text match, and never by anything a real MIS feed
- * could produce. Reference data the tests create (a contact, an activity type, a platform
+ * What counts as smoke data is decided per table by the marker the tests stamp into a named column —
+ * never by a free-text match, and never by anything a real MIS feed could produce. A table may name
+ * several such columns, because a row created through the service layer carries the marker somewhere
+ * different from one the tests POST directly. Reference data the tests create (a contact, an activity type, a platform
  * configuration row) is matched on the same marker and needs no guard disabled.
  *
  * Safety, in the order it is applied:
@@ -43,17 +44,22 @@ export const DEMO_MARKER = 'DEMO-';
 
 /** Tables the smoke tests write, the column that carries the marker, and whether a guard blocks Delete. Children before parents. */
 const SMOKE_TABLES = [
-  { entitySet: 'qdb_collectionactivities', label: 'collection activity', markerField: 'qdb_activitynumber', idField: 'activityid', guarded: true },
+  // Two markers: a seeded activity carries the number, a service-created one only the subject.
+  { entitySet: 'qdb_collectionactivities', label: 'collection activity', markerField: ['qdb_activitynumber', 'subject'], idField: 'activityid', guarded: true },
   { entitySet: 'qdb_delinquencysnapshots', label: 'delinquency snapshot', markerField: 'qdb_facilitynumber', idField: 'qdb_delinquencysnapshotid', guarded: true },
   { entitySet: 'qdb_identityexceptions', label: 'identity exception', markerField: 'qdb_facilitynumber', idField: 'qdb_identityexceptionid', guarded: false },
-  { entitySet: 'qdb_collectioncases', label: 'collection case', markerField: 'qdb_facilitynumber', idField: 'qdb_collectioncaseid', guarded: true },
+  { entitySet: 'qdb_collectioncases', label: 'collection case', markerField: ['qdb_facilitynumber', 'qdb_casenumber'], idField: 'qdb_collectioncaseid', guarded: true },
   { entitySet: 'qdb_strategyactions', label: 'strategy action', markerField: 'qdb_name', idField: 'qdb_strategyactionid', guarded: false },
   { entitySet: 'qdb_collectionstrategies', label: 'collection strategy', markerField: 'qdb_name', idField: 'qdb_collectionstrategyid', guarded: false },
   { entitySet: 'qdb_assignmentconfigurations', label: 'assignment configuration', markerField: 'qdb_name', idField: 'qdb_assignmentconfigurationid', guarded: false },
   { entitySet: 'qdb_collectionactivitytypes', label: 'activity type (reference data)', markerField: 'qdb_code', idField: 'qdb_collectionactivitytypeid', guarded: false },
+  // Matched on the SMOKE- prefix, so the seven P6- outcomes the workspace is configured with survive.
+  { entitySet: 'qdb_activityoutcomes', label: 'activity outcome (reference data)', markerField: 'qdb_code', idField: 'qdb_activityoutcomeid', guarded: false },
   { entitySet: 'qdb_platformmappings', label: 'platform mapping (smoke)', markerField: 'qdb_name', idField: 'qdb_platformmappingid', guarded: false },
   { entitySet: 'qdb_platformconfigurations', label: 'platform configuration (smoke)', markerField: 'qdb_environmentcode', idField: 'qdb_platformconfigurationid', guarded: false },
-  { entitySet: 'contacts', label: 'contact (smoke customer)', markerField: 'governmentid', idField: 'contactid', guarded: false },
+  { entitySet: 'contacts', label: 'contact (smoke customer)', markerField: ['governmentid', 'lastname'], idField: 'contactid', guarded: false },
+  // BFD customers are accounts, not contacts — the polymorphic half the cleaner had never covered.
+  { entitySet: 'accounts', label: 'account (smoke BFD customer)', markerField: 'name', idField: 'accountid', guarded: false },
 ];
 
 /** The only steps this script may disable: the three that block a delete. */
@@ -78,14 +84,30 @@ async function write(cfg, token, method, path, body) {
   try { return JSON.parse(text)?.error?.message ?? text; } catch { return text; }
 }
 
-/** Finds every row in the smoke tables whose marker column starts with the marker. */
+/**
+ * Finds every row in the smoke tables whose marker column starts with the marker.
+ *
+ * A table may name **more than one** marker column, and any of them matching is enough. That is not
+ * defensive generality: an activity created through the service layer carries the marker in its
+ * `subject`, because the domain never writes `qdb_activitynumber` — that column is composed by the
+ * server. A cleaner that looked only at the activity number reported "no residue to remove" while
+ * leaving every activity a Phase 6 smoke had created, which is the worst possible failure for a
+ * cleanup routine: silent, and confidently reported as success.
+ */
 export async function findSmokeRows(cfg, token, marker = SMOKE_MARKER) {
   const found = [];
   for (const table of SMOKE_TABLES) {
-    const result = await apiGet(cfg, token, SOLUTION_NAME,
-      `/${table.entitySet}?$select=${table.idField},${table.markerField}&$filter=startswith(${table.markerField},'${marker}')`);
-    for (const row of result?.value ?? []) {
-      found.push({ ...table, id: row[table.idField], name: String(row[table.markerField]) });
+    const markerFields = Array.isArray(table.markerField) ? table.markerField : [table.markerField];
+    const seen = new Set();
+    for (const markerField of markerFields) {
+      const result = await apiGet(cfg, token, SOLUTION_NAME,
+        `/${table.entitySet}?$select=${table.idField},${markerField}&$filter=startswith(${markerField},'${marker}')`);
+      for (const row of result?.value ?? []) {
+        const id = row[table.idField];
+        if (seen.has(id)) continue;
+        seen.add(id);
+        found.push({ ...table, markerField, id, name: String(row[markerField]) });
+      }
     }
   }
   return found;

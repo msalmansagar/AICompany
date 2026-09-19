@@ -1,0 +1,117 @@
+=== Phase 6 — domain operations and query modules against the real platform ===
+
+  Organisation: org5869857f.crm4.dynamics.com
+
+  PASS  seeded both customer contexts — HL contact and BFD account
+
+  Activity — create, complete, outcome-driven behaviour
+  PASS  an activity is created through the service
+  PASS  the case and type bindings are stored, read back from Dataverse
+  PASS  the server assigned the opening status, not the client
+  PASS  completion is refused when the configured outcome requires notes
+  PASS  completion succeeds once the notes are supplied
+  PASS  the notes are stored on the activity base column, not a qdb_ column
+  PASS  the outcome is bound through its navigation property
+  PASS  the follow-up is scheduled the CONFIGURED number of days out — 2026-09-22T10:00:00Z
+  PASS  the activity is closed
+  PASS  a completed activity cannot be reopened
+
+  Promise to pay — the same entity, carrying promise columns
+  PASS  a promise is created through the service
+  PASS  the promise lives on qdb_collectionactivity — no second entity exists
+  PASS  the promise opens Active
+  PASS  a documented promise transition is accepted
+  PASS  the reported amount is stored
+  PASS  a transition the matrix forbids is refused before any request is made
+  PASS  no verification flag is written by a promise outcome
+
+  Concurrency — a stale write, and two legitimate saves in a row
+  PASS  the first save succeeds
+  PASS  a second consecutive save by the same user also succeeds
+  PASS  a stale write is reported as a conflict, not a generic failure
+  PASS  the conflict message carries no HTTP or ETag vocabulary
+  PASS  the refused stale payload did NOT overwrite the stored value — 2026-10-08T00:00:00Z
+
+  Duplicate submission — the same id, sent twice
+  PASS  the first submission created the activity
+  PASS  the retry reports saved, not an error
+  PASS  the retry did NOT create a second record
+  PASS  exactly one row exists for the duplicated submission — 1 rows
+
+  Query modules — server-side paging, filtering and the Action Plan
+  PASS  paging returned more than one page — 2 pages
+  PASS  no row appeared twice across pages
+  PASS  both seeded cases were seen — 2 rows
+  PASS  a query without a continuation restarts at the first page
+  PASS  the follow-up query returns rows and every one has a follow-up date — 7 rows
+  PASS  the Action Plan lists the strategy's planned actions — 1 rows
+  PASS  the planned call is correlated with the calls that were made, and one is completed — 3 matched
+  PASS  an activity of a different type is NOT correlated with the planned call
+  PASS  an account-backed BFD case is readable by the same query module
+  PASS  the PTP query returns the seeded promise — 1 rows
+
+  HTTP: 15 reads, 10 writes through the production classes.
+
+  Cleanup
+
+─── Records identified ───
+  collection activity              ac7764e7-3c0d-4e27-b990-45a08d2191a7  SMOKE-P6OPS-DUPLICATE-20260919125932
+  collection activity              4890f38a-c218-4191-86c6-7d3b29d0a24d  SMOKE-P6OPS-CONFLICT-20260919125932
+  collection activity              61202f7e-73fa-4ffc-92f5-974a9fcc81e7  SMOKE-P6OPS-CALL-1-20260919125932
+  collection activity              afbd2b6c-c2fe-4671-8f11-eed919866edb  SMOKE-P6OPS-PTP-1-20260919125932
+  collection case                  f51732f4-29b4-f111-aaac-70a8a55bc6a5  SMOKE-P6OPS-HL-20260919125932
+  collection case                  f61732f4-29b4-f111-aaac-70a8a55bc6a5  SMOKE-P6OPS-BFD-20260919125932
+  strategy action                  c44f91f3-29b4-f111-aaac-000d3abd8313  SMOKE-P6OPS-PLANNED-CALL-20260919125932
+  collection strategy              96282cf3-29b4-f111-aaac-000d3abcf32d  SMOKE-P6OPS-STRATEGY-20260919125932
+  activity type (reference data)   c24f91f3-29b4-f111-aaac-000d3abd8313  SMOKE-P6OPS-CALL-20260919125932
+  activity type (reference data)   f41732f4-29b4-f111-aaac-70a8a55bc6a5  SMOKE-P6OPS-PTP-20260919125932
+  activity outcome (reference data) 9c282cf3-29b4-f111-aaac-000d3abcf32d  SMOKE-P6OPS-CONTACTED-20260919125932
+  contact (smoke customer)         bc4f91f3-29b4-f111-aaac-000d3abd8313  SMOKE-P6OPS-QID-20260919125932
+  account (smoke BFD customer)     ee1732f4-29b4-f111-aaac-70a8a55bc6a5  SMOKE-P6OPS-BFD-CUSTOMER-20260919125932
+  13 record(s) — every one matched on the "SMOKE-" marker.
+
+─── Checking for anything else that references them ───
+  Nothing outside the smoke set references them.
+
+─── Temporarily disabling the three qdb_ Delete guards ───
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation)
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation)
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation)
+
+─── Deleting guarded rows ───
+  [DELETED] collection activity SMOKE-P6OPS-DUPLICATE-20260919125932 (ac7764e7-3c0d-4e27-b990-45a08d2191a7)
+  [DELETED] collection activity SMOKE-P6OPS-CONFLICT-20260919125932 (4890f38a-c218-4191-86c6-7d3b29d0a24d)
+  [DELETED] collection activity SMOKE-P6OPS-CALL-1-20260919125932 (61202f7e-73fa-4ffc-92f5-974a9fcc81e7)
+  [DELETED] collection activity SMOKE-P6OPS-PTP-1-20260919125932 (afbd2b6c-c2fe-4671-8f11-eed919866edb)
+  [DELETED] collection case SMOKE-P6OPS-HL-20260919125932 (f51732f4-29b4-f111-aaac-70a8a55bc6a5)
+  [DELETED] collection case SMOKE-P6OPS-BFD-20260919125932 (f61732f4-29b4-f111-aaac-70a8a55bc6a5)
+
+─── Restoring the guards ───
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation)
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation)
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation)
+
+─── Verifying the restored registration ───
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation) — enabled=true filter=(none) images=(none)
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation) — enabled=true filter=(none) images=PreImage(statecode)
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation) — enabled=true filter=(none) images=(none)
+
+─── Deleting reference data (no guard involved) ───
+  [DELETED] strategy action SMOKE-P6OPS-PLANNED-CALL-20260919125932 (c44f91f3-29b4-f111-aaac-000d3abd8313)
+  [DELETED] collection strategy SMOKE-P6OPS-STRATEGY-20260919125932 (96282cf3-29b4-f111-aaac-000d3abcf32d)
+  [DELETED] activity type (reference data) SMOKE-P6OPS-CALL-20260919125932 (c24f91f3-29b4-f111-aaac-000d3abd8313)
+  [DELETED] activity type (reference data) SMOKE-P6OPS-PTP-20260919125932 (f41732f4-29b4-f111-aaac-70a8a55bc6a5)
+  [DELETED] activity outcome (reference data) SMOKE-P6OPS-CONTACTED-20260919125932 (9c282cf3-29b4-f111-aaac-000d3abcf32d)
+  [DELETED] contact (smoke customer) SMOKE-P6OPS-QID-20260919125932 (bc4f91f3-29b4-f111-aaac-000d3abd8313)
+  [DELETED] account (smoke BFD customer) SMOKE-P6OPS-BFD-CUSTOMER-20260919125932 (ee1732f4-29b4-f111-aaac-70a8a55bc6a5)
+
+─── Confirming no residue remains ───
+  PASS  0 smoke record(s) remain
+
+Cleanup complete. The guards are registered and enabled exactly as before.
+  PASS  zero SMOKE- activity residue remains — 0 rows
+  PASS  zero SMOKE- case residue remains — 0 rows
+  PASS  DEMO- scenario data is untouched — 5 cases
+  PASS  P6- configuration is untouched — 7 outcomes
+
+  41/41 checks passed.
