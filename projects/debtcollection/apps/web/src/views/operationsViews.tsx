@@ -5,7 +5,7 @@ import { createIdentityExceptionQuery, type IdentityExceptionRow } from '../data
 import { countMatching, formatCountResult, useCounts, type CountRequest } from '../data/counts.js';
 import { ENTITY_SETS } from '../data/schema.js';
 import {
-  BucketPill, Card, InfoBanner, KpiRow, OrgBadge, PendingPhaseNotice, StatusPill,
+  BucketPill, Card, InfoBanner, KpiRow, OrgBadge, PendingPhaseNotice, PromiseOutcome, StatusPill,
   formatCount, formatDate, formatMoney,
 } from '../components/primitives.js';
 import { useCrmSession, useOrg } from '../shell/context.js';
@@ -116,12 +116,15 @@ const PTP_LIST_COLUMNS: readonly DataGridColumn<PtpRow>[] = [
   { key: 'case', header: 'Case', width: '160px', render: r => r.caseNumber ?? '—' },
   { key: 'amount', header: 'Amount', width: '130px', render: r => formatMoney(r.promisedAmount) },
   { key: 'type', header: 'Type', width: '90px', render: r => r.promiseType ?? '—' },
-  { key: 'status', header: 'Status', width: '130px', render: r => <StatusPill status={r.ptpStatus} /> },
-  { key: 'received', header: 'Received', width: '130px', render: r => formatMoney(r.amountReceived) },
+  { key: 'status', header: 'Status', width: '170px', render: r => <PromiseOutcome status={r.ptpStatus} /> },
+  { key: 'received', header: 'Reported paid', width: '130px', render: r => formatMoney(r.amountReceived) },
   { key: 'owner', header: 'Captured by', width: '160px', render: r => r.ownerName ?? '—' },
 ];
 
-export function PromiseToPayView({ view }: { view: ViewDefinition }) {
+export function PromiseToPayView({ view, onOpenCase }: {
+  view: ViewDefinition;
+  onOpenCase?: (id: string) => void;
+}) {
   const { adapter } = useCrmSession();
   const fetchPage = useMemo(() => createPtpQuery(adapter), [adapter]);
   const counts = useCounts(adapter, PTP_COUNTS);
@@ -129,7 +132,12 @@ export function PromiseToPayView({ view }: { view: ViewDefinition }) {
 
   return (
     <div data-testid="view-ptp">
-      <PendingPhaseNotice view={view} />
+      <InfoBanner icon="promise">
+        Every outcome here is <b>what a collection officer recorded</b>. Nothing on this screen has been
+        verified against a payment: the MIS payment contract does not exist yet (KI-53), so a promise
+        marked Kept means the customer said they paid, not that the money arrived.
+      </InfoBanner>
+      {view.pendingSummary && <PendingPhaseNotice view={view} />}
       <KpiRow items={[
         { label: 'Promises recorded', value: formatCountResult(counts['allPtps']) },
         { label: 'Active', value: formatCountResult(counts['activePtps']) },
@@ -137,12 +145,18 @@ export function PromiseToPayView({ view }: { view: ViewDefinition }) {
         { label: 'Broken', value: formatCountResult(counts['brokenPtps']), tone: 'bad' },
         // A rate is a calculation over two counts either of which may be capped, so it is left to the
         // phase that owns PTP evaluation rather than derived from figures that may be floors.
-        { label: 'Kept rate', value: '—', hint: 'Phase 6 owns kept/broken evaluation' },
+        // A rate over two counts either of which may be capped, and a number that would read as a
+        // verified collection statistic. Automatic evaluation needs the MIS payment contract.
+        { label: 'Kept rate', value: '—', hint: 'Needs verified payment data (KI-53)' },
       ]} />
-      <Card title="Promises" subtitle="Every promise recorded across both organisations, most recently promised first.">
+      <Card
+        title="Promises"
+        subtitle="Every promise recorded across both organisations. Open one to work it on its case."
+      >
         <DataGrid<PtpRow, ActivityQuery>
           columns={PTP_LIST_COLUMNS} fetchPage={fetchPage} query={query}
           rowKey={row => row.id} pageSize={50}
+          {...(onOpenCase ? { onRowClick: (row: PtpRow) => { if (row.caseId) onOpenCase(row.caseId); } } : {})}
           emptyMessage="No promise to pay has been recorded."
           data-testid="ptp-grid"
         />

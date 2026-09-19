@@ -58,7 +58,8 @@ export const VIEWS: readonly ViewDefinition[] = [
   // ── Engagement ─────────────────────────────────────────────────────────────
   {
     id: 'ptp', label: 'Promise to Pay', icon: 'promise', group: 'Engagement', badge: 'openPtps', phase: 5,
-    pendingSummary: 'Promises are readable. Capture, reminders and kept/broken evaluation belong to Phase 6.',
+    pendingSummary: 'Promises are captured and worked from the case. Reminders need the Phase 7 ' +
+      'communication transport, and automatic kept/broken evaluation needs the MIS payment contract.',
   },
   {
     id: 'comms', label: 'Communication', icon: 'send', group: 'Engagement', phase: 7,

@@ -16,20 +16,29 @@ export interface Route {
   view: ViewDefinition;
   /** Record the view is focused on, from `#case/<id>`. Absent on list views. */
   recordId?: string;
+  /**
+   * Which tab of a record view to open, from `#case/<id>/actions`.
+   *
+   * Added in Phase 6 so that "go and log an action against this case" is a link rather than an
+   * instruction to click a tab. It also makes the Actions and PTP tabs linkable from My Day, which
+   * is the return leg of the follow-up journey.
+   */
+  tab?: string;
 }
 
 export function parseHash(hash: string): Route {
   const cleaned = hash.replace(/^#\/?/, '');
-  const [viewId = '', recordId] = cleaned.split('/');
+  const [viewId = '', recordId, tab] = cleaned.split('/');
   const view = findView(viewId) ?? findView(DEFAULT_VIEW_ID)!;
-  return { view, ...(recordId ? { recordId } : {}) };
+  return { view, ...(recordId ? { recordId } : {}), ...(tab ? { tab } : {}) };
 }
 
-export function buildHash(viewId: string, recordId?: string): string {
-  return recordId ? `#${viewId}/${recordId}` : `#${viewId}`;
+export function buildHash(viewId: string, recordId?: string, tab?: string): string {
+  if (!recordId) return `#${viewId}`;
+  return tab ? `#${viewId}/${recordId}/${tab}` : `#${viewId}/${recordId}`;
 }
 
-export function useHashRoute(): Route & { go: (viewId: string, recordId?: string) => void } {
+export function useHashRoute(): Route & { go: (viewId: string, recordId?: string, tab?: string) => void } {
   const [route, setRoute] = useState<Route>(() => parseHash(window.location.hash));
 
   useEffect(() => {
@@ -38,8 +47,8 @@ export function useHashRoute(): Route & { go: (viewId: string, recordId?: string
     return () => window.removeEventListener('hashchange', onChange);
   }, []);
 
-  const go = useCallback((viewId: string, recordId?: string) => {
-    const next = buildHash(viewId, recordId);
+  const go = useCallback((viewId: string, recordId?: string, tab?: string) => {
+    const next = buildHash(viewId, recordId, tab);
     if (window.location.hash === next) return;
     window.location.hash = next;
   }, []);

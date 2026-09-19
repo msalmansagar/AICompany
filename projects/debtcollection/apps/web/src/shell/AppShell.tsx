@@ -166,17 +166,31 @@ export function NavRail({ views, activeId, onNavigate }: {
  * `pendingPhase` renders it disabled with a tooltip naming the owning phase, which is how the
  * approved command set stays visible without anything pretending to work.
  */
-export function Command({ icon, label, onClick, pendingPhase }: {
-  icon: string; label: string; onClick?: () => void; pendingPhase?: number;
+export function Command({ icon, label, onClick, pendingPhase, disabledReason }: {
+  icon: string;
+  label: string;
+  onClick?: () => void;
+  pendingPhase?: number;
+  /**
+   * Why an implemented command is unavailable *here*.
+   *
+   * Distinct from `pendingPhase`, which means the capability does not exist yet. "Open a case first"
+   * and "Phase 7 owns this" are different statements, and a command bar that made them look the same
+   * would teach a user that half of it is permanently dead.
+   */
+  disabledReason?: string;
 }) {
-  const disabled = pendingPhase !== undefined;
+  const disabled = pendingPhase !== undefined || disabledReason !== undefined;
+  const title = pendingPhase !== undefined
+    ? `Phase ${pendingPhase} owns this — not yet implemented`
+    : disabledReason ?? label;
   return (
     <button
       type="button"
       className="cmd"
       disabled={disabled}
       data-testid={`cmd-${label.toLowerCase().replace(/\s+/g, '-')}`}
-      title={disabled ? `Phase ${pendingPhase} owns this — not yet implemented` : label}
+      title={title}
       onClick={disabled ? undefined : onClick}
     >
       <Icon name={icon} />

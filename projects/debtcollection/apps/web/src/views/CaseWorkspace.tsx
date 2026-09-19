@@ -7,9 +7,12 @@ import {
 import { createAuditQuery, type AuditQuery, type AuditRow } from '../data/collectionQueries.js';
 import {
   BucketPill, Card, EmptyState, FieldList, OrgBadge, PendingPhasePanel, Pivot, StatusPill,
-  formatCount, formatDate, formatMoney, type PivotTab,
+  PromiseOutcome, formatCount, formatDate, formatMoney, type PivotTab,
 } from '../components/primitives.js';
 import { StoredPositionNotice } from '../components/Freshness.js';
+import { ActivityDialog } from './ActivityDialog.js';
+import { PromiseDialog } from './PromiseDialog.js';
+import { CaseActionPlan } from './strategyViews.js';
 import { useCrmSession } from '../shell/context.js';
 
 /**
@@ -26,12 +29,23 @@ import { useCrmSession } from '../shell/context.js';
 
 const TAB_IDS = ['summary', 'actions', 'ptp', 'comms', 'documents', 'workout', 'audit'] as const;
 
-export function CaseWorkspaceView({ caseId, onOpenCustomer }: {
+/** An unknown tab id falls back to Summary rather than rendering nothing. */
+function pickTab(requested: string | undefined): string {
+  return requested && (TAB_IDS as readonly string[]).includes(requested) ? requested : TAB_IDS[0];
+}
+
+export function CaseWorkspaceView({ caseId, initialTab, onOpenCustomer }: {
   caseId?: string | undefined;
+  /** Opens straight onto a tab, so  is a working link. */
+  initialTab?: string | undefined;
   onOpenCustomer?: (customerBusinessId: string) => void;
 }) {
   const { adapter } = useCrmSession();
-  const [tab, setTab] = useState<string>(TAB_IDS[0]);
+  const [tab, setTab] = useState<string>(() => pickTab(initialTab));
+
+  // A link that names a different tab wins over whatever was last selected, so following one from
+  // the command bar or My Day lands where it said it would rather than where the user last was.
+  useEffect(() => { setTab(pickTab(initialTab)); }, [initialTab]);
   const [state, setState] = useState<{ status: 'loading' | 'ready' | 'missing' | 'error'; detail?: CaseDetail; error?: Error }>(
     { status: caseId ? 'loading' : 'missing' },
   );
@@ -86,7 +100,7 @@ export function CaseWorkspaceView({ caseId, onOpenCustomer }: {
 function tabsFor(detail: CaseDetail): readonly PivotTab[] {
   return [
     { id: 'summary', label: 'Summary', render: () => <SummaryTab detail={detail} /> },
-    { id: 'actions', label: 'Actions', render: () => <ActionsTab caseId={detail.id} /> },
+    { id: 'actions', label: 'Actions', render: () => <ActionsTab detail={detail} /> },
     { id: 'ptp', label: 'PTP', render: () => <PtpTab caseId={detail.id} /> },
     {
       id: 'comms', label: 'Communications', pendingPhase: 7,
@@ -238,22 +252,61 @@ const ACTIVITY_COLUMNS: readonly DataGridColumn<ActivityRow>[] = [
   { key: 'status', header: 'Status', width: '120px', render: r => <StatusPill status={r.status} /> },
 ];
 
-function ActionsTab({ caseId }: { caseId: string }) {
+/**
+ * The Actions tab, now operational.
+ *
+ * Opening a row opens the activity; the dialog decides what may be done with it from the status the
+ * server set. The grid itself is unchanged — same server-side paging, same virtualization — because
+ * making a list writable is not a reason to stop it being bounded.
+ *
+ * `reloadKey` is what re-reads the list after a save. The query object's identity is what
+ * `usePagedQuery` fingerprints, so changing the key produces a new question and the continuation
+ * resets with it, which is exactly the behaviour a list needs after a row has changed underneath it.
+ */
+function ActionsTab({ detail }: { detail: CaseDetail }) {
+  const caseId = detail.id;
   const { adapter } = useCrmSession();
   const fetchPage = useMemo(() => createActivityQuery(adapter), [adapter]);
-  const query = useMemo<ActivityQuery>(() => ({ caseId }), [caseId]);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [dialog, setDialog] = useState<{ mode: 'create' | 'edit'; activityId?: string } | null>(null);
+  const query = useMemo<ActivityQuery>(() => ({ caseId, reloadKey } as ActivityQuery), [caseId, reloadKey]);
+
   return (
+    <>
     <Card
       title="Collection actions"
-      subtitle="Every action recorded against this case. Logging a new one is Phase 6."
+      subtitle="Every action recorded against this case, newest first."
+      actions={
+        <button
+          type="button" className="btn primary" data-testid="new-activity"
+          onClick={() => setDialog({ mode: 'create' })}
+        >
+          Log action
+        </button>
+      }
     >
       <DataGrid<ActivityRow, ActivityQuery>
         columns={ACTIVITY_COLUMNS} fetchPage={fetchPage} query={query}
         rowKey={row => row.id} pageSize={50}
+        onRowClick={row => setDialog({ mode: 'edit', activityId: row.id })}
         emptyMessage="No collection action has been recorded against this case."
         data-testid="case-actions"
       />
+      {dialog && (
+        <ActivityDialog
+          mode={dialog.mode} caseId={caseId}
+          {...(dialog.activityId !== undefined ? { activityId: dialog.activityId } : {})}
+          onClose={() => setDialog(null)}
+          onSaved={() => setReloadKey(key => key + 1)}
+        />
+      )}
     </Card>
+    <CaseActionPlan
+      caseId={caseId}
+      {...(detail.strategyId !== undefined ? { strategyId: detail.strategyId } : {})}
+      {...(detail.strategyName !== undefined ? { strategyName: detail.strategyName } : {})}
+    />
+    </>
   );
 }
 
@@ -261,27 +314,47 @@ export const PTP_COLUMNS: readonly DataGridColumn<PtpRow>[] = [
   { key: 'promised', header: 'Promised for', width: '120px', render: r => formatDate(r.ptpDate) },
   { key: 'amount', header: 'Amount', width: '130px', render: r => formatMoney(r.promisedAmount) },
   { key: 'type', header: 'Type', width: '90px', render: r => r.promiseType ?? '—' },
-  { key: 'status', header: 'Status', width: '130px', render: r => <StatusPill status={r.ptpStatus} /> },
-  { key: 'received', header: 'Received', width: '130px', render: r => formatMoney(r.amountReceived) },
-  { key: 'paid', header: 'Paid on', width: '110px', render: r => formatDate(r.paymentReceivedDate) },
+  { key: 'status', header: 'Status', width: '170px', render: r => <PromiseOutcome status={r.ptpStatus} /> },
+  { key: 'received', header: 'Reported paid', width: '130px', render: r => formatMoney(r.amountReceived) },
+  { key: 'paid', header: 'Reported on', width: '110px', render: r => formatDate(r.paymentReceivedDate) },
   { key: 'broken', header: 'Broken', width: '110px', render: r => formatDate(r.brokenDate) },
 ];
 
 function PtpTab({ caseId }: { caseId: string }) {
   const { adapter } = useCrmSession();
   const fetchPage = useMemo(() => createPtpQuery(adapter), [adapter]);
-  const query = useMemo<ActivityQuery>(() => ({ caseId }), [caseId]);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [dialog, setDialog] = useState<{ mode: 'create' | 'edit'; promiseId?: string } | null>(null);
+  const query = useMemo<ActivityQuery>(() => ({ caseId, reloadKey } as ActivityQuery), [caseId, reloadKey]);
+
   return (
     <Card
       title="Promises to pay"
-      subtitle="Promises recorded against this case. Capture, reminders and kept/broken evaluation are Phase 6."
+      subtitle="Promises recorded against this case. Every outcome is what a collection officer recorded, not a verified payment."
+      actions={
+        <button
+          type="button" className="btn primary" data-testid="new-promise"
+          onClick={() => setDialog({ mode: 'create' })}
+        >
+          Capture promise
+        </button>
+      }
     >
       <DataGrid<PtpRow, ActivityQuery>
         columns={PTP_COLUMNS} fetchPage={fetchPage} query={query}
         rowKey={row => row.id} pageSize={50}
+        onRowClick={row => setDialog({ mode: 'edit', promiseId: row.id })}
         emptyMessage="No promise to pay has been recorded against this case."
         data-testid="case-ptps"
       />
+      {dialog && (
+        <PromiseDialog
+          mode={dialog.mode} caseId={caseId}
+          {...(dialog.promiseId !== undefined ? { promiseId: dialog.promiseId } : {})}
+          onClose={() => setDialog(null)}
+          onSaved={() => setReloadKey(key => key + 1)}
+        />
+      )}
     </Card>
   );
 }

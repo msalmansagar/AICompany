@@ -15,6 +15,7 @@ import './styles/tokens.css';
 import './styles/components.css';
 import './styles/uci.css';
 import './styles/phase5.css';
+import './styles/phase6.css';
 
 /**
  * The workspace root.
@@ -50,10 +51,11 @@ export function App() {
 function Workspace() {
   const route = useHashRoute();
   return (
-    <AppShell commands={<Commands view={route.view} />}>
+    <AppShell commands={<Commands view={route.view} recordId={route.recordId} go={route.go} />}>
       <ViewHost
         view={route.view}
         {...(route.recordId !== undefined ? { recordId: route.recordId } : {})}
+        {...(route.tab !== undefined ? { tab: route.tab } : {})}
         onOpenCase={id => route.go('case', id)}
         onOpenCustomer={customerBusinessId => route.go('customer', customerBusinessId)}
       />
@@ -68,9 +70,10 @@ function Workspace() {
  * so. That is the UI Requirements Matrix enforced at runtime: every route resolves to something, and
  * nothing resolves to invented data.
  */
-function ViewHost({ view, recordId, onOpenCase, onOpenCustomer }: {
+function ViewHost({ view, recordId, tab, onOpenCase, onOpenCustomer }: {
   view: ViewDefinition;
   recordId?: string | undefined;
+  tab?: string | undefined;
   onOpenCase: (id: string) => void;
   onOpenCustomer: (customerBusinessId: string) => void;
 }) {
@@ -80,13 +83,13 @@ function ViewHost({ view, recordId, onOpenCase, onOpenCustomer }: {
     case 'myday': return <MyDayView onOpenCase={onOpenCase} />;
     case 'queues': return <QueuesView onOpenCase={onOpenCase} />;
     case 'cases': return <CasesView onOpenCase={onOpenCase} />;
-    case 'case': return <CaseWorkspaceView caseId={recordId} onOpenCustomer={onOpenCustomer} />;
+    case 'case': return <CaseWorkspaceView caseId={recordId} initialTab={tab} onOpenCustomer={onOpenCustomer} />;
     case 'customer': return <Customer360View customerBusinessId={recordId} onOpenCase={onOpenCase} />;
     case 'intake': return <DelinquencyIntakeView />;
     case 'buckets': return <SegmentationView />;
     case 'rules': return <StrategyRulesView view={view} />;
     case 'actionplan': return <ActionPlanView view={view} />;
-    case 'ptp': return <PromiseToPayView view={view} />;
+    case 'ptp': return <PromiseToPayView view={view} onOpenCase={onOpenCase} />;
     case 'dashboards': return <DashboardsView view={view} />;
     case 'admin': return <ConfigurationView view={view} />;
     case 'audit': return <AuditView />;
@@ -111,13 +114,36 @@ function UnroutedView({ view }: { view: ViewDefinition }) {
   );
 }
 
-/** The approved command bar. Later-phase commands stay visible and disabled rather than vanishing. */
-function Commands({ view }: { view: ViewDefinition }) {
+/**
+ * The approved command bar. Later-phase commands stay visible and disabled rather than vanishing.
+ *
+ * **Log action and Capture PTP act on a case, and the command bar is global**, so they are enabled
+ * only where a case is open and they take the user to the tab that does the work. Enabling them
+ * everywhere would mean either picking a case for the user or opening a form with nowhere to save
+ * to; disabling them on the case view, where the capability plainly exists, would be the opposite
+ * lie. The tooltip says which it is.
+ */
+function Commands({ view, recordId, go }: {
+  view: ViewDefinition;
+  recordId?: string | undefined;
+  go: (viewId: string, recordId?: string, tab?: string) => void;
+}) {
+  const onCase = view.id === 'case' && Boolean(recordId);
   return (
     <>
       <Command icon="refresh" label="Refresh" onClick={() => window.location.reload()} />
-      <Command icon="add" label="Log action" pendingPhase={6} />
-      <Command icon="promise" label="Capture PTP" pendingPhase={6} />
+      <Command
+        icon="add" label="Log action"
+        {...(onCase
+          ? { onClick: () => go('case', recordId, 'actions') }
+          : { disabledReason: 'Open a case to log an action against it' })}
+      />
+      <Command
+        icon="promise" label="Capture PTP"
+        {...(onCase
+          ? { onClick: () => go('case', recordId, 'ptp') }
+          : { disabledReason: 'Open a case to capture a promise against it' })}
+      />
       <Command icon="send" label="Send message" pendingPhase={7} />
       <Command icon="restructure" label="Propose restructure" pendingPhase={9} />
       <Command icon="legal" label="Refer to legal" pendingPhase={9} />

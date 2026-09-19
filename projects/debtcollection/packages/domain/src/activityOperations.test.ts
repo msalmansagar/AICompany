@@ -5,6 +5,8 @@ import {
   planActivityTransition,
   planCompleteActivity,
   planCreateActivity,
+  planUpdateActivity,
+  planUpdatePromise,
   planCreatePromise,
   planFollowUp,
   planPromiseTransition,
@@ -267,5 +269,87 @@ describe('what a promise outcome may be said to mean', () => {
       expect(described.financiallyVerified, status).toBe(false);
       expect(described.note).toMatch(/not been verified/i);
     }
+  });
+});
+
+describe('editing an activity that is still being worked', () => {
+  it('writes only the fields that were supplied', () => {
+    const result = planUpdateActivity({ currentStatus: 'Open', subject: 'Called again' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.plan.fields).toEqual({ subject: 'Called again' });
+  });
+
+  /**
+   * The distinction that protects collection history: the form sends what the user touched, so an
+   * absent note must mean "unchanged". Treating it as "clear it" would erase notes on every
+   * unrelated edit, silently and irreversibly.
+   */
+  it('leaves an absent field alone rather than clearing it', () => {
+    const result = planUpdateActivity({ currentStatus: 'Open', subject: 'Called again' });
+    expect(result.ok && 'notes' in result.plan.fields).toBe(false);
+  });
+
+  it('clears a note only when an empty one is passed deliberately', () => {
+    const result = planUpdateActivity({ currentStatus: 'Open', notes: '' });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.plan.fields['notes']).toBe('');
+  });
+
+  it('refuses to edit a completed activity, and a cancelled one', () => {
+    for (const status of ['Completed', 'Cancelled'] as const) {
+      const result = planUpdateActivity({ currentStatus: status, subject: 'x' });
+      expect(result.ok, status).toBe(false);
+      if (!result.ok) expect(result.refusals[0]!.code).toBe('ActivityImmutable');
+    }
+  });
+
+  it('refuses to blank out the subject', () => {
+    const result = planUpdateActivity({ currentStatus: 'Open', subject: '   ' });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.refusals[0]!.code).toBe('SubjectRequired');
+  });
+
+  /** An empty write answers 200 having done nothing, because the platform elides unchanged fields. */
+  it('says plainly when there is nothing to write', () => {
+    const result = planUpdateActivity({ currentStatus: 'Open' });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.refusals[0]!.code).toBe('NothingToSave');
+  });
+});
+
+describe('editing the terms of a promise', () => {
+  it('allows an outstanding promise to be re-agreed', () => {
+    for (const status of ['Active', 'Rescheduled'] as const) {
+      const result = planUpdatePromise({ currentStatus: status, promisedAmount: 7500 });
+      expect(result.ok, status).toBe(true);
+      if (result.ok) expect(result.plan.fields['promisedAmount']).toBe(7500);
+    }
+  });
+
+  /**
+   * Once an outcome has been recorded the terms are the thing that outcome was judged against.
+   * Editing them afterwards would rewrite history, so it is refused with its own code rather than
+   * being lumped in with a validation failure.
+   */
+  it('refuses to rewrite the terms of a promise that has an outcome', () => {
+    for (const status of ['Kept', 'PartiallyKept', 'Broken', 'Cancelled'] as const) {
+      const result = planUpdatePromise({ currentStatus: status, promisedAmount: 1 });
+      expect(result.ok, status).toBe(false);
+      if (!result.ok) expect(result.refusals[0]!.code).toBe('PromiseTermsSettled');
+    }
+  });
+
+  it('refuses an amount that is not positive', () => {
+    const result = planUpdatePromise({ currentStatus: 'Active', promisedAmount: 0 });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.refusals[0]!.code).toBe('AmountNotPositive');
+  });
+
+  it('still imposes no maximum amount or horizon when editing', () => {
+    const result = planUpdatePromise({
+      currentStatus: 'Active', promisedAmount: 90_000_000, promiseDate: '2032-01-01T00:00:00.000Z',
+    });
+    expect(result.ok).toBe(true);
   });
 });

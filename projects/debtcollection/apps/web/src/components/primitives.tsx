@@ -212,6 +212,24 @@ export function OrgBadge({ org }: { org?: string | undefined }) {
   );
 }
 
+/**
+ * A promise's status, with the fact that it is unverified attached.
+ *
+ * A bare `Kept` pill in the approved `ok` green reads as *settled*. It is not: it is what a collection
+ * officer recorded, and the platform holds no evidence that any money arrived. So every outcome that
+ * makes a claim about payment carries the qualifier beside it, in secondary text rather than a
+ * success colour. Active and Rescheduled claim nothing, so they need no qualifier.
+ */
+export function PromiseOutcome({ status }: { status?: string | undefined }) {
+  const claimsPayment = status !== undefined && /kept|broken/i.test(status);
+  return (
+    <span className="row-actions">
+      <StatusPill status={status} />
+      {claimsPayment && <span className="unverified" title="Payment has not been verified against MIS (KI-53).">unverified</span>}
+    </span>
+  );
+}
+
 // ── States ───────────────────────────────────────────────────────────────────
 
 export function EmptyState({ message, icon = 'info' }: { message: string; icon?: string }) {

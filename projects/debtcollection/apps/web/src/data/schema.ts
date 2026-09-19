@@ -20,6 +20,8 @@ export const ENTITY_SETS = {
   collectionCase: 'qdb_collectioncases',
   delinquencySnapshot: 'qdb_delinquencysnapshots',
   collectionActivity: 'qdb_collectionactivities',
+  collectionActivityType: 'qdb_collectionactivitytypes',
+  activityOutcome: 'qdb_activityoutcomes',
   identityException: 'qdb_identityexceptions',
   collectionStrategy: 'qdb_collectionstrategies',
   strategyAction: 'qdb_strategyactions',
@@ -60,6 +62,7 @@ export const NAVIGATION_PROPERTIES = {
   activityToCase: 'qdb_collectioncaseid_qdb_collectionactivity',
   activityToType: 'qdb_activitytypeid_qdb_collectionactivity',
   activityToOutcome: 'qdb_outcomeid_qdb_collectionactivity',
+  outcomeToType: 'qdb_activitytypeid',
   snapshotToCase: 'qdb_collectioncaseid',
   caseToStrategy: 'qdb_strategyid',
   caseToAssignedTeam: 'qdb_assignedteamid',
@@ -74,6 +77,7 @@ export const NAVIGATION_REGISTRY: readonly {
   { entity: 'qdb_collectionactivity', attribute: 'qdb_collectioncaseid', navigationProperty: NAVIGATION_PROPERTIES.activityToCase },
   { entity: 'qdb_collectionactivity', attribute: 'qdb_activitytypeid', navigationProperty: NAVIGATION_PROPERTIES.activityToType },
   { entity: 'qdb_collectionactivity', attribute: 'qdb_outcomeid', navigationProperty: NAVIGATION_PROPERTIES.activityToOutcome },
+  { entity: 'qdb_activityoutcome', attribute: 'qdb_activitytypeid', navigationProperty: NAVIGATION_PROPERTIES.outcomeToType },
   { entity: 'qdb_delinquencysnapshot', attribute: 'qdb_collectioncaseid', navigationProperty: NAVIGATION_PROPERTIES.snapshotToCase },
   { entity: 'qdb_collectioncase', attribute: 'qdb_strategyid', navigationProperty: NAVIGATION_PROPERTIES.caseToStrategy },
   { entity: 'qdb_collectioncase', attribute: 'qdb_assignedteamid', navigationProperty: NAVIGATION_PROPERTIES.caseToAssignedTeam },
@@ -81,22 +85,6 @@ export const NAVIGATION_REGISTRY: readonly {
   { entity: 'qdb_collectioncase', attribute: 'qdb_customerid', navigationProperty: NAVIGATION_PROPERTIES.caseToCustomerAccount },
 ];
 
-/**
- * Entity sets the workspace only ever **writes to**, as the target of a lookup binding.
- *
- * Deliberately separate from `ENTITY_SETS`, which carries the sets the workspace *reads*: every
- * member of that map is required to have a `READ_REGISTRY` entry whose columns are verified against
- * live metadata, and a set with no columns to verify would either break that invariant or quietly
- * weaken it. These two have no columns to register — only an id in a URL.
- *
- * Both names were confirmed against the organisation by the Phase 6 write smoke rather than
- * pluralised by rule: the type's set is `qdb_collectionactivitytypes` while its lookup attribute is
- * `qdb_activitytypeid`, so deriving either from the other produces a URL that 404s.
- */
-export const BIND_TARGET_SETS = {
-  collectionActivityType: 'qdb_collectionactivitytypes',
-  activityOutcome: 'qdb_activityoutcomes',
-} as const;
 
 /** Builds an `@odata.bind` entry: the one correct way to point a lookup at a record on a write. */
 export function bindLookup(navigationProperty: string, entitySet: string, id: string): Record<string, string> {
@@ -161,6 +149,32 @@ export const STRATEGY_ACTION_COLUMNS = [
   'qdb_communicationchannel', 'qdb_queuename', 'qdb_requiresapproval', 'qdb_ismandatory',
   'qdb_stoponpayment', 'qdb_stoponptp', 'qdb_escalateifnotcompleted', 'qdb_escalationhours',
   'qdb_processcode', 'qdb_rulecode', 'qdb_isactive', '_qdb_strategyid_value', '_qdb_activitytypeid_value',
+] as const;
+
+/**
+ * The activity-type catalogue, as the Phase 6 forms offer it.
+ *
+ * `qdb_isactive` and `qdb_sequence` are here because the form needs them: a retired type must not
+ * become selectable on a new record, and the order an officer sees is configuration's to decide, not
+ * an alphabetical accident.
+ */
+export const ACTIVITY_TYPE_COLUMNS = [
+  'qdb_collectionactivitytypeid', 'qdb_name', 'qdb_code', 'qdb_category', 'qdb_isactive',
+  'qdb_sequence', 'qdb_notesrequired', 'qdb_amountrequired', 'qdb_requiresfollowup',
+  'qdb_requiresapproval', 'qdb_slahours',
+] as const;
+
+/**
+ * The outcome catalogue.
+ *
+ * An outcome belongs to **one activity type** (`qdb_activitytypeid`), so the outcomes a form offers
+ * are the ones owned by the type the officer chose — offering all of them would let a call be closed
+ * with a field-visit outcome. The four behaviour columns are what `planCompleteActivity` reads.
+ */
+export const ACTIVITY_OUTCOME_COLUMNS = [
+  'qdb_activityoutcomeid', 'qdb_name', 'qdb_code', 'qdb_category', 'qdb_isactive', 'qdb_sequence',
+  'qdb_requiresfollowup', 'qdb_followupdays', 'qdb_requiresnotes', 'qdb_escalationrequired',
+  'qdb_closeactivity', '_qdb_activitytypeid_value',
 ] as const;
 
 export const IDENTITY_EXCEPTION_COLUMNS = [
@@ -284,6 +298,8 @@ export const READ_REGISTRY: readonly { entitySet: string; columns: readonly stri
   { entitySet: ENTITY_SETS.delinquencySnapshot, columns: SNAPSHOT_COLUMNS },
   { entitySet: ENTITY_SETS.collectionStrategy, columns: STRATEGY_COLUMNS },
   { entitySet: ENTITY_SETS.strategyAction, columns: STRATEGY_ACTION_COLUMNS },
+  { entitySet: ENTITY_SETS.collectionActivityType, columns: ACTIVITY_TYPE_COLUMNS },
+  { entitySet: ENTITY_SETS.activityOutcome, columns: ACTIVITY_OUTCOME_COLUMNS },
   { entitySet: ENTITY_SETS.identityException, columns: IDENTITY_EXCEPTION_COLUMNS },
   { entitySet: ENTITY_SETS.platformConfiguration, columns: PLATFORM_CONFIGURATION_COLUMNS },
   { entitySet: ENTITY_SETS.platformMapping, columns: PLATFORM_MAPPING_COLUMNS },

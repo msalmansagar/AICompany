@@ -3,6 +3,8 @@ import { DataGrid, type DataGridColumn } from '../data/DataGrid.js';
 import {
   createAuditQuery, createCaseQuery, LABELS, type AuditQuery, type AuditRow, type CaseQuery, type CaseRow,
 } from '../data/collectionQueries.js';
+import { createFollowUpQuery, type FollowUpQuery, type FollowUpWindow } from '../data/followUpQueries.js';
+import type { ActivityRow } from '../data/caseQueries.js';
 import { formatCountResult, useCounts, type CountRequest } from '../data/counts.js';
 import { ENTITY_SETS } from '../data/schema.js';
 import {
@@ -168,13 +170,96 @@ export function MyDayView({ onOpenCase }: { onOpenCase?: (id: string) => void })
         { label: 'Broken promises', value: formatCountResult(counts['ptpBroken']), tone: 'warn' },
         { label: 'SLA breached', value: '—', hint: 'Needs the SLA model (Phase 8)' },
       ]} />
+      <FollowUpsPanel {...(onOpenCase ? { onOpenCase } : {})} />
       <Card
-        title="Today's follow-ups"
+        title="Open cases"
         subtitle="Open cases, worst days-past-due first. Opening one routes the read to the CRM that owns it."
       >
         <CasesView {...(onOpenCase ? { onOpenCase } : {})} />
       </Card>
     </>
+  );
+}
+
+// ── Follow-ups ───────────────────────────────────────────────────────────────
+
+const FOLLOW_UP_COLUMNS: readonly DataGridColumn<ActivityRow>[] = [
+  { key: 'due', header: 'Follow-up', width: '110px', render: r => formatDate(r.followUpDate) },
+  { key: 'case', header: 'Case', width: '160px', render: r => r.caseNumber ?? '—' },
+  { key: 'type', header: 'Type', width: '140px', render: r => r.activityType ?? '—' },
+  { key: 'subject', header: 'Subject', render: r => r.subject },
+  { key: 'owner', header: 'Owner', width: '150px', render: r => r.ownerName ?? '—' },
+  { key: 'status', header: 'Status', width: '120px', render: r => <StatusPill status={r.status} /> },
+];
+
+/** The windows an officer works in. `all` is offered so nothing is hidden by a default. */
+const FOLLOW_UP_WINDOWS: readonly { id: FollowUpWindow; label: string }[] = [
+  { id: 'overdue', label: 'Overdue' },
+  { id: 'upcoming', label: 'Upcoming' },
+  { id: 'all', label: 'All' },
+];
+
+/**
+ * The follow-up queue — what an officer has undertaken to do next.
+ *
+ * The window is a **server-side filter**, not a tab that hides rows the browser already holds: the
+ * comparison against "now" is composed into `$filter` and sent, so switching window asks a new
+ * question. `usePagedQuery` fingerprints the query object, so that also resets the continuation and
+ * discards any in-flight answer to the previous window — the stale-response case that would
+ * otherwise repaint Overdue rows under an Upcoming heading.
+ *
+ * `now` is pinned for the life of the panel rather than re-read on each render, so scrolling the
+ * list does not silently move the boundary underneath it and drop a row between two pages.
+ *
+ * Opening a row goes to its case, where the Actions tab completes or updates the activity. There is
+ * no separate follow-up entity: a follow-up is a date on the activity that created it, which is what
+ * makes "complete the activity" and "clear the follow-up" the same act.
+ */
+function FollowUpsPanel({ onOpenCase }: { onOpenCase?: (id: string) => void }) {
+  const { adapter } = useCrmSession();
+  const { scopeFilter } = useOrg();
+  const fetchPage = useMemo(() => createFollowUpQuery(adapter), [adapter]);
+  const [window, setWindow] = useState<FollowUpWindow>('overdue');
+  const [now] = useState(() => new Date());
+
+  const query = useMemo<FollowUpQuery>(() => ({
+    window, now, ...(scopeFilter ? { scopeFilter } : {}),
+  }), [window, now, scopeFilter]);
+
+  return (
+    <Card
+      title="Follow-ups"
+      subtitle="Activities an officer has committed to return to. Completing the activity clears its follow-up."
+      actions={
+        <div className="chips" data-testid="followup-windows">
+          {FOLLOW_UP_WINDOWS.map(option => (
+            <button
+              key={option.id}
+              type="button"
+              className={option.id === window ? 'chip sel' : 'chip'}
+              data-testid={`followup-window-${option.id}`}
+              onClick={() => setWindow(option.id)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      }
+    >
+      <DataGrid<ActivityRow, FollowUpQuery>
+        columns={FOLLOW_UP_COLUMNS} fetchPage={fetchPage} query={query}
+        rowKey={row => row.id} pageSize={50} height={320}
+        {...(onOpenCase
+          ? { onRowClick: (row: ActivityRow) => { if (row.caseId) onOpenCase(row.caseId); } }
+          : {})}
+        emptyMessage={
+          window === 'overdue'
+            ? 'Nothing is overdue. Follow-ups appear here once their date has passed.'
+            : 'No follow-up is scheduled in this window.'
+        }
+        data-testid="myday-followups"
+      />
+    </Card>
   );
 }
 

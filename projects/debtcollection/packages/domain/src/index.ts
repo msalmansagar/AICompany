@@ -341,10 +341,12 @@ export {
   ActivityOutcomeConfigSchema,
   PROMISE_TYPE_CODES,
   planCreateActivity,
+  planUpdateActivity,
   planCompleteActivity,
   planActivityTransition,
   planFollowUp,
   planCreatePromise,
+  planUpdatePromise,
   planPromiseTransition,
   describePromiseVerification,
 } from './activityOperations.js';
@@ -355,6 +357,8 @@ export type {
   ActivityWritePlan,
   CompleteActivityPlan,
   CreateActivityRequest,
+  UpdateActivityRequest,
   CompleteActivityRequest,
   CreatePromiseRequest,
+  UpdatePromiseRequest,
 } from './activityOperations.js';

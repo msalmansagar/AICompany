@@ -3,21 +3,25 @@ import {
   planActivityTransition,
   planCompleteActivity,
   planCreateActivity,
+  planUpdateActivity,
   planCreatePromise,
+  planUpdatePromise,
   planFollowUp,
   planPromiseTransition,
   type ActivityStatus,
   type ActivityWritePlan,
   type CompleteActivityRequest,
   type CreateActivityRequest,
+  type UpdateActivityRequest,
   type CreatePromiseRequest,
+  type UpdatePromiseRequest,
   type OperationRefusal,
   type OperationResult,
   type PtpStatus,
   type RowVersion,
 } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
-import { BIND_TARGET_SETS, ENTITY_SETS, NAVIGATION_PROPERTIES, bindLookup } from '../data/schema.js';
+import { ENTITY_SETS, NAVIGATION_PROPERTIES, bindLookup } from '../data/schema.js';
 
 /**
  * The service that turns a decision into a write.
@@ -74,8 +78,8 @@ interface LookupTarget {
  */
 const BIND_TARGETS: Readonly<Record<ActivityWritePlan['binds'][number]['lookup'], LookupTarget>> = {
   case: { navigationProperty: NAVIGATION_PROPERTIES.activityToCase, entitySet: ENTITY_SETS.collectionCase },
-  type: { navigationProperty: NAVIGATION_PROPERTIES.activityToType, entitySet: BIND_TARGET_SETS.collectionActivityType },
-  outcome: { navigationProperty: NAVIGATION_PROPERTIES.activityToOutcome, entitySet: BIND_TARGET_SETS.activityOutcome },
+  type: { navigationProperty: NAVIGATION_PROPERTIES.activityToType, entitySet: ENTITY_SETS.collectionActivityType },
+  outcome: { navigationProperty: NAVIGATION_PROPERTIES.activityToOutcome, entitySet: ENTITY_SETS.activityOutcome },
 };
 
 /** What a save can be. Three outcomes, because the form has three things to say. */
@@ -147,11 +151,27 @@ export class ActivityService {
     return this.create(id, planCreatePromise(request));
   }
 
+  /** Edits the permitted fields of an activity still being worked. */
+  async updateActivity(
+    reference: { id: string; version: RowVersion },
+    request: UpdateActivityRequest,
+  ): Promise<SaveOutcome<ActivityUpdated>> {
+    return this.update(reference, planUpdateActivity(request));
+  }
+
   async completeActivity(
     reference: { id: string; version: RowVersion },
     request: CompleteActivityRequest,
   ): Promise<SaveOutcome<ActivityUpdated>> {
     return this.update(reference, planCompleteActivity(request));
+  }
+
+  /** Re-agrees the terms of an outstanding promise. Settled promises are refused by the domain. */
+  async updatePromise(
+    reference: { id: string; version: RowVersion },
+    request: UpdatePromiseRequest,
+  ): Promise<SaveOutcome<ActivityUpdated>> {
+    return this.update(reference, planUpdatePromise(request));
   }
 
   async moveActivity(

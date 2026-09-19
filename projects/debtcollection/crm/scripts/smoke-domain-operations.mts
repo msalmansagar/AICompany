@@ -28,6 +28,7 @@ import { ActivityService } from '../../apps/web/src/services/activityService.js'
 import { createFollowUpQuery, loadActionPlan } from '../../apps/web/src/data/followUpQueries.js';
 import { createPtpQuery } from '../../apps/web/src/data/caseQueries.js';
 import { createCaseQuery } from '../../apps/web/src/data/collectionQueries.js';
+import { loadActivityTypes, loadOutcomes } from '../../apps/web/src/data/configurationCatalog.js';
 import type { ActivityOutcomeConfig, RowVersion } from '@dcp/domain';
 
 const AUTHORISED_ORG = 'org5869857f';
@@ -75,6 +76,7 @@ async function main(): Promise<void> {
     await proveConcurrency(service, adapter, seed);
     await proveIdempotency(service, adapter, seed);
     await proveQueries(adapter, seed);
+    await proveConfigurationCatalogue(adapter);
     console.log(`\n  HTTP: ${counters.reads} reads, ${counters.writes} writes through the production classes.`);
   } finally {
     await cleanUpAndVerify(cfg, token);
@@ -393,6 +395,64 @@ async function proveQueries(
   const promises = await createPtpQuery(adapter)({ pageSize: 25, caseId: seed.hlCaseId });
   check('the PTP query returns the seeded promise', promises.items.length >= 1,
     `${promises.items.length} rows`);
+}
+
+// ── The configuration the forms offer ────────────────────────────────────────
+
+/**
+ * What the dropdowns will actually contain.
+ *
+ * This exists because the first Phase 6 seeding produced configuration that every test accepted and
+ * no officer could have used: eleven activity types all written **inactive**, and seven outcomes with
+ * **no owning activity type**. The rows were there, the columns were right, and both dropdowns would
+ * have been empty — the type list because the form correctly refuses retired configuration, the
+ * outcome list because it correctly filters by the chosen type.
+ *
+ * So the assertion is not "the rows exist" but "the catalogue a form would read is non-empty and
+ * behaves" — which is the only version of the question a user would recognise.
+ */
+async function proveConfigurationCatalogue(
+  adapter: ReturnType<typeof buildNodeHarness>['adapter'],
+): Promise<void> {
+  console.log('\n  Configuration — what the Phase 6 forms will offer');
+
+  const types = await loadActivityTypes(adapter);
+  check('the activity-type catalogue is not empty', types.length > 0, `${types.length} types`);
+  check('every offered type is active — a retired one is never selectable for a new record',
+    types.every(type => type.isActive));
+  check('types arrive in configuration\'s own order, not alphabetical',
+    types.every((type, index) => index === 0 || (type.sequence ?? 0) >= (types[index - 1]!.sequence ?? 0)));
+
+  const callType = types.find(type => (type.code ?? '').includes('CALL'));
+  check('a call type is configured', Boolean(callType), callType?.name ?? 'none');
+  if (!callType) return;
+
+  const outcomes = await loadOutcomes(adapter, callType.id);
+  check('the call type offers outcomes', outcomes.length > 0, `${outcomes.length} outcomes`);
+  check('every outcome offered belongs to the chosen type',
+    outcomes.every(outcome => outcome.activityTypeId === callType.id));
+
+  // The four behaviours `planCompleteActivity` reads. A catalogue that varies across none of them
+  // would let the configuration-driven code pass while doing nothing.
+  check('the catalogue varies across the behaviours the form drives from it',
+    outcomes.some(o => o.requiresNotes) && outcomes.some(o => !o.requiresNotes)
+    && outcomes.some(o => o.requiresFollowUp && o.followUpDays !== undefined),
+    `${outcomes.filter(o => o.requiresNotes).length} need notes, `
+    + `${outcomes.filter(o => o.requiresFollowUp).length} need follow-up`);
+
+  // Per-type filtering, proved by difference rather than by asserting one list is non-empty.
+  const visitType = types.find(type => (type.code ?? '').includes('FIELDVISIT'));
+  if (visitType) {
+    const visitOutcomes = await loadOutcomes(adapter, visitType.id);
+    const shared = visitOutcomes.filter(v => outcomes.some(c => c.id === v.id));
+    check('a different activity type offers different outcomes',
+      visitOutcomes.length > 0 && shared.length === 0,
+      `${visitOutcomes.length} visit outcomes, ${shared.length} shared with call`);
+  }
+
+  const promiseType = types.find(type => (type.code ?? '').toUpperCase().includes('PTP'));
+  check('a promise activity type is configured, so a promise can be captured',
+    Boolean(promiseType), promiseType?.name ?? 'none');
 }
 
 // ── Cleanup ──────────────────────────────────────────────────────────────────

@@ -68,15 +68,60 @@ const ACTIVITY_TYPES = [
  * catalogue is QDB's, and the day counts below are deliberately round numbers rather than anything
  * that could be mistaken for a negotiated policy.
  */
-const OUTCOMES = [
-  { code: 'CONTACTED', name: 'Customer contacted', sequence: 10, requiresFollowUp: true, followUpDays: 3, requiresNotes: false, escalation: false },
-  { code: 'NOANSWER', name: 'No answer', sequence: 20, requiresFollowUp: true, followUpDays: 1, requiresNotes: false, escalation: false },
-  { code: 'PROMISED', name: 'Customer promised payment', sequence: 30, requiresFollowUp: true, followUpDays: 7, requiresNotes: false, escalation: false },
-  { code: 'REFUSED', name: 'Customer refused', sequence: 40, requiresFollowUp: false, followUpDays: 0, requiresNotes: true, escalation: true },
-  { code: 'DISPUTED', name: 'Customer disputes the balance', sequence: 50, requiresFollowUp: true, followUpDays: 5, requiresNotes: true, escalation: true },
-  { code: 'UNREACHABLE', name: 'Contact details invalid', sequence: 60, requiresFollowUp: false, followUpDays: 0, requiresNotes: true, escalation: false },
-  { code: 'RESOLVED', name: 'Action completed, no follow-up needed', sequence: 70, requiresFollowUp: false, followUpDays: 0, requiresNotes: false, escalation: false },
+const CONTACT_OUTCOMES = [
+  { code: 'CONTACTED', name: 'Customer contacted', sequence: 10, requiresFollowUp: true, followUpDays: 3, requiresNotes: false, escalation: false, closes: true },
+  { code: 'NOANSWER', name: 'No answer', sequence: 20, requiresFollowUp: true, followUpDays: 1, requiresNotes: false, escalation: false, closes: true },
+  { code: 'PROMISED', name: 'Customer promised payment', sequence: 30, requiresFollowUp: true, followUpDays: 7, requiresNotes: false, escalation: false, closes: true },
+  { code: 'REFUSED', name: 'Customer refused', sequence: 40, requiresFollowUp: false, followUpDays: 0, requiresNotes: true, escalation: true, closes: true },
+  { code: 'DISPUTED', name: 'Customer disputes the balance', sequence: 50, requiresFollowUp: true, followUpDays: 5, requiresNotes: true, escalation: true, closes: true },
+  { code: 'UNREACHABLE', name: 'Contact details invalid', sequence: 60, requiresFollowUp: false, followUpDays: 0, requiresNotes: true, escalation: false, closes: true },
+  { code: 'RESOLVED', name: 'Action completed, no follow-up needed', sequence: 70, requiresFollowUp: false, followUpDays: 0, requiresNotes: false, escalation: false, closes: true },
 ];
+
+/** A visit has its own outcomes, which is what makes the per-type filtering visible rather than theoretical. */
+const VISIT_OUTCOMES = [
+  { code: 'METCUSTOMER', name: 'Met the customer', sequence: 10, requiresFollowUp: true, followUpDays: 7, requiresNotes: true, escalation: false, closes: true },
+  { code: 'NOTATADDRESS', name: 'Not at the address', sequence: 20, requiresFollowUp: false, followUpDays: 0, requiresNotes: true, escalation: true, closes: true },
+];
+
+/**
+ * Which outcomes each activity type offers.
+ *
+ * **An outcome belongs to exactly one activity type** — `qdb_activityoutcome.qdb_activitytypeid` is
+ * its owning type — so an outcome shared by several types is several rows, not one row with several
+ * parents. That is why the codes below are qualified by type: `P6-CALL-CONTACTED`, not
+ * `P6-CONTACTED`.
+ *
+ * The first seeding got this wrong in a way only the organisation revealed: seven outcomes were
+ * created with **no owning type at all**, so a form that correctly filters outcomes by the chosen
+ * type found none, and no activity could be completed with an outcome. The rows existed, every test
+ * passed, and the feature was unusable.
+ *
+ * Types not listed here have no outcomes, and the form says so plainly. That is the honest state
+ * until QDB supplies the real catalogue (KI-66) — better than attaching contact outcomes to a legal
+ * recommendation so that the dropdown looks populated.
+ */
+const OUTCOMES_BY_TYPE = {
+  CALL: CONTACT_OUTCOMES,
+  PAYREQ: CONTACT_OUTCOMES,
+  FOLLOWUP: CONTACT_OUTCOMES,
+  MEETING: CONTACT_OUTCOMES,
+  FIELDVISIT: VISIT_OUTCOMES,
+};
+
+/** Every outcome row to seed, flattened, each carrying the type that owns it. */
+const OUTCOMES = Object.entries(OUTCOMES_BY_TYPE).flatMap(([typeCode, outcomes]) =>
+  outcomes.map(outcome => ({ ...outcome, typeCode, code: `${typeCode}-${outcome.code}` })));
+
+/**
+ * The navigation property an outcome binds its owning type through.
+ *
+ * Bare, with no relationship suffix — nothing else on `qdb_activityoutcome` targets the type table,
+ * so the name needs no qualification. **Read from `ReferencingEntityNavigationPropertyName`, not
+ * inferred** (KI-69), and checked against live metadata by `verify-view-columns.mts` through
+ * `NAVIGATION_REGISTRY`.
+ */
+const OUTCOME_TO_TYPE_NAVIGATION = 'qdb_activitytypeid';
 
 const mark = suffix => `${PHASE6_MARKER}${suffix}`;
 
@@ -117,20 +162,33 @@ async function seed(cfg, token) {
   console.log('\n─── Activity types ───');
   let typesCreated = 0;
   let typesPatched = 0;
-  for (const type of ACTIVITY_TYPES) {
+  const typeIds = new Map();
+  for (const [index, type] of ACTIVITY_TYPES.entries()) {
     const result = await upsert(cfg, token, 'qdb_collectionactivitytypes', 'qdb_collectionactivitytypeid',
-      'qdb_code', mark(type.code), { qdb_name: `${type.name} (${PHASE6_MARKER}synthetic)` }, type.code);
+      'qdb_code', mark(type.code), {
+        qdb_name: `${type.name} (${PHASE6_MARKER}synthetic)`,
+        // Explicit, because the first seeding omitted it and every type came out INACTIVE — so the
+        // forms, which correctly refuse to offer retired configuration, offered nothing at all.
+        // A column's documented default is not a substitute for writing the value you rely on.
+        qdb_isactive: true,
+        qdb_sequence: (index + 1) * 10,
+      }, type.code);
     if (!result.ok) throw new Error(`${type.code}: ${result.message}`);
     result.created ? typesCreated++ : typesPatched++;
+    typeIds.set(type.code, result.id);
   }
   check('The eleven approved activity types are present',
     typesCreated + typesPatched === ACTIVITY_TYPES.length,
     `${typesCreated} created, ${typesPatched} updated`);
+  check('Every seeded activity type is active, so a form can offer it',
+    [...typeIds.values()].every(Boolean), `${typeIds.size} ids resolved`);
 
   console.log('\n─── Activity outcomes ───');
   let outcomesCreated = 0;
   let outcomesPatched = 0;
   for (const outcome of OUTCOMES) {
+    const owningTypeId = typeIds.get(outcome.typeCode);
+    if (!owningTypeId) throw new Error(`${outcome.code}: owning type ${outcome.typeCode} was not seeded`);
     const result = await upsert(cfg, token, 'qdb_activityoutcomes', 'qdb_activityoutcomeid',
       'qdb_code', mark(outcome.code), {
         qdb_name: `${outcome.name} (${PHASE6_MARKER}synthetic)`,
@@ -140,6 +198,8 @@ async function seed(cfg, token) {
         qdb_followupdays: outcome.followUpDays,
         qdb_requiresnotes: outcome.requiresNotes,
         qdb_escalationrequired: outcome.escalation,
+        qdb_closeactivity: outcome.closes,
+        [`${OUTCOME_TO_TYPE_NAVIGATION}@odata.bind`]: `/qdb_collectionactivitytypes(${owningTypeId})`,
       }, outcome.code);
     if (!result.ok) throw new Error(`${outcome.code}: ${result.message}`);
     result.created ? outcomesCreated++ : outcomesPatched++;
@@ -147,6 +207,13 @@ async function seed(cfg, token) {
   check('A synthetic outcome set exercises all four configured behaviours',
     outcomesCreated + outcomesPatched === OUTCOMES.length,
     `${outcomesCreated} created, ${outcomesPatched} updated`);
+
+  // The check that would have caught the original defect: an outcome nobody owns is an outcome no
+  // form can offer, so the binding is verified by reading it back rather than assumed from a 204.
+  const orphans = (await apiGet(cfg, token, SOLUTION_NAME,
+    `/qdb_activityoutcomes?$select=qdb_code&$filter=startswith(qdb_code,'${PHASE6_MARKER}') and _qdb_activitytypeid_value eq null`))?.value ?? [];
+  check('Every seeded outcome is owned by an activity type, read back from the organisation',
+    orphans.length === 0, orphans.length === 0 ? 'no orphans' : orphans.map(o => o.qdb_code).join(', '));
 
   // The mechanism is only worth building if the configuration actually varies across it.
   const followUp = OUTCOMES.filter(o => o.requiresFollowUp).length;

@@ -51,7 +51,8 @@ export interface OperationRefusal {
   code:
     | 'AmountNotPositive' | 'DateMissing' | 'DateMalformed' | 'NotesRequired'
     | 'TransitionNotAllowed' | 'ActivityImmutable' | 'OutcomeRequired'
-    | 'FollowUpDateRequired' | 'SubjectRequired' | 'TypeRequired' | 'CaseRequired';
+    | 'FollowUpDateRequired' | 'SubjectRequired' | 'TypeRequired' | 'CaseRequired'
+    | 'PromiseTermsSettled' | 'NothingToSave';
   /** What to tell the user. Names the field so a form can put it in the right place. */
   message: string;
   field?: string;
@@ -114,6 +115,57 @@ export function planCreateActivity(request: CreateActivityRequest): OperationRes
       ],
     },
   };
+}
+
+// ── Editing an open activity ─────────────────────────────────────────────────
+
+export interface UpdateActivityRequest {
+  currentStatus: ActivityStatus;
+  /** Only the fields the user actually changed. An absent field is left alone, not cleared. */
+  subject?: string;
+  activityDate?: string;
+  notes?: string;
+}
+
+/**
+ * Validates and plans an edit to an activity that is still being worked.
+ *
+ * **An absent field means "unchanged", not "clear it".** The distinction matters because the form
+ * sends only what the user touched: treating an absent note as an instruction to erase the existing
+ * one would silently destroy collection history on every unrelated edit. Clearing a follow-up is the
+ * one deliberate exception, and it has its own operation (`planFollowUp`) precisely so that erasing
+ * is something a caller asks for explicitly rather than something that happens by omission.
+ *
+ * A completed activity is refused: `ImmutabilityGuard` is registered on the organisation and would
+ * refuse the write anyway, so accepting it here would only move the failure later and make it look
+ * like a save error rather than a rule.
+ */
+export function planUpdateActivity(request: UpdateActivityRequest): OperationResult<ActivityWritePlan> {
+  if (request.currentStatus === 'Completed') {
+    return refuse({ code: 'ActivityImmutable', message: 'This activity is completed and can no longer be edited.' });
+  }
+  if (request.currentStatus === 'Cancelled') {
+    return refuse({ code: 'ActivityImmutable', message: 'This activity is cancelled and can no longer be edited.' });
+  }
+
+  const refusals: OperationRefusal[] = [];
+  if (request.subject !== undefined && !request.subject.trim()) {
+    refusals.push({ code: 'SubjectRequired', message: 'An activity must keep a subject.', field: 'subject' });
+  }
+  const activityDate = readDate(request.activityDate, 'activityDate', refusals, { required: false });
+  if (refusals.length > 0) return { ok: false, refusals };
+
+  const fields: Record<string, unknown> = {
+    ...(request.subject !== undefined ? { subject: request.subject.trim() } : {}),
+    ...(activityDate ? { activityDate } : {}),
+    ...(request.notes !== undefined ? { notes: request.notes.trim() } : {}),
+  };
+  if (Object.keys(fields).length === 0) {
+    // Dataverse elides an unchanged attribute before the plugins run, so an empty write would answer
+    // 200 having done nothing. Saying so is more use to the caller than a silent success.
+    return refuse({ code: 'NothingToSave', message: 'Nothing has been changed.' });
+  }
+  return { ok: true, plan: { fields, binds: [] } };
 }
 
 // ── Completing an activity, with its outcome ─────────────────────────────────
@@ -304,6 +356,66 @@ export function planCreatePromise(request: CreatePromiseRequest): OperationResul
       ],
     },
   };
+}
+
+/**
+ * The promise statuses whose terms may still be edited.
+ *
+ * A promise that has been given an outcome has become **history**: changing the amount a customer
+ * was recorded as having promised, after recording whether they kept it, would rewrite the thing the
+ * outcome was judged against. Active and Rescheduled are the two statuses where the promise is still
+ * outstanding and no outcome has been recorded, so they are the two where the terms are still a
+ * commitment rather than a record.
+ *
+ * This is the minimal line consistent with the documented matrix rather than a QDB policy, and it is
+ * deliberately the **safe direction**: widening it later permits more, which is recoverable, where
+ * discovering that settled promises were editable is not.
+ */
+const EDITABLE_PROMISE_STATUSES: readonly PtpStatus[] = ['Active', 'Rescheduled'];
+
+export interface UpdatePromiseRequest {
+  currentStatus: PtpStatus;
+  promisedAmount?: number;
+  promiseDate?: string;
+  promiseType?: 'Full' | 'Partial';
+  notes?: string;
+}
+
+/**
+ * Validates and plans an edit to the terms of an outstanding promise.
+ *
+ * Same arithmetic as creating one, and the same deliberate absences: no maximum amount, no maximum
+ * horizon, no limit on how many promises a case may carry (**KI-72**).
+ */
+export function planUpdatePromise(request: UpdatePromiseRequest): OperationResult<ActivityWritePlan> {
+  if (!EDITABLE_PROMISE_STATUSES.includes(request.currentStatus)) {
+    return refuse({
+      code: 'PromiseTermsSettled',
+      message: `This promise is ${request.currentStatus}. Its terms are part of the record and can no longer be changed.`,
+    });
+  }
+
+  const refusals: OperationRefusal[] = [];
+  if (request.promisedAmount !== undefined && !(request.promisedAmount > 0)) {
+    refusals.push({
+      code: 'AmountNotPositive',
+      message: 'A promised amount must be greater than zero.',
+      field: 'promisedAmount',
+    });
+  }
+  const promiseDate = readDate(request.promiseDate, 'promiseDate', refusals, { required: false });
+  if (refusals.length > 0) return { ok: false, refusals };
+
+  const fields: Record<string, unknown> = {
+    ...(request.promisedAmount !== undefined ? { promisedAmount: request.promisedAmount } : {}),
+    ...(promiseDate ? { ptpDate: promiseDate } : {}),
+    ...(request.promiseType ? { promiseType: PROMISE_TYPE_CODES[request.promiseType] } : {}),
+    ...(request.notes !== undefined ? { notes: request.notes.trim() } : {}),
+  };
+  if (Object.keys(fields).length === 0) {
+    return refuse({ code: 'NothingToSave', message: 'Nothing has been changed.' });
+  }
+  return { ok: true, plan: { fields, binds: [] } };
 }
 
 /**

@@ -46,12 +46,32 @@ function componentFiles(directory: string): string[] {
 
 interface ClassUsage { name: string; file: string }
 
-/** Pulls every literal class name out of a source file, and every computed one separately. */
+/**
+ * Pulls every literal class name out of a source file, and every computed one separately.
+ *
+ * Three forms are read, because all three reach the DOM:
+ *   • `className="grid"` — the plain attribute;
+ *   • `` className={`pill ${tone}`} `` — a template, whose static words are still checkable;
+ *   • `className={wide ? 'dialog lg' : 'dialog'}` — an expression holding string literals.
+ *
+ * The third was added in Phase 6. A ternary between two literals is the natural way to write a
+ * variant, and until it was read here those class names reached the browser unchecked — which is the
+ * one thing this test exists to prevent. The regex takes every quoted string inside the braces; a
+ * false positive would be a word that has a CSS rule anyway, so erring wide costs nothing.
+ */
 function readClassNames(source: string, file: string) {
   const literal: ClassUsage[] = [];
   const computed: string[] = [];
 
-  for (const match of source.matchAll(/className=(?:"([^"]*)"|\{`([^`]*)`\})/g)) {
+  for (const match of source.matchAll(/className=(?:"([^"]*)"|\{`([^`]*)`\}|\{([^{}]*)\})/g)) {
+    const expression = match[3];
+    if (expression !== undefined) {
+      for (const quoted of expression.matchAll(/'([^']*)'|"([^"]*)"/g)) {
+        const value = quoted[1] ?? quoted[2] ?? '';
+        for (const name of value.split(/\s+/).filter(Boolean)) literal.push({ name, file });
+      }
+      continue;
+    }
     const value = match[1] ?? match[2] ?? '';
     if (match[2] !== undefined && /\$\{/.test(value)) {
       // A template with interpolation: the static words are still checkable, the rest is not.
