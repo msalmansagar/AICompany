@@ -29,6 +29,8 @@ import { createFollowUpQuery, loadActionPlan } from '../../apps/web/src/data/fol
 import { createPtpQuery } from '../../apps/web/src/data/caseQueries.js';
 import { createCaseQuery } from '../../apps/web/src/data/collectionQueries.js';
 import { loadActivityTypes, loadOutcomes } from '../../apps/web/src/data/configurationCatalog.js';
+import { deriveFollowUpDate } from '@dcp/domain';
+import { ENTITY_SETS } from '../../apps/web/src/data/schema.js';
 import type { ActivityOutcomeConfig, RowVersion } from '@dcp/domain';
 
 const AUTHORISED_ORG = 'org5869857f';
@@ -77,6 +79,7 @@ async function main(): Promise<void> {
     await proveIdempotency(service, adapter, seed);
     await proveQueries(adapter, seed);
     await proveConfigurationCatalogue(adapter);
+    await proveConfiguredFollowUpIsPersisted(service, adapter, seed);
     console.log(`\n  HTTP: ${counters.reads} reads, ${counters.writes} writes through the production classes.`);
   } finally {
     await cleanUpAndVerify(cfg, token);
@@ -492,3 +495,77 @@ main().catch(error => {
   console.error('\n  FATAL:', error instanceof Error ? error.message : String(error));
   process.exit(1);
 });
+
+/**
+ * The configured follow-up, derived from the **deployed** configuration and read back.
+ *
+ * Phase 6 runtime validation step 3b reported an activity completing with no follow-up date. The
+ * derivation was correct at every layer; what was missing was any check that the configuration
+ * *actually on the organisation* produces a persisted date when the officer supplies none.
+ *
+ * So this uses the real `P6-` outcome rather than a seeded one — a synthetic outcome created by this
+ * script would prove the mechanism and say nothing about the catalogue QDB will be looking at — and
+ * asserts the date that comes **back out of Dataverse**, not the one the plan went in with.
+ */
+async function proveConfiguredFollowUpIsPersisted(
+  service: ActivityService,
+  adapter: ReturnType<typeof buildNodeHarness>['adapter'],
+  seed: Seed,
+): Promise<void> {
+  console.log('\n  Configured follow-up — derived, written, and read back');
+
+  const types = await loadActivityTypes(adapter);
+  const callType = types.find(t => (t.code ?? '').includes('P6-CALL'));
+  if (!callType) { check('a deployed call type exists to complete against', false); return; }
+
+  const outcomes = await loadOutcomes(adapter, callType.id);
+  const scheduling = outcomes.find(o => o.requiresFollowUp && o.followUpDays !== undefined && !o.requiresNotes);
+  if (!scheduling) { check('a deployed outcome schedules a follow-up without demanding notes', false); return; }
+  check('a deployed outcome schedules a follow-up', true,
+    `${scheduling.code} → ${scheduling.followUpDays} days`);
+
+  // An activity of that type, with no follow-up of its own.
+  const activityId = newId();
+  const created = await service.createActivity(activityId, {
+    caseId: seed.hlCaseId, activityTypeId: callType.id, subject: mark('FOLLOWUP'),
+  });
+  check('an activity was logged against the deployed call type', created.status === 'saved');
+
+  const before = await adapter.retrieveVersioned(
+    { entity: ENTITY_SETS.collectionActivity, id: activityId },
+    ['activityid', 'qdb_followupdate', 'statuscode']);
+  check('it starts with no follow-up, so the one that appears can only be derived',
+    before?.record['qdb_followupdate'] === null || before?.record['qdb_followupdate'] === undefined,
+    String(before?.record['qdb_followupdate']));
+
+  // Complete with NO follow-up date supplied — the exact runtime scenario.
+  const completedAt = new Date();
+  const completed = await service.completeActivity(
+    { id: activityId, version: before!.version },
+    { currentStatus: 'Open', outcome: scheduling, now: completedAt },
+  );
+  check('it completes without the officer supplying a follow-up date', completed.status === 'saved',
+    completed.status === 'refused' ? completed.refusals.map(r => r.code).join(',') : '');
+
+  const after = await adapter.retrieveVersioned(
+    { entity: ENTITY_SETS.collectionActivity, id: activityId },
+    ['activityid', 'qdb_followupdate', 'statuscode', 'statecode']);
+
+  const persisted = String(after?.record['qdb_followupdate'] ?? '');
+  check('a follow-up date was persisted by Dataverse', persisted !== '', persisted || 'none');
+
+  // The date the domain's own rule says it should be — asserted against `deriveFollowUpDate` rather
+  // than against a number written here, so the test cannot drift from the rule it is checking.
+  const expected = deriveFollowUpDate(scheduling, completedAt);
+  check('the persisted date is the one configuration derives, to the day',
+    expected.kind === 'derived' && persisted.slice(0, 10) === expected.date.slice(0, 10),
+    expected.kind === 'derived' ? `expected ${expected.date.slice(0, 10)}, stored ${persisted.slice(0, 10)}` : expected.kind);
+
+  // Qatar is UTC+3 with no daylight saving, so the stored instant must fall on the same calendar day
+  // in the officer's frame as in the platform's — an off-by-one here would move a day's work.
+  const inQatar = new Date(new Date(persisted).getTime() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  check('the stored follow-up is the same calendar day in Asia/Qatar as in UTC',
+    inQatar === persisted.slice(0, 10), `UTC ${persisted.slice(0, 10)}, Qatar ${inQatar}`);
+
+  check('completing the activity closed it', after?.record['statecode'] === 1);
+}

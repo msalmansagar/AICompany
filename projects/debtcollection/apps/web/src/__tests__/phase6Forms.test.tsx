@@ -26,7 +26,9 @@ const FORMATTED = '@OData.Community.Display.V1.FormattedValue';
 const CASE_ID = '11111111-1111-1111-1111-111111111111';
 const ACTIVITY_ID = '33333333-3333-3333-3333-333333333333';
 const CALL_TYPE_ID = 'type-call';
-const OUTCOME_ID = 'outcome-contacted';
+const OUTCOME_ID = 'outcome-refused';
+const FOLLOW_UP_OUTCOME_ID = 'outcome-contacted';
+const NO_FOLLOW_UP_OUTCOME_ID = 'outcome-resolved';
 
 interface Recorded { method: string; url: string; body?: unknown; ifMatch?: string }
 
@@ -57,10 +59,28 @@ const CONFIG_ROWS: Record<string, Record<string, unknown>[]> = {
     { qdb_collectionactivitytypeid: 'type-ptp', qdb_name: 'Promise to pay', qdb_code: 'PTP', qdb_isactive: true, qdb_sequence: 2 },
   ],
   qdb_activityoutcome: [
+    // Mirrors the live P6-CALL-REFUSED: notes mandatory, no follow-up.
     {
-      qdb_activityoutcomeid: OUTCOME_ID, qdb_name: 'Customer contacted', qdb_code: 'CONTACTED',
+      qdb_activityoutcomeid: OUTCOME_ID, qdb_name: 'Customer refused', qdb_code: 'REFUSED',
       qdb_isactive: true, qdb_sequence: 1,
       qdb_requiresnotes: true, qdb_requiresfollowup: true, qdb_followupdays: 3,
+      qdb_escalationrequired: false, qdb_closeactivity: true,
+      '_qdb_activitytypeid_value': CALL_TYPE_ID,
+    },
+    // Mirrors the live P6-CALL-CONTACTED: no notes, follow-up derived three days out. This is the
+    // shape step 3b of the runtime validation exercised.
+    {
+      qdb_activityoutcomeid: FOLLOW_UP_OUTCOME_ID, qdb_name: 'Customer contacted', qdb_code: 'CONTACTED',
+      qdb_isactive: true, qdb_sequence: 2,
+      qdb_requiresnotes: false, qdb_requiresfollowup: true, qdb_followupdays: 3,
+      qdb_escalationrequired: false, qdb_closeactivity: true,
+      '_qdb_activitytypeid_value': CALL_TYPE_ID,
+    },
+    // Mirrors the live P6-CALL-RESOLVED: asks for nothing at all.
+    {
+      qdb_activityoutcomeid: NO_FOLLOW_UP_OUTCOME_ID, qdb_name: 'Resolved', qdb_code: 'RESOLVED',
+      qdb_isactive: true, qdb_sequence: 3,
+      qdb_requiresnotes: false, qdb_requiresfollowup: false, qdb_followupdays: 0,
       qdb_escalationrequired: false, qdb_closeactivity: true,
       '_qdb_activitytypeid_value': CALL_TYPE_ID,
     },
@@ -455,5 +475,118 @@ describe('the promise to pay', () => {
     await screen.findByTestId('promise-settled');
     expect(screen.getByTestId('promise-amount')).toBeDisabled();
     expect(screen.queryByTestId('promise-update')).toBeNull();
+  });
+});
+
+// ── The follow-up derivation, at the form ────────────────────────────────────
+
+/**
+ * Step 3b of the Phase 6 runtime validation, and the edge cases around it.
+ *
+ * The reported failure was *"the Activity saved, but no automatic follow-up date was added"*. The
+ * derivation was never broken — `planCompleteActivity` produced the right date all along, proved
+ * live. What was broken is that it happened **invisibly at save time**, so an officer who saved
+ * through the adjacent button got a success message and no follow-up, with nothing on screen to say
+ * one had ever been implied.
+ *
+ * So these assert two different things: that the derived date is **visible before** the officer
+ * commits, and that it is **written** when they do.
+ */
+describe('the follow-up an outcome configures', () => {
+  const openForCompletion = async (transport: RecordingTransport) => {
+    renderDialog(
+      <ActivityDialog mode="edit" caseId={CASE_ID} activityId={ACTIVITY_ID} onClose={() => {}} onSaved={() => {}} />,
+      transport);
+    await screen.findByTestId('activity-subject');
+    await userEvent.click(screen.getByTestId('activity-start-complete'));
+    await screen.findByTestId('activity-outcome');
+  };
+
+  const followUpField = () => screen.getByTestId('activity-followup') as HTMLInputElement;
+  const inDays = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+
+  it('shows the configured date in the field as soon as the outcome is chosen', async () => {
+    const transport = new RecordingTransport([activityRecord()]);
+    await openForCompletion(transport);
+    expect(followUpField().value, 'nothing is scheduled before an outcome is chosen').toBe('');
+
+    await userEvent.selectOptions(screen.getByTestId('activity-outcome'), FOLLOW_UP_OUTCOME_ID);
+
+    // Visible *before* saving — the whole point. Three days is the fixture's configuration, read
+    // from the outcome record, not a constant in the component.
+    await waitFor(() => expect(followUpField().value).toBe(inDays(3)));
+  });
+
+  /** The reported scenario, end to end: blank field, save, and the date reaches the payload. */
+  it('writes the configured follow-up when the officer leaves the field untouched', async () => {
+    const transport = new RecordingTransport([activityRecord(), { status: 200, etag: 'W/"2"' }]);
+    await openForCompletion(transport);
+    await userEvent.selectOptions(screen.getByTestId('activity-outcome'), FOLLOW_UP_OUTCOME_ID);
+    await waitFor(() => expect(followUpField().value).not.toBe(''));
+
+    await userEvent.click(screen.getByTestId('activity-complete'));
+
+    await waitFor(() => expect(transport.requests.some(r => r.method === 'PATCH')).toBe(true));
+    const body = transport.requests.find(r => r.method === 'PATCH')!.body as Record<string, unknown>;
+    expect(String(body['qdb_followupdate'] ?? ''), 'no follow-up reached the payload').not.toBe('');
+    expect(String(body['qdb_followupdate']).slice(0, 10)).toBe(inDays(3));
+  });
+
+  /** An outcome that asks for nothing must clear a date it previously suggested. */
+  it('withdraws the suggestion when the outcome is changed to one that needs no follow-up', async () => {
+    const transport = new RecordingTransport([activityRecord()]);
+    await openForCompletion(transport);
+
+    await userEvent.selectOptions(screen.getByTestId('activity-outcome'), FOLLOW_UP_OUTCOME_ID);
+    await waitFor(() => expect(followUpField().value).toBe(inDays(3)));
+
+    await userEvent.selectOptions(screen.getByTestId('activity-outcome'), NO_FOLLOW_UP_OUTCOME_ID);
+    await waitFor(() => expect(followUpField().value).toBe(''));
+  });
+
+  /** A date the officer typed is theirs. Configuration suggests; it does not overrule. */
+  it('never overwrites a date the officer typed', async () => {
+    const transport = new RecordingTransport([activityRecord(), { status: 200, etag: 'W/"2"' }]);
+    await openForCompletion(transport);
+
+    await userEvent.type(followUpField(), '2026-12-01');
+    await userEvent.selectOptions(screen.getByTestId('activity-outcome'), FOLLOW_UP_OUTCOME_ID);
+
+    await waitFor(() => expect(screen.getByTestId('outcome-effects')).toBeTruthy());
+    expect(followUpField().value).toBe('2026-12-01');
+
+    await userEvent.click(screen.getByTestId('activity-complete'));
+    await waitFor(() => expect(transport.requests.some(r => r.method === 'PATCH')).toBe(true));
+    const body = transport.requests.find(r => r.method === 'PATCH')!.body as Record<string, unknown>;
+    expect(String(body['qdb_followupdate']).slice(0, 10)).toBe('2026-12-01');
+  });
+
+  /** A date already on the record is the officer's too, not a stale suggestion to be replaced. */
+  it('leaves an existing follow-up on the record alone', async () => {
+    const transport = new RecordingTransport([activityRecord({ qdb_followupdate: '2026-11-15T00:00:00Z' })]);
+    await openForCompletion(transport);
+    await userEvent.selectOptions(screen.getByTestId('activity-outcome'), FOLLOW_UP_OUTCOME_ID);
+
+    await waitFor(() => expect(screen.getByTestId('outcome-effects')).toBeTruthy());
+    expect(followUpField().value).toBe('2026-11-15');
+  });
+
+  /**
+   * The button that caused the report.
+   *
+   * "Save changes" sat beside "Complete…", reported success, and wrote neither an outcome nor a
+   * follow-up — which is exactly what an officer would read as "saved, but no follow-up appeared".
+   * It is now separately labelled and the dialog says in words what each one does.
+   */
+  it('says plainly that saving details is not the same as recording an outcome', async () => {
+    const transport = new RecordingTransport([activityRecord()]);
+    renderDialog(
+      <ActivityDialog mode="edit" caseId={CASE_ID} activityId={ACTIVITY_ID} onClose={() => {}} onSaved={() => {}} />,
+      transport);
+
+    const hint = await screen.findByTestId('activity-complete-hint');
+    expect(hint).toHaveTextContent(/outcome/i);
+    expect(hint).toHaveTextContent(/Complete/);
+    expect(screen.getByTestId('activity-update')).not.toHaveTextContent('Save changes');
   });
 });

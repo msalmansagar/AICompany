@@ -180,6 +180,46 @@ export interface CompleteActivityRequest {
   now?: Date;
 }
 
+/**
+ * The follow-up an outcome's configuration implies, or why it cannot imply one.
+ *
+ * Extracted so there is exactly **one** implementation of the rule and every caller gets the same
+ * answer: `planCompleteActivity` uses it to fill a blank field, and the form uses it to show the
+ * officer what will be written *before* they commit. A form that computed its own preview would be a
+ * second implementation, free to drift — and it is the version a user sees, so it would be the one
+ * they trusted.
+ *
+ * Three outcomes, deliberately distinguished rather than collapsed into a nullable date:
+ *   • `derived`      — configuration says when, and this is the date.
+ *   • `askTheUser`   — configuration wants a follow-up but names no window. A default invented here
+ *                      would be a scheduling policy nobody agreed to.
+ *   • `none`         — configuration does not ask for one.
+ */
+export type FollowUpDerivation =
+  | { kind: 'derived'; date: string; days: number }
+  | { kind: 'askTheUser'; reason: string }
+  | { kind: 'none' };
+
+export function deriveFollowUpDate(
+  outcome: ActivityOutcomeConfig | undefined,
+  now: Date = new Date(),
+): FollowUpDerivation {
+  if (!outcome?.requiresFollowUp) return { kind: 'none' };
+  if (outcome.followUpDays === undefined) {
+    return {
+      kind: 'askTheUser',
+      reason: `"${outcome.name}" needs a follow-up date, and no default period is configured.`,
+    };
+  }
+  return {
+    kind: 'derived',
+    date: new Date(now.getTime() + outcome.followUpDays * DAY_IN_MILLISECONDS).toISOString(),
+    days: outcome.followUpDays,
+  };
+}
+
+const DAY_IN_MILLISECONDS = 86_400_000;
+
 export interface CompleteActivityPlan extends ActivityWritePlan {
   /** True when the outcome's configuration asked for escalation. Phase 6 records it; Phase 8 acts. */
   escalationRequested: boolean;
@@ -216,18 +256,17 @@ export function planCompleteActivity(
   }
 
   let followUpDate = readDate(request.followUpDate, 'followUpDate', refusals, { required: false });
-  if (outcome?.requiresFollowUp && !followUpDate) {
-    // The configured window, when the outcome carries one. Where it does not, the user must choose:
-    // inventing a default would be a scheduling policy nobody agreed.
-    if (outcome.followUpDays === undefined) {
-      refusals.push({
-        code: 'FollowUpDateRequired',
-        message: `"${outcome.name}" needs a follow-up date, and no default period is configured.`,
-        field: 'followUpDate',
-      });
-    } else {
-      const base = request.now ?? new Date();
-      followUpDate = new Date(base.getTime() + outcome.followUpDays * 86_400_000).toISOString();
+
+  // A date the officer typed wins over the configured window.
+  //
+  // Whether QDB permits that override at all is **not in evidence** (KI-76). Preserving it is the
+  // choice that loses no information: a supervisor can see an officer chose a different date, where
+  // silently overwriting what they typed would discard a deliberate decision with no trace.
+  if (!followUpDate) {
+    const derived = deriveFollowUpDate(outcome, request.now ?? new Date());
+    if (derived.kind === 'derived') followUpDate = derived.date;
+    if (derived.kind === 'askTheUser') {
+      refusals.push({ code: 'FollowUpDateRequired', message: derived.reason, field: 'followUpDate' });
     }
   }
 

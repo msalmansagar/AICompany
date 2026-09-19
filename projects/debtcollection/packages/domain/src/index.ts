@@ -340,6 +340,7 @@ export {
 export {
   ActivityOutcomeConfigSchema,
   PROMISE_TYPE_CODES,
+  deriveFollowUpDate,
   planCreateActivity,
   planUpdateActivity,
   planCompleteActivity,
@@ -352,6 +353,7 @@ export {
 } from './activityOperations.js';
 export type {
   ActivityOutcomeConfig,
+  FollowUpDerivation,
   OperationRefusal,
   OperationResult,
   ActivityWritePlan,

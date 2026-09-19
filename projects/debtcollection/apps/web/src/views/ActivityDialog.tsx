@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { activityStatusFromCode, type ActivityStatus, type RowVersion } from '@dcp/domain';
+import { activityStatusFromCode, deriveFollowUpDate, type ActivityStatus, type RowVersion } from '@dcp/domain';
 import {
   Dialog, FieldGrid, ReadOnlyField, SaveStatus, SelectField, TextAreaField, TextField, DateField,
   type SelectChoice,
@@ -81,6 +81,8 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
   const [subject, setSubject] = useState('');
   const [activityDate, setActivityDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [followUpDate, setFollowUpDate] = useState('');
+  /** Whether the date on screen was typed by the officer or previewed from configuration. */
+  const [followUpSource, setFollowUpSource] = useState<'none' | 'derived' | 'user'>('none');
   const [notes, setNotes] = useState('');
   const [outcomeId, setOutcomeId] = useState('');
   const [completing, setCompleting] = useState(false);
@@ -101,6 +103,7 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
       setSubject(next.subject);
       setActivityDate(next.activityDate);
       setFollowUpDate(next.followUpDate);
+      setFollowUpSource(next.followUpDate ? 'user' : 'none');
       setNotes(next.notes);
       setLoadState('ready');
       resetSaveState();
@@ -133,6 +136,36 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
   const outcome = outcomes.find(row => row.id === outcomeId);
   const status = loaded?.status;
   const isImmutable = status === 'Completed' || status === 'Cancelled';
+
+  /**
+   * Shows the officer the follow-up configuration will write, **before** they commit.
+   *
+   * The runtime defect this fixes was not a lost calculation — `planCompleteActivity` derived the
+   * date correctly all along. It was that the derivation happened invisibly, at save time, so an
+   * officer who saved through the adjacent button saw "Saved" and no follow-up, with nothing on
+   * screen to say a follow-up had ever been implied.
+   *
+   * **The date is the domain's, not this component's.** `deriveFollowUpDate` is the single
+   * implementation of the rule; the form only displays what it returns. Computing "+3 days" here
+   * would be a second implementation, and it would be the one the user believed.
+   *
+   * A date the officer typed is never overwritten — `followUpSource` is what tells the two apart.
+   */
+  useEffect(() => {
+    if (followUpSource === 'user') return;
+    const derived = deriveFollowUpDate(outcome, new Date());
+    if (derived.kind === 'derived') {
+      setFollowUpDate(derived.date.slice(0, 10));
+      setFollowUpSource('derived');
+      return;
+    }
+    // The outcome no longer implies one, so a previously previewed date must go — leaving it would
+    // schedule work the chosen outcome never asked for.
+    if (followUpSource === 'derived') {
+      setFollowUpDate('');
+      setFollowUpSource('none');
+    }
+  }, [outcome, followUpSource]);
 
   const handleCreate = () => save.run(() => service.createActivity(newActivityId, {
     caseId, activityTypeId, subject, notes,
@@ -204,6 +237,17 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
         <>
           <SaveStatus state={save.state} onReload={mode === 'edit' ? () => void load() : undefined} testId="activity-dialog" />
 
+          {!isImmutable && !completing && loaded && (
+            <div className="info-banner" data-testid="activity-complete-hint">
+              <Icon name="info" />
+              <div>
+                <b>Save changes</b> updates the subject, date and notes only. Recording an
+                <b> outcome</b> — and the follow-up its configuration schedules — is done with
+                <b> Complete…</b>.
+              </div>
+            </div>
+          )}
+
           {isImmutable && (
             <div className="info-banner" data-testid="activity-dialog-readonly">
               <Icon name="lock" />
@@ -242,7 +286,8 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
 
             <DateField
               label="Follow-up" testId="activity-followup"
-              value={followUpDate} onChange={setFollowUpDate}
+              value={followUpDate}
+              onChange={value => { setFollowUpDate(value); setFollowUpSource(value ? 'user' : 'none'); }}
               disabled={isImmutable || save.busy}
               refusal={save.refusalFor('followUpDate')}
               hint={followUpHint(completing, outcome)}
@@ -349,7 +394,7 @@ function ActivityFooter({
             type="button" className="btn" onClick={onUpdate} disabled={busy} data-busy={busy}
             data-testid="activity-update"
           >
-            {busy ? 'Saving…' : 'Save changes'}
+            {busy ? 'Saving…' : 'Save notes & details'}
           </button>
           <button
             type="button" className="btn primary" onClick={onStartComplete} disabled={busy || !canComplete}

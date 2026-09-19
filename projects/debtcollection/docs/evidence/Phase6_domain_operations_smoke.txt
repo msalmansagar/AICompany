@@ -43,7 +43,7 @@
   PASS  no row appeared twice across pages
   PASS  both seeded cases were seen — 2 rows
   PASS  a query without a continuation restarts at the first page
-  PASS  the follow-up query returns rows and every one has a follow-up date — 7 rows
+  PASS  the follow-up query returns rows and every one has a follow-up date — 8 rows
   PASS  the Action Plan lists the strategy's planned actions — 1 rows
   PASS  the planned call is correlated with the calls that were made, and one is completed — 3 matched
   PASS  an activity of a different type is NOT correlated with the planned call
@@ -61,25 +61,36 @@
   PASS  a different activity type offers different outcomes — 2 visit outcomes, 0 shared with call
   PASS  a promise activity type is configured, so a promise can be captured — Promise to Pay (P6-synthetic)
 
-  HTTP: 18 reads, 10 writes through the production classes.
+  Configured follow-up — derived, written, and read back
+  PASS  a deployed outcome schedules a follow-up — P6-CALL-CONTACTED → 3 days
+  PASS  an activity was logged against the deployed call type
+  PASS  it starts with no follow-up, so the one that appears can only be derived — null
+  PASS  it completes without the officer supplying a follow-up date
+  PASS  a follow-up date was persisted by Dataverse — 2026-09-22T17:08:46Z
+  PASS  the persisted date is the one configuration derives, to the day — expected 2026-09-22, stored 2026-09-22
+  PASS  the stored follow-up is the same calendar day in Asia/Qatar as in UTC — UTC 2026-09-22, Qatar 2026-09-22
+  PASS  completing the activity closed it
+
+  HTTP: 22 reads, 12 writes through the production classes.
 
   Cleanup
 
 ─── Records identified ───
-  collection activity              f6eb4970-0b1d-4cad-932d-100b9f04549c  SMOKE-P6OPS-CALL-1-20260919144259
-  collection activity              c040d6c1-37eb-4fe1-8571-6315c7c94bb1  SMOKE-P6OPS-CONFLICT-20260919144259
-  collection activity              b47f73b5-d2ac-42be-9914-6b65d8be3292  SMOKE-P6OPS-PTP-1-20260919144259
-  collection activity              0c2bdb68-4ce7-4f54-957d-e54c9c6b324f  SMOKE-P6OPS-DUPLICATE-20260919144259
-  collection case                  bb553d69-38b4-f111-aaac-000d3abd8313  SMOKE-P6OPS-HL-20260919144259
-  collection case                  85cb6766-38b4-f111-aaac-70a8a55bc6a5  SMOKE-P6OPS-BFD-20260919144259
-  strategy action                  84cb6766-38b4-f111-aaac-70a8a55bc6a5  SMOKE-P6OPS-PLANNED-CALL-20260919144259
-  collection strategy              b9553d69-38b4-f111-aaac-000d3abd8313  SMOKE-P6OPS-STRATEGY-20260919144259
-  activity type (reference data)   82cb6766-38b4-f111-aaac-70a8a55bc6a5  SMOKE-P6OPS-CALL-20260919144259
-  activity type (reference data)   83cb6766-38b4-f111-aaac-70a8a55bc6a5  SMOKE-P6OPS-PTP-20260919144259
-  activity outcome (reference data) 86cb6766-38b4-f111-aaac-70a8a55bc6a5  SMOKE-P6OPS-CONTACTED-20260919144259
-  contact (smoke customer)         77cb6766-38b4-f111-aaac-70a8a55bc6a5  SMOKE-P6OPS-QID-20260919144259
-  account (smoke BFD customer)     7ccb6766-38b4-f111-aaac-70a8a55bc6a5  SMOKE-P6OPS-BFD-CUSTOMER-20260919144259
-  13 record(s) — every one matched on the "SMOKE-" marker.
+  collection activity              a9e16adf-d158-41ca-9b8c-2710c24684cb  SMOKE-P6OPS-FOLLOWUP-20260919170834
+  collection activity              49892e13-8b58-4b32-aad7-28b818e8f8c0  SMOKE-P6OPS-PTP-1-20260919170834
+  collection activity              1ebcfe36-3edc-4518-9bc2-34f26cf0f97b  SMOKE-P6OPS-CONFLICT-20260919170834
+  collection activity              ab077c22-bd83-4dc4-856a-c9f8781baa56  SMOKE-P6OPS-DUPLICATE-20260919170834
+  collection activity              1268540f-0a6c-4378-9a5c-ce31b1e082f0  SMOKE-P6OPS-CALL-1-20260919170834
+  collection case                  5154c0be-4cb4-f111-aaac-000d3abcf32d  SMOKE-P6OPS-BFD-20260919170834
+  collection case                  6ea2dabf-4cb4-f111-aaac-70a8a55bc6a5  SMOKE-P6OPS-HL-20260919170834
+  strategy action                  0cb8bac0-4cb4-f111-aaac-000d3abd8313  SMOKE-P6OPS-PLANNED-CALL-20260919170834
+  collection strategy              09b8bac0-4cb4-f111-aaac-000d3abd8313  SMOKE-P6OPS-STRATEGY-20260919170834
+  activity type (reference data)   4854c0be-4cb4-f111-aaac-000d3abcf32d  SMOKE-P6OPS-CALL-20260919170834
+  activity type (reference data)   0ab8bac0-4cb4-f111-aaac-000d3abd8313  SMOKE-P6OPS-PTP-20260919170834
+  activity outcome (reference data) 5354c0be-4cb4-f111-aaac-000d3abcf32d  SMOKE-P6OPS-CONTACTED-20260919170834
+  contact (smoke customer)         69a2dabf-4cb4-f111-aaac-70a8a55bc6a5  SMOKE-P6OPS-QID-20260919170834
+  account (smoke BFD customer)     03b8bac0-4cb4-f111-aaac-000d3abd8313  SMOKE-P6OPS-BFD-CUSTOMER-20260919170834
+  14 record(s) — every one matched on the "SMOKE-" marker.
 
 ─── Checking for anything else that references them ───
   Nothing outside the smoke set references them.
@@ -90,12 +101,13 @@
   [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation)
 
 ─── Deleting guarded rows ───
-  [DELETED] collection activity SMOKE-P6OPS-CALL-1-20260919144259 (f6eb4970-0b1d-4cad-932d-100b9f04549c)
-  [DELETED] collection activity SMOKE-P6OPS-CONFLICT-20260919144259 (c040d6c1-37eb-4fe1-8571-6315c7c94bb1)
-  [DELETED] collection activity SMOKE-P6OPS-PTP-1-20260919144259 (b47f73b5-d2ac-42be-9914-6b65d8be3292)
-  [DELETED] collection activity SMOKE-P6OPS-DUPLICATE-20260919144259 (0c2bdb68-4ce7-4f54-957d-e54c9c6b324f)
-  [DELETED] collection case SMOKE-P6OPS-HL-20260919144259 (bb553d69-38b4-f111-aaac-000d3abd8313)
-  [DELETED] collection case SMOKE-P6OPS-BFD-20260919144259 (85cb6766-38b4-f111-aaac-70a8a55bc6a5)
+  [DELETED] collection activity SMOKE-P6OPS-FOLLOWUP-20260919170834 (a9e16adf-d158-41ca-9b8c-2710c24684cb)
+  [DELETED] collection activity SMOKE-P6OPS-PTP-1-20260919170834 (49892e13-8b58-4b32-aad7-28b818e8f8c0)
+  [DELETED] collection activity SMOKE-P6OPS-CONFLICT-20260919170834 (1ebcfe36-3edc-4518-9bc2-34f26cf0f97b)
+  [DELETED] collection activity SMOKE-P6OPS-DUPLICATE-20260919170834 (ab077c22-bd83-4dc4-856a-c9f8781baa56)
+  [DELETED] collection activity SMOKE-P6OPS-CALL-1-20260919170834 (1268540f-0a6c-4378-9a5c-ce31b1e082f0)
+  [DELETED] collection case SMOKE-P6OPS-BFD-20260919170834 (5154c0be-4cb4-f111-aaac-000d3abcf32d)
+  [DELETED] collection case SMOKE-P6OPS-HL-20260919170834 (6ea2dabf-4cb4-f111-aaac-70a8a55bc6a5)
 
 ─── Restoring the guards ───
   [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation)
@@ -108,13 +120,13 @@
   PASS  ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation) — enabled=true filter=(none) images=(none)
 
 ─── Deleting reference data (no guard involved) ───
-  [DELETED] strategy action SMOKE-P6OPS-PLANNED-CALL-20260919144259 (84cb6766-38b4-f111-aaac-70a8a55bc6a5)
-  [DELETED] collection strategy SMOKE-P6OPS-STRATEGY-20260919144259 (b9553d69-38b4-f111-aaac-000d3abd8313)
-  [DELETED] activity type (reference data) SMOKE-P6OPS-CALL-20260919144259 (82cb6766-38b4-f111-aaac-70a8a55bc6a5)
-  [DELETED] activity type (reference data) SMOKE-P6OPS-PTP-20260919144259 (83cb6766-38b4-f111-aaac-70a8a55bc6a5)
-  [DELETED] activity outcome (reference data) SMOKE-P6OPS-CONTACTED-20260919144259 (86cb6766-38b4-f111-aaac-70a8a55bc6a5)
-  [DELETED] contact (smoke customer) SMOKE-P6OPS-QID-20260919144259 (77cb6766-38b4-f111-aaac-70a8a55bc6a5)
-  [DELETED] account (smoke BFD customer) SMOKE-P6OPS-BFD-CUSTOMER-20260919144259 (7ccb6766-38b4-f111-aaac-70a8a55bc6a5)
+  [DELETED] strategy action SMOKE-P6OPS-PLANNED-CALL-20260919170834 (0cb8bac0-4cb4-f111-aaac-000d3abd8313)
+  [DELETED] collection strategy SMOKE-P6OPS-STRATEGY-20260919170834 (09b8bac0-4cb4-f111-aaac-000d3abd8313)
+  [DELETED] activity type (reference data) SMOKE-P6OPS-CALL-20260919170834 (4854c0be-4cb4-f111-aaac-000d3abcf32d)
+  [DELETED] activity type (reference data) SMOKE-P6OPS-PTP-20260919170834 (0ab8bac0-4cb4-f111-aaac-000d3abd8313)
+  [DELETED] activity outcome (reference data) SMOKE-P6OPS-CONTACTED-20260919170834 (5354c0be-4cb4-f111-aaac-000d3abcf32d)
+  [DELETED] contact (smoke customer) SMOKE-P6OPS-QID-20260919170834 (69a2dabf-4cb4-f111-aaac-70a8a55bc6a5)
+  [DELETED] account (smoke BFD customer) SMOKE-P6OPS-BFD-CUSTOMER-20260919170834 (03b8bac0-4cb4-f111-aaac-000d3abd8313)
 
 ─── Confirming no residue remains ───
   PASS  0 smoke record(s) remain
@@ -125,4 +137,4 @@ Cleanup complete. The guards are registered and enabled exactly as before.
   PASS  DEMO- scenario data is untouched — 5 cases
   PASS  P6- configuration is untouched — 30 outcomes
 
-  50/50 checks passed.
+  58/58 checks passed.

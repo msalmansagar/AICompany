@@ -4,6 +4,7 @@ import {
   describePromiseVerification,
   planActivityTransition,
   planCompleteActivity,
+  deriveFollowUpDate,
   planCreateActivity,
   planUpdateActivity,
   planUpdatePromise,
@@ -351,5 +352,131 @@ describe('editing the terms of a promise', () => {
       currentStatus: 'Active', promisedAmount: 90_000_000, promiseDate: '2032-01-01T00:00:00.000Z',
     });
     expect(result.ok).toBe(true);
+  });
+});
+
+/**
+ * The follow-up derivation, every case named in the Phase 6 runtime defect report.
+ *
+ * The rule lives in one function so that a form previewing it and a plan writing it cannot disagree.
+ * These assert the function directly and then assert the plan uses it, because a second
+ * implementation inside `planCompleteActivity` would satisfy every test below and still be wrong.
+ *
+ * The day counts are the synthetic `P6-` configuration (KI-66). **Three days is not QDB policy** —
+ * every test reads the number from the outcome it constructs.
+ */
+describe('deriving a follow-up from configuration', () => {
+  const NOW = new Date('2026-09-19T12:00:00.000Z');
+
+  it('derives the configured number of days when the outcome asks for a follow-up', () => {
+    const derived = deriveFollowUpDate(outcome({ requiresFollowUp: true, followUpDays: 3 }), NOW);
+    expect(derived.kind).toBe('derived');
+    if (derived.kind !== 'derived') return;
+    expect(derived.date).toBe('2026-09-22T12:00:00.000Z');
+    expect(derived.days, 'the window comes from configuration, never a constant').toBe(3);
+  });
+
+  it('derives nothing when the outcome does not ask for a follow-up', () => {
+    expect(deriveFollowUpDate(outcome({ requiresFollowUp: false, followUpDays: 3 }), NOW).kind).toBe('none');
+  });
+
+  it('derives nothing when there is no outcome at all', () => {
+    expect(deriveFollowUpDate(undefined, NOW).kind).toBe('none');
+  });
+
+  /** A configuration gap is asked about, never defaulted — a default would be invented policy. */
+  it('asks the user when a follow-up is required but no window is configured', () => {
+    const derived = deriveFollowUpDate(outcome({ requiresFollowUp: true }), NOW);
+    expect(derived.kind).toBe('askTheUser');
+  });
+
+  it('honours a configured window of zero days as today, not as missing', () => {
+    const derived = deriveFollowUpDate(outcome({ requiresFollowUp: true, followUpDays: 0 }), NOW);
+    expect(derived.kind).toBe('derived');
+    if (derived.kind === 'derived') expect(derived.date).toBe(NOW.toISOString());
+  });
+
+  /**
+   * Qatar is UTC+3 and never observes daylight saving, so a derived instant falls on the same
+   * calendar day in both frames for any working hour. Asserted at 22:00 local — the latest an
+   * officer plausibly works — because that is where an off-by-one would show if one existed.
+   */
+  it('lands on the same calendar day in Qatar as in UTC, even late in the evening', () => {
+    const lateInQatar = new Date('2026-09-19T19:00:00.000Z');
+    const derived = deriveFollowUpDate(outcome({ requiresFollowUp: true, followUpDays: 3 }), lateInQatar);
+    expect(derived.kind).toBe('derived');
+    if (derived.kind !== 'derived') return;
+    const inQatar = new Date(new Date(derived.date).getTime() + 3 * 60 * 60 * 1000);
+    expect(derived.date.slice(0, 10)).toBe('2026-09-22');
+    expect(inQatar.toISOString().slice(0, 10)).toBe('2026-09-22');
+  });
+});
+
+describe('completing an activity uses that derivation, and nothing else', () => {
+  const NOW = new Date('2026-09-19T12:00:00.000Z');
+  const complete = (over: Parameters<typeof planCompleteActivity>[0]) =>
+    planCompleteActivity({ now: NOW, ...over });
+
+  /** The runtime defect, at the layer that decides it. */
+  it('writes the configured follow-up when the officer leaves the field blank', () => {
+    const result = complete({
+      currentStatus: 'Open', outcome: outcome({ requiresFollowUp: true, followUpDays: 3 }),
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.plan.fields['followUpDate']).toBe('2026-09-22T12:00:00.000Z');
+  });
+
+  it('agrees exactly with deriveFollowUpDate, rather than recomputing it', () => {
+    const configured = outcome({ requiresFollowUp: true, followUpDays: 11 });
+    const derived = deriveFollowUpDate(configured, NOW);
+    const result = complete({ currentStatus: 'Open', outcome: configured });
+    expect(result.ok && derived.kind === 'derived' && result.plan.fields['followUpDate'] === derived.date).toBe(true);
+  });
+
+  it('keeps a date the officer typed in preference to the configured window', () => {
+    const result = complete({
+      currentStatus: 'Open',
+      outcome: outcome({ requiresFollowUp: true, followUpDays: 3 }),
+      followUpDate: '2026-12-01T00:00:00.000Z',
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.plan.fields['followUpDate']).toBe('2026-12-01T00:00:00.000Z');
+  });
+
+  it('writes no follow-up when the outcome does not ask for one', () => {
+    const result = complete({ currentStatus: 'Open', outcome: outcome({ requiresFollowUp: false }) });
+    expect(result.ok && 'followUpDate' in result.plan.fields).toBe(false);
+  });
+
+  it('refuses rather than defaulting when the window is not configured', () => {
+    const result = complete({ currentStatus: 'Open', outcome: outcome({ requiresFollowUp: true }) });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.refusals[0]!.code).toBe('FollowUpDateRequired');
+  });
+
+  it('refuses a follow-up date that is not a date, rather than silently deriving one', () => {
+    const result = complete({
+      currentStatus: 'Open',
+      outcome: outcome({ requiresFollowUp: true, followUpDays: 3 }),
+      followUpDate: 'next tuesday',
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.refusals[0]!.code).toBe('DateMalformed');
+  });
+
+  /**
+   * Two completions in a row derive from their own clocks. A derivation that captured `now` once
+   * would put the second follow-up on the first one's date.
+   */
+  it('derives from the clock it is given each time, not from a captured one', () => {
+    const configured = outcome({ requiresFollowUp: true, followUpDays: 2 });
+    const first = complete({ currentStatus: 'Open', outcome: configured });
+    const second = planCompleteActivity({
+      currentStatus: 'Open', outcome: configured, now: new Date('2026-10-05T08:00:00.000Z'),
+    });
+    expect(first.ok && second.ok).toBe(true);
+    if (!first.ok || !second.ok) return;
+    expect(first.plan.fields['followUpDate']).toBe('2026-09-21T12:00:00.000Z');
+    expect(second.plan.fields['followUpDate']).toBe('2026-10-07T08:00:00.000Z');
   });
 });
