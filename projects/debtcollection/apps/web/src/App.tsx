@@ -3,8 +3,9 @@ import { AppShell, Command } from './shell/AppShell.js';
 import { CrmSessionProvider, OrgProvider, RoleProvider, type CrmSession } from './shell/context.js';
 import { useHashRoute } from './shell/useHashRoute.js';
 import { isPending, type ViewDefinition } from './shell/routes.js';
-import { findXrm, readCrmContext, CrmContextError } from './platform/crmContext.js';
+import { findXrm, readCrmContext, CrmContextError, type XrmLike } from './platform/crmContext.js';
 import { XrmCrmAdapter } from './platform/XrmCrmAdapter.js';
+import { SameOriginWriteTransport } from './platform/writeTransport.js';
 import { AuditView, CasesView, MyDayView, PendingView, QueuesView } from './views/index.js';
 import { CaseWorkspaceView } from './views/CaseWorkspace.js';
 import { Customer360View } from './views/Customer360.js';
@@ -18,6 +19,27 @@ import './styles/phase5.css';
 import './styles/phase6.css';
 
 /**
+ * Builds the session the whole workspace runs on.
+ *
+ * Extracted from the component so it can be tested directly, because the defect it once carried was
+ * invisible from a component test: the adapter was constructed **without a write transport**, which
+ * left every read working and every write — and every versioned read — failing at runtime with
+ * "this adapter was built without a write transport". Nothing caught it, because every test built
+ * its own adapter and passed one in. The one place that builds the real thing had no test at all.
+ *
+ * The transport is same-origin against the host's own API base. A web resource is served from the
+ * organisation's host, so the user's session authenticates it and CRM's security applies exactly as
+ * it does to `Xrm.WebApi` — the identity is the same, only the ability to attach a header differs
+ * (ADR-DCP-18). `apiBase` is read from the host rather than composed here, so on-premises `9.1` and
+ * Dataverse `9.2` both work without a branch (KI-02).
+ */
+export function createCrmSession(xrm: XrmLike | null = findXrm()): CrmSession {
+  const context = readCrmContext(xrm);
+  const transport = new SameOriginWriteTransport(context.apiBase);
+  return { context, adapter: new XrmCrmAdapter(xrm!, undefined, transport) };
+}
+
+/**
  * The workspace root.
  *
  * It resolves the CRM session once and refuses clearly if there is not one, because this application
@@ -27,9 +49,7 @@ import './styles/phase6.css';
 export function App() {
   const session = useMemo<CrmSession | Error>(() => {
     try {
-      const xrm = findXrm();
-      const context = readCrmContext(xrm);
-      return { context, adapter: new XrmCrmAdapter(xrm!) };
+      return createCrmSession();
     } catch (error) {
       return error instanceof Error ? error : new Error(String(error));
     }
