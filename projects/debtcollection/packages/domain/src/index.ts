@@ -112,6 +112,9 @@ export {
 export {
   ActivityStatus,
   ACTIVITY_STATUS_CODES,
+  ACTIVITY_TRANSITIONS,
+  OPEN_ACTIVITY_STATUSES,
+  isActivityTransitionAllowed,
   ACTIVITY_STATE_CODES,
   PtpStatus,
   PTP_STATUS_CODES,

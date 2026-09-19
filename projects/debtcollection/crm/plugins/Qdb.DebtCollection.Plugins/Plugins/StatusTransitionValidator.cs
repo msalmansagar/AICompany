@@ -79,9 +79,46 @@ namespace Qdb.DebtCollection.Plugins.Plugins
             var target = (Entity)_context.InputParameters["Target"];
 
             if (_context.PrimaryEntityName == EntityCase)
+            {
                 ValidateCaseTransition(target);
+            }
             else if (_context.PrimaryEntityName == EntityActivity)
+            {
+                // One Update may move both lifecycles — an officer completing a promise changes
+                // qdb_ptpstatus and statuscode together — so both are checked, not one or the other.
+                ValidateActivityTransition(target);
                 ValidatePtpTransition(target);
+            }
+        }
+
+        /// <summary>
+        /// Validates <c>statuscode</c> on <c>qdb_collectionactivity</c> against
+        /// <see cref="StatusTransitionMatrix.IsActivityTransitionAllowed"/>.
+        ///
+        /// Added in Phase 6. Before it, the activity's own lifecycle had no server-side guard at
+        /// all: the step filtered <c>qdb_ptpstatus</c> only, so a promise could not be moved
+        /// illegally but the activity carrying it could be completed, re-opened and completed again
+        /// at will. The React workspace writes straight through <c>Xrm.WebApi</c> with no service
+        /// layer in between, so a plugin is the only place this can be enforced.
+        /// </summary>
+        private void ValidateActivityTransition(Entity target)
+        {
+            if (!target.Contains(AttrCaseStatus)) return;
+
+            var toCode = target.GetAttributeValue<OptionSetValue>(AttrCaseStatus)?.Value
+                ?? throw new InvalidPluginExecutionException("Activity statuscode value is null.");
+
+            var rawFromCode = ReadPreImageStatusCode(AttrCaseStatus);
+            if (rawFromCode == null) return; // no pre-image registered; allow and log
+
+            var fromCode = NormalizeActivityFromStatus(rawFromCode.Value);
+
+            _tracing.Trace($"StatusTransitionValidator: activity {fromCode} -> {toCode}");
+
+            if (!StatusTransitionMatrix.IsActivityTransitionAllowed(fromCode, toCode))
+                ThrowInvalidTransition(
+                    StatusTransitionMatrix.GetActivityStatusName(fromCode),
+                    StatusTransitionMatrix.GetActivityStatusName(toCode));
         }
 
         private void ValidateCaseTransition(Entity target)
@@ -145,6 +182,18 @@ namespace Qdb.DebtCollection.Plugins.Plugins
         private static int NormalizePtpFromStatus(int rawCode) =>
             rawCode == PlatformDefaultStatusCode
                 ? StatusTransitionMatrix.PtpStatus.Active
+                : rawCode;
+
+        /// <summary>
+        /// Replaces the platform default sentinel <see cref="PlatformDefaultStatusCode"/>
+        /// with <see cref="StatusTransitionMatrix.ActivityStatus.Open"/>, for the same reason as
+        /// <see cref="NormalizeCaseFromStatus"/>: an activity created before
+        /// <see cref="DefaultStatusAssigner"/> was deployed carries the sentinel, and without this
+        /// its first transition — the one that takes it out of the sentinel — would be refused.
+        /// </summary>
+        private static int NormalizeActivityFromStatus(int rawCode) =>
+            rawCode == PlatformDefaultStatusCode
+                ? StatusTransitionMatrix.ActivityStatus.Open
                 : rawCode;
 
         /// <summary>

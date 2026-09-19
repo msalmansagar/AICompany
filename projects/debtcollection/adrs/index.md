@@ -19,6 +19,7 @@
 | ADR-DCP-15 | A Collection Case number has exactly two sources, and DCP invents no format | Accepted (Phase 3) | 2026-09-18 | user, architect |
 | ADR-DCP-16 | MIS integration is transport-neutral, and paging is a platform contract | Accepted (Phase 4) | 2026-09-18 | user, architect |
 | ADR-DCP-17 | The workspace reads through the signed-in CRM session, and decides nothing | Accepted (Phase 5) | 2026-09-18 | user, architect |
+| ADR-DCP-18 | Concurrency-controlled writes go through the adapter, not through Xrm.WebApi | Accepted (Phase 6) | 2026-09-19 | user, architect |
 
 Status values: Proposed | Accepted | Amended | Deprecated | Superseded (in part).
 Superseded ADRs are never deleted (Master Prompt §84): original text is retained and a dated section names
@@ -31,3 +32,5 @@ the Rule Engine seam, assignment and case numbering; each was authorised by the 
 and is backed by live sandbox evidence rather than intent.
 **ADR-17** is the Phase 5 decision on how the React workspace reaches CRM and what it is forbidden to
 decide; it is backed by a live query smoke and a live column verifier, not by unit tests alone.
+**ADR-18** is the Phase 6 decision on concurrency-controlled writes, taken after a live spike proved
+what the platform does rather than what the documentation says.

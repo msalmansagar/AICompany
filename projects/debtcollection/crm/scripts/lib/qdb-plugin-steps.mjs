@@ -47,7 +47,11 @@ export const PLUGIN_STEPS = [
   // The case filters on statuscode; the activity filters on qdb_ptpstatus, because promise-to-pay
   // is an activity type in the canonical schema and its lifecycle lives on its own column.
   { pluginType: 'StatusTransitionValidatorPlugin', entity: 'qdb_collectioncase',     message: 'Update', stage: 20, mode: 0, filterAttributes: 'statuscode',    image: { alias: 'PreImage', attributes: 'statuscode,qdb_customerid' } },
-  { pluginType: 'StatusTransitionValidatorPlugin', entity: 'qdb_collectionactivity', message: 'Update', stage: 20, mode: 0, filterAttributes: 'qdb_ptpstatus', image: { alias: 'PreImage', attributes: 'qdb_ptpstatus' } },
+  // Phase 6 widened this step from `qdb_ptpstatus` to both lifecycles. Before it, the activity's own
+  // statuscode had no server-side guard: a promise could not be moved illegally, but the activity
+  // carrying it could be completed, re-opened and completed again at will. One step covers both
+  // columns because a single Update commonly moves both — completing a promise changes each of them.
+  { pluginType: 'StatusTransitionValidatorPlugin', entity: 'qdb_collectionactivity', message: 'Update', stage: 20, mode: 0, filterAttributes: 'qdb_ptpstatus,statuscode', image: { alias: 'PreImage', attributes: 'qdb_ptpstatus,statuscode' } },
 
   // ── ImmutabilityGuardPlugin ─────────────────────────────────────────────────
   { pluginType: 'ImmutabilityGuardPlugin', entity: 'qdb_delinquencysnapshot', message: 'Update', stage: 10, mode: 0, filterAttributes: '',          image: null },

@@ -153,6 +153,65 @@ namespace Qdb.DebtCollection.Plugins.Domain
                 [PtpStatus.Cancelled] = new HashSet<int>(),
             };
 
+        // ── qdb_collectionactivity statuscode transitions ─────────────────────────
+
+        /// <summary>
+        /// Allowed transitions for <c>qdb_collectionactivity.statuscode</c>.
+        ///
+        /// <para><b>Derived, not invented — and the derivation is the point.</b> No appendix matrix
+        /// exists for the activity lifecycle the way B.1 and B.2 give one for the case and the
+        /// promise. Two documented facts constrain it, and this matrix is the minimal one consistent
+        /// with both:</para>
+        ///
+        /// <list type="number">
+        /// <item><description><c>FieldDictionary-Transaction.md</c> groups the six statuses by
+        /// <c>statecode</c>: <b>Open</b> carries Open, In Progress, Awaiting Approval and Returned;
+        /// <b>Completed</b> carries Completed; <b>Cancelled</b> carries Cancelled. Movement inside a
+        /// state group is therefore ordinary, and movement between groups is the real
+        /// boundary.</description></item>
+        /// <item><description><c>ImmutabilityGuard</c> already freezes a completed activity against
+        /// Update and Delete on the organisation. Completed is therefore terminal in fact, and this
+        /// matrix must agree rather than contradict a guard that is already registered.</description></item>
+        /// </list>
+        ///
+        /// <para>So: the four Open-state statuses are mutually reachable, every one of them can reach
+        /// Completed or Cancelled, and the two terminal statuses go nowhere. Permissive inside the
+        /// documented group, strict at the boundary that matters.</para>
+        ///
+        /// <para><b>Awaiting Approval and Returned are not Phase 6's to drive.</b>
+        /// <c>qdb_approvalstatus</c> is documented as populated by the Process Engine and read-only
+        /// to the collection officer, so those two statuses are reachable here but are entered by
+        /// approval routing, which Phase 8 owns. They are in the matrix because refusing a transition
+        /// the Process Engine will legitimately make would be worse than allowing one Phase 6 never
+        /// performs.</para>
+        ///
+        /// <para><b>Recorded as KI-65:</b> the ordering inside the Open group — whether Awaiting
+        /// Approval may be entered without In Progress first, whether Returned may complete directly
+        /// — is QDB policy and is not in evidence. This matrix is deliberately permissive there
+        /// rather than guessing a stricter rule and blocking legitimate work.</para>
+        ///
+        /// <para>There are no self-transitions, matching the case and PTP matrices: a write that
+        /// re-sends the status it already has is refused. Callers send changed fields only.</para>
+        /// </summary>
+        private static readonly Dictionary<int, HashSet<int>> ActivityAllowed =
+            new Dictionary<int, HashSet<int>>
+            {
+                [ActivityStatus.Open] = new HashSet<int> {
+                    ActivityStatus.InProgress, ActivityStatus.AwaitingApproval,
+                    ActivityStatus.Returned, ActivityStatus.Completed, ActivityStatus.Cancelled },
+                [ActivityStatus.InProgress] = new HashSet<int> {
+                    ActivityStatus.Open, ActivityStatus.AwaitingApproval,
+                    ActivityStatus.Returned, ActivityStatus.Completed, ActivityStatus.Cancelled },
+                [ActivityStatus.AwaitingApproval] = new HashSet<int> {
+                    ActivityStatus.Open, ActivityStatus.InProgress,
+                    ActivityStatus.Returned, ActivityStatus.Completed, ActivityStatus.Cancelled },
+                [ActivityStatus.Returned] = new HashSet<int> {
+                    ActivityStatus.Open, ActivityStatus.InProgress,
+                    ActivityStatus.AwaitingApproval, ActivityStatus.Completed, ActivityStatus.Cancelled },
+                [ActivityStatus.Completed] = new HashSet<int>(),
+                [ActivityStatus.Cancelled] = new HashSet<int>(),
+            };
+
         // ── Contact-bearing states ────────────────────────────────────────────────
 
         /// <summary>
@@ -210,6 +269,17 @@ namespace Qdb.DebtCollection.Plugins.Domain
                 [CaseStatus.Reopened] = "Reopened",
             };
 
+        private static readonly Dictionary<int, string> ActivityStatusNames =
+            new Dictionary<int, string>
+            {
+                [ActivityStatus.Open] = "Open",
+                [ActivityStatus.InProgress] = "In Progress",
+                [ActivityStatus.AwaitingApproval] = "Awaiting Approval",
+                [ActivityStatus.Returned] = "Returned",
+                [ActivityStatus.Completed] = "Completed",
+                [ActivityStatus.Cancelled] = "Cancelled",
+            };
+
         private static readonly Dictionary<int, string> PtpStatusNames =
             new Dictionary<int, string>
             {
@@ -250,6 +320,17 @@ namespace Qdb.DebtCollection.Plugins.Domain
         /// <summary>Returns the display name for a collection-case status code.</summary>
         public static string GetCaseStatusName(int code) =>
             CaseStatusNames.TryGetValue(code, out var name) ? name : code.ToString();
+
+        /// <summary>
+        /// Returns <c>true</c> when transitioning a collection activity from
+        /// <paramref name="fromCode"/> to <paramref name="toCode"/> is permitted.
+        /// </summary>
+        public static bool IsActivityTransitionAllowed(int fromCode, int toCode) =>
+            ActivityAllowed.TryGetValue(fromCode, out var allowed) && allowed.Contains(toCode);
+
+        /// <summary>Returns the display name for a collection-activity status code.</summary>
+        public static string GetActivityStatusName(int code) =>
+            ActivityStatusNames.TryGetValue(code, out var name) ? name : code.ToString();
 
         /// <summary>Returns the display name for a PTP status code.</summary>
         public static string GetPtpStatusName(int code) =>

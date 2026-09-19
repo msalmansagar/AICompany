@@ -1,0 +1,53 @@
+=== Phase 6 — is the activity lifecycle enforced on the organisation? ===
+
+  Organisation: org5869857f.crm4.dynamics.com
+  PASS  A Phase 6 activity type exists to create against — a7371669-17b4-f111-aaac-70a8a55bc6a5
+  PASS  An activity was created — 5fe5de62-18b4-f111-aaac-000d3abcf32d
+
+─── Transitions ───
+  PASS  Open -> In Progress is allowed — HTTP 204
+  PASS  Re-sending the same status is accepted as a no-op, not refused — HTTP 204 — the platform elides an unchanged attribute
+  PASS  In Progress -> Completed is allowed — HTTP 204
+  PASS  Completed -> Open is REFUSED — a finished activity stays finished — Completed activities cannot be modified or deleted.
+     refused by: ImmutabilityGuard (PreValidation, runs first)
+
+─── The decisive case: a guard that only the new matrix can answer ───
+  PASS  Open -> Cancelled is allowed — HTTP 204
+  PASS  Cancelled -> Open is REFUSED by the Phase 6 matrix — ImmutabilityGuard does not cover it — Transition from 'Cancelled' to 'Open' is not permitted.
+  PASS  …and the refusal is the transition validator, naming both ends — Transition from 'Cancelled' to 'Open' is not permitted.
+
+─── Cleanup ───
+
+─── Records identified ───
+  collection activity              5fe5de62-18b4-f111-aaac-000d3abcf32d  SMOKE-P6-LIFECYCLE
+  collection activity              c41d1a69-18b4-f111-aaac-000d3abcf32d  SMOKE-P6-CANCELLED
+  2 record(s) — every one matched on the "SMOKE-" marker.
+
+─── Checking for anything else that references them ───
+  Nothing outside the smoke set references them.
+
+─── Temporarily disabling the three qdb_ Delete guards ───
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation)
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation)
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation)
+
+─── Deleting guarded rows ───
+  [DELETED] collection activity SMOKE-P6-LIFECYCLE (5fe5de62-18b4-f111-aaac-000d3abcf32d)
+  [DELETED] collection activity SMOKE-P6-CANCELLED (c41d1a69-18b4-f111-aaac-000d3abcf32d)
+
+─── Restoring the guards ───
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation)
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation)
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation)
+
+─── Verifying the restored registration ───
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation) — enabled=true filter=(none) images=(none)
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation) — enabled=true filter=(none) images=PreImage(statecode)
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation) — enabled=true filter=(none) images=(none)
+
+─── Confirming no residue remains ───
+  PASS  0 smoke record(s) remain
+
+Cleanup complete. The guards are registered and enabled exactly as before.
+
+=== 9/9 checks passed ===
