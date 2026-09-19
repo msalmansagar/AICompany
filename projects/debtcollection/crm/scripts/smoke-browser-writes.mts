@@ -67,8 +67,11 @@ async function main() {
       "/qdb_collectionactivitytypes?$select=qdb_collectionactivitytypeid&$filter=qdb_code eq 'P6-CALL'"))?.value?.[0];
     const ptpType = (await apiGet(cfg, token, SOLUTION_NAME,
       "/qdb_collectionactivitytypes?$select=qdb_collectionactivitytypeid&$filter=qdb_code eq 'P6-PTP'"))?.value?.[0];
+    // Qualified by type since KI-74: an outcome belongs to exactly one activity type, so its code
+    // carries that type. The bare `P6-CONTACTED` was the unowned row that left every outcome
+    // dropdown empty, and looking for it here would now find nothing.
     const outcome = (await apiGet(cfg, token, SOLUTION_NAME,
-      "/qdb_activityoutcomes?$select=qdb_activityoutcomeid,qdb_requiresfollowup,qdb_followupdays&$filter=qdb_code eq 'P6-CONTACTED'"))?.value?.[0];
+      "/qdb_activityoutcomes?$select=qdb_activityoutcomeid,qdb_requiresfollowup,qdb_followupdays&$filter=qdb_code eq 'P6-CALL-CONTACTED'"))?.value?.[0];
     check('Phase 6 reference data is present to bind to',
       Boolean(callType && ptpType && outcome),
       callType && ptpType && outcome ? 'call type, PTP type and an outcome' : 'MISSING — run seed-phase6-configuration.mjs');

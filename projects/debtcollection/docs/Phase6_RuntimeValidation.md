@@ -1,6 +1,10 @@
 # Phase 6 — manual runtime validation
 
-**Status: NOT PASSED.** Nothing in this document has been exercised by the build. Everything below
+**Status: PASSED by the client, 2026-09-19**, across all twelve steps (1, 2, 3a, 3b, 3b-ii, 3b-iii, 4, 5, 6, 7, 8, 9) inside `main.aspx` on `org5869857f`. Two defects were found by this script and only by it — **KI-75** (the adapter had no write transport) and **KI-77** (a configured follow-up was derived invisibly); both were fixed, redeployed and re-tested. The result below is recorded as the client gave it; the build did not award it.
+
+The original statement of intent follows, kept because it is what the gate meant.
+
+**Status when written: NOT PASSED.** Nothing in this document has been exercised by the build. Everything below
 needs a signed-in Dynamics session, which the build does not have, and the result is yours to
 record — §14 of the authorisation reserves this gate to you.
 
