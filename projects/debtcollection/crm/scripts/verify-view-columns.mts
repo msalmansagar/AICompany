@@ -21,7 +21,9 @@
 
 import { loadConfig, acquireToken, apiGet } from './lib/crm-client.mjs';
 import { SOLUTION_NAME } from './lib/qdb-plugin-steps.mjs';
-import { NAVIGATION_REGISTRY, READ_REGISTRY, toAttributeName } from '../../apps/web/src/data/schema.js';
+import {
+  ENTITY_SETS, NAVIGATION_REGISTRY, PARTY_COLLECTION_REGISTRY, READ_REGISTRY, toAttributeName,
+} from '../../apps/web/src/data/schema.js';
 import { DEFAULT_LOGICAL_NAMES, XrmCrmAdapter } from '../../apps/web/src/platform/XrmCrmAdapter.js';
 import type { XrmLike } from '../../apps/web/src/platform/crmContext.js';
 
@@ -91,6 +93,56 @@ async function main() {
       missing.length === 0
         ? expected.map(e => e.navigationProperty).join(', ')
         : `MISSING ${missing.map(e => `${e.attribute} -> ${e.navigationProperty}`).join('; ')}`,
+    );
+  }
+
+  // ── Entity set names ──────────────────────────────────────────────────────
+  // An entity set name is **given by the platform**, not produced by pluralising a logical name.
+  // `fax` is served at `faxes`, `qdb_crmlogs` at `qdb_crmlogses`, `activityparty` at
+  // `activityparties`, and a naive `+ "s"` gets all three wrong — which is how a Node harness once
+  // wrote to `/faxs` while its verifier read from `/faxe`. Every set the workspace names is read
+  // back from `EntityDefinitions`, and the naive form is computed alongside so the rule is
+  // demonstrated rather than asserted.
+  console.log('');
+  let naivelyWrong = 0;
+  for (const [name, entitySet] of Object.entries(ENTITY_SETS)) {
+    const logicalName = nameResolver.toLogicalName(entitySet);
+    const definition = await apiGet(cfg, token, SOLUTION_NAME,
+      `/EntityDefinitions(LogicalName='${logicalName}')?$select=EntitySetName`);
+    const actual = definition?.EntitySetName;
+    if (actual !== `${logicalName}s`) naivelyWrong += 1;
+    checked += 1;
+
+    check(
+      `ENTITY_SETS.${name}: the platform's own set name is "${entitySet}"`,
+      actual === entitySet,
+      actual === entitySet ? logicalName : `platform says "${actual}"`,
+    );
+  }
+  check(
+    'a set name is not a pluralisation: some would be wrong by adding "s"',
+    naivelyWrong > 0,
+    `${naivelyWrong} of ${Object.keys(ENTITY_SETS).length} differ from logicalName + "s"`,
+  );
+
+  // ── Collection-valued navigation properties ───────────────────────────────
+  // The recipient ActivityParty is a separate POST to a collection whose name is as underivable as
+  // a lookup's. Read from `OneToManyRelationships` on the owning activity (KI-85).
+  console.log('');
+  for (const entry of PARTY_COLLECTION_REGISTRY) {
+    const response = await apiGet(cfg, token, SOLUTION_NAME,
+      `/EntityDefinitions(LogicalName='${entry.entity}')/OneToManyRelationships`
+      + '?$select=ReferencingEntity,ReferencedEntityNavigationPropertyName'
+      + "&$filter=ReferencingEntity eq 'activityparty'");
+    const actual = new Set((response?.value ?? []).map(
+      (relationship: { ReferencedEntityNavigationPropertyName: string }) =>
+        relationship.ReferencedEntityNavigationPropertyName));
+    checked += 1;
+
+    check(
+      `${entry.entity}: parties are appended through "${entry.collection}"`,
+      actual.has(entry.collection),
+      actual.has(entry.collection) ? 'activityparty collection' : `platform offers ${[...actual].join(', ')}`,
     );
   }
 

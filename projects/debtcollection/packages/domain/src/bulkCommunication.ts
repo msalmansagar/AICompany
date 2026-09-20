@@ -135,10 +135,15 @@ export function validateManifestCapacity(manifest: string, capacity: number): Ca
  * record and persisting the checkpoint. Treating it as a failure would turn correct recovery into a
  * reported error; treating it as a fresh success would double-count.
  *
+ * `repaired` is the case the live platform forced into the model: the native row already existed
+ * but its required structure — the recipient ActivityParty — did not, so this attempt completed it.
+ * A row without its party is **not** a communication, and counting it as `alreadySent` would report
+ * a message nobody could receive (KI-85). It is a success once, after the repair.
+ *
  * `refused` is terminal: the eligibility gate said no, and retrying changes nothing.
  * `failed` is retryable: the platform or the network failed, and the same recipient may succeed later.
  */
-export type RecipientOutcome = 'sent' | 'alreadySent' | 'refused' | 'failed';
+export type RecipientOutcome = 'sent' | 'alreadySent' | 'repaired' | 'refused' | 'failed';
 
 export interface RecipientResult {
   recipientId: string;

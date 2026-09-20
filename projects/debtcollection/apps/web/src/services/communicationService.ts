@@ -3,7 +3,7 @@ import {
   type CommunicationRequest, type EligibilityContext, type EligibilityRefusal,
 } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
-import { ENTITY_SETS, NAVIGATION_PROPERTIES, bindLookup } from '../data/schema.js';
+import { ENTITY_SETS, NAVIGATION_PROPERTIES, PARTY_COLLECTIONS, bindLookup } from '../data/schema.js';
 
 /**
  * Turns a communication decision into the native record QDB's mechanism consumes.
@@ -50,24 +50,28 @@ const REGARDING_CASE: Readonly<Record<'fax' | 'email', string>> = {
   email: NAVIGATION_PROPERTIES.emailToCase,
 };
 
-/**
- * The collection-valued navigation property that carries an activity's parties.
- *
- * Read from metadata, never derived. The party cannot go in the create payload at all — see
- * `attachRecipient` for what the platform accepts and what it refuses.
- */
-const PARTY_COLLECTION: Readonly<Record<'fax' | 'email', string>> = {
-  fax: 'fax_activity_parties',
-  email: 'email_activity_parties',
-};
+/** The native participation type for a recipient. The platform sets the sender itself, as mask 9. */
+export const RECIPIENT_PARTY_MASK = 2;
 
 const ENTITY_SET: Readonly<Record<'fax' | 'email', string>> = {
   fax: ENTITY_SETS.fax,
   email: ENTITY_SETS.email,
 };
 
+/**
+ * A communication is the native row **and** its required structure.
+ *
+ * The live platform forced this distinction into the model. A Fax or Email row can be created
+ * perfectly while its recipient ActivityParty fails, and the result is a record nobody can receive.
+ * Reporting that as sent — or, worse, as `alreadySent` on the next retry because the id exists —
+ * would be a message silently not delivered to a real customer (KI-85).
+ *
+ * So `sent` means complete. `incomplete` means the row is there and the structure is not, and it is
+ * **retryable**: the repair is idempotent and the next attempt completes it.
+ */
 export type SendOutcome =
-  | { status: 'sent'; activityId: string; created: boolean }
+  | { status: 'sent'; activityId: string; created: boolean; repaired: boolean }
+  | { status: 'incomplete'; activityId: string; reason: string }
   | { status: 'refused'; refusals: readonly EligibilityRefusal[] };
 
 export class CommunicationService {
@@ -97,13 +101,57 @@ export class CommunicationService {
     const payload = toNativePayload(plan);
     const result = await this.adapter.createIdempotent(ENTITY_SET[plan.entity], activityId, payload);
 
-    // Only for a record this call actually created. A repeat already carries its recipient from the
-    // first attempt, and adding another party would give one message two recipients.
-    if (result.created) {
-      await this.attachRecipient(plan.entity, activityId, plan.recipientParty);
+    /**
+     * The row exists. Now make sure the **communication** does.
+     *
+     * `created: false` is deliberately not read as "already sent". It says the id is taken, which is
+     * true whether the previous attempt finished or died between creating the row and attaching the
+     * recipient. Only inspecting the structure can tell those apart, and the difference is a
+     * customer who was contacted versus one who was not.
+     */
+    try {
+      const addedParty = await this.ensureRecipient(plan.entity, activityId, plan.recipientParty);
+      // Repaired means the ROW already existed and its recipient did not — a previous attempt that
+      // died half-made. A fresh send also adds a party, but that is not a repair.
+      return { status: 'sent', activityId, created: result.created, repaired: addedParty && !result.created };
+    } catch (error) {
+      // The row is there and its structure is not. Retryable rather than fatal: the repair is
+      // idempotent, so the next attempt finishes it — and never creates a second row to do so.
+      return {
+        status: 'incomplete',
+        activityId,
+        reason: error instanceof Error ? error.message : String(error),
+      };
     }
+  }
 
-    return { status: 'sent', activityId, created: result.created };
+  /**
+   * Makes sure the activity carries its recipient, adding it only if it is missing.
+   *
+   * Returns whether it **added** the party. The caller combines that with whether it created the
+   * row to tell a first-time send from the completion of one that died half-made — the platform
+   * attaches a sender party itself, so the collection being non-empty proves nothing.
+   *
+   * Reading before writing is what keeps this idempotent. The party collection has no natural key to
+   * lean on the way a record id does, so a blind POST on every retry would give one message two
+   * identical recipients — which the platform would happily accept.
+   */
+  private async ensureRecipient(
+    entity: 'fax' | 'email',
+    activityId: string,
+    party: { table: 'contact' | 'account'; id: string },
+  ): Promise<boolean> {
+    const collection = `${ENTITY_SET[entity]}(${activityId})/${PARTY_COLLECTIONS[entity]}`;
+    const existing = await this.adapter.readRelated(
+      collection, ['activitypartyid', 'participationtypemask', '_partyid_value']);
+
+    const alreadyThere = existing.some(row =>
+      Number(row['participationtypemask']) === RECIPIENT_PARTY_MASK
+      && String(row['_partyid_value'] ?? '').toLowerCase() === party.id.toLowerCase());
+    if (alreadyThere) return false;
+
+    await this.attachRecipient(entity, activityId, party);
+    return true;
   }
 
   /**
@@ -131,10 +179,10 @@ export class CommunicationService {
   ): Promise<void> {
     const partySet = party.table === 'contact' ? ENTITY_SETS.contact : ENTITY_SETS.account;
     await this.adapter.appendToCollection(
-      `${ENTITY_SET[entity]}(${activityId})/${PARTY_COLLECTION[entity]}`,
+      `${ENTITY_SET[entity]}(${activityId})/${PARTY_COLLECTIONS[entity]}`,
       {
         [`partyid_${party.table}@odata.bind`]: `/${partySet}(${party.id})`,
-        participationtypemask: 2,
+        participationtypemask: RECIPIENT_PARTY_MASK,
       },
     );
   }

@@ -19,6 +19,7 @@
 import { buildHeaders } from './crm-client.mjs';
 import { SOLUTION_NAME } from './qdb-plugin-steps.mjs';
 import { XrmCrmAdapter } from '../../../apps/web/src/platform/XrmCrmAdapter.js';
+import { ENTITY_SETS } from '../../../apps/web/src/data/schema.js';
 import {
   readResponse, READ_PREFER, WRITE_PREFER,
   type WriteResponse, type WriteTransport,
@@ -28,31 +29,25 @@ import type { XrmLike } from '../../../apps/web/src/platform/crmContext.js';
 /**
  * Entity set for a logical name, so the shim can build the URL the client API hides.
  *
- * Listed rather than pluralised, because the platform's own names do not follow the rule: the
- * activity type's set is `qdb_collectionactivitytypes` and the log's is `qdb_crmlogses`. The `+ s`
- * fallback covers the ordinary cases and is wrong often enough to be worth the explicit table.
+ * **Derived from the workspace's own `ENTITY_SETS`, never listed here.** It used to be a hand-kept
+ * table, and the table fell behind: `activityparty` was added to the workspace, the harness had no
+ * entry, the `+ s` fallback produced `activitypartys`, and a live smoke failed after creating rows
+ * — the same shape as the earlier `faxs`/`faxe` pair. A second copy of a mapping is a second thing
+ * to forget, so this inverts the adapter's own translation instead of restating it.
+ *
+ * `toLogicalName` is the sole authority in both directions: the browser uses it to go one way, and
+ * the shim reads the same table backwards to go the other.
  */
-const SET_FOR_LOGICAL: Record<string, string> = {
-  qdb_collectionactivity: 'qdb_collectionactivities',
-  qdb_collectionactivitytype: 'qdb_collectionactivitytypes',
-  qdb_collectioncase: 'qdb_collectioncases',
-  qdb_activityoutcome: 'qdb_activityoutcomes',
-  qdb_collectionstrategy: 'qdb_collectionstrategies',
-  qdb_strategyaction: 'qdb_strategyactions',
-  qdb_delinquencysnapshot: 'qdb_delinquencysnapshots',
-  qdb_identityexception: 'qdb_identityexceptions',
-  qdb_platformconfiguration: 'qdb_platformconfigurations',
-  qdb_platformmapping: 'qdb_platformmappings',
-  qdb_crmlogs: 'qdb_crmlogses',
-  // Native activity sets are irregular too: 'fax' + s is 'faxs', which 404s.
-  fax: 'faxes',
-  email: 'emails',
-  qdb_communicationrun: 'qdb_communicationruns',
-  qdb_communicationtemplate: 'qdb_communicationtemplates',
-  contact: 'contacts',
-  account: 'accounts',
-};
+const nameResolver = new XrmCrmAdapter({} as XrmLike);
 
+const SET_FOR_LOGICAL: Record<string, string> = Object.fromEntries(
+  Object.values(ENTITY_SETS).map(entitySet => [nameResolver.toLogicalName(entitySet), entitySet]),
+);
+
+/**
+ * The `+ s` fallback remains for names the workspace does not declare, and is deliberately loud
+ * about being a guess: anything the workspace really uses is in the map above.
+ */
 export const setFor = (logicalName: string): string => SET_FOR_LOGICAL[logicalName] ?? `${logicalName}s`;
 
 /** How many round trips the harness has made — bounded-paging claims need a measured number. */

@@ -8,6 +8,7 @@ import {
   type XrmLike,
 } from '../platform/crmContext.js';
 import { DEFAULT_LOGICAL_NAMES, XrmCrmAdapter, buildOptions, toOptionsString } from '../platform/XrmCrmAdapter.js';
+import { ENTITY_SETS } from '../data/schema.js';
 
 /** A client API stand-in. The live spike proves the platform's side; this proves ours. */
 function fakeXrm(overrides: Partial<{
@@ -150,9 +151,35 @@ describe('entity set to logical name', () => {
     expect(adapter.toLogicalName('accounts')).toBe('account');
   });
 
-  it('lists every override as a real logical name, never a guess', () => {
+  it('states each override as a set and a different logical name', () => {
+    // An override exists because the naive rule cannot be trusted for that set, so it cannot be
+    // checked by a naive rule either — `activityparties` is `activityparty`, and no prefix or
+    // suffix test survives that. What is checkable here is that each entry is well formed; whether
+    // each name is the platform's own is settled against live metadata by verify-view-columns.mts.
     for (const [set, logical] of Object.entries(DEFAULT_LOGICAL_NAMES)) {
-      expect(set.startsWith(logical.split('_')[0]!)).toBe(true);
+      expect(logical, `${set} must map to a logical name`).toBeTruthy();
+      expect(logical, `${set} must not map to itself`).not.toBe(set);
+      expect(logical).toBe(logical.toLowerCase());
+    }
+  });
+
+  it('covers every set the workspace names whose plural rule would be wrong', () => {
+    // The guard that would have caught `faxes → faxs`: any set the workspace names and the naive
+    // rule gets wrong must be in the override map, not left to be discovered at runtime.
+    const naive = (set: string) => (set.endsWith('ies') ? `${set.slice(0, -3)}y` : set.replace(/s$/, ''));
+    for (const set of Object.values(ENTITY_SETS)) {
+      const resolved = adapter.toLogicalName(set);
+      if (resolved !== naive(set)) {
+        expect(DEFAULT_LOGICAL_NAMES[set], `${set} needs an override`).toBe(resolved);
+      }
+    }
+  });
+
+  it('translates every set the workspace names to a logical name that is not the set', () => {
+    for (const set of Object.values(ENTITY_SETS)) {
+      const logical = adapter.toLogicalName(set);
+      expect(logical, `${set} must resolve to a logical name`).toBeTruthy();
+      expect(logical, `${set} is not its own logical name`).not.toBe(set);
     }
   });
 });

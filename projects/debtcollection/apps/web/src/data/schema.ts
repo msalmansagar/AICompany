@@ -25,6 +25,7 @@ export const ENTITY_SETS = {
   communicationTemplate: 'qdb_communicationtemplates',
   communicationRun: 'qdb_communicationruns',
   fax: 'faxes',
+  activityParty: 'activityparties',
   email: 'emails',
   identityException: 'qdb_identityexceptions',
   collectionStrategy: 'qdb_collectionstrategies',
@@ -78,6 +79,32 @@ export const NAVIGATION_PROPERTIES = {
 } as const;
 
 /** Every navigation property above, with the entity and attribute it belongs to, for verification. */
+/**
+ * The collection-valued navigation property that carries an activity's parties.
+ *
+ * A second family of non-derivable name, and the reason it lives here rather than in the service
+ * that uses it. `fax_activity_parties` is not `fax` plus a suffix anyone could guess — it is the
+ * relationship's `ReferencedEntityNavigationPropertyName`, read from metadata and checked back by
+ * `crm/scripts/verify-view-columns.mts` exactly as the lookup navigation properties are.
+ *
+ * It matters because the party **cannot** travel in the activity's own payload. Writing
+ * `to: [...]` into the create is rejected, and into a later PATCH is rejected too; the party is a
+ * separate POST to this collection. So a communication is two operations, and the name of the
+ * second one is this (KI-85).
+ */
+export const PARTY_COLLECTIONS = {
+  fax: 'fax_activity_parties',
+  email: 'email_activity_parties',
+} as const;
+
+/** Verified against `OneToManyRelationships` on the owning activity, the same way lookups are. */
+export const PARTY_COLLECTION_REGISTRY: readonly {
+  entity: string; collection: string;
+}[] = [
+  { entity: 'fax', collection: PARTY_COLLECTIONS.fax },
+  { entity: 'email', collection: PARTY_COLLECTIONS.email },
+];
+
 export const NAVIGATION_REGISTRY: readonly {
   entity: string; attribute: string; navigationProperty: string;
 }[] = [
@@ -199,6 +226,18 @@ export const FAX_COLUMNS = [
   'qdb_language', 'qdb_whatsapptemplate', 'qdb_otp',
   'statecode', 'statuscode', 'createdon', 'directioncode',
   '_regardingobjectid_value', '_ownerid_value',
+] as const;
+
+/**
+ * An ActivityParty, as the reconciliation reads one.
+ *
+ * Read rather than merely written, because the question "was this communication actually completed?"
+ * can only be answered from the party. A Fax row on its own proves that a record exists; the party
+ * proves someone can receive it. `participationtypemask` distinguishes the recipient from the sender
+ * the platform attaches itself.
+ */
+export const ACTIVITY_PARTY_COLUMNS = [
+  'activitypartyid', '_activityid_value', '_partyid_value', 'participationtypemask',
 ] as const;
 
 /** An Email row. Standard Dynamics throughout — DCP adds nothing to this entity. */
@@ -351,6 +390,7 @@ export const READ_REGISTRY: readonly { entitySet: string; columns: readonly stri
   { entitySet: ENTITY_SETS.communicationRun, columns: COMMUNICATION_RUN_COLUMNS },
   { entitySet: ENTITY_SETS.fax, columns: FAX_COLUMNS },
   { entitySet: ENTITY_SETS.email, columns: EMAIL_COLUMNS },
+  { entitySet: ENTITY_SETS.activityParty, columns: ACTIVITY_PARTY_COLUMNS },
   { entitySet: ENTITY_SETS.identityException, columns: IDENTITY_EXCEPTION_COLUMNS },
   { entitySet: ENTITY_SETS.platformConfiguration, columns: PLATFORM_CONFIGURATION_COLUMNS },
   { entitySet: ENTITY_SETS.platformMapping, columns: PLATFORM_MAPPING_COLUMNS },

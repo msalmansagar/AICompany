@@ -129,6 +129,38 @@ export class SameOriginWriteTransport implements WriteTransport {
 }
 
 /**
+ * A transport that delegates every operation to another one.
+ *
+ * Exists so a wrapper — a counter, a recorder, a fault injector — is written by **overriding** one
+ * method rather than by re-implementing four. Hand-written wrappers are where the interface quietly
+ * goes out of date: the live concurrency smoke failed with `transport.post is not a function`
+ * because its counting wrapper predated `post`, and nothing had told it.
+ *
+ * Extending this makes that impossible. A new operation on `WriteTransport` is forwarded by every
+ * wrapper the moment it is added here, and `writeTransportContract.test.ts` proves the forwarding
+ * is complete rather than trusting that it is.
+ */
+export class ForwardingWriteTransport implements WriteTransport {
+  constructor(protected readonly inner: WriteTransport) {}
+
+  patch(url: string, body: unknown, ifMatch?: string): Promise<WriteResponse> {
+    return this.inner.patch(url, body, ifMatch);
+  }
+
+  createOnly(url: string, body: unknown): Promise<WriteResponse> {
+    return this.inner.createOnly(url, body);
+  }
+
+  post(url: string, body: unknown): Promise<WriteResponse> {
+    return this.inner.post(url, body);
+  }
+
+  get(url: string): Promise<WriteResponse> {
+    return this.inner.get(url);
+  }
+}
+
+/**
  * Turns a platform response into the shape the adapter expects.
  *
  * Shared rather than duplicated, because the smoke harness runs the *same* parsing against the real

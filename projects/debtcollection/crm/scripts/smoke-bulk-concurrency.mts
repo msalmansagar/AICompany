@@ -26,10 +26,12 @@ import { SOLUTION_NAME } from './lib/qdb-plugin-steps.mjs';
 import { buildNodeHarness } from './lib/node-workspace-harness.mts';
 import { cleanSmokeData } from './clean-qdb-smoke-data.mjs';
 import { BulkCommunicationService } from '../../apps/web/src/services/bulkCommunicationService.js';
-import { CommunicationService } from '../../apps/web/src/services/communicationService.js';
+import { CommunicationService, RECIPIENT_PARTY_MASK } from '../../apps/web/src/services/communicationService.js';
 import { ENTITY_SETS } from '../../apps/web/src/data/schema.js';
+import { nativeActivityIdFor } from '@dcp/domain';
 import type { CommunicationRequest, EligibilityContext } from '@dcp/domain';
-import type { WriteResponse, WriteTransport } from '../../apps/web/src/platform/writeTransport.js';
+import { ForwardingWriteTransport } from '../../apps/web/src/platform/writeTransport.js';
+import type { WriteResponse } from '../../apps/web/src/platform/writeTransport.js';
 
 const AUTHORISED_ORG = 'org5869857f';
 const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
@@ -43,21 +45,20 @@ const check = (name: string, passed: boolean, detail = '') => {
   console.log(`  ${passed ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`);
 };
 
-/** Records every create this worker attempts, so "zero attempts" is measured, not inferred. */
-class CountingTransport implements WriteTransport {
-  createAttempts: string[] = [];
-  constructor(private readonly inner: WriteTransport) {}
-  async createOnly(url: string, body: unknown): Promise<WriteResponse> {
+/**
+ * Records every create this worker attempts, so "zero attempts" is measured, not inferred.
+ *
+ * Only `createOnly` is overridden; everything else is forwarded by the base. The first version of
+ * this class re-implemented all four operations and was written before `post` existed, so the smoke
+ * died on `transport.post is not a function` — against the real organisation, after creating rows.
+ */
+class CountingTransport extends ForwardingWriteTransport {
+  readonly createAttempts: string[] = [];
+
+  override createOnly(url: string, body: unknown): Promise<WriteResponse> {
     if (url.startsWith('/faxes(') || url.startsWith('/emails(')) this.createAttempts.push(url);
-    return this.inner.createOnly(url, body);
+    return super.createOnly(url, body);
   }
-  async patch(url: string, body: unknown, ifMatch?: string): Promise<WriteResponse> {
-    return this.inner.patch(url, body, ifMatch);
-  }
-  async post(url: string, body: unknown): Promise<WriteResponse> {
-    return this.inner.post(url, body);
-  }
-  async get(url: string): Promise<WriteResponse> { return this.inner.get(url); }
 }
 
 interface Seed { caseId: string; contactIds: string[] }
@@ -174,16 +175,49 @@ async function proveResumable(worker: Worker, runId: string, seed: Seed): Promis
   check('the run is Completed', run?.status === 'Completed', String(run?.status));
 
   const verdict = await worker.bulk.reconcileRun(runId);
-  check('the run reconciles against the platform\'s own record count',
+  check('the run reconciles against the platform\'s own count of COMPLETE communications',
     verdict?.reconciles === true,
     verdict ? `${verdict.progress.successful} sent + ${verdict.progress.refused} refused + `
       + `${verdict.progress.failed} failed = ${verdict.progress.total}; platform holds ${verdict.platformCount}`
       : 'no verdict');
 
-  // Record the created faxes for cleanup, by reading what the run actually produced.
-  const faxes = await findRunFaxes(cfg, await acquireToken(cfg));
-  for (const id of faxes) created.push({ set: ENTITY_SETS.fax, id });
-  check('exactly one native record exists per recipient', faxes.length === POPULATION, `${faxes.length} faxes`);
+  await proveStructure(runId, seed);
+}
+
+/**
+ * Proves each recipient got a **communication**, not merely a row.
+ *
+ * The distinction is not academic here. An earlier run of this very smoke left six perfect Fax rows
+ * whose party appends had all failed with 500, and counting rows would have called them sent. So the
+ * activity is looked up by the id the run itself derives, and its recipient party is read back.
+ */
+async function proveStructure(runId: string, seed: Seed): Promise<void> {
+  const cfg = loadConfig();
+  const token = await acquireToken(cfg);
+
+  // Derived, not searched: the same function the executor used, so the ids are the run's own.
+  const expectedIds = seed.contactIds.map(id => nativeActivityIdFor(runId, id, 'SMS'));
+
+  let present = 0;
+  let complete = 0;
+  let duplicated = 0;
+
+  for (const activityId of expectedIds) {
+    const fax = await apiGet(cfg, token, SOLUTION_NAME, `/faxes(${activityId})?$select=activityid`);
+    if (fax?.activityid) present++;
+
+    const parties = await apiGet(cfg, token, SOLUTION_NAME,
+      `/activityparties?$select=activitypartyid&$filter=_activityid_value eq ${activityId}`
+      + ` and participationtypemask eq ${RECIPIENT_PARTY_MASK}`);
+    const count = (parties?.value ?? []).length;
+    if (count === 1) complete++;
+    if (count > 1) duplicated++;
+  }
+
+  check('exactly one native record exists per recipient', present === POPULATION, `${present} faxes`);
+  check('every native record carries its recipient party', complete === POPULATION,
+    `${complete} of ${POPULATION} complete`);
+  check('no recipient was attached twice', duplicated === 0, `${duplicated} duplicated`);
 }
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -226,6 +260,18 @@ async function createRun(bulk: BulkCommunicationService, seed: Seed): Promise<st
     recipientIds: seed.contactIds,
   });
   if (outcome.status !== 'created') throw new Error(`run refused: ${outcome.message}`);
+
+  /**
+   * Every activity this run can ever create, registered **now**.
+   *
+   * Registering them after the run finished meant that a run which threw halfway left its Fax rows
+   * unknown to the cleanup — and the marker sweep passed anyway, because a Fax subject is composed
+   * by a plugin and is the platform's text, not the fixture's. The ids are derivable the moment the
+   * run exists, so there is no reason to wait for evidence that they were used.
+   */
+  for (const contactId of seed.contactIds) {
+    created.push({ set: ENTITY_SETS.fax, id: nativeActivityIdFor(outcome.runId, contactId, 'SMS') });
+  }
   return outcome.runId;
 }
 
@@ -253,12 +299,6 @@ async function readFrozenPopulationCapacity(cfg: unknown, token: string): Promis
     "/EntityDefinitions(LogicalName='qdb_communicationrun')/Attributes(LogicalName='qdb_frozenpopulation')"
     + '/Microsoft.Dynamics.CRM.MemoAttributeMetadata?$select=MaxLength');
   return Number(meta?.MaxLength ?? 0);
-}
-
-async function findRunFaxes(cfg: unknown, token: string): Promise<string[]> {
-  const r = await apiGet(cfg, token, SOLUTION_NAME,
-    `/faxes?$select=activityid&$filter=contains(subject,'SMOKE-P7RACE-')&$top=50`);
-  return (r?.value ?? []).map((f: { activityid: string }) => f.activityid);
 }
 
 /**
@@ -289,13 +329,40 @@ async function cleanUp(cfg: { apiBase: string }, token: string, seed: Seed): Pro
 
   await cleanSmokeData({ cfg, token, confirmed: true, marker: 'SMOKE-' });
 
+  await verifyNoResidue(cfg, token);
+}
+
+/**
+ * Residue, verified against ids this fixture owns rather than against text it happened to write.
+ *
+ * A marker search proves nothing it was not given. The cleaner once reported "no residue" while six
+ * rows survived, because the rows carried the marker in a column the sweep did not read (KI-73) —
+ * and a Fax subject is composed by a plugin, so it is the platform's text, not the fixture's.
+ *
+ * Every row this run created is known by **id**: the seeds were recorded as they were created, and
+ * the activities are derivable from the run. So each one is fetched directly and must be gone. A
+ * marker sweep follows as a second net, never as the evidence.
+ */
+async function verifyNoResidue(cfg: { apiBase: string }, token: string): Promise<void> {
+  const survivors: string[] = [];
+  for (const row of created) {
+    const found = await apiGet(cfg, token, SOLUTION_NAME, `/${row.set}(${row.id})?$select=createdon`)
+      .catch(() => null);
+    if (found) survivors.push(`${row.set}(${row.id})`);
+  }
+  check('every record this test created is gone, checked by id', survivors.length === 0,
+    survivors.length === 0
+      ? `${created.length} ids verified absent`
+      : `still present: ${survivors.slice(0, 5).join(', ')}`);
+
   for (const [set, field] of [
     [ENTITY_SETS.fax, 'subject'], [ENTITY_SETS.communicationRun, 'qdb_name'],
     [ENTITY_SETS.collectionCase, 'qdb_casenumber'], [ENTITY_SETS.contact, 'lastname'],
   ] as const) {
     const left = await apiGet(cfg, token, SOLUTION_NAME,
       `/${set}?$top=1&$count=true&$filter=startswith(${field},'SMOKE-P7RACE-')`);
-    check(`zero SMOKE-P7RACE residue in ${set}`, left?.['@odata.count'] === 0, `${left?.['@odata.count']} rows`);
+    check(`no SMOKE-P7RACE residue found by marker in ${set}`, left?.['@odata.count'] === 0,
+      `${left?.['@odata.count']} rows`);
   }
 }
 

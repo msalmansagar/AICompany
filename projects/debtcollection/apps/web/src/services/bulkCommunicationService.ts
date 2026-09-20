@@ -6,7 +6,7 @@ import {
 } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import { ENTITY_SETS, COMMUNICATION_RUN_COLUMNS } from '../data/schema.js';
-import { CommunicationService } from './communicationService.js';
+import { CommunicationService, RECIPIENT_PARTY_MASK } from './communicationService.js';
 
 /**
  * Executing a bulk communication durably.
@@ -201,23 +201,8 @@ export class BulkCommunicationService {
      * `processed`, and `processed` is the persisted cursor — so the cursor's source state has to be
      * concurrency-safe or the derivation inherits the race.
      */
-    let claimedVersion: RowVersion;
-    try {
-      claimedVersion = await this.adapter.updateVersioned(
-        { entity: ENTITY_SETS.communicationRun, id: runId },
-        {
-          qdb_status: STATUS_CODES.Running,
-          ...(run.status === 'Draft' ? { qdb_startedon: new Date().toISOString() } : {}),
-        },
-        run.version,
-      );
-    } catch (error) {
-      if (!isConcurrencyConflict(error)) throw error;
-      return {
-        status: 'takenOver',
-        message: 'This run is already being processed somewhere else, so it was left to continue there.',
-      };
-    }
+    const claim = await this.claim(run);
+    if (!claim.claimed) return { status: 'takenOver', message: TAKEN_OVER };
 
     const results: RecipientResult[] = [];
     const newNonSuccesses: RecordedNonSuccess[] = [];
@@ -243,26 +228,23 @@ export class BulkCommunicationService {
         {
           qdb_cursor: plan.nextCursor,
           qdb_failedrecipients: serialiseNonSuccesses(merged),
-          qdb_status: plan.lastBatch ? STATUS_CODES.Completed : STATUS_CODES.Running,
-          ...(plan.lastBatch ? { qdb_completedon: new Date().toISOString() } : {}),
+          ...terminalState(plan.lastBatch, merged),
         },
         // The version the claim returned, not the one first read. Anything else would mean writing
         // over the claim this worker itself made.
-        claimedVersion,
+        claim.version,
       );
     } catch (error) {
       if (!isConcurrencyConflict(error)) throw error;
       // Another worker advanced this run. The records this batch created are still correct and
       // still unique — the deterministic id guarantees that — so nothing is undone. This caller
       // simply stops.
-      return {
-        status: 'takenOver',
-        message: 'This run is already being processed somewhere else, so it was left to continue there.',
-      };
+      return { status: 'takenOver', message: TAKEN_OVER };
     }
 
     const progress = deriveProgress(run.total, plan.nextCursor, merged);
-    return plan.lastBatch ? { status: 'complete', progress } : { status: 'progressed', progress, results };
+    const settled = plan.lastBatch && !merged.some(entry => entry.outcome === 'failed');
+    return settled ? { status: 'complete', progress } : { status: 'progressed', progress, results };
   }
 
   /**
@@ -291,8 +273,14 @@ export class BulkCommunicationService {
       if (sent.status === 'refused') {
         return { recipientId, outcome: 'refused', detail: sent.refusals.map(r => r.message).join('; ') };
       }
-      // `created: false` is the platform refusing a duplicate — the expected answer after a crash
-      // between creating a record and persisting the checkpoint. A success, already achieved.
+      if (sent.status === 'incomplete') {
+        // The row exists but its recipient does not, so it is not a communication. Retryable, never
+        // counted as sent — a message nobody can receive must not be reported as delivered work.
+        return { recipientId, outcome: 'failed', detail: `incomplete communication: ${sent.reason}` };
+      }
+      // `created: false` alone would not be enough to call this sent — the structure was checked.
+      // `repaired` means a previous attempt died half-made and this one finished it: a success once.
+      if (sent.repaired) return { recipientId, outcome: 'repaired' };
       return { recipientId, outcome: sent.created ? 'sent' : 'alreadySent' };
     } catch (error) {
       // Retryable: the platform or the network failed, and this recipient may succeed later.
@@ -300,6 +288,92 @@ export class BulkCommunicationService {
         recipientId, outcome: 'failed',
         detail: error instanceof Error ? error.message : String(error),
       };
+    }
+  }
+
+  /**
+   * Re-attempts the recipients this run recorded as retryable failures.
+   *
+   * Needed because `failed` is only an honest label if something can act on it. The commonest
+   * retryable failure is now the half-made communication — the activity row created, its recipient
+   * party refused — and leaving those unretried would quietly mean a customer never contacted.
+   *
+   * It is the same send path with the same deterministic ids, which is what makes it safe: a repair
+   * completes the existing activity, and **never creates a second one**. Refusals are not touched;
+   * the eligibility gate said no, and asking it again would be asking it to change its mind.
+   *
+   * The cursor does not move — it is already at the end of the population. Progress improves
+   * because the counters are derived: one fewer recorded failure is one more success, with nothing
+   * incremented anywhere.
+   */
+  async retryFailures(
+    runId: string,
+    buildRequest: (recipientId: string, run: CommunicationRun) => Promise<CommunicationRequest | null>,
+    eligibility: (recipientId: string) => Promise<EligibilityContext>,
+    batchSize: number = DEFAULT_BATCH_SIZE,
+  ): Promise<BatchOutcome> {
+    const run = await this.loadRun(runId);
+    if (!run) return { status: 'notRunnable', message: 'This run could no longer be read.' };
+    if (run.status === 'Cancelled') return { status: 'notRunnable', message: 'This run is cancelled.' };
+
+    const retryable = run.nonSuccesses.filter(entry => entry.outcome === 'failed').slice(0, batchSize);
+    if (retryable.length === 0) {
+      return { status: 'complete', progress: deriveProgress(run.total, run.cursor, run.nonSuccesses) };
+    }
+
+    const claim = await this.claim(run);
+    if (!claim.claimed) return { status: 'takenOver', message: TAKEN_OVER };
+
+    const attempted = retryable.map(entry => entry.recipientId);
+    const results: RecipientResult[] = [];
+    const stillFailing: RecordedNonSuccess[] = [];
+
+    for (const recipientId of attempted) {
+      const result = await this.attemptOne(recipientId, run, buildRequest, eligibility);
+      results.push(result);
+      if (result.outcome === 'refused' || result.outcome === 'failed') {
+        stillFailing.push({ recipientId, outcome: result.outcome, detail: result.detail ?? '' });
+      }
+    }
+
+    const merged = mergeNonSuccesses(run.nonSuccesses, stillFailing, attempted);
+    try {
+      await this.adapter.updateVersioned(
+        { entity: ENTITY_SETS.communicationRun, id: runId },
+        { qdb_failedrecipients: serialiseNonSuccesses(merged), ...terminalState(true, merged) },
+        claim.version,
+      );
+    } catch (error) {
+      if (!isConcurrencyConflict(error)) throw error;
+      return { status: 'takenOver', message: TAKEN_OVER };
+    }
+
+    const progress = deriveProgress(run.total, run.cursor, merged);
+    return merged.some(entry => entry.outcome === 'failed')
+      ? { status: 'progressed', progress, results }
+      : { status: 'complete', progress };
+  }
+
+  /**
+   * Takes the run's row version as a mutual-exclusion point, before any work is done.
+   *
+   * Shared by the forward pass and the retry pass so both are excluded by the same mechanism —
+   * a retry that skipped the claim could repair the same recipients a forward batch was working on.
+   */
+  private async claim(run: CommunicationRun): Promise<{ claimed: true; version: RowVersion } | { claimed: false }> {
+    try {
+      const version = await this.adapter.updateVersioned(
+        { entity: ENTITY_SETS.communicationRun, id: run.id },
+        {
+          qdb_status: STATUS_CODES.Running,
+          ...(run.status === 'Draft' ? { qdb_startedon: new Date().toISOString() } : {}),
+        },
+        run.version,
+      );
+      return { claimed: true, version };
+    } catch (error) {
+      if (!isConcurrencyConflict(error)) throw error;
+      return { claimed: false };
     }
   }
 
@@ -315,30 +389,39 @@ export class BulkCommunicationService {
     if (!run) return null;
 
     const expectedIds = run.population.map(r => nativeActivityIdFor(run.id, r, run.channel));
-    const entitySet = run.channel === 'Email' ? ENTITY_SETS.email : ENTITY_SETS.fax;
-    const platformCount = await this.countExisting(entitySet, expectedIds);
+    const platformCount = await this.countComplete(expectedIds);
 
     return reconcile(run.total, run.cursor, run.nonSuccesses, platformCount);
   }
 
   /**
-   * Counts how many of the run's activity ids exist, in bounded chunks.
+   * Counts how many of the run's communications are **complete**, in bounded chunks.
    *
-   * Chunked because an `IN`-style filter over thousands of ids is a URL no platform will accept —
-   * the same bounded-request discipline every other read in this workspace follows.
+   * Deliberately not a count of activity rows. A Fax or Email can exist with no recipient party —
+   * the live platform produced exactly that when the party POST failed (KI-85) — and such a row is
+   * not a communication. Counting rows would have reported six sent messages that nobody could
+   * receive.
+   *
+   * So the count is over `activityparty`: a recipient party for one of the run's activities is the
+   * evidence that the structure was completed. Chunked because an `IN`-style filter over thousands
+   * of ids is a URL no platform will accept.
    */
-  private async countExisting(entitySet: string, ids: readonly string[]): Promise<number> {
+  private async countComplete(ids: readonly string[]): Promise<number> {
     const CHUNK = 20;
-    let found = 0;
+    const complete = new Set<string>();
     for (let index = 0; index < ids.length; index += CHUNK) {
       const chunk = ids.slice(index, index + CHUNK);
-      const filter = chunk.map(id => `activityid eq ${id}`).join(' or ');
-      const page = await this.adapter.retrievePage(entitySet, {
-        select: ['activityid'], pageSize: CHUNK, filter,
+      const filter = `(${chunk.map(id => `_activityid_value eq ${id}`).join(' or ')})`
+        + ` and participationtypemask eq ${RECIPIENT_PARTY_MASK}`;
+      const page = await this.adapter.retrievePage(ENTITY_SETS.activityParty, {
+        select: ['activitypartyid', '_activityid_value'], pageSize: CHUNK * 2, filter,
       });
-      found += page.items.length;
+      for (const row of page.items) {
+        const activityId = String(row['_activityid_value'] ?? '').toLowerCase();
+        if (activityId) complete.add(activityId);
+      }
     }
-    return found;
+    return complete.size;
   }
 
   /** Marks a run cancelled. In-flight batches finish; no further batch starts. */
@@ -357,6 +440,32 @@ export class BulkCommunicationService {
       return 'takenOver';
     }
   }
+}
+
+const TAKEN_OVER =
+  'This run is already being processed somewhere else, so it was left to continue there.';
+
+/**
+ * The status to persist, and the rule that a run holding retryable work is **not** completed.
+ *
+ * Reaching the end of the population is not the same as finishing the campaign. A recipient whose
+ * activity row exists without its recipient party is recorded as a retryable failure, and marking
+ * the run Completed over it would close the only door through which it could be repaired — leaving
+ * a customer uncontacted behind a green "done".
+ *
+ * Refusals do not hold a run open: the eligibility gate is terminal and asking it again changes
+ * nothing. So the run completes when every recipient is either a complete communication or a
+ * refusal, and otherwise waits, Paused, for `retryFailures`.
+ */
+function terminalState(
+  lastPass: boolean,
+  nonSuccesses: readonly RecordedNonSuccess[],
+): Record<string, unknown> {
+  if (!lastPass) return { qdb_status: STATUS_CODES.Running };
+  if (nonSuccesses.some(entry => entry.outcome === 'failed')) {
+    return { qdb_status: STATUS_CODES.Paused };
+  }
+  return { qdb_status: STATUS_CODES.Completed, qdb_completedon: new Date().toISOString() };
 }
 
 /**

@@ -159,6 +159,25 @@ export class XrmCrmAdapter implements ICrmAdapter, IConcurrencyControlledWrites 
     }
   }
 
+  /**
+   * Reads a collection-valued navigation property.
+   *
+   * Needed to answer "does this activity already carry its recipient?" — a question `Xrm.WebApi`
+   * cannot ask, because there is no entity set to name. Bounded by `$top`, because a related
+   * collection is still a collection.
+   */
+  async readRelated(path: string, select: string[], top = 50): Promise<CrmRecord[]> {
+    const transport = this.requireWriteTransport('read a related collection');
+    const options = `?$select=${select.join(',')}&$top=${top}`;
+    const response = await transport.get(`/${path}${options}`);
+
+    if (response.status === 404) return [];
+    if (response.status >= 400) {
+      throw new Error(`Reading ${path} failed (${response.status}): ${response.message ?? ''}`);
+    }
+    return ((response.body as { value?: CrmRecord[] } | undefined)?.value ?? []);
+  }
+
   private requireWriteTransport(what: string): WriteTransport {
     if (!this.writeTransport) {
       throw new Error(
@@ -314,6 +333,7 @@ export const DEFAULT_LOGICAL_NAMES: Readonly<Record<string, string>> = {
   // Native activity sets whose logical name is not the set minus a trailing 's'.
   faxes: 'fax',
   emails: 'email',
+  activityparties: 'activityparty',
   qdb_communicationruns: 'qdb_communicationrun',
   qdb_communicationtemplates: 'qdb_communicationtemplate',
   contacts: 'contact',

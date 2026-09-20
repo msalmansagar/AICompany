@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { CommunicationRequest, EligibilityContext } from '@dcp/domain';
 import { BulkCommunicationService } from '../services/bulkCommunicationService.js';
-import { CommunicationService } from '../services/communicationService.js';
+import { CommunicationService, RECIPIENT_PARTY_MASK } from '../services/communicationService.js';
 import { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import type { XrmLike } from '../platform/crmContext.js';
 import type { WriteResponse, WriteTransport } from '../platform/writeTransport.js';
@@ -33,8 +33,22 @@ const recipient = (n: number) => `aaaaaaaa-bbbb-cccc-dddd-${n.toString(16).padSt
 class FakeDataverse implements WriteTransport {
   readonly records = new Map<string, { body: Record<string, unknown>; version: number }>();
   readonly creates: string[] = [];
-  /** Activity parties, kept apart so they are not mistaken for communications when counting. */
-  readonly parties: { path: string; body: unknown }[] = [];
+  /**
+   * Activity parties, kept apart so they are not mistaken for communications when counting.
+   *
+   * Stored decomposed rather than as opaque bodies, because the executor now *reads* them back to
+   * decide whether a communication is complete. A store that only remembered that a POST happened
+   * could not answer that question, and the test would be agreeing with itself.
+   */
+  readonly parties: { activityId: string; partyId: string; mask: number }[] = [];
+
+  /**
+   * Makes the recipient-party POST fail while the activity create still succeeds.
+   *
+   * This is the window the live organisation exposed: a perfectly created Fax row whose recipient
+   * never attached. It is not a hypothetical — it produced six inert rows reported as sent (KI-85).
+   */
+  failPartyAppend = false;
   /**
    * Kills the CHECKPOINT write specifically, standing in for a process that dies after creating
    * records but before recording that it did.
@@ -89,19 +103,61 @@ class FakeDataverse implements WriteTransport {
    * make every communication look like two and quietly break the reconciliation counts.
    */
   async post(url: string, body: unknown): Promise<WriteResponse> {
-    this.parties.push({ path: this.key(url), body });
+    if (this.failPartyAppend) {
+      return { status: 500, message: 'the recipient could not be attached' };
+    }
+    const path = this.key(url);
+    const activityId = path.match(/\(([0-9a-f-]+)\)/i)?.[1] ?? '';
+    const fields = body as Record<string, unknown>;
+    const bind = String(fields['partyid_contact@odata.bind'] ?? fields['partyid_account@odata.bind'] ?? '');
+    const partyId = bind.match(/\(([0-9a-f-]+)\)/i)?.[1] ?? '';
+    this.parties.push({ activityId, partyId, mask: Number(fields['participationtypemask']) });
     return { status: 204 };
   }
 
   async get(url: string): Promise<WriteResponse> {
-    const existing = this.records.get(this.key(url));
+    const path = this.key(url);
+
+    // A read of a collection-valued navigation property, which is how the service asks "does this
+    // activity already carry its recipient?". It has to be answered from the parties the store
+    // really holds — answering 404 would make every retry look like a first attempt.
+    const collection = path.match(/^\/(?:faxes|emails)\(([0-9a-f-]+)\)\/\w+_activity_parties$/i);
+    if (collection) {
+      const activityId = (collection[1] ?? '').toLowerCase();
+      return {
+        status: 200,
+        body: {
+          value: this.parties
+            .filter(party => party.activityId.toLowerCase() === activityId)
+            .map(party => ({
+              activitypartyid: `${party.activityId}-${party.mask}`,
+              participationtypemask: party.mask,
+              _partyid_value: party.partyId,
+            })),
+        },
+      };
+    }
+
+    const existing = this.records.get(path);
     if (!existing) return { status: 404 };
     return { status: 200, etag: `W/"${existing.version}"`, body: existing.body };
   }
 
-  /** How many native communications exist — the platform's own count, for reconciliation. */
+  /** How many native activity rows exist. Existence only — **not** a count of communications. */
   countActivities(): number {
     return [...this.records.keys()].filter(k => k.startsWith('/faxes(') || k.startsWith('/emails(')).length;
+  }
+
+  /**
+   * How many activities carry a recipient — the number of actual communications.
+   *
+   * The distinction the live platform forced: a row without its recipient party is a message nobody
+   * can receive, so it is not a communication however perfect the row looks.
+   */
+  countCommunications(): number {
+    return new Set(this.parties
+      .filter(party => party.mask === RECIPIENT_PARTY_MASK)
+      .map(party => party.activityId.toLowerCase())).size;
   }
 }
 
@@ -112,10 +168,18 @@ function buildServices(store: FakeDataverse) {
       async retrieveRecord() { throw { status: 404 }; },
       // Reconciliation reads through the client API; it answers from the same store so the count is
       // the store's truth rather than a second, agreeable fiction.
+      // Reconciliation counts ActivityParty rows, so the fake answers from the parties it holds —
+      // the same store, not a second and more agreeable fiction.
       async retrieveMultipleRecords(_logical: string, options = '') {
-        const ids = [...String(options).matchAll(/activityid eq ([0-9a-f-]+)/g)].map(m => m[1]);
-        const found = ids.filter(id => [...store.records.keys()].some(k => k.includes(`(${id})`)));
-        return { entities: found.map(id => ({ activityid: id })) };
+        const wanted = new Set([...String(options).matchAll(/_activityid_value eq ([0-9a-f-]+)/g)]
+          .map(match => (match[1] ?? '').toLowerCase()));
+        const entities = store.parties
+          .filter(party => party.mask === RECIPIENT_PARTY_MASK && wanted.has(party.activityId.toLowerCase()))
+          .map(party => ({
+            activitypartyid: `${party.activityId}-${party.mask}`,
+            _activityid_value: party.activityId,
+          }));
+        return { entities };
       },
       async createRecord() { return { id: '{1}' }; },
       async updateRecord() { return { id: '1' }; },
@@ -550,5 +614,200 @@ describe('frozen population capacity, against the real metadata limit', () => {
     expect(outcome.status).toBe('refused');
     if (outcome.status === 'refused') expect(outcome.message).toMatch(/narrow the filter/i);
     expect(store.records.size, 'no partial run was left behind').toBe(0);
+  });
+});
+
+// ── The second crash window: the row exists, the communication does not ──────
+
+/**
+ * A native row is not a communication.
+ *
+ * The live organisation taught this one the hard way. Six Fax rows were created perfectly, their
+ * recipient ActivityParty appends all failed with 500, and the run reported `0 sent + 6 failed` —
+ * the honest half of the answer. The dangerous half is what happens *next*: on retry the same
+ * deterministic id already exists, the platform refuses the create, and an executor that read
+ * `created: false` as "already sent" would mark six customers contacted who could never receive
+ * anything (KI-85).
+ *
+ * So `sent` means the row **and** its required structure. These ten tests pin every corner of that.
+ */
+describe('a communication is the activity and its recipient, not the activity alone', () => {
+  /** 1 — the ordinary path: both halves succeed, and the structure is really there. */
+  it('creates the activity and attaches the recipient', async () => {
+    const runId = await createRun(3);
+    const outcome = await runToCompletion(runId, 3);
+
+    expect(outcome.outcome.status).toBe('complete');
+    expect(store.countActivities(), 'three rows').toBe(3);
+    expect(store.countCommunications(), 'three rows that someone can receive').toBe(3);
+    expect(store.parties.every(party => party.mask === RECIPIENT_PARTY_MASK)).toBe(true);
+  });
+
+  /** 2 — the row lands and the party append is refused. */
+  it('reports a recipient whose party could not be attached as not sent', async () => {
+    const runId = await createRun(3);
+    store.failPartyAppend = true;
+
+    const outcome = await bulk.runBatch(runId, buildRequest, alwaysEligible, 3);
+    expect(outcome.status).toBe('progressed');
+    if (outcome.status !== 'progressed') return;
+
+    expect(store.countActivities(), 'the rows exist').toBe(3);
+    expect(store.countCommunications(), 'none of them is a communication').toBe(0);
+    expect(outcome.progress.successful, 'and none of them is counted as sent').toBe(0);
+    expect(outcome.progress.failed, 'all three are retryable failures').toBe(3);
+  });
+
+  /** 3 — the process dies between creating the activity and attaching the party. */
+  it('leaves an incomplete activity when the process dies between the two operations', async () => {
+    const runId = await createRun(2);
+    store.failPartyAppend = true;
+    await bulk.runBatch(runId, buildRequest, alwaysEligible, 2);
+
+    // What the platform is left holding is exactly a half-made communication.
+    expect(store.countActivities()).toBe(2);
+    expect(store.countCommunications()).toBe(0);
+  });
+
+  /** 4 — a retry against an existing incomplete activity must complete it, not skip it. */
+  it('completes an existing incomplete activity on retry rather than treating it as sent', async () => {
+    const runId = await createRun(2);
+    store.failPartyAppend = true;
+    await bulk.runBatch(runId, buildRequest, alwaysEligible, 2);
+    const createsBefore = store.creates.length;
+
+    store.failPartyAppend = false;
+    const repaired = await bulk.retryFailures(runId, buildRequest, alwaysEligible);
+
+    expect(repaired.status).toBe('complete');
+    expect(store.countCommunications(), 'now they are communications').toBe(2);
+    expect(store.countActivities(), 'repaired in place — no second row').toBe(2);
+    expect(store.creates.length, 'the retry did attempt the create again').toBeGreaterThan(createsBefore);
+  });
+
+  /** 5 — a retry that finds the party already there must not add a second one. */
+  it('adds nothing when the recipient is already attached', async () => {
+    const runId = await createRun(2);
+    await runToCompletion(runId, 2);
+    const partiesAfterFirstPass = store.parties.length;
+
+    // A different run derives different activity ids, so it legitimately attaches its own two
+    // parties — and still exactly one per activity, which is the property under test.
+    const secondRunId = await createRun(2);
+    await runToCompletion(secondRunId, 2);
+
+    expect(store.parties.length - partiesAfterFirstPass).toBe(2);
+    expect(store.parties.filter(p => p.mask === RECIPIENT_PARTY_MASK).length)
+      .toBe(new Set(store.parties.map(p => p.activityId)).size);
+  });
+
+  /** 6 — repairing twice is repairing once. */
+  it('is idempotent when the repair is attempted more than once', async () => {
+    const runId = await createRun(2);
+    store.failPartyAppend = true;
+    await bulk.runBatch(runId, buildRequest, alwaysEligible, 2);
+
+    store.failPartyAppend = false;
+    await bulk.retryFailures(runId, buildRequest, alwaysEligible);
+    const afterFirstRepair = store.parties.length;
+
+    // A second executor over the same store, repairing what is already repaired. Nothing is left
+    // recorded as failed, so the pass is a no-op — and must stay a no-op at the platform too.
+    const { bulk: second } = buildServices(store);
+    await second.retryFailures(runId, buildRequest, alwaysEligible);
+
+    expect(store.parties.length, 'the second repair adds nothing').toBe(afterFirstRepair);
+    expect(store.countCommunications()).toBe(2);
+  });
+
+  /** 7 — the headline rule, stated as its own assertion. */
+  it('never counts an incomplete activity as a success', async () => {
+    const runId = await createRun(4);
+    store.failPartyAppend = true;
+    const outcome = await bulk.runBatch(runId, buildRequest, alwaysEligible, 4);
+
+    if (outcome.status !== 'progressed') throw new Error('expected progress');
+    expect(outcome.progress.successful).toBe(0);
+    expect(store.countActivities(), 'even though four rows exist').toBe(4);
+  });
+
+  /** 8 — a repaired communication is a success exactly once, however many passes it took. */
+  it('counts a repaired communication once', async () => {
+    const runId = await createRun(3);
+    store.failPartyAppend = true;
+    await bulk.runBatch(runId, buildRequest, alwaysEligible, 3);
+
+    store.failPartyAppend = false;
+    const repaired = await bulk.retryFailures(runId, buildRequest, alwaysEligible);
+
+    if (repaired.status !== 'complete') throw new Error('expected completion');
+    expect(repaired.progress.successful, 'three, not six').toBe(3);
+    expect(repaired.progress.total).toBe(3);
+    expect(repaired.progress.failed, 'nothing left retryable').toBe(0);
+  });
+
+  /** 9 — no duplicate parties survive a retry, whatever route the retry took. */
+  it('leaves exactly one recipient party per activity after a retry', async () => {
+    const runId = await createRun(4);
+    store.failPartyAppend = true;
+    await bulk.runBatch(runId, buildRequest, alwaysEligible, 2);
+    store.failPartyAppend = false;
+    await runToCompletion(runId, 2);
+    await bulk.retryFailures(runId, buildRequest, alwaysEligible);
+
+    const perActivity = new Map<string, number>();
+    for (const party of store.parties.filter(p => p.mask === RECIPIENT_PARTY_MASK)) {
+      perActivity.set(party.activityId, (perActivity.get(party.activityId) ?? 0) + 1);
+    }
+    expect([...perActivity.values()].every(count => count === 1), 'one recipient each').toBe(true);
+  });
+
+  /**
+   * 10a — the terminal checkpoint waits for the complete contract.
+   *
+   * A run whose cursor has reached the end of its population is not finished if any recipient is
+   * still a half-made communication. Marking it Completed would close the only door through which
+   * the repair could happen, behind a green "done".
+   */
+  it('does not complete a run while a communication is still incomplete', async () => {
+    const runId = await createRun(3);
+    store.failPartyAppend = true;
+    const swept = await runToCompletion(runId, 3);
+
+    // The cursor is at the end, and the run is still open for repair rather than Completed.
+    expect(swept.outcome.status).toBe('complete');
+    const afterSweep = await bulk.loadRun(runId);
+    expect(afterSweep?.cursor, 'the whole population was attempted').toBe(3);
+    expect(afterSweep?.status, 'but the run is not Completed').toBe('Paused');
+
+    store.failPartyAppend = false;
+    await bulk.retryFailures(runId, buildRequest, alwaysEligible);
+
+    const afterRepair = await bulk.loadRun(runId);
+    expect(afterRepair?.status, 'Completed only once every communication is whole').toBe('Completed');
+  });
+
+  /**
+   * 10b — reconciliation counts the structure, not the rows.
+   *
+   * Where it matters most: the platform's own count is of *complete* communications. If the
+   * structure is not there, a run that believes it sent three must not reconcile — which is
+   * precisely the report the live organisation would have produced over six orphan Fax rows.
+   */
+  it('refuses to reconcile when the activities exist but the structure does not', async () => {
+    const runId = await createRun(3);
+    await runToCompletion(runId, 3);
+
+    const whole = await bulk.reconcileRun(runId);
+    expect(whole?.reconciles, 'three communications, counted by the platform').toBe(true);
+    expect(whole?.platformCount).toBe(3);
+
+    // The rows survive; their recipients do not. Nothing about the executor's own tally changes.
+    store.parties.length = 0;
+
+    const orphaned = await bulk.reconcileRun(runId);
+    expect(store.countActivities(), 'the rows are all still there').toBe(3);
+    expect(orphaned?.reconciles, 'and none of them is a communication').toBe(false);
+    expect(orphaned?.platformCount).toBe(0);
   });
 });
