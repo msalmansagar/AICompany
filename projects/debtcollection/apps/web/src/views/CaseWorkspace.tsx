@@ -14,6 +14,7 @@ import { ActivityDialog } from './ActivityDialog.js';
 import { PromiseDialog } from './PromiseDialog.js';
 import { CaseActionPlan } from './strategyViews.js';
 import { useCrmSession } from '../shell/context.js';
+import { toError } from '../platform/errors.js';
 
 /**
  * The Case Workspace — the approved seven tabs, all present.
@@ -60,7 +61,7 @@ export function CaseWorkspaceView({ caseId, initialTab, onOpenCustomer }: {
         setState(detail ? { status: 'ready', detail } : { status: 'missing' });
       })
       .catch((error: unknown) => {
-        if (!cancelled) setState({ status: 'error', error: error instanceof Error ? error : new Error(String(error)) });
+        if (!cancelled) setState({ status: 'error', error: toError(error) });
       });
     return () => { cancelled = true; };
   }, [adapter, caseId]);

@@ -382,7 +382,7 @@ export type {
   ContactHoldVerdict,
   ContactHoldPolicy,
 } from './communication.js';
-export { COMMUNICATION_NAMESPACE, communicationId, uuidV5 } from './communicationIdentity.js';
+export { COMMUNICATION_NAMESPACE, communicationId, singleSendId, uuidV5 } from './communicationIdentity.js';
 
 export { historyComplete, mergeHistory } from './communicationHistory.js';
 export type { HistoryBuffer, HistoryEntry, MergedHistory } from './communicationHistory.js';

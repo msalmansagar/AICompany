@@ -4,6 +4,7 @@ import {
 } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import { ENTITY_SETS, NAVIGATION_PROPERTIES, PARTY_COLLECTIONS, bindLookup } from '../data/schema.js';
+import { describeFailure } from '../platform/errors.js';
 
 /**
  * Turns a communication decision into the native record QDB's mechanism consumes.
@@ -120,7 +121,7 @@ export class CommunicationService {
       return {
         status: 'incomplete',
         activityId,
-        reason: error instanceof Error ? error.message : String(error),
+        reason: describeFailure(error),
       };
     }
   }

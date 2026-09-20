@@ -128,6 +128,8 @@ const permissiveConfiguration = {
 
 interface Rows { [logicalName: string]: Record<string, unknown>[] }
 
+const queried: string[] = [];
+
 function fakeXrm(rows: Rows): XrmLike {
   return {
     Utility: {
@@ -149,6 +151,7 @@ function fakeXrm(rows: Rows): XrmLike {
         return row;
       },
       async retrieveMultipleRecords(logicalName: string, options = '') {
+        queried.push(logicalName);
         const all = rows[logicalName] ?? [];
         // Honoured, not ignored: configuration is resolved BY organisation code, and a fake that
         // returned every row regardless would let a keyless resolver pass.
@@ -198,7 +201,7 @@ const baseRows = (templates: Record<string, unknown>[] = [approvedTemplate]): Ro
   qdb_platformconfiguration: [permissiveConfiguration],
 });
 
-beforeEach(() => { window.location.hash = ''; });
+beforeEach(() => { window.location.hash = ''; queried.length = 0; });
 
 afterEach(() => {
   cleanup();
@@ -307,6 +310,83 @@ describe('sending, through the production composition path', () => {
 
     expect(body['participationtypemask']).toBe(2);
     expect(body['partyid_contact@odata.bind']).toContain(CONTACT_ID);
+  });
+
+  it('presses Send twice and creates ONE record, not two', async () => {
+    // The defect this pins reached the deployed organisation: the composer called
+    // crypto.randomUUID() inside its Send handler, so every press minted a fresh id and every
+    // press created a record. Two Email activities, 23 seconds apart, from two clicks.
+    //
+    // The original journey test pressed Send once and asserted a create happened — which is why
+    // it passed over the defect. Pressing twice is the whole test.
+    const sent = captureWrites();
+    await open(baseRows());
+    const picker = await screen.findByTestId('composer-template');
+    await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
+    await userEvent.selectOptions(picker, 't-approved');
+    await userEvent.type(screen.getByTestId('placeholder-customerName'), 'Ahmed');
+    await waitFor(() => expect(screen.getByTestId('composer-send')).toBeEnabled());
+
+    await userEvent.click(screen.getByTestId('composer-send'));
+    await screen.findByTestId('send-result');
+    await userEvent.click(screen.getByTestId('composer-send'));
+    await waitFor(() => expect(sent.filter(r => r.url.includes('/faxes(')).length).toBeGreaterThan(1));
+
+    // Both presses wrote to the SAME id. The platform refuses the second create; the officer's
+    // second press is a no-op rather than a second message.
+    const creates = sent.filter(r => r.url.includes('/faxes(') && r.method === 'PATCH');
+    const ids = new Set(creates.map(r => /\/faxes\(([^)]+)\)/.exec(r.url)?.[1]));
+    expect(creates.length, 'two attempts were made').toBeGreaterThan(1);
+    expect(ids.size, 'at one id, so the platform can refuse the duplicate').toBe(1);
+  });
+
+  it('derives a different id when the message changes, so an edited resend is a new message', async () => {
+    const sent = captureWrites();
+    await open(baseRows());
+    const picker = await screen.findByTestId('composer-template');
+    await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
+    await userEvent.selectOptions(picker, 't-approved');
+
+    await userEvent.type(screen.getByTestId('placeholder-customerName'), 'Ahmed');
+    await waitFor(() => expect(screen.getByTestId('composer-send')).toBeEnabled());
+    await userEvent.click(screen.getByTestId('composer-send'));
+    await screen.findByTestId('send-result');
+
+    await userEvent.clear(screen.getByTestId('placeholder-customerName'));
+    await userEvent.type(screen.getByTestId('placeholder-customerName'), 'Fatima');
+    await waitFor(() => expect(screen.getByTestId('composer-send')).toBeEnabled());
+    await userEvent.click(screen.getByTestId('composer-send'));
+    await waitFor(() => expect(sent.filter(r => r.url.includes('/faxes(')).length).toBeGreaterThan(1));
+
+    const ids = new Set(sent
+      .filter(r => r.url.includes('/faxes(') && r.method === 'PATCH')
+      .map(r => /\/faxes\(([^)]+)\)/.exec(r.url)?.[1]));
+    expect(ids.size, 'a different message is a different record').toBe(2);
+  });
+
+  it('re-reads the history after a send, because the confirmation says it will appear there', async () => {
+    const sent = captureWrites();
+    await open(baseRows());
+    const picker = await screen.findByTestId('composer-template');
+    await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
+    await userEvent.selectOptions(picker, 't-approved');
+    await userEvent.type(screen.getByTestId('placeholder-customerName'), 'Ahmed');
+    await waitFor(() => expect(screen.getByTestId('composer-send')).toBeEnabled());
+
+    // Counted on the CLIENT API, not on fetch. The history reads go through Xrm.WebApi, so a
+    // fetch counter rises from the send's own party read and would pass with no refresh at all —
+    // a test agreeing with itself rather than checking anything.
+    const historyReadsBefore = queried.filter(name => name === 'email' || name === 'fax').length;
+    await userEvent.click(screen.getByTestId('composer-send'));
+    const result = await screen.findByTestId('send-result');
+
+    // The confirmation promises the message appears below. A screen that promises that and does
+    // not re-read is telling the officer something untrue.
+    expect(result.textContent).toMatch(/appear in the history/i);
+    await waitFor(() => expect(
+      queried.filter(name => name === 'email' || name === 'fax').length,
+    ).toBeGreaterThan(historyReadsBefore));
+    void sent;
   });
 
   it('says the message was handed over, never that it was delivered', async () => {

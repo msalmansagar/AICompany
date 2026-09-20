@@ -4,7 +4,7 @@ import {
 } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import {
-  EMAIL_COLUMNS, ENTITY_SETS, FAX_COLUMNS, FORMATTED_VALUE_ANNOTATION,
+  ACTIVITY_COLUMNS, EMAIL_COLUMNS, ENTITY_SETS, FAX_COLUMNS, FORMATTED_VALUE_ANNOTATION,
 } from './schema.js';
 
 /**
@@ -108,19 +108,23 @@ function emailEntry(row: Record<string, unknown>): HistoryEntry {
 
 function activityEntry(row: Record<string, unknown>): HistoryEntry {
   return {
-    id: String(row['qdb_collectionactivityid']),
+    // `activityid`, not `qdb_collectionactivityid`. A collection activity IS a Dynamics activity,
+    // so the platform names its key the way it names every activity's key. Getting this wrong made
+    // the whole history read fail with "Could not find a property named…" — found by running the
+    // software, after three green test suites.
+    id: String(row['activityid']),
     source: 'activity',
     // The activity's own configured type — Call, Visit, Letter. Read from the platform's formatted
     // value rather than mapped here, so a new configured type appears without a code change.
     channel: formatted(row, '_qdb_activitytypeid_value') || 'Activity',
     occurredAt: String(row['createdon'] ?? ''),
-    subject: String(row['qdb_subject'] ?? row['qdb_name'] ?? ''),
-    status: formatted(row, 'qdb_activitystatus') || formatted(row, 'statuscode'),
+    subject: String(row['subject'] ?? ''),
+    status: formatted(row, 'statuscode'),
     direction: 'unknown',
   };
 }
 
-interface SourceRead {
+export interface SourceRead {
   entitySet: string;
   select: readonly string[];
   filter: string;
@@ -134,7 +138,7 @@ interface SourceRead {
  * works in `$filter` — the KI-52 family again, where the storage name is accepted and returns
  * nothing.
  */
-function readsFor(caseId: string): Record<SourceState['key'], SourceRead> {
+export function readsFor(caseId: string): Record<SourceState['key'], SourceRead> {
   return {
     fax: {
       entitySet: ENTITY_SETS.fax,
@@ -150,10 +154,11 @@ function readsFor(caseId: string): Record<SourceState['key'], SourceRead> {
     },
     activity: {
       entitySet: ENTITY_SETS.collectionActivity,
-      select: [
-        'qdb_collectionactivityid', 'qdb_subject', 'qdb_activitystatus',
-        '_qdb_activitytypeid_value', 'createdon', 'statuscode',
-      ],
+      // The registered column set, never a list typed here. The three names this module used to
+      // spell out were all wrong, and `verify-view-columns.mts` could not catch them because they
+      // had never reached `READ_REGISTRY` — a column list outside schema.ts is a column list
+      // nothing checks.
+      select: ACTIVITY_COLUMNS,
       filter: `_qdb_collectioncaseid_value eq ${caseId}`,
       toEntry: activityEntry,
     },

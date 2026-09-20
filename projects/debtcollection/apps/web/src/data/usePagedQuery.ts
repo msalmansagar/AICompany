@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { fingerprintQuery, type ContinuationToken, type Page } from '@dcp/domain';
+import { toError } from '../platform/errors.js';
 
 /**
  * Server-side paging for the browser: one hook, used by every large list in the workspace.
@@ -179,7 +180,7 @@ export function usePagedQuery<T, Q extends object>(
       dispatch({ type: 'pageReceived', page, rowKey });
     } catch (error) {
       if (mySequence !== sequence.current) return;
-      dispatch({ type: 'failed', error: error instanceof Error ? error : new Error(String(error)) });
+      dispatch({ type: 'failed', error: toError(error) });
     } finally {
       if (mySequence === sequence.current) inFlight.current = false;
     }

@@ -7,6 +7,7 @@ import {
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import { ENTITY_SETS, COMMUNICATION_RUN_COLUMNS } from '../data/schema.js';
 import { CommunicationService, RECIPIENT_PARTY_MASK } from './communicationService.js';
+import { describeFailure } from '../platform/errors.js';
 
 /**
  * Executing a bulk communication durably.
@@ -286,7 +287,7 @@ export class BulkCommunicationService {
       // Retryable: the platform or the network failed, and this recipient may succeed later.
       return {
         recipientId, outcome: 'failed',
-        detail: error instanceof Error ? error.message : String(error),
+        detail: describeFailure(error),
       };
     }
   }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  composePermissions, renderTemplate, selectableTemplates,
+  composePermissions, renderTemplate, selectableTemplates, singleSendId,
   type CommunicationRequest, type CommunicationTemplate,
   type HistoryEntry, type TemplateChannel, type TemplateLanguage,
 } from '@dcp/domain';
@@ -46,6 +46,10 @@ const LANGUAGES: readonly { value: TemplateLanguage; label: string }[] = [
 
 const HISTORY_PAGE = 20;
 
+/** What an officer is told when a read or a write fails. Never the platform's own wording. */
+const HISTORY_FAILED = 'The communication history could not be loaded. Refresh to try again.';
+const SEND_FAILED = 'The message could not be sent. Nothing was recorded — try again.';
+
 export function CommunicationCenterView({ caseId, onSelectCase }: {
   caseId?: string | undefined;
   onSelectCase: (id: string) => void;
@@ -69,6 +73,10 @@ function CaseCommunications({ caseId }: { caseId: string }) {
   const { adapter } = useCrmSession();
   const [recipient, setRecipient] = useState<CustomerProfile | null>(null);
   const [hold, setHold] = useState<ContactHoldResolution | null>(null);
+  // Bumped after a send so the history re-reads. A counter rather than a boolean, so two sends
+  // in a row both trigger a reload.
+  const [historyToken, setHistoryToken] = useState(0);
+  const refreshHistory = useCallback(() => setHistoryToken(token => token + 1), []);
 
   // The recipient is the case's own customer, read from whichever table the lookup points at —
   // contact for Housing Loan, account for BFD. One code path, no branch on the organisation.
@@ -101,8 +109,8 @@ function CaseCommunications({ caseId }: { caseId: string }) {
       {hold?.blocked && (
         <div className="field-error" data-testid="hold-blocked">{hold.explanation}</div>
       )}
-      {hold && <Composer caseId={caseId} recipient={recipient} hold={hold} />}
-      <History caseId={caseId} />
+      {hold && <Composer caseId={caseId} recipient={recipient} hold={hold} onSent={refreshHistory} />}
+      <History caseId={caseId} reloadToken={historyToken} />
     </div>
   );
 }
@@ -116,10 +124,11 @@ type SendState =
   | { kind: 'refused'; messages: readonly string[] }
   | { kind: 'failed'; message: string };
 
-function Composer({ caseId, recipient, hold }: {
+function Composer({ caseId, recipient, hold, onSent }: {
   caseId: string;
   recipient: CustomerProfile | null;
   hold: ContactHoldResolution;
+  onSent: () => void;
 }) {
   const { adapter } = useCrmSession();
   const [catalogue, setCatalogue] = useState<readonly CommunicationTemplate[]>([]);
@@ -158,9 +167,23 @@ function Composer({ caseId, recipient, hold }: {
 
     try {
       const service = new CommunicationService(adapter);
-      // The id is minted here, once, when the officer commits — so a double-click or a retry
-      // reaches the same record rather than creating a second one (ADR-DCP-19).
-      const outcome = await service.send(crypto.randomUUID(), request, {
+      /**
+       * Derived from the message, never minted per press.
+       *
+       * `crypto.randomUUID()` here produced a fresh id on every click, so a double-click created
+       * two records — demonstrated on the live organisation, two Email activities 23 seconds apart.
+       * A derived id means the second press sends the same id, the platform refuses the create, and
+       * nothing is duplicated. That is ADR-DCP-19's structural protection rather than a button that
+       * merely looks disabled.
+       */
+      const activityId = singleSendId({
+        caseId,
+        recipientId: recipient.id,
+        channel: request.channel,
+        subject: request.subject ?? '',
+        body: request.body,
+      });
+      const outcome = await service.send(activityId, request, {
         contactHold: hold.verdict,
         contactHoldPolicy: hold.policy,
       });
@@ -173,11 +196,14 @@ function Composer({ caseId, recipient, hold }: {
         setState({ kind: 'failed', message: 'The message could not be completed. Nothing was sent — try again.' });
       } else {
         setState({ kind: 'handedOver', activityId: outcome.activityId, repaired: outcome.repaired });
+        // The confirmation says it will appear below, so it has to appear below. Without this
+        // the officer is told something the screen then does not do.
+        onSent();
       }
     } catch (error) {
-      setState({ kind: 'failed', message: error instanceof Error ? error.message : String(error) });
+      setState({ kind: 'failed', message: SEND_FAILED });
     }
-  }, [adapter, caseId, channel, hold, recipient, rendered, template]);
+  }, [adapter, caseId, channel, hold, onSent, recipient, rendered, template]);
 
   const unresolved = rendered && !rendered.rendered ? rendered.unresolved : [];
   // Blocked means blocked: the officer is told before composing, not after pressing Send.
@@ -330,7 +356,7 @@ function buildRequest(
  * rows another source could still displace, which is a correctness property rather than an
  * inconvenience.
  */
-function History({ caseId }: { caseId: string }) {
+function History({ caseId, reloadToken }: { caseId: string; reloadToken: number }) {
   const { adapter } = useCrmSession();
   const [entries, setEntries] = useState<readonly HistoryEntry[]>([]);
   const [cursor, setCursor] = useState<HistoryCursor>(() => startHistory());
@@ -347,7 +373,11 @@ function History({ caseId }: { caseId: string }) {
       setCursor(page.cursor);
       setComplete(page.complete);
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : String(failure));
+      // The platform's own words never reach an officer. "Could not find a property named
+      // 'qdb_collectionactivityid'" is the right thing in a console and the wrong thing here —
+      // and `String(failure)` on the object Xrm rejects with produced `[object Object]`, which
+      // is worse than either.
+      setError(HISTORY_FAILED);
     } finally {
       setLoading(false);
     }
@@ -358,7 +388,9 @@ function History({ caseId }: { caseId: string }) {
     setEntries([]);
     setComplete(false);
     void more(fresh, true);
-  }, [more]);
+    // `reloadToken` is a dependency, not a wart: a send bumps it and the timeline re-reads from
+    // the platform rather than being patched locally with what this screen believes it wrote.
+  }, [more, reloadToken]);
 
   return (
     <Card title="Communication history" subtitle="SMS, WhatsApp, email and logged activity, in one timeline.">

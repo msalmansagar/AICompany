@@ -7,6 +7,8 @@
  * Dataverse answers `9.2`, and Phase 1 recorded a defect (KI-02) caused by assuming the latter.
  */
 
+import { describeFailure } from './errors.js';
+
 /** The slice of the Dynamics client API this workspace uses. Deliberately small. */
 export interface XrmGlobalContext {
   getClientUrl(): string;
@@ -114,7 +116,7 @@ export function readCrmContext(xrm: XrmLike | null = findXrm()): CrmContext {
     global = xrm.Utility.getGlobalContext();
   } catch (error) {
     throw new CrmContextError(
-      `The host exposed Xrm but getGlobalContext() failed: ${error instanceof Error ? error.message : String(error)}`,
+      `The host exposed Xrm but getGlobalContext() failed: ${describeFailure(error)}`,
       'NoContext');
   }
 

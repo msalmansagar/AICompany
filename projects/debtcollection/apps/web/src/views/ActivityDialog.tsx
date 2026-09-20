@@ -10,6 +10,7 @@ import { ENTITY_SETS, ACTIVITY_COLUMNS } from '../data/schema.js';
 import { ActivityService } from '../services/activityService.js';
 import { useSaveOperation } from '../services/useSaveOperation.js';
 import { useCrmSession } from '../shell/context.js';
+import { describeFailure } from '../platform/errors.js';
 
 /**
  * Logging a collection action, and working one that already exists.
@@ -108,7 +109,7 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
       setLoadState('ready');
       resetSaveState();
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : String(error));
+      setLoadError(describeFailure(error));
       setLoadState('error');
     }
   }, [adapter, activityId, mode, resetSaveState]);

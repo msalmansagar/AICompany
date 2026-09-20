@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { OperationRefusal } from '@dcp/domain';
 import type { SaveOutcome } from './activityService.js';
+import { describeFailure } from '../platform/errors.js';
 
 /**
  * What a save looks like to a form.
@@ -80,7 +81,7 @@ export function useSaveOperation<T>(): SaveOperation<T> {
     } catch (error) {
       // Everything the service did not classify. The message is the platform's own, which for a
       // lifecycle refusal from the plugin is the sentence a supervisor needs to see.
-      setState({ kind: 'failed', message: error instanceof Error ? error.message : String(error) });
+      setState({ kind: 'failed', message: describeFailure(error) });
       return undefined;
     } finally {
       inFlight.current = false;

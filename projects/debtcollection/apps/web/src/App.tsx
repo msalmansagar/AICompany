@@ -19,6 +19,7 @@ import './styles/uci.css';
 import './styles/phase5.css';
 import './styles/phase6.css';
 import './styles/phase7.css';
+import { toError } from './platform/errors.js';
 
 /**
  * Builds the session the whole workspace runs on.
@@ -53,7 +54,7 @@ export function App() {
     try {
       return createCrmSession();
     } catch (error) {
-      return error instanceof Error ? error : new Error(String(error));
+      return toError(error);
     }
   }, []);
 

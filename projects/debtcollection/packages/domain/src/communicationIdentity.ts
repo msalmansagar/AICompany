@@ -55,6 +55,40 @@ export function communicationId(input: {
   return uuidV5(name, COMMUNICATION_NAMESPACE);
 }
 
+/**
+ * The id for a single send an officer composed at a screen.
+ *
+ * Derived from the message itself, **never minted per click**. A composer that called
+ * `crypto.randomUUID()` inside its Send handler produced a fresh id on every press, so a
+ * double-click created two records — which Phase 7 runtime validation demonstrated on the live
+ * organisation, two Email activities twenty-three seconds apart.
+ *
+ * Deriving it makes the protection structural rather than a disabled button, which is what
+ * ADR-DCP-19 actually asks for: pressing Send twice sends the same id twice, the platform refuses
+ * the second create, and the officer's second press is a no-op instead of a second message.
+ *
+ * The message is part of the name on purpose. Changing a word, a figure or the template produces a
+ * different id, so an officer who edits and resends is sending something new — while an officer who
+ * presses Send again on an unchanged message is not.
+ */
+export function singleSendId(input: {
+  caseId: string;
+  recipientId: string;
+  channel: CommunicationChannel;
+  subject: string;
+  body: string;
+}): string {
+  const name = [
+    'single',
+    input.caseId.toLowerCase(),
+    input.recipientId.toLowerCase(),
+    input.channel,
+    input.subject,
+    input.body,
+  ].join('|');
+  return uuidV5(name, COMMUNICATION_NAMESPACE);
+}
+
 /** RFC 4122 §4.3 name-based UUID, SHA-1 variant. Browser-safe: no `node:`, no `Buffer`. */
 export function uuidV5(name: string, namespace: string): string {
   const namespaceBytes = parseUuid(namespace);
