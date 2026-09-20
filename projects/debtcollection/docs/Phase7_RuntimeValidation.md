@@ -88,25 +88,30 @@ in it, and Send becomes available (unless Step 4 applies).
 
 ---
 
-## Step 4 — Contact Hold (read this before you try to send)
+## Step 4 — Contact Hold
 
-QDB's Contact Hold rule has no source on this organisation. The rule the phase was given is to
-**fail closed**: where the platform cannot confirm that a customer may be contacted, nothing is sent.
+QDB's Contact Hold rule has no source on this organisation, and the phase was told to **fail
+closed**: where the platform cannot confirm a customer may be contacted, nothing is sent.
+
+**This sandbox has recorded an exception**, at your instruction, so that sending can be validated.
+The permission is written into the sandbox's own configuration — it is not a default, it applies to
+`org5869857f` only, and production still fails closed.
 
 **Expected, as deployed today**
 
-- A red line near the top reads *"Contact Hold cannot be checked on this organisation, so messages
-  are not sent."*
-- **Send stays greyed out even after Step 3 is complete.**
+- **No** red "Contact Hold cannot be checked" line appears.
+- Send becomes available once Step 3 is complete.
 
-That is the correct behaviour, not a defect. It also means **Step 5 cannot be run** until the
-deployment records a decision about it — see *The one decision needed* at the end.
+**Report** — PASS / FAIL, and say explicitly whether any Contact Hold warning appeared.
 
-**Report** — PASS / FAIL on the message appearing and Send staying unavailable.
+> To put the block back at any time:
+> `node --import tsx --env-file="<path>/.env" crm/scripts/record-contact-hold-exception.mts --revoke`
+> With it revoked, the red line returns and Send stays greyed out — which is the production
+> behaviour and is worth seeing once.
 
 ---
 
-## Step 5 — Sending *(only after the decision in the last section is made)*
+## Step 5 — Sending
 
 1. Complete Step 3 so the message is finished.
 2. Press **Send** once.
@@ -171,20 +176,27 @@ Read the whole screen, including every message you triggered above.
 
 ---
 
-## The one decision needed before Step 5 can run
+## What was changed on the organisation to enable this run
 
-Sending is blocked because no authoritative Contact Hold source exists on this organisation
-(`qdb_contactholdrulesetcode` is empty on both platform configuration rows, and both rows are
-inactive). The phase was instructed to fail closed rather than default to allow, so it does.
+Two things, both recorded here so nothing about this run is a surprise.
 
-There are two ways forward, and the choice is QDB's:
+**1. Five synthetic templates were seeded**, all coded `P7-` and named "P7 synthetic". Four are
+approved; `P7-SMS-UNAPPROVED-EN` is deliberately left unapproved so that "never offered" can be
+demonstrated rather than asserted. None of this is QDB wording, and none of it is production text.
 
-| | What it means |
-|---|---|
-| **Configure the real source** | QDB names a Contact Hold ruleset on the platform configuration. This is the production answer. It does not unblock the sandbox by itself, because a ruleset still has to be evaluated server-side. |
-| **Record a sandbox exception** | The sandbox's platform configuration records `{"contactHoldPolicy":"allow-when-unverifiable"}` in its feature flags. Sending then proceeds without a hold check **on this organisation only**, as a written-down, auditable decision rather than a silent default. |
+**2. The Contact Hold exception was recorded**, at your instruction. Both platform configuration
+rows (`DEMO-BFD Cloud configuration` and `DEMO-HL Cloud configuration`) now carry
+`{"contactHoldPolicy":"allow-when-unverifiable"}` in their feature flags, and **both were
+activated** — they were previously inactive, and the workspace reads a policy only from an active
+configuration, because a retired configuration granting permission would be exactly the loophole to
+avoid.
 
-Until one is done, Steps 1–4 and 6–8 are all runnable and Step 5 is not.
+`qdb_contactholdrulesetcode` remains empty on both. **KI-79 stays open**: there is still no
+authoritative Contact Hold source, and this exception does not create one. It records a decision
+about its absence, on one sandbox.
+
+The production answer is still for QDB to name a Contact Hold ruleset. Once one exists the exception
+should be withdrawn — the script checks for that and will say so.
 
 ---
 
