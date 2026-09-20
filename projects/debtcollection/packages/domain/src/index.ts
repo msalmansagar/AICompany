@@ -364,3 +364,22 @@ export type {
   CreatePromiseRequest,
   UpdatePromiseRequest,
 } from './activityOperations.js';
+
+export {
+  CommunicationChannel,
+  CHANNEL_ENTITY,
+  CommunicationRequestSchema,
+  evaluateEligibility,
+  planCommunication,
+} from './communication.js';
+export type {
+  CommunicationRecipient,
+  CommunicationRequest,
+  CommunicationWritePlan,
+  EligibilityRefusal,
+  EligibilityOutcome,
+  EligibilityContext,
+  ContactHoldVerdict,
+  ContactHoldPolicy,
+} from './communication.js';
+export { COMMUNICATION_NAMESPACE, communicationId, uuidV5 } from './communicationIdentity.js';
