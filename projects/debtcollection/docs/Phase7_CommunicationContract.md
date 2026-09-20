@@ -1,6 +1,14 @@
 # Phase 7 — Communication Contract
 
-**Status: discovery complete, 2026-09-19. Nothing implemented.** Every statement below is either read
+**Status: REVISED 2026-09-20 with QDB's confirmed implementation details.** The channel contracts below are no longer inferred — QDB supplied them from the existing production/on-prem solution. Warning Letters are **out of scope**. Bulk SMS and Bulk Email are **in scope**.
+
+**Superseded sections:** §1.2 (WhatsApp discriminator) and §2.2 are replaced by §4 below; §1.6 (Warning Letters) is withdrawn.
+
+---
+
+## 0. Original discovery, 2026-09-19
+
+Every statement below is either read
 from `org5869857f` metadata/data or marked as a gap. Where the Phase 0 proposal
 (`CommunicationArchitecture.md`) assumed something that turns out not to exist, this document says so
 rather than carrying the assumption forward.
@@ -221,3 +229,162 @@ duplicate SMS is materially worse than a duplicate note, because the customer re
 the second means Phase 7 can prove *"the correct native record is created, bound and read back"* but
 **cannot** prove *"a message reached a customer"* on this organisation. That distinction must be
 stated in every status line rather than blurred.
+
+---
+
+# PART TWO — the confirmed contract (QDB, 2026-09-20)
+
+Everything above is the discovery record and is retained for traceability. Where it conflicts with
+this part, **this part wins**.
+
+## 4. Channel contracts — confirmed by QDB, not inferred
+
+QDB has an existing **Custom Workflow Activity on-prem** that sends SMS and WhatsApp from the Dynamics
+**Fax** activity. DCP's entire responsibility is to create the correct Fax row. **DCP builds no
+dispatcher, no provider integration, and does not reverse-engineer or replace the CWA.**
+
+### 4.1 SMS — exactly three fields
+
+| Purpose | Fax field |
+|---|---|
+| Mobile number | `faxnumber` |
+| Message body | `qdb_message_body` |
+| Sender | `qdb_sender` |
+
+**No other SMS field is written.** The discovery in §1.1 catalogued `qdb_sms_id`, `qdb_sendernumber`,
+`qdb_smssendto`, `qdb_message_length`, `qdb_totalsmsmessages` and the recipient lookups — those belong
+to QDB's own mechanism and other modules, and DCP does not populate them. Writing a field because it
+exists is how a contract drifts from the implementation that owns it.
+
+Native context is preserved where the existing implementation supports it: `regardingobjectid` → the
+collection case, `subject`, and the `to` activity party.
+
+### 4.2 WhatsApp — the same entity, three more fields
+
+| Purpose | Fax field |
+|---|---|
+| Mobile number | `faxnumber` |
+| Message body | `qdb_message_body` |
+| Sender | `qdb_sender` |
+| Language | `qdb_language` |
+| WhatsApp template | `qdb_whatsapptemplate` |
+| OTP | `qdb_otp` |
+
+`qdb_language`, `qdb_whatsapptemplate` and `qdb_otp` are **WhatsApp-only**. That is the discriminator,
+and it is now **confirmed by QDB rather than inferred from the schema** — KI-78 is closed on that
+basis. An SMS row carries none of the three; a WhatsApp row carries them.
+
+### 4.3 Email — standard Dynamics, nothing custom
+
+DCP creates a standard `email` activity and stops. QDB's existing email mechanism sends it.
+
+Native semantics are preserved rather than replaced: `from`/`to` as **ActivityParty**,
+`regardingobjectid` → the collection case, native `subject` and `description`. **No SMTP, no Graph, no
+Exchange, no custom DCP email entity.**
+
+### 4.4 The approved architecture
+
+```
+Collection Workspace
+  → Communication domain/service      (decides; canonical request)
+  → Dynamics Fax / Email activity     (DCP's last step)
+  → existing QDB Custom Workflow Activity / email mechanism
+  → SMS · WhatsApp · Email provider
+```
+
+**Status language for this phase, used everywhere without softening:**
+**Record Creation Proven — Delivery Unproven on the Cloud organisation.** The QDB dispatcher exists
+on-prem and is simply absent from the Cloud development org, so the Cloud proof is that DCP produces
+the correct contract and it reads back. External delivery is an on-prem deployment test (KI-83).
+
+## 5. Single-customer communication
+
+From the Case or Customer context an authorised collector initiates SMS, WhatsApp or Email. Recipient
+details come from the established **HL Contact / BFD Account** context through the existing customer
+read path — **no duplicate customer master**. The officer reviews the recipient before submitting.
+
+## 6. Bulk SMS and Bulk Email
+
+**Bulk WhatsApp is out of scope** and is not built.
+
+### 6.1 Selection — two modes, neither loads the population
+
+| Mode | What is held |
+|---|---|
+| **Selected records** | An explicit, bounded set of case ids the officer picked |
+| **All matching filter** | The **filter definition** — never the rows. The population is resolved server-side, page by page, at execution |
+
+The large-data rule is absolute here: a bulk run over the whole book must never transfer the book to
+the browser to be iterated.
+
+### 6.2 One native record per recipient
+
+Each eligible recipient produces **its own** Fax or Email activity, because that is what QDB's sending
+mechanism consumes. **No single record containing many customers.**
+
+### 6.3 Execution — bounded batches, resumable, idempotent
+
+```
+run → resolve population page (bounded)
+    → for each recipient: eligibility gate → create native record at a DETERMINISTIC id
+    → checkpoint → next page
+```
+
+**Idempotency is structural, not procedural.** Each recipient's activity id is derived
+deterministically from the run and the recipient — `uuidv5(bulkRunId + recipientId)` — and created
+with `If-None-Match: *`. The consequences fall out for free:
+
+| Scenario | Why it is safe |
+|---|---|
+| Double-click initiation | Same run id → same recipient ids → platform refuses the second create |
+| Request retry after an uncertain response | Same id → refused → reported as already sent |
+| Interrupted batch, then resume | Completed recipients return `created: false` and are skipped |
+| Same customer twice in the population | Same recipient id → one record |
+| Partial batch failure | Only the failed recipients lack a record; a resume creates exactly those |
+
+Disabling a button is **not** the mechanism, exactly as in ADR-DCP-19. It is a courtesy on top.
+
+**`fax` and `email` are native activity entities and it is NOT established that they accept
+upsert-by-id.** That must be spiked against Dataverse before any send path is built (WP3). A duplicate
+SMS reaches the customer twice, so this is the single highest-risk assumption in the phase.
+
+### 6.4 The durable run header — proposed, not created
+
+Safety above needs no new entity. **Resumability after a browser close does**, because the population
+definition and progress must survive the session. No existing mechanism can carry it (KI-84), so a
+minimal entity is **proposed for approval** and nothing is created until it is granted.
+
+## 7. Eligibility — identical for single and bulk
+
+A bulk operation must not bypass a restriction that applies to one send. The same gate runs per
+recipient in both paths.
+
+KI-79 remains open: **no authoritative QDB Collection Contact Hold source exists.** Until QDB names
+one, the gate:
+
+- **honours native Dynamics channel restrictions** — `donotfax` for SMS/WhatsApp, `donotemail` for
+  Email — as a necessary condition;
+- **does not call that QDB Collection Contact Hold**, because it is a marketing preference;
+- **does not use `creditonhold`** as a generic communication hold, there being no evidence for it;
+- **does not** read the 724 deceased MIS flags into Phase 9 behaviour;
+- stays **pluggable**, so the authoritative rule drops in without the call sites changing.
+
+## 8. Templates
+
+`qdb_communicationtemplate` is the DCP configuration entity for all three channels. Synthetic
+development templates are marked **`P7-`** and are never presented as approved QDB wording. No
+production message text is hard-coded in React. `qdb_externaltemplateref` carries the
+provider-registered WhatsApp template name that `fax.qdb_whatsapptemplate` expects.
+
+## 9. Unified Communication History
+
+A read model over the native records — **`fax` (SMS and WhatsApp) and `email`**. `qdb_communication`
+is not created and not repurposed. Server-side filter, sort and page with an opaque continuation and
+bounded virtualization; a filter change resets paging and suppresses stale responses. **Nothing is
+copied into another table for display convenience.**
+
+## 10. Warning Letters — out of scope
+
+**Deferred / Out of Scope by QDB decision, 2026-09-20.** No Report Engine configuration, no letter
+templates, no UI, no SSRS integration, no document generation, no entities or fields, and no further
+investigation time. Recorded as a scope decision, not an unresolved blocker (KI-81).
