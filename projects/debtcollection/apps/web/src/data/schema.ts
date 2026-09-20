@@ -321,6 +321,15 @@ export const BUCKET_LABELS: Readonly<Record<number, string>> = {
 
 export const ORG_LABELS: Readonly<Record<number, string>> = { 100000140: 'HL', 100000141: 'BFD' };
 
+/**
+ * The same two organisations, keyed the other way.
+ *
+ * Configuration is resolved BY organisation code — one active row per organisation, exactly as
+ * `PlatformConfigurationService` resolves it server-side. Reading 'the active configuration'
+ * without this key makes the answer depend on the order the platform returned rows in.
+ */
+export const ORG_CODES: Readonly<Record<string, number>> = { HL: 100000140, BFD: 100000141 };
+
 export const CASE_STATUS_LABELS: Readonly<Record<number, string>> = {
   100000600: 'New', 100000601: 'Assigned', 100000602: 'In Progress', 100000603: 'Pending Customer Response',
   100000604: 'PTP Active', 100000605: 'PTP Broken', 100000606: 'Restructure Review', 100000607: 'Restructured',

@@ -34,6 +34,9 @@ const caseRow = {
   qdb_customerbusinessid: '28912345678',
   qdb_facilitynumber: 'HL-99001',
   qdb_currentdpd: 45,
+  // The organisation is the key configuration is resolved by. A case without one cannot be
+  // resolved at all, and the screen fails closed — which is a state worth having a test for.
+  qdb_organizationcode: 100000140,
   statecode: 0,
   _qdb_customerid_value: CONTACT_ID,
   [`_qdb_customerid_value${LOOKUP_TABLE}`]: 'contact',
@@ -117,6 +120,7 @@ const emailRow = {
 const permissiveConfiguration = {
   qdb_platformconfigurationid: 'cfg-1',
   qdb_name: 'Sandbox configuration',
+  qdb_organizationcode: 100000140,
   qdb_isactive: true,
   qdb_contactholdrulesetcode: null,
   qdb_featureflags: JSON.stringify({ contactHoldPolicy: 'allow-when-unverifiable' }),
@@ -144,8 +148,14 @@ function fakeXrm(rows: Rows): XrmLike {
         if (!row) throw { status: 404 };
         return row;
       },
-      async retrieveMultipleRecords(logicalName: string) {
-        const entities = rows[logicalName] ?? [];
+      async retrieveMultipleRecords(logicalName: string, options = '') {
+        const all = rows[logicalName] ?? [];
+        // Honoured, not ignored: configuration is resolved BY organisation code, and a fake that
+        // returned every row regardless would let a keyless resolver pass.
+        const key = /qdb_organizationcode eq (\d+)/.exec(String(options))?.[1];
+        const entities = key === undefined
+          ? all
+          : all.filter(row => Number(row['qdb_organizationcode']) === Number(key));
         return { entities, '@odata.count': entities.length };
       },
       async createRecord() { return { id: '{1}' }; },
@@ -320,8 +330,9 @@ describe('sending, through the production composition path', () => {
 describe('Contact Hold, which this organisation cannot establish', () => {
   it('blocks sending when no deployment decision has been recorded', async () => {
     const rows = baseRows();
-    // No platform configuration at all: nothing is configured and nothing was decided.
-    rows['qdb_platformconfiguration'] = [];
+    // A configuration exists for this organisation, but records no decision about an unverifiable
+    // hold. That is the ordinary state of a deployment nobody has thought about yet.
+    rows['qdb_platformconfiguration'] = [{ ...permissiveConfiguration, qdb_featureflags: null }];
     await open(rows);
 
     const notice = await screen.findByTestId('hold-blocked');
@@ -335,6 +346,26 @@ describe('Contact Hold, which this organisation cannot establish', () => {
     // Complete message, and still not sendable. Failing closed is the requirement, and the officer
     // is told before composing rather than after pressing Send.
     expect(screen.getByTestId('composer-send')).toBeDisabled();
+  });
+
+  it('blocks sending when the organisation has no configuration at all', async () => {
+    const rows = baseRows();
+    rows['qdb_platformconfiguration'] = [];
+    await open(rows);
+
+    const notice = await screen.findByTestId('hold-blocked');
+    // A different situation from "configured but undecided", and it says so — the fix is different.
+    expect(notice.textContent).toMatch(/no active configuration/i);
+  });
+
+  it('blocks sending when the case belongs to an organisation with no configuration', async () => {
+    const rows = baseRows();
+    // The configuration is BFD's; the case is HL's. A decision recorded for one organisation must
+    // not permit sending on the other's cases.
+    rows['qdb_platformconfiguration'] = [{ ...permissiveConfiguration, qdb_organizationcode: 100000141 }];
+    await open(rows);
+
+    await screen.findByTestId('hold-blocked');
   });
 
   it('blocks sending when the recorded flag is unreadable, rather than treating it as permission', async () => {

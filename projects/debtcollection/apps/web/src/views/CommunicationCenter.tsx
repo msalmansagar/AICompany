@@ -76,11 +76,18 @@ function CaseCommunications({ caseId }: { caseId: string }) {
     let live = true;
     void (async () => {
       const detail = await retrieveCase(adapter, caseId);
-      if (!detail?.customerTable || !detail.customerId) return;
+      if (!detail) return;
+
+      // Keyed by the case's own organisation. HL and BFD share a Dataverse and each has its own
+      // active configuration, so resolving without this key would let a decision recorded for one
+      // organisation permit sending on the other's cases.
+      const resolved = await resolveContactHoldPolicy(adapter, detail.organization);
+      if (live) setHold(resolved);
+
+      if (!detail.customerTable || !detail.customerId) return;
       const profile = await retrieveCustomer(adapter, detail.customerTable, detail.customerId);
       if (live) setRecipient(profile);
     })();
-    void resolveContactHoldPolicy(adapter).then(resolved => { if (live) setHold(resolved); });
     return () => { live = false; };
   }, [adapter, caseId]);
 
