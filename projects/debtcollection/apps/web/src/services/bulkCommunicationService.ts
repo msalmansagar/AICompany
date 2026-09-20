@@ -188,6 +188,37 @@ export class BulkCommunicationService {
       return { status: 'complete', progress: deriveProgress(run.total, run.total, run.nonSuccesses) };
     }
 
+    /**
+     * Claim the run **before creating anything**.
+     *
+     * Without this, two workers that read the same version would each go on to create records and
+     * only collide at the checkpoint — so both would have "independently processed" the run, which
+     * is precisely what must not happen. Writing the status with `If-Match` first turns the row
+     * version into a mutual-exclusion point: exactly one worker proceeds, and the loser stops
+     * having created nothing at all.
+     *
+     * It is also what makes the derived counters trustworthy. `successful` is derived from
+     * `processed`, and `processed` is the persisted cursor — so the cursor's source state has to be
+     * concurrency-safe or the derivation inherits the race.
+     */
+    let claimedVersion: RowVersion;
+    try {
+      claimedVersion = await this.adapter.updateVersioned(
+        { entity: ENTITY_SETS.communicationRun, id: runId },
+        {
+          qdb_status: STATUS_CODES.Running,
+          ...(run.status === 'Draft' ? { qdb_startedon: new Date().toISOString() } : {}),
+        },
+        run.version,
+      );
+    } catch (error) {
+      if (!isConcurrencyConflict(error)) throw error;
+      return {
+        status: 'takenOver',
+        message: 'This run is already being processed somewhere else, so it was left to continue there.',
+      };
+    }
+
     const results: RecipientResult[] = [];
     const newNonSuccesses: RecordedNonSuccess[] = [];
 
@@ -213,10 +244,11 @@ export class BulkCommunicationService {
           qdb_cursor: plan.nextCursor,
           qdb_failedrecipients: serialiseNonSuccesses(merged),
           qdb_status: plan.lastBatch ? STATUS_CODES.Completed : STATUS_CODES.Running,
-          ...(run.status === 'Draft' ? { qdb_startedon: new Date().toISOString() } : {}),
           ...(plan.lastBatch ? { qdb_completedon: new Date().toISOString() } : {}),
         },
-        run.version,
+        // The version the claim returned, not the one first read. Anything else would mean writing
+        // over the claim this worker itself made.
+        claimedVersion,
       );
     } catch (error) {
       if (!isConcurrencyConflict(error)) throw error;
