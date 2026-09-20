@@ -22,6 +22,10 @@ export const ENTITY_SETS = {
   collectionActivity: 'qdb_collectionactivities',
   collectionActivityType: 'qdb_collectionactivitytypes',
   activityOutcome: 'qdb_activityoutcomes',
+  communicationTemplate: 'qdb_communicationtemplates',
+  communicationRun: 'qdb_communicationruns',
+  fax: 'faxes',
+  email: 'emails',
   identityException: 'qdb_identityexceptions',
   collectionStrategy: 'qdb_collectionstrategies',
   strategyAction: 'qdb_strategyactions',
@@ -63,6 +67,9 @@ export const NAVIGATION_PROPERTIES = {
   activityToType: 'qdb_activitytypeid_qdb_collectionactivity',
   activityToOutcome: 'qdb_outcomeid_qdb_collectionactivity',
   outcomeToType: 'qdb_activitytypeid',
+  runToTemplate: 'qdb_templateid',
+  faxToCase: 'regardingobjectid_qdb_collectioncase_fax',
+  emailToCase: 'regardingobjectid_qdb_collectioncase_email',
   snapshotToCase: 'qdb_collectioncaseid',
   caseToStrategy: 'qdb_strategyid',
   caseToAssignedTeam: 'qdb_assignedteamid',
@@ -78,6 +85,9 @@ export const NAVIGATION_REGISTRY: readonly {
   { entity: 'qdb_collectionactivity', attribute: 'qdb_activitytypeid', navigationProperty: NAVIGATION_PROPERTIES.activityToType },
   { entity: 'qdb_collectionactivity', attribute: 'qdb_outcomeid', navigationProperty: NAVIGATION_PROPERTIES.activityToOutcome },
   { entity: 'qdb_activityoutcome', attribute: 'qdb_activitytypeid', navigationProperty: NAVIGATION_PROPERTIES.outcomeToType },
+  { entity: 'qdb_communicationrun', attribute: 'qdb_templateid', navigationProperty: NAVIGATION_PROPERTIES.runToTemplate },
+  { entity: 'fax', attribute: 'regardingobjectid', navigationProperty: NAVIGATION_PROPERTIES.faxToCase },
+  { entity: 'email', attribute: 'regardingobjectid', navigationProperty: NAVIGATION_PROPERTIES.emailToCase },
   { entity: 'qdb_delinquencysnapshot', attribute: 'qdb_collectioncaseid', navigationProperty: NAVIGATION_PROPERTIES.snapshotToCase },
   { entity: 'qdb_collectioncase', attribute: 'qdb_strategyid', navigationProperty: NAVIGATION_PROPERTIES.caseToStrategy },
   { entity: 'qdb_collectioncase', attribute: 'qdb_assignedteamid', navigationProperty: NAVIGATION_PROPERTIES.caseToAssignedTeam },
@@ -175,6 +185,43 @@ export const ACTIVITY_OUTCOME_COLUMNS = [
   'qdb_activityoutcomeid', 'qdb_name', 'qdb_code', 'qdb_category', 'qdb_isactive', 'qdb_sequence',
   'qdb_requiresfollowup', 'qdb_followupdays', 'qdb_requiresnotes', 'qdb_escalationrequired',
   'qdb_closeactivity', '_qdb_activitytypeid_value',
+] as const;
+
+/**
+ * A Fax row as the workspace reads one.
+ *
+ * Only the columns QDB's confirmed SMS/WhatsApp contract uses, plus the native activity context that
+ * makes the row legible in a timeline. The other 25 qdb_ columns on fax belong to QDB's own
+ * mechanism and other modules and are neither written nor read.
+ */
+export const FAX_COLUMNS = [
+  'activityid', 'subject', 'faxnumber', 'qdb_message_body', 'qdb_sender',
+  'qdb_language', 'qdb_whatsapptemplate', 'qdb_otp',
+  'statecode', 'statuscode', 'createdon', 'directioncode',
+  '_regardingobjectid_value', '_ownerid_value',
+] as const;
+
+/** An Email row. Standard Dynamics throughout — DCP adds nothing to this entity. */
+export const EMAIL_COLUMNS = [
+  'activityid', 'subject', 'description',
+  'statecode', 'statuscode', 'createdon', 'directioncode',
+  '_regardingobjectid_value', '_ownerid_value',
+] as const;
+
+/** The bulk run header (KI-84). Never holds a message sent to anyone. */
+export const COMMUNICATION_RUN_COLUMNS = [
+  'qdb_communicationrunid', 'qdb_name', 'qdb_channel', 'qdb_status', 'qdb_selectionmode',
+  'qdb_messagebody', 'qdb_subject', 'qdb_filterdefinition', 'qdb_frozenpopulation',
+  'qdb_totalrecipients', 'qdb_cursor', 'qdb_failedrecipients',
+  'qdb_startedon', 'qdb_completedon', 'statecode', 'statuscode', '_qdb_templateid_value',
+] as const;
+
+/** The template catalogue the composer offers. */
+export const COMMUNICATION_TEMPLATE_COLUMNS = [
+  'qdb_communicationtemplateid', 'qdb_code', 'qdb_name', 'qdb_channel', 'qdb_language',
+  'qdb_subject', 'qdb_body', 'qdb_placeholders', 'qdb_externaltemplateref',
+  'qdb_approvalstatus', 'qdb_freetextallowed', 'qdb_editingallowed', 'qdb_isactive',
+  'qdb_effectivefrom', 'qdb_effectiveto',
 ] as const;
 
 export const IDENTITY_EXCEPTION_COLUMNS = [
@@ -300,6 +347,10 @@ export const READ_REGISTRY: readonly { entitySet: string; columns: readonly stri
   { entitySet: ENTITY_SETS.strategyAction, columns: STRATEGY_ACTION_COLUMNS },
   { entitySet: ENTITY_SETS.collectionActivityType, columns: ACTIVITY_TYPE_COLUMNS },
   { entitySet: ENTITY_SETS.activityOutcome, columns: ACTIVITY_OUTCOME_COLUMNS },
+  { entitySet: ENTITY_SETS.communicationTemplate, columns: COMMUNICATION_TEMPLATE_COLUMNS },
+  { entitySet: ENTITY_SETS.communicationRun, columns: COMMUNICATION_RUN_COLUMNS },
+  { entitySet: ENTITY_SETS.fax, columns: FAX_COLUMNS },
+  { entitySet: ENTITY_SETS.email, columns: EMAIL_COLUMNS },
   { entitySet: ENTITY_SETS.identityException, columns: IDENTITY_EXCEPTION_COLUMNS },
   { entitySet: ENTITY_SETS.platformConfiguration, columns: PLATFORM_CONFIGURATION_COLUMNS },
   { entitySet: ENTITY_SETS.platformMapping, columns: PLATFORM_MAPPING_COLUMNS },

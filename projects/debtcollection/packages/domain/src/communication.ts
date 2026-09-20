@@ -84,7 +84,7 @@ export interface EligibilityRefusal {
   field?: string;
 }
 
-export type EligibilityOutcome =
+export type CommunicationEligibilityOutcome =
   | { eligible: true }
   | { eligible: false; refusals: readonly EligibilityRefusal[] };
 
@@ -129,7 +129,7 @@ export interface EligibilityContext {
 export function evaluateEligibility(
   request: CommunicationRequest,
   context: EligibilityContext,
-): EligibilityOutcome {
+): CommunicationEligibilityOutcome {
   const refusals: EligibilityRefusal[] = [];
 
   if (!request.caseId) {

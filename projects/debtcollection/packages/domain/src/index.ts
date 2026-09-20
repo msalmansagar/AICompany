@@ -377,9 +377,30 @@ export type {
   CommunicationRequest,
   CommunicationWritePlan,
   EligibilityRefusal,
-  EligibilityOutcome,
+  CommunicationEligibilityOutcome,
   EligibilityContext,
   ContactHoldVerdict,
   ContactHoldPolicy,
 } from './communication.js';
 export { COMMUNICATION_NAMESPACE, communicationId, uuidV5 } from './communicationIdentity.js';
+
+export {
+  freezePopulation,
+  thawPopulation,
+  validateManifestCapacity,
+  serialiseNonSuccesses,
+  parseNonSuccesses,
+  deriveProgress,
+  reconcile,
+  planBatch,
+  nativeActivityIdFor,
+} from './bulkCommunication.js';
+export type {
+  CapacityVerdict,
+  RecipientOutcome,
+  RecipientResult,
+  RecordedNonSuccess,
+  RunProgress,
+  ReconciliationVerdict,
+  BatchPlan,
+} from './bulkCommunication.js';
