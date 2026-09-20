@@ -69,7 +69,14 @@ export function DataGrid<T, Q extends object>({
     return (
       <div className="empty-state" data-testid={`${testId}-error`}>
         <div className="es-title">The list could not be loaded.</div>
-        <div>{paged.error?.message ?? ''}</div>
+        {/*
+          The platform's own message is deliberately NOT shown. It reads "Could not find a property
+          named 'qdb_collectionactivityid' on type Microsoft.Dynamics.CRM.qdb_collectionactivity" —
+          correct in a console, meaningless and alarming to a Collection Officer, and a leak of
+          entity names into officer-facing UI (KI-93). The detail stays in the browser console,
+          where whoever is diagnosing it will look.
+        */}
+        <div>Try again. If it keeps happening, report it to your administrator.</div>
         <button type="button" className="btn" onClick={paged.retry} data-testid={`${testId}-retry`}>Retry</button>
       </div>
     );
@@ -116,7 +123,7 @@ export function DataGrid<T, Q extends object>({
             {paged.status === 'loadingMore' && <span data-testid={`${testId}-loading-more`}>Loading more…</span>}
             {paged.status === 'error' && paged.items.length > 0 && (
               <span data-testid={`${testId}-page-error`}>
-                {paged.error?.message ?? 'The next page could not be loaded.'}{' '}
+                The next page could not be loaded.{' '}
                 <button type="button" className="btn" onClick={paged.retry}>Retry</button>
               </span>
             )}

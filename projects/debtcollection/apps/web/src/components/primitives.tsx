@@ -225,7 +225,7 @@ export function PromiseOutcome({ status }: { status?: string | undefined }) {
   return (
     <span className="row-actions">
       <StatusPill status={status} />
-      {claimsPayment && <span className="unverified" title="Payment has not been verified against MIS (KI-53).">unverified</span>}
+      {claimsPayment && <span className="unverified" title="Payment has not been verified against MIS.">unverified</span>}
     </span>
   );
 }

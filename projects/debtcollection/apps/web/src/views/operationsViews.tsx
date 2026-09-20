@@ -59,7 +59,7 @@ export function DelinquencyIntakeView() {
     <div data-testid="view-intake">
       <InfoBanner icon="refresh">
         Intake records what MIS reported and what could not be matched. <b>These are stored positions,
-        not a live MIS read</b> — the MIS transport contract is still pending QDB (KI-53), so no screen
+        not a live MIS read</b> — direct MIS access is not available yet, so no screen
         in this phase can show live portfolio figures.
       </InfoBanner>
       <KpiRow items={[
@@ -134,7 +134,7 @@ export function PromiseToPayView({ view, onOpenCase }: {
     <div data-testid="view-ptp">
       <InfoBanner icon="promise">
         Every outcome here is <b>what a collection officer recorded</b>. Nothing on this screen has been
-        verified against a payment: the MIS payment contract does not exist yet (KI-53), so a promise
+        verified against a payment: payment data is not available to this application yet, so a promise
         marked Kept means the customer said they paid, not that the money arrived.
       </InfoBanner>
       {view.pendingSummary && <PendingPhaseNotice view={view} />}
@@ -147,7 +147,7 @@ export function PromiseToPayView({ view, onOpenCase }: {
         // phase that owns PTP evaluation rather than derived from figures that may be floors.
         // A rate over two counts either of which may be capped, and a number that would read as a
         // verified collection statistic. Automatic evaluation needs the MIS payment contract.
-        { label: 'Kept rate', value: '—', hint: 'Needs verified payment data (KI-53)' },
+        { label: 'Kept rate', value: '—', hint: 'Needs verified payment data' },
       ]} />
       <Card
         title="Promises"
@@ -206,7 +206,7 @@ export function DashboardsView({ view }: { view: ViewDefinition }) {
       <Card title="Beyond counts" subtitle="What the approved dashboards show that a bounded count cannot answer.">
         <ul className="hint">
           <li>Overdue balance by bucket — needs aggregation the Web API does not perform (Phase 10).</li>
-          <li>Roll rates and transition — needs period-over-period MIS, blocked on the transport contract (KI-53).</li>
+          <li>Roll rates and transition — needs period-over-period MIS, which is not available yet.</li>
           <li>Collector performance and SLA breach — needs the SLA model Phase 8 introduces.</li>
         </ul>
       </Card>

@@ -258,7 +258,7 @@ export function CaseActionPlan({ caseId, strategyId, strategyName }: {
         <div>
           Matching is <b>by activity type</b>. The schema records no link between an activity and the
           planned action that prompted it, so this shows that work of each kind has happened — not that
-          a particular planned action produced it (KI-71).
+          a particular planned action produced it.
         </div>
       </div>
       {rows.length === 0
@@ -322,7 +322,7 @@ export function ActionPlanView({ view }: { view: ViewDefinition }) {
       <PendingPhaseNotice view={view} />
       <KpiRow items={[
         { label: 'Cases with a plan', value: '—', hint: 'Needs per-case strategy resolution (Phase 8)' },
-        { label: 'Contact suppressed', value: '—', hint: 'Pending QDB confirmation of the contact-hold source (KI-44)' },
+        { label: 'Contact suppressed', value: '—', hint: 'Pending confirmation of the contact-hold source' },
         { label: 'Escalation advised', value: '—', hint: 'Phase 8' },
         { label: 'Reminders queued', value: '—', hint: 'Phase 6' },
       ]} />

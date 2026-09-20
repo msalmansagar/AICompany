@@ -9,6 +9,7 @@ import {
 } from '../components/primitives.js';
 import { useCrmSession } from '../shell/context.js';
 import type { ViewDefinition } from '../shell/routes.js';
+import { toError } from '../platform/errors.js';
 
 /**
  * Configuration — the deployment's own shape, read.
@@ -41,7 +42,7 @@ export function ConfigurationView({ view }: { view: ViewDefinition }) {
         setSelected(rows[0]?.id);
       })
       .catch((error: unknown) => {
-        if (!cancelled) setState({ status: 'error', error: error instanceof Error ? error : new Error(String(error)) });
+        if (!cancelled) setState({ status: 'error', error: toError(error) });
       });
     return () => { cancelled = true; };
   }, [adapter]);
@@ -54,7 +55,7 @@ export function ConfigurationView({ view }: { view: ViewDefinition }) {
       {state.status === 'loading' && <div className="empty-state" data-testid="config-loading">Loading configuration…</div>}
       {state.status === 'error' && (
         <Card title="Platform configuration">
-          <EmptyState icon="warn" message={state.error?.message ?? 'The configuration could not be read.'} />
+          <EmptyState icon="warn" message="The configuration could not be read. Try again, and report it to your administrator if it keeps happening." />
         </Card>
       )}
       {state.status === 'ready' && (state.rows?.length ?? 0) === 0 && (
@@ -88,7 +89,10 @@ function SessionCard() {
           { label: 'Client URL', value: context.clientUrl },
           { label: 'Web API version', value: context.apiVersion },
           { label: 'Web API base', value: context.apiBase },
-          { label: 'Organisation', value: context.organizationUniqueName ?? '—' },
+          // The organisation unique name is deliberately absent. A manager is not a developer,
+          // and `unq8e28c4d88f8f4c42aa0a31a680cc0` tells them nothing the client URL below does
+          // not (KI-93). It reached this panel because the header fix was made in one place and
+          // this was the other.
           { label: 'User', value: context.userName },
           { label: 'Language', value: String(context.languageId) },
           { label: 'Security roles', value: String(context.securityRoleIds.length) },
@@ -130,7 +134,7 @@ function ConfigurationCard({ row, isSelected, onSelect }: {
           { label: 'Facility table', value: row.facilityEntity ?? 'none — facility identity comes from MIS' },
           { label: 'Eligibility ruleset', value: row.eligibilityRulesetCode ?? '—' },
           { label: 'Strategy ruleset', value: row.strategyRulesetCode ?? '—' },
-          { label: 'Contact-hold ruleset', value: row.contactHoldRulesetCode ?? '— (KI-44, pending QDB)' },
+          { label: 'Contact-hold ruleset', value: row.contactHoldRulesetCode ?? '— not configured' },
           { label: 'Snapshot policy', value: row.snapshotPolicy ?? '—' },
           { label: 'MIS integration', value: row.misIntegrationEnabled ? 'Enabled' : 'Disabled' },
           { label: 'MIS provider', value: row.misProvider ?? '—' },

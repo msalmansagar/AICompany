@@ -39,10 +39,19 @@ export function AppShell({ commands, children }: AppShellProps) {
           <span className="name">Debt Collection</span>
         </div>
         <div className="header-spacer" />
-        <div className="env-name" data-testid="environment">
-          {context.organizationUniqueName ?? 'CRM'}
-        </div>
-        <div className="header-spacer" />
+        {/*
+          The Dynamics organisation unique name used to be rendered here, so every officer saw
+          `unq8e28c4d88f8f4c42aa0a31a680cc0` across the top of every screen. It is an internal
+          identifier, it means nothing to a Collection Officer, and Phase 7 runtime validation
+          raised it as information leakage (KI-93).
+
+          Nothing replaces it. `qdb_environmentcode` was the candidate, but this organisation holds
+          two active configurations with two different codes — DEMO-HL-CLOUD and DEMO-BFD-CLOUD —
+          while this header is global and the workspace may be scoped to both. Showing one would be
+          a label that is wrong half the time, which is worse than no label. The officer already has
+          what they need: the CRM scope picker names which organisations are in view, and Dynamics'
+          own chrome marks the environment.
+        */}
 
         <div className="header-search">
           <Icon name="search" />

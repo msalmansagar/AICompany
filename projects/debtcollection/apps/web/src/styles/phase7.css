@@ -18,7 +18,11 @@
   align-items: start;
 }
 
-.comms-layout > .info-banner {
+/* The banner AND the Contact Hold block both span the full width. Without this the block took a
+   grid column of its own, pushing the composer sideways and the history below it — which the
+   Phase 7 runtime run showed the moment sending was refused. */
+.comms-layout > .info-banner,
+.comms-layout > .field-error {
   grid-column: 1 / -1;
 }
 

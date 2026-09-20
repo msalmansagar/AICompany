@@ -77,7 +77,7 @@ export function CaseWorkspaceView({ caseId, initialTab, onOpenCustomer }: {
   if (state.status === 'error') {
     return (
       <Card title="Case Detail">
-        <EmptyState icon="warn" message={state.error?.message ?? 'The case could not be read.'} />
+        <EmptyState icon="warn" message="This case could not be opened. Try again, and report it to your administrator if it keeps happening." />
       </Card>
     );
   }
@@ -198,7 +198,7 @@ function SummaryTab({ detail }: { detail: CaseDetail }) {
 
       <Card
         title="Position"
-        subtitle="What MIS last reported for this facility. Not a live read — the MIS transport contract is pending (KI-53)."
+        subtitle="What MIS last reported for this facility. Not a live read — direct MIS access is not available yet."
       >
         <FieldList
           testId="case-position-fields"
