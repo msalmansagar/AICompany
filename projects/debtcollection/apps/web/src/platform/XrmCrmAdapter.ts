@@ -143,6 +143,22 @@ export class XrmCrmAdapter implements ICrmAdapter, IConcurrencyControlledWrites 
     return { id, created: true };
   }
 
+
+  /**
+   * Appends a record to a collection-valued navigation property.
+   *
+   * Separate from `create` because it is not a create in the client API's sense: there is no entity
+   * set to name, only an owning record and one of its collections. `Xrm.WebApi.createRecord` cannot
+   * express that, which is why this goes through the transport.
+   */
+  async appendToCollection(path: string, values: CrmRecord): Promise<void> {
+    const transport = this.requireWriteTransport('append to a collection');
+    const response = await transport.post(`/${path}`, values);
+    if (response.status >= 400) {
+      throw new Error(`Appending to ${path} failed (${response.status}): ${response.message ?? ''}`);
+    }
+  }
+
   private requireWriteTransport(what: string): WriteTransport {
     if (!this.writeTransport) {
       throw new Error(

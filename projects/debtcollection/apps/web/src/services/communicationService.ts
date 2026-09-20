@@ -50,6 +50,17 @@ const REGARDING_CASE: Readonly<Record<'fax' | 'email', string>> = {
   email: NAVIGATION_PROPERTIES.emailToCase,
 };
 
+/**
+ * The collection-valued navigation property that carries an activity's parties.
+ *
+ * Read from metadata, never derived. The party cannot go in the create payload at all — see
+ * `attachRecipient` for what the platform accepts and what it refuses.
+ */
+const PARTY_COLLECTION: Readonly<Record<'fax' | 'email', string>> = {
+  fax: 'fax_activity_parties',
+  email: 'email_activity_parties',
+};
+
 const ENTITY_SET: Readonly<Record<'fax' | 'email', string>> = {
   fax: ENTITY_SETS.fax,
   email: ENTITY_SETS.email,
@@ -86,40 +97,46 @@ export class CommunicationService {
     const payload = toNativePayload(plan);
     const result = await this.adapter.createIdempotent(ENTITY_SET[plan.entity], activityId, payload);
 
-    // The recipient is an ActivityParty, which the platform will not accept in the same request as
-    // the record itself — so it is attached after, and only for a record this call created. A
-    // repeat already has its party from the first attempt.
+    // Only for a record this call actually created. A repeat already carries its recipient from the
+    // first attempt, and adding another party would give one message two recipients.
     if (result.created) {
-      await this.attachRecipientParty(plan.entity, activityId, plan.recipientParty);
+      await this.attachRecipient(plan.entity, activityId, plan.recipientParty);
     }
 
     return { status: 'sent', activityId, created: result.created };
   }
 
   /**
-   * Attaches the recipient as an activity party.
+   * Attaches the recipient as a native ActivityParty.
    *
-   * Native Dynamics semantics, preserved rather than replaced: `to` is a PartyList on both `fax` and
-   * `email`, and a customer is a `contact` for Housing Loan or an `account` for BFD. The party
-   * therefore points at whichever table the recipient resolver returned — one code path, two
-   * customer masters, no branch on the organisation.
+   * It has to be a second request, and the shape is not obvious — both facts were established
+   * against the organisation rather than assumed:
    *
-   * A failure here is deliberately not fatal to the send. The record exists and carries the
-   * recipient's number or address; a missing party makes it less legible in CRM, not undelivered.
+   * | Attempt | Result |
+   * |---|---|
+   * | `to: [...]` inside the upsert create | **400** — payload rejected |
+   * | `to: [...]` in a PATCH after the record exists | **400** — same |
+   * | `POST /faxes(id)/fax_activity_parties` | **204** — the party lands with mask 2 |
+   *
+   * So the party goes to the **collection-valued navigation property**, whose name is read from
+   * metadata (`fax_activity_parties`, `email_activity_parties`) rather than derived — the same rule
+   * KI-69 established for lookups, applied to relationships.
+   *
+   * `participationtypemask: 2` is the native "To" value. The platform adds the sender itself.
    */
-  private async attachRecipientParty(
+  private async attachRecipient(
     entity: 'fax' | 'email',
     activityId: string,
     party: { table: 'contact' | 'account'; id: string },
   ): Promise<void> {
-    const partyTargetSet = party.table === 'contact' ? ENTITY_SETS.contact : ENTITY_SETS.account;
-    await this.adapter.create('activityparties', {
-      'activityid_activitypointer@odata.bind': `/activitypointers(${activityId})`,
-      [`partyid_${party.table}@odata.bind`]: `/${partyTargetSet}(${party.id})`,
-      // 2 = "To" in the native participation type mask.
-      participationtypemask: 2,
-    });
-    void entity;
+    const partySet = party.table === 'contact' ? ENTITY_SETS.contact : ENTITY_SETS.account;
+    await this.adapter.appendToCollection(
+      `${ENTITY_SET[entity]}(${activityId})/${PARTY_COLLECTION[entity]}`,
+      {
+        [`partyid_${party.table}@odata.bind`]: `/${partySet}(${party.id})`,
+        participationtypemask: 2,
+      },
+    );
   }
 }
 
@@ -144,5 +161,6 @@ export function toNativePayload(plan: ReturnType<typeof planCommunication>): Rec
     if (bind.lookup !== 'regardingCase') continue;
     Object.assign(payload, bindLookup(REGARDING_CASE[plan.entity], ENTITY_SETS.collectionCase, bind.id));
   }
+
   return payload;
 }

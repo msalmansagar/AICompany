@@ -44,6 +44,11 @@ const SET_FOR_LOGICAL: Record<string, string> = {
   qdb_platformconfiguration: 'qdb_platformconfigurations',
   qdb_platformmapping: 'qdb_platformmappings',
   qdb_crmlogs: 'qdb_crmlogses',
+  // Native activity sets are irregular too: 'fax' + s is 'faxs', which 404s.
+  fax: 'faxes',
+  email: 'emails',
+  qdb_communicationrun: 'qdb_communicationruns',
+  qdb_communicationtemplate: 'qdb_communicationtemplates',
   contact: 'contacts',
   account: 'accounts',
 };
@@ -65,7 +70,17 @@ export interface NodeHarness {
 const OPTIONS_MUST_BEGIN_WITH_QUESTION_MARK = 'UciError: Option Parameter should begin with "?"';
 
 /** Builds the adapter, its transport and the counters, all sharing one credential. */
-export function buildNodeHarness(apiBase: string, token: string): NodeHarness {
+export function buildNodeHarness(
+  apiBase: string,
+  token: string,
+  /**
+   * Wraps the transport before the adapter is built around it.
+   *
+   * Used by the concurrency smoke to count what the PRODUCTION path attempted, rather than counting
+   * through a wrapper sitting beside the adapter and hoping the two agree.
+   */
+  wrapTransport: (inner: WriteTransport) => WriteTransport = t => t,
+): NodeHarness {
   const counters: HarnessCounters = { reads: 0, writes: 0 };
   const authHeaders = () => buildHeaders(token, SOLUTION_NAME) as Record<string, string>;
 
@@ -144,6 +159,15 @@ export function buildNodeHarness(apiBase: string, token: string): NodeHarness {
       }));
     },
 
+    async post(url: string, body: unknown): Promise<WriteResponse> {
+      counters.writes++;
+      return readResponse(await fetch(`${apiBase}${url}`, {
+        // No return=representation: a collection append has nothing to return, and asking makes
+        // the platform answer 500. See writeTransport.ts.
+        method: 'POST', headers: { ...authHeaders(), Prefer: READ_PREFER }, body: JSON.stringify(body),
+      }));
+    },
+
     async createOnly(url: string, body: unknown): Promise<WriteResponse> {
       counters.writes++;
       // `If-None-Match: *` means "the record must not exist" — the exact opposite of `If-Match: *`,
@@ -155,5 +179,6 @@ export function buildNodeHarness(apiBase: string, token: string): NodeHarness {
     },
   };
 
-  return { adapter: new XrmCrmAdapter(xrm, undefined, transport), transport, counters };
+  const wrapped = wrapTransport(transport);
+  return { adapter: new XrmCrmAdapter(xrm, undefined, wrapped), transport: wrapped, counters };
 }

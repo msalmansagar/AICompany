@@ -19,7 +19,7 @@ import type { WriteTransport, WriteResponse } from '../platform/writeTransport.j
  */
 
 interface RecordedRequest {
-  method: 'PATCH' | 'CREATE' | 'GET';
+  method: 'PATCH' | 'CREATE' | 'GET' | 'POST';
   url: string;
   body?: unknown;
   ifMatch?: string;
@@ -41,6 +41,11 @@ class RecordingTransport implements WriteTransport {
 
   async createOnly(url: string, body: unknown): Promise<WriteResponse> {
     this.requests.push({ method: 'CREATE', url, body });
+    return this.next();
+  }
+
+  async post(url: string, body: unknown): Promise<WriteResponse> {
+    this.requests.push({ method: 'POST', url, body });
     return this.next();
   }
 

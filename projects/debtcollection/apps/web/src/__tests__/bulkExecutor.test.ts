@@ -33,6 +33,8 @@ const recipient = (n: number) => `aaaaaaaa-bbbb-cccc-dddd-${n.toString(16).padSt
 class FakeDataverse implements WriteTransport {
   readonly records = new Map<string, { body: Record<string, unknown>; version: number }>();
   readonly creates: string[] = [];
+  /** Activity parties, kept apart so they are not mistaken for communications when counting. */
+  readonly parties: { path: string; body: unknown }[] = [];
   /**
    * Kills the CHECKPOINT write specifically, standing in for a process that dies after creating
    * records but before recording that it did.
@@ -78,6 +80,17 @@ class FakeDataverse implements WriteTransport {
     existing.body = { ...existing.body, ...(body as Record<string, unknown>) };
     existing.version += 1;
     return { status: 200, etag: `W/"${existing.version}"` };
+  }
+
+  /**
+   * Appending a party — recorded separately from the records map.
+   *
+   * Kept apart because a party's path starts with the activity's, so storing it alongside would
+   * make every communication look like two and quietly break the reconciliation counts.
+   */
+  async post(url: string, body: unknown): Promise<WriteResponse> {
+    this.parties.push({ path: this.key(url), body });
+    return { status: 204 };
   }
 
   async get(url: string): Promise<WriteResponse> {

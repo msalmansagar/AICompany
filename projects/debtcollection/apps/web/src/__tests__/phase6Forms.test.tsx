@@ -46,6 +46,11 @@ class RecordingTransport implements WriteTransport {
     this.requests.push({ method: 'CREATE', url, body });
     return this.next();
   }
+  async post(url: string, body: unknown): Promise<WriteResponse> {
+    this.requests.push({ method: 'POST', url, body });
+    return this.next();
+  }
+
   async get(url: string): Promise<WriteResponse> {
     this.requests.push({ method: 'GET', url });
     return this.next();

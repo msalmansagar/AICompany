@@ -26,6 +26,15 @@ export interface WriteTransport {
    * submission from a stale write *by which request it made*, rather than by parsing a message.
    */
   createOnly(url: string, body: unknown): Promise<WriteResponse>;
+  /**
+   * Plain POST, for the one thing an upsert cannot express: appending to a collection-valued
+   * navigation property.
+   *
+   * An activity's recipient is an ActivityParty, and the platform refuses a party list inside an
+   * upsert create and inside a following PATCH alike — it accepts only a POST to the activity's own
+   * party collection. Proved against the organisation rather than assumed.
+   */
+  post(url: string, body: unknown): Promise<WriteResponse>;
   /** GET returning the record and its ETag, for reads that intend to write. */
   get(url: string): Promise<WriteResponse>;
 }
@@ -83,6 +92,10 @@ export class SameOriginWriteTransport implements WriteTransport {
     return this.send('PATCH', url, body, undefined, '*');
   }
 
+  async post(url: string, body: unknown): Promise<WriteResponse> {
+    return this.send('POST', url, body);
+  }
+
   async get(url: string): Promise<WriteResponse> {
     return this.send('GET', url);
   }
@@ -94,7 +107,11 @@ export class SameOriginWriteTransport implements WriteTransport {
       Accept: 'application/json',
       'OData-MaxVersion': '4.0',
       'OData-Version': '4.0',
-      Prefer: method === 'GET' ? READ_PREFER : WRITE_PREFER,
+      // A POST that appends to a collection-valued navigation property must NOT ask for a
+      // representation: the platform answers 500 'Unable to cast EntityMetadata to
+      // XrmMetadataEntityMetadata' when it tries to materialise one. There is nothing to return —
+      // the party is a link, not a record the caller needs back.
+      Prefer: method === 'PATCH' ? WRITE_PREFER : READ_PREFER,
     };
     if (body !== undefined) headers['Content-Type'] = 'application/json; charset=utf-8';
     if (ifMatch !== undefined) headers['If-Match'] = ifMatch;
