@@ -3,6 +3,7 @@ import { AppShell, Command } from './shell/AppShell.js';
 import { CrmSessionProvider, OrgProvider, RoleProvider, type CrmSession } from './shell/context.js';
 import { useHashRoute } from './shell/useHashRoute.js';
 import { isPending, type ViewDefinition } from './shell/routes.js';
+import { CommunicationCenterView } from './views/CommunicationCenter.js';
 import { findXrm, readCrmContext, CrmContextError, type XrmLike } from './platform/crmContext.js';
 import { XrmCrmAdapter } from './platform/XrmCrmAdapter.js';
 import { SameOriginWriteTransport } from './platform/writeTransport.js';
@@ -17,6 +18,7 @@ import './styles/components.css';
 import './styles/uci.css';
 import './styles/phase5.css';
 import './styles/phase6.css';
+import './styles/phase7.css';
 
 /**
  * Builds the session the whole workspace runs on.
@@ -78,6 +80,7 @@ function Workspace() {
         {...(route.tab !== undefined ? { tab: route.tab } : {})}
         onOpenCase={id => route.go('case', id)}
         onOpenCustomer={customerBusinessId => route.go('customer', customerBusinessId)}
+        onOpenComms={id => route.go('comms', id)}
       />
     </AppShell>
   );
@@ -90,12 +93,13 @@ function Workspace() {
  * so. That is the UI Requirements Matrix enforced at runtime: every route resolves to something, and
  * nothing resolves to invented data.
  */
-function ViewHost({ view, recordId, tab, onOpenCase, onOpenCustomer }: {
+function ViewHost({ view, recordId, tab, onOpenCase, onOpenCustomer, onOpenComms }: {
   view: ViewDefinition;
   recordId?: string | undefined;
   tab?: string | undefined;
   onOpenCase: (id: string) => void;
   onOpenCustomer: (customerBusinessId: string) => void;
+  onOpenComms: (caseId: string) => void;
 }) {
   if (isPending(view)) return <PendingView view={view} />;
 
@@ -113,6 +117,8 @@ function ViewHost({ view, recordId, tab, onOpenCase, onOpenCustomer }: {
     case 'dashboards': return <DashboardsView view={view} />;
     case 'admin': return <ConfigurationView view={view} />;
     case 'audit': return <AuditView />;
+    case 'comms':
+      return <CommunicationCenterView {...(recordId !== undefined ? { caseId: recordId } : {})} onSelectCase={onOpenComms} />;
     default:
       // Every Phase 5 view above resolves to an implementation, and every later-phase view resolved
       // to `PendingView` at the top. A route reaching here would mean the route table and this switch

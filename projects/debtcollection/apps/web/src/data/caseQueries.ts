@@ -85,6 +85,18 @@ export interface CustomerProfile {
   email?: string;
   city?: string;
   isActive: boolean;
+  /**
+   * The native Dynamics channel preferences.
+   *
+   * Read as the platform stores them and named as what they are. They are **not** QDB Collection
+   * Contact Hold — that policy has no authoritative source yet (KI-79), and relabelling a contact
+   * preference as a collections hold would make an unimplemented control look implemented.
+   *
+   * Absent is read as `false`, which is the platform's own meaning for an unset two-option column
+   * and the permissive reading. That is safe only because it is not the whole gate: the hold policy
+   * fails closed separately.
+   */
+  restrictions: { doNotFax: boolean; doNotEmail: boolean; doNotPhone: boolean };
 }
 
 /**
@@ -122,6 +134,11 @@ export async function retrieveCustomer(
     ...optional('email', readText(row, 'emailaddress1')),
     ...optional('city', readText(row, 'address1_city')),
     isActive: readNumber(row, 'statecode') === 0,
+    restrictions: {
+      doNotFax: row['donotfax'] === true,
+      doNotEmail: row['donotemail'] === true,
+      doNotPhone: row['donotphone'] === true,
+    },
   };
 }
 

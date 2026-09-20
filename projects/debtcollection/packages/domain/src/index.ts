@@ -384,6 +384,28 @@ export type {
 } from './communication.js';
 export { COMMUNICATION_NAMESPACE, communicationId, uuidV5 } from './communicationIdentity.js';
 
+export { historyComplete, mergeHistory } from './communicationHistory.js';
+export type { HistoryBuffer, HistoryEntry, MergedHistory } from './communicationHistory.js';
+
+export {
+  APPROVAL_STATUS_CODES,
+  TEMPLATE_CHANNEL_CODES,
+  TEMPLATE_LANGUAGE_CODES,
+  composePermissions,
+  parsePlaceholders,
+  renderTemplate,
+  selectableTemplates,
+  templateAvailability,
+} from './communicationTemplate.js';
+export type {
+  CommunicationTemplate,
+  ComposePermissions,
+  RenderOutcome,
+  TemplateAvailability,
+  TemplateChannel,
+  TemplateLanguage,
+} from './communicationTemplate.js';
+
 export {
   freezePopulation,
   thawPopulation,

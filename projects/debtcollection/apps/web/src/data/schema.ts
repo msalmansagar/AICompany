@@ -302,10 +302,14 @@ export const CRM_LOG_COLUMNS = [
 export const CONTACT_COLUMNS = [
   'contactid', 'fullname', 'firstname', 'lastname', 'telephone1', 'mobilephone',
   'emailaddress1', 'address1_city', 'statecode',
+  // The native channel restrictions the eligibility gate reads. Dynamics contact PREFERENCES —
+  // never relabelled as QDB Collection Contact Hold, which does not exist yet (KI-79).
+  'donotfax', 'donotemail', 'donotphone',
 ] as const;
 
 export const ACCOUNT_COLUMNS = [
   'accountid', 'name', 'accountnumber', 'telephone1', 'emailaddress1', 'address1_city', 'statecode',
+  'donotfax', 'donotemail', 'donotphone',
 ] as const;
 
 // ── Choice labels, only where the values are already proven ──────────────────

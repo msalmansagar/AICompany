@@ -35,7 +35,7 @@ describe('the approved navigation is complete', () => {
   });
 
   it('explains every future-phase view rather than leaving it blank', () => {
-    expect(VIEWS.filter(isPending).length).toBe(8);
+    expect(VIEWS.filter(isPending).length).toBe(7);
     for (const view of VIEWS.filter(isPending)) {
       expect(view.pendingSummary, `${view.id} must say what it will do`).toBeTruthy();
     }
@@ -118,10 +118,16 @@ describe('the nav rail', () => {
     expect(screen.getByTestId('nav-cases')).toHaveAttribute('aria-current', 'page');
   });
 
-  it('marks a future-phase view with the phase that owns it', () => {
+  it('marks a view that is still to be built with the phase that owns it', () => {
     renderNav();
-    expect(screen.getByTestId('nav-comms')).toHaveAttribute('data-pending', '7');
     expect(screen.getByTestId('nav-disputes')).toHaveAttribute('data-pending', '9');
+  });
+
+  it('stops marking a view as pending once it is built', () => {
+    // The Communication Centre is a Phase 7 view and is implemented. A nav rail that still said
+    // "Phase 7" over a working screen would be the route table contradicting the router.
+    renderNav();
+    expect(screen.getByTestId('nav-comms')).not.toHaveAttribute('data-pending');
   });
 
   it('does not mark a Phase 5 view as pending', () => {

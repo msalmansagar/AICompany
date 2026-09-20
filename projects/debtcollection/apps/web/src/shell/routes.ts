@@ -137,7 +137,22 @@ export function viewsForRole(role: RoleKey): readonly ViewDefinition[] {
   return VIEWS.filter(v => v.roles === undefined || v.roles.includes(role));
 }
 
-/** True when the view's functionality is owned by a later phase. */
+/**
+ * Views whose functionality is built, whatever phase owns them.
+ *
+ * The gate used to be `phase > 5`, which was true while Phase 5 was the frontier and became a lie
+ * the moment Phase 7 delivered a screen: the Communication Centre would have kept showing "this
+ * arrives in Phase 7" while working. Listing what is implemented keeps the nav rail, the router and
+ * the notice telling the same story, and a view is pending until it is named here.
+ */
+const IMPLEMENTED: ReadonlySet<string> = new Set([
+  'myday', 'queues', 'cases', 'case', 'customer', 'intake', 'buckets',
+  'rules', 'actionplan', 'ptp', 'dashboards', 'admin', 'audit',
+  // Phase 7.
+  'comms',
+]);
+
+/** True when the view's functionality has not been built yet. */
 export function isPending(view: ViewDefinition): boolean {
-  return view.phase > 5;
+  return !IMPLEMENTED.has(view.id);
 }

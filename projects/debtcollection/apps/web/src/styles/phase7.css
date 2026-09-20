@@ -1,0 +1,55 @@
+/*
+ * Phase 7 additions.
+ *
+ * The Communication Centre is assembled from the approved prototype's vocabulary — `.card`,
+ * `.field-grid`, `.btn`, `.hint`, `.empty-state`, `.action-row` — so only two things are new here:
+ * the two-column arrangement of composer and history, and the history table itself, which the
+ * prototype never had a screen for.
+ *
+ * Every value is an existing token. Nothing here restyles anything Phase 5 or 6 shipped.
+ */
+
+/* Composer beside history on a workspace-width screen, stacked on a narrow one. The composer is
+   given the narrower column because a message is short and a history is long. */
+.comms-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 2fr) 3fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.comms-layout > .info-banner {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 1100px) {
+  .comms-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The unified history. One row per communication, whichever native table it came from — the reader
+   is told the channel, never the table. */
+.comms-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.comms-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--neutral-stroke);
+}
+
+.comms-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--neutral-stroke);
+  vertical-align: top;
+}
+
+.comms-table tr:last-child td {
+  border-bottom: none;
+}

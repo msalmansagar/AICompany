@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from '../App.js';
-import { VIEWS, type ViewDefinition } from '../shell/routes.js';
+import { isPending, VIEWS, type ViewDefinition } from '../shell/routes.js';
 import type { XrmLike } from '../platform/crmContext.js';
 
 /**
@@ -98,11 +98,14 @@ describe('every Phase 5 view in the route table has an implementation', () => {
 
   // The two loops below generate one test per view. If either list were empty they would generate
   // nothing and the suite would still be green, so both counts are asserted first.
-  it('has eight later-phase views to check, as the matrix states', () => {
-    expect(VIEWS.filter(v => v.phase > 5)).toHaveLength(8);
+  // Pending now means "not built", not "owned by a later phase". Phase 7 delivered the
+  // Communication Centre, so it is routed and no longer shows a notice — while still being a
+  // Phase 7 view, which is what the route table records.
+  it('has seven views still to build, as the matrix states', () => {
+    expect(VIEWS.filter(isPending)).toHaveLength(7);
   });
 
-  for (const view of VIEWS.filter(v => v.phase > 5)) {
+  for (const view of VIEWS.filter(isPending)) {
     it(`keeps ${view.id} present and names Phase ${view.phase}`, async () => {
       await openView(view.id);
       const notice = await screen.findByTestId(`pending-${view.id}`);
