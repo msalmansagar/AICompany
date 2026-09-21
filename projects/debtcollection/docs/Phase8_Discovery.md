@@ -56,7 +56,7 @@ in §7 below.
 
 ---
 
-## 2. Legal — `qdb_qdblegal` exists, and nothing runs on it
+## 2. Legal — `qdb_qdblegal` exists; its automation lives on-premises, not here
 
 | | |
 |---|---|
@@ -77,7 +77,33 @@ Its 16 lookups include `qdb_customer` → **account**, `qdb_cif` → **account**
 `qdb_department`, `qdb_fjnnumber` → `qdb_fjnmaster`, `qdb_termsheet`, `qdb_oldlegalreference`,
 `qdb_qdblegalrelationshipid` → `qdb_applicationtask`, `qdb_newlegalprocessowner` → `systemuser`.
 
-### Three facts that decide the hand-off design
+### ✅ Resolved by QDB, 2026-09-21 — and it corrects two readings below
+
+QDB has supplied the facts the organisation could not:
+
+1. **Litigation Requests are only ever created in the BFD CRM — including for Housing Loan
+   customers.** The `account`-only customer lookup is therefore *correct by design*, not a gap:
+   in BFD CRM the customer master **is** `account`. An HL-originated recommendation resolves to
+   the customer's **BFD account** before the request is raised.
+2. **The established Legal process — its workflows and plugins — exists on-premises, not on
+   Cloud.** So the emptiness recorded below is an artefact of this Cloud sandbox, **not** evidence
+   that QDB's Legal process lacks automation. It does have one; it is simply not deployed here.
+
+**Decision: DCP creates `qdb_qdblegal` directly, in the BFD organisation, for qualified
+recommendations from either organisation.** Fact (b) below is withdrawn as a blocker.
+
+**Status language for Phase 8, and it must not be softened** — this is Phase 7's KI-83 shape
+exactly: **Litigation Request Creation Proven — QDB Legal Process Execution Unproven on Cloud.**
+Creating the row here will not run the on-premises process, so no claim is made that it did.
+
+Two consequences carried into WP9:
+
+- an HL case needs its **BFD account resolved** from the customer business id before hand-off, and
+  where no BFD account exists the hand-off must **refuse rather than invent one**;
+- the three required picklists (`qdb_casetype`, `qdb_caseagainst`, `qdb_caseinitiatedby`) are
+  **configuration**, never constants in code — a hand-off with nothing configured refuses.
+
+### What the sandbox showed, and how to read it now
 
 **(a) There is no existing business entry point to call on this organisation.** §13 asks whether
 DCP should create `qdb_qdblegal` directly or call an existing supported Action/Workflow. On
@@ -92,9 +118,10 @@ HL case therefore has **no column to put its customer in**.
 at a collection case or activity, so "has Legal already been handed off for this recommendation?"
 cannot be answered from the Legal side, and duplicate prevention cannot lean on an alternate key.
 
-**This organisation is a design/config environment.** The absence of automation here is not proof
-that QDB's production Legal process has none. That distinction is exactly why this is a question
-rather than a decision — see §8.
+**This organisation is a design/config environment, and QDB has confirmed it.** (a) is true of the
+sandbox only — the real entry point exists on-premises. (b) is withdrawn: the hand-off always
+resolves to a BFD account. (c) stands and shapes WP10: duplicate prevention must be DCP-side,
+because there is no alternate key and nothing on the Legal record points back at collections.
 
 ---
 
@@ -251,25 +278,32 @@ provisioned and verified live rather than escalated.
 
 Both meet the STOP conditions in §34. Everything else in Phase 8 proceeds meanwhile.
 
-### 8.1 Legal — is direct creation of a Litigation Request acceptable?
+### 8.1 Legal — ✅ ANSWERED by QDB, 2026-09-21
 
-On `org5869857f` the Litigation Request entity has **no workflow, no action and no custom plugin**.
-There is no supported business entry point to call, so §13's preferred option B does not exist
-here. And a Litigation Request raised from a **Housing Loan** case has **no customer column that
-accepts a contact**.
+*Asked:* the entity has no workflow, action or custom plugin here, so §13's preferred option B
+does not exist; and an HL-originated request has no customer column that accepts a contact.
 
-This is not a technical blocker — DCP could create the row — but creating Legal work through a
-path QDB's own process does not use, on a record whose customer cannot be populated for half the
-book, would alter QDB Legal workflow. That is precisely the condition to stop on.
+*Answered:* **Litigation Requests are only ever created in the BFD CRM, including for HL
+customers — an established process — and its workflows and plugins live on-premises, not on
+Cloud.** DCP creates `qdb_qdblegal` directly, resolving an HL case to its BFD account first.
+
+WP9 and WP10 are **unblocked**. Detail and consequences in §2 above.
 
 ### 8.2 Restructuring — which of the four is authoritative, if any?
 
-Four candidate entities, all empty, no workflows. §17 says to stop when multiple plausible
-implementations exist and the authoritative one is unclear. It is unclear.
+Four candidate entities, all empty, no workflows.
 
-**Phase 8's fallback, if the answer is "none":** stop at *Strategy → Restructuring Recommendation
-→ Assignment → TAT/Escalation* and record the full process as a Phase 9 requirement, exactly as
-§17 directs.
+**Proceeding on §17's own directed fallback rather than holding.** §17 says to stop when several
+plausible implementations exist and the authoritative one is unclear; it also says what to do when
+**no** existing process exists — stop at *Strategy → Restructuring Recommendation → Assignment →
+TAT/Escalation* and record the full process as a Phase 9 requirement. Four empty tables with no
+workflow, no plugin and no data are closer to "no process" than to "several processes", so WP11
+takes that fallback and builds nothing beyond the recommendation.
+
+**This is reversible and cheap to correct.** If QDB names an authoritative restructuring process —
+and the Legal answer above shows Cloud emptiness can be a sandbox artefact rather than the truth —
+WP11 gains a hand-off exactly like Legal's, against whichever entity is named. Nothing built under
+the fallback has to be unbuilt. **Flagged for confirmation, not blocking.**
 
 ---
 
@@ -308,9 +342,9 @@ Summed from the rows, not judged — Phase 7's arithmetic lesson.
 | 6 | Assignment adapter — isolated, evidence-based, dependency recorded | 2.50 | 3 | ready |
 | 7 | TAT, due dates and escalation — server-side, configuration-driven | 3.00 | 4 | ready |
 | 8 | Action Plan upgraded to authoritative provenance | 1.50 | 2, 4 | ready |
-| 9 | Legal hand-off to `qdb_qdblegal` | 2.50 | §8.1 | **HELD — decision** |
-| 10 | Legal visibility, traceability and duplicate prevention | 2.00 | 9 | **HELD — decision** |
-| 11 | Restructuring — existing-process integration or Phase 9 hand-off | 1.00 | §8.2 | **HELD — decision** |
+| 9 | Legal hand-off to `qdb_qdblegal` — BFD organisation, HL resolved to its BFD account | 2.50 | 4, §8.1 answered | ready |
+| 10 | Legal visibility, traceability and duplicate prevention | 2.00 | 9 | ready |
+| 11 | Restructuring — recommendation only, full process recorded as Phase 9 (§17 fallback) | 1.00 | 4 | ready |
 | 12 | Operational queues and UI — assigned work, team queue, overdue/escalated | 3.00 | 6, 7, 8 | ready |
 | 13 | Real Dataverse runtime validation | 2.00 | all | ready |
 | 14 | Chrome QA journeys A–T | 3.00 | 12 | ready |
@@ -334,7 +368,7 @@ figure, the reason and a timestamp — never silently.
 
 | Risk | Handling |
 |---|---|
-| Legal and Restructuring decisions arrive late | WP9–WP11 are isolated; nothing else depends on them |
+| QDB later names an authoritative restructuring process | WP11 builds only the recommendation, so a hand-off is added later exactly as Legal's was — nothing built has to be unbuilt |
 | The Process Engine is later named as the destination for collection work | Kept as a downstream destination, not a dependency; no DCP work is modelled as `qdb_task` |
 | `qdb_origin` duplicates a distinction QDB models differently | Two values only, optional, additive — cheap to retire |
 | Re-evaluation destroys history | Explicitly forbidden: completed and manual work is never deleted (§6, §7 of the authorisation) |

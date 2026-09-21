@@ -67,6 +67,7 @@ export const NAVIGATION_PROPERTIES = {
   activityToCase: 'qdb_collectioncaseid_qdb_collectionactivity',
   activityToType: 'qdb_activitytypeid_qdb_collectionactivity',
   activityToOutcome: 'qdb_outcomeid_qdb_collectionactivity',
+  activityToStrategyAction: 'qdb_strategyactionid_qdb_collectionactivity',
   outcomeToType: 'qdb_activitytypeid',
   runToTemplate: 'qdb_templateid',
   faxToCase: 'regardingobjectid_qdb_collectioncase_fax',
@@ -111,6 +112,7 @@ export const NAVIGATION_REGISTRY: readonly {
   { entity: 'qdb_collectionactivity', attribute: 'qdb_collectioncaseid', navigationProperty: NAVIGATION_PROPERTIES.activityToCase },
   { entity: 'qdb_collectionactivity', attribute: 'qdb_activitytypeid', navigationProperty: NAVIGATION_PROPERTIES.activityToType },
   { entity: 'qdb_collectionactivity', attribute: 'qdb_outcomeid', navigationProperty: NAVIGATION_PROPERTIES.activityToOutcome },
+  { entity: 'qdb_collectionactivity', attribute: 'qdb_strategyactionid', navigationProperty: NAVIGATION_PROPERTIES.activityToStrategyAction },
   { entity: 'qdb_activityoutcome', attribute: 'qdb_activitytypeid', navigationProperty: NAVIGATION_PROPERTIES.outcomeToType },
   { entity: 'qdb_communicationrun', attribute: 'qdb_templateid', navigationProperty: NAVIGATION_PROPERTIES.runToTemplate },
   { entity: 'fax', attribute: 'regardingobjectid', navigationProperty: NAVIGATION_PROPERTIES.faxToCase },
@@ -157,6 +159,9 @@ export const ACTIVITY_COLUMNS = [
   'activityid', 'subject', 'qdb_activitynumber', 'qdb_activitydate', 'qdb_followupdate',
   'qdb_amount', 'statuscode', 'statecode', 'createdon',
   '_qdb_collectioncaseid_value', '_qdb_activitytypeid_value', '_ownerid_value',
+  // Provenance (KI-71, Phase 8). Both are optional: an activity created before provenance was
+  // recorded carries neither, and that absence is read as "unknown", never as "manual".
+  '_qdb_strategyactionid_value', 'qdb_origin',
 ] as const;
 
 export const PTP_COLUMNS = [
@@ -358,6 +363,17 @@ export const PTP_STATUS_LABELS: Readonly<Record<number, string>> = {
 };
 
 export const PROMISE_TYPE_LABELS: Readonly<Record<number, string>> = { 100000580: 'Full', 100000581: 'Partial' };
+
+/**
+ * How an activity came to exist (KI-71).
+ *
+ * There is deliberately no entry for "unknown". An activity created before provenance was recorded
+ * carries no value at all, and the renderer shows an em dash — which is the honest answer. Adding
+ * an `Unknown` option would let a null be mistaken for a recorded fact.
+ */
+export const ACTIVITY_ORIGIN_LABELS: Readonly<Record<number, string>> = {
+  100000800: 'Manual', 100000801: 'Strategy generated',
+};
 
 export const CUSTOMER_TYPE_LABELS: Readonly<Record<number, string>> = {
   100000020: 'Individual', 100000021: 'SME', 100000022: 'Corporate',
