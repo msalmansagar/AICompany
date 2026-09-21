@@ -540,3 +540,18 @@ export {
 export type {
   LegalRecordFetch, LegalTrace, LegalTraceInput, LegalTraceState, LitigationSummary,
 } from './legalVisibility.js';
+
+// ── Phase 8 — Collection Dispute vs Customer Complaint (WP13) ────────────────
+export {
+  describeDisputedSubject,
+  effectsOfRaisingComplaint,
+  effectsOfRecordingDispute,
+  hasAnyEffect,
+  impliesOtherConcern,
+  toComplaintRow,
+  toDisputeRow,
+} from './disputeComplaint.js';
+export type {
+  CollectionConcern, CollectionDispute, CollectionEffects,
+  ComplaintCaseSummary, ConcernRow, DisputedSubject,
+} from './disputeComplaint.js';
