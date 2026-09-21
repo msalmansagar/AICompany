@@ -171,6 +171,13 @@ export interface ActivityRow {
   stateCode?: number;
   /** Read from the platform. An escalation is an action that happened, not a deadline that passed. */
   supervisorEscalated?: boolean;
+  /**
+   * The Litigation Request this recommendation was handed to, where one was.
+   *
+   * Absent means no hand-off was **recorded**. It does not mean no litigation exists — the Legal
+   * record may be present and simply unreadable by this officer.
+   */
+  legalRequestId?: string;
   createdOn?: string;
   caseId?: string;
   caseNumber?: string;
@@ -203,6 +210,7 @@ export function toActivityRow(row: CrmRow): ActivityRow {
     ...optional('status', readChoice(row, 'statuscode')),
     ...optional('stateCode', readNumber(row, 'statecode')),
     ...optional('supervisorEscalated', readBoolean(row, 'qdb_supervisorescalated')),
+    ...optional('legalRequestId', readText(row, '_qdb_legalrequestid_value')),
     ...optional('createdOn', readText(row, 'createdon')),
     ...optional('caseId', readText(row, '_qdb_collectioncaseid_value')),
     ...optional('caseNumber', readLookupName(row, '_qdb_collectioncaseid_value')),

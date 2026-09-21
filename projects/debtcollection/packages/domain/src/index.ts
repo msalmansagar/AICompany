@@ -529,3 +529,14 @@ export type {
   CustomerTable, LegalCustomerResolution, LegalHandoffDecision, LegalHandoffOutcome,
   LegalQualificationPolicy, LegalRecommendation,
 } from './legalHandoff.js';
+
+// ── Phase 8 — Legal visibility (WP10) ────────────────────────────────────────
+export {
+  assertsNoLitigation,
+  describeLegalTrace,
+  interpretLegalRead,
+  litigationExists,
+} from './legalVisibility.js';
+export type {
+  LegalRecordFetch, LegalTrace, LegalTraceInput, LegalTraceState, LitigationSummary,
+} from './legalVisibility.js';

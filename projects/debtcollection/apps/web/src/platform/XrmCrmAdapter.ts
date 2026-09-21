@@ -249,6 +249,31 @@ export class XrmCrmAdapter implements ICrmAdapter, IConcurrencyControlledWrites 
     }
   }
 
+  /**
+   * A single record, with the reason a read failed rather than just its absence.
+   *
+   * `retrieve` returns null on 404 and throws on everything else, which is right for a record the
+   * caller either has or has not got. It is wrong for the Litigation Request: **403 and 404 mean
+   * opposite things there**. 403 means the request exists and this officer may not see it; 404
+   * means the organisation does not hold it. Collapsing them would tell every Collection Officer
+   * that no litigation exists, because no DCP role holds read permission on the Legal entity.
+   *
+   * Reads as the signed-in user through `Xrm.WebApi`, never through a privileged identity.
+   */
+  async retrieveWithStatus(
+    reference: CrmReference, select: string[],
+  ): Promise<{ status: number; record?: CrmRecord }> {
+    try {
+      const record = await this.xrm.WebApi.retrieveRecord(
+        this.toLogicalName(reference.entity), reference.id, `?$select=${select.join(',')}`);
+      return { status: 200, record };
+    } catch (error) {
+      const status = (error as { status?: number })?.status;
+      // An error the platform did not put a status on is unknown, not permitted and not absent.
+      return { status: typeof status === 'number' ? status : 0 };
+    }
+  }
+
   /** @inheritdoc */
   async retrieveByKey(
     entity: string,

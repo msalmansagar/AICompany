@@ -35,6 +35,7 @@ export const ENTITY_SETS = {
   platformMapping: 'qdb_platformmappings',
   contact: 'contacts',
   account: 'accounts',
+  litigationRequest: 'qdb_qdblegals',
 } as const;
 
 /**
@@ -68,6 +69,7 @@ export const NAVIGATION_PROPERTIES = {
   activityToType: 'qdb_activitytypeid_qdb_collectionactivity',
   activityToOutcome: 'qdb_outcomeid_qdb_collectionactivity',
   activityToStrategyAction: 'qdb_strategyactionid_qdb_collectionactivity',
+  activityToLegalRequest: 'qdb_legalrequestid_qdb_collectionactivity',
   outcomeToType: 'qdb_activitytypeid',
   runToTemplate: 'qdb_templateid',
   faxToCase: 'regardingobjectid_qdb_collectioncase_fax',
@@ -127,6 +129,7 @@ export const NAVIGATION_REGISTRY: readonly {
   { entity: 'qdb_collectionactivity', attribute: 'qdb_activitytypeid', navigationProperty: NAVIGATION_PROPERTIES.activityToType },
   { entity: 'qdb_collectionactivity', attribute: 'qdb_outcomeid', navigationProperty: NAVIGATION_PROPERTIES.activityToOutcome },
   { entity: 'qdb_collectionactivity', attribute: 'qdb_strategyactionid', navigationProperty: NAVIGATION_PROPERTIES.activityToStrategyAction },
+  { entity: 'qdb_collectionactivity', attribute: 'qdb_legalrequestid', navigationProperty: NAVIGATION_PROPERTIES.activityToLegalRequest },
   { entity: 'qdb_collectionactivity', attribute: 'ownerid', navigationProperty: NAVIGATION_PROPERTIES.activityToOwner },
   { entity: 'qdb_collectioncase', attribute: 'ownerid', navigationProperty: NAVIGATION_PROPERTIES.caseToOwner },
   { entity: 'qdb_activityoutcome', attribute: 'qdb_activitytypeid', navigationProperty: NAVIGATION_PROPERTIES.outcomeToType },
@@ -180,6 +183,9 @@ export const ACTIVITY_COLUMNS = [
   '_qdb_strategyactionid_value', 'qdb_origin',
   // Escalation is READ from the platform, never inferred from a passed deadline (WP7).
   'qdb_supervisorescalated',
+  // The authoritative link to QDB's Legal process. Null means no hand-off was recorded — which is
+  // NOT the same as no litigation existing, because the Legal record may simply be unreadable.
+  '_qdb_legalrequestid_value',
 ] as const;
 
 export const PTP_COLUMNS = [
@@ -209,6 +215,23 @@ export const STRATEGY_ACTION_COLUMNS = [
   'qdb_communicationchannel', 'qdb_queuename', 'qdb_requiresapproval', 'qdb_ismandatory',
   'qdb_stoponpayment', 'qdb_stoponptp', 'qdb_escalateifnotcompleted', 'qdb_escalationhours',
   'qdb_processcode', 'qdb_rulecode', 'qdb_isactive', '_qdb_strategyid_value', '_qdb_activitytypeid_value',
+] as const;
+
+
+/**
+ * The Litigation Request, as Collections needs to see it — **9 columns of 158**.
+ *
+ * The Legal entity is large and belongs to another process. Reproducing its form here would invite
+ * an officer to treat the Collection Workspace as a Legal application, which it is not. These are
+ * the fields that answer "what is happening with Legal on this case": its own reference, the
+ * authoritative status, when it started, who the customer is, and the amount at stake.
+ *
+ * `statuscode` is read for its **formatted value**, never mapped through a table here. Its 25
+ * reasons are Legal's lifecycle, and a copy would drift the first time Legal adds a stage.
+ */
+export const LITIGATION_COLUMNS = [
+  'qdb_qdblegalid', 'qdb_name', 'statecode', 'statuscode', 'createdon',
+  'qdb_startdate', 'qdb_outstandingamount', 'qdb_lawyername', '_qdb_customer_value',
 ] as const;
 
 /**
@@ -445,6 +468,7 @@ export const READ_REGISTRY: readonly { entitySet: string; columns: readonly stri
   { entitySet: ENTITY_SETS.delinquencySnapshot, columns: SNAPSHOT_COLUMNS },
   { entitySet: ENTITY_SETS.collectionStrategy, columns: STRATEGY_COLUMNS },
   { entitySet: ENTITY_SETS.strategyAction, columns: STRATEGY_ACTION_COLUMNS },
+  { entitySet: ENTITY_SETS.litigationRequest, columns: LITIGATION_COLUMNS },
   { entitySet: ENTITY_SETS.collectionActivityType, columns: ACTIVITY_TYPE_COLUMNS },
   { entitySet: ENTITY_SETS.activityOutcome, columns: ACTIVITY_OUTCOME_COLUMNS },
   { entitySet: ENTITY_SETS.communicationTemplate, columns: COMMUNICATION_TEMPLATE_COLUMNS },
