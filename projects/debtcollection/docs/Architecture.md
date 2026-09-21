@@ -113,6 +113,7 @@ Both targets are equal. Platform and organisation differences live in `qdb_platf
 | ADR-DCP-16 | MIS integration transport-neutral; paging a platform contract | **Accepted** (Phase 4) |
 | ADR-DCP-18 | Concurrency-controlled writes bypass `Xrm.WebApi` for a same-origin `fetch` | **Accepted** (Phase 6) — `ADR_Phase6_Writes.md` |
 | ADR-DCP-19 | Duplicate submission prevented by a client-chosen primary key, not by the UI | **Accepted** (Phase 6) — `ADR_Phase6_Writes.md` |
+| ADR-DCP-20 | A bulk communication is made safe by its ids, not by its procedure | **Accepted** (Phase 7) — `ADR_Phase7_BulkIdempotency.md` |
 
 Superseded ADRs are kept and marked; none are deleted.
 

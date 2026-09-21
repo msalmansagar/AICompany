@@ -1,8 +1,18 @@
-# KI-84 — `qdb_communicationrun` schema proposal
+# KI-84 — `qdb_communicationrun` schema
 
-**AWAITING APPROVAL. The entity has not been created.** Nothing in Phase 7 is blocked on it: single
-SMS, WhatsApp and Email, templates, eligibility and history all proceed, and bulk works within a
-session without it. What it buys is **resumption after the browser closes**.
+> ## APPROVED AND PROVISIONED — this is no longer a proposal
+>
+> Proposed 2026-09-20, **approved and created the same day** on `org5869857f` by
+> `crm/scripts/provision-communication-run.mjs` (commit `03026580`), **5/5 checks passed** — every
+> approved column present, nothing beyond the approved set, and `qdb_frozenpopulation` reporting its
+> real `MaxLength` so the executor sizes its refusals against the column that exists.
+>
+> **Operated end to end by an officer on 2026-09-21** (Phase 7 WP12 browser QA): two runs created,
+> executed, resumed, retried and reconciled from the Bulk Communication screen, then removed by
+> derived id with zero residue.
+>
+> The text below is kept **as the approved specification**, unchanged from the form it was approved
+> in. Read "proposed" in it as "approved and provisioned".
 
 Proposed 2026-09-20, Asia/Qatar (+03:00).
 
