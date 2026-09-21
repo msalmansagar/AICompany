@@ -125,7 +125,15 @@ because there is no alternate key and nothing on the Legal record points back at
 
 ---
 
-## 3. Restructuring — none identified **in the Cloud development organisation**
+## 3. Restructuring — superseded by WP11
+
+> **⚠️ This section was CORRECTED on 2026-09-21 by WP11.** The conclusion below was drawn from a
+> name sweep of eight terms and is **too narrow**. QDB does not call the process "restructuring":
+> it is modelled as **Facility Amendment** (`qdb_loan_amendment`), with **Rescheduling**,
+> **Restructuring** and both *"due to financial difficulty"* variants as request types inside it.
+> See `docs/WP11_RestructuringDiscovery.md`. The HL half of the statement still stands.
+
+### The original WP1 finding, kept for the record
 
 Swept all **3,144** entities and all **1,622** workflows for
 `restructur|workout|reschedul|settlement|writeoff|waiver|deferral|moratorium`:
