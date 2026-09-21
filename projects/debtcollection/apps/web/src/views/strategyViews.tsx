@@ -4,7 +4,11 @@ import {
   createStrategyActionQuery, createStrategyQuery,
   type StrategyActionQuery, type StrategyActionRow, type StrategyQuery, type StrategyRow,
 } from '../data/configurationQueries.js';
-import { loadActionPlan, type ActionPlanRow } from '../data/followUpQueries.js';
+import { loadActionPlan, type ActionPlan } from '../data/followUpQueries.js';
+import {
+  toPlanItem, toUnattributedItem, type CaseContext, type UnattributedItem,
+} from '../data/actionPlanRows.js';
+import { describeOriginLabel, type ActionPlanItem } from '@dcp/domain';
 import {
   Card, EmptyState, Icon, InfoBanner, KpiRow, PendingPhaseNotice, formatCount, formatMoney, formatDate,
 } from '../components/primitives.js';
@@ -191,25 +195,28 @@ const PLAN_COLUMNS: readonly DataGridColumn<StrategyActionRow>[] = [
 ];
 
 /**
- * The plan for one case: what the strategy proposes, and what has actually been done.
+ * The plan for one case: what the strategy asked for, and the work that answers it.
  *
- * **The correlation is by activity type, and it is not provenance.** `qdb_collectionactivity` carries
- * no lookup to `qdb_strategyaction`, and its generic reference columns are documented as `fax`/`email`
- * communication mirroring, read-only and process-populated — so repurposing them would overload a
- * documented column. The consequence is stated on the screen rather than hidden behind a plausible
- * tick: this shows that *a call of this type happened*, never that *this planned call caused it*.
- * Manual and strategy-driven work are indistinguishable today (**KI-71**), and the column heading
- * says so rather than letting a reader assume otherwise.
+ * **Answering is proven.** An activity appears against a planned action only when it carries that
+ * action's id. Phase 6 matched by Activity Type and said so on the screen, because no link existed;
+ * the link exists now (**KI-71 closed**), so the screen states what the record establishes instead
+ * of hedging about what it cannot.
  *
- * Materialising a planned action into an activity is Phase 8's and is not offered here.
+ * Work created before Phase 8 records no origin. It is shown below the plan as history, described
+ * as *not recorded* — never as manual, which would be a claim about a person that nobody made.
+ *
+ * Due dates are shown only where QDB's turn-around-time policy can produce one. No start point is
+ * configured on this organisation (KI-101), so the screen says the due date is not configured
+ * rather than showing a date it invented or a blank that reads as a fault.
  */
-export function CaseActionPlan({ caseId, strategyId, strategyName }: {
+export function CaseActionPlan({ caseId, strategyId, strategyName, episodeNumber }: {
   caseId: string;
   strategyId?: string | undefined;
   strategyName?: string | undefined;
+  episodeNumber?: number | undefined;
 }) {
   const { adapter } = useCrmSession();
-  const [rows, setRows] = useState<readonly ActionPlanRow[]>([]);
+  const [plan, setPlan] = useState<ActionPlan>({ rows: [], unattributed: [] });
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState('');
 
@@ -217,7 +224,7 @@ export function CaseActionPlan({ caseId, strategyId, strategyName }: {
     let cancelled = false;
     setState('loading');
     loadActionPlan(adapter, { caseId, ...(strategyId ? { strategyId } : {}) })
-      .then(result => { if (!cancelled) { setRows(result); setState('ready'); } })
+      .then(result => { if (!cancelled) { setPlan(result); setState('ready'); } })
       .catch((failure: unknown) => {
         if (cancelled) return;
         setError(failure instanceof Error ? failure.message : String(failure));
@@ -226,16 +233,20 @@ export function CaseActionPlan({ caseId, strategyId, strategyName }: {
     return () => { cancelled = true; };
   }, [adapter, caseId, strategyId]);
 
-  if (!strategyId) {
-    return (
-      <Card title="Action plan">
-        <EmptyState
-          icon="strategy"
-          message="No strategy has been resolved for this case, so there is no plan to show."
-        />
-      </Card>
-    );
-  }
+  const context = useMemo<CaseContext>(() => ({
+    caseId,
+    ...(episodeNumber !== undefined ? { episodeNumber } : {}),
+    now: new Date(),
+    formatDate,
+  }), [caseId, episodeNumber]);
+
+  const items = useMemo(
+    () => plan.rows.map(row => toPlanItem(row, context)), [plan.rows, context]);
+  const history = useMemo(
+    () => plan.unattributed.map(
+      activity => toUnattributedItem(activity, describeOriginLabel, formatDate)),
+    [plan.unattributed]);
+
   if (state === 'loading') return <div className="empty-state" data-testid="actionplan-loading">Loading the plan…</div>;
   if (state === 'error') {
     return (
@@ -249,66 +260,111 @@ export function CaseActionPlan({ caseId, strategyId, strategyName }: {
   }
 
   return (
-    <Card
-      title="Action plan"
-      subtitle={strategyName ? `Resolved from ${strategyName}.` : 'Resolved from this case’s strategy.'}
-    >
-      <div className="info-banner" data-testid="actionplan-provenance">
-        <Icon name="info" />
-        <div>
-          Matching is <b>by activity type</b>. The schema records no link between an activity and the
-          planned action that prompted it, so this shows that work of each kind has happened — not that
-          a particular planned action produced it.
-        </div>
-      </div>
-      {rows.length === 0
-        ? <EmptyState icon="check" message="This strategy defines no active actions." />
-        : (
-          <table className="grid" data-testid="case-actionplan">
-            <thead>
-              <tr>
-                <th style={{ width: '60px' }}>Step</th>
-                <th>Planned action</th>
-                <th style={{ width: '150px' }}>Activity type</th>
-                <th style={{ width: '90px' }}>Day</th>
-                <th style={{ width: '180px' }}>Matching activity of this type</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(row => (
-                <tr key={row.planned.id}>
-                  <td className="num">{formatCount(row.planned.sequence)}</td>
-                  <td>{row.planned.name}</td>
-                  <td>{row.planned.activityType ?? '—'}</td>
-                  <td className="num">{formatCount(row.planned.dayOffset)}</td>
-                  <td><MatchSummary row={row} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-    </Card>
+    <>
+      <Card
+        title="Action plan"
+        subtitle={strategyName ? `Resolved from ${strategyName}.` : 'Resolved from this case’s strategy.'}
+      >
+        {!strategyId
+          ? (
+            <EmptyState
+              icon="strategy"
+              message="No strategy has been resolved for this case, so there is no plan to show."
+            />
+          )
+          : <PlanTable items={items} />}
+      </Card>
+      <UnattributedActivities items={history} />
+    </>
+  );
+}
+
+/** The plan, in an officer's words. Every cell is composed; none is derived in the markup. */
+function PlanTable({ items }: { items: readonly ActionPlanItem[] }) {
+  if (items.length === 0) {
+    return <EmptyState icon="check" message="This strategy defines no active actions." />;
+  }
+  return (
+    <table className="grid" data-testid="case-actionplan">
+      <thead>
+        <tr>
+          <th>Planned action</th>
+          <th style={{ width: '170px' }}>Status</th>
+          <th style={{ width: '190px' }}>Raised by</th>
+          <th style={{ width: '150px' }}>With</th>
+          <th style={{ width: '170px' }}>Due</th>
+          <th style={{ width: '200px' }}>According to the strategy</th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map(item => (
+          <tr key={item.key} data-testid={`plan-row-${item.key}`} data-current={String(item.isCurrent)}>
+            <td>
+              {item.action}
+              {item.work && <span className="cell-sub">{item.work}</span>}
+            </td>
+            <td><span className={stateTone(item.state)}>{item.state}</span></td>
+            <td>{item.origin}</td>
+            <td>{item.owner}</td>
+            <td>{item.due}</td>
+            <td>{item.applicability}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
 /**
- * What has been recorded of this kind.
+ * Colour follows meaning, and an assignment problem is not an officer running late.
  *
- * Deliberately worded as a count of matching activities rather than "done" or a tick: a tick against
- * a planned action would assert that the plan was followed, which is exactly the claim the schema
- * cannot support.
+ * "Assignment requires attention" is deliberately not the same tone as "Overdue": one is a routing
+ * gap a supervisor fixes, the other is work somebody holds. Rendering them alike would hide the
+ * first behind the second.
  */
-function MatchSummary({ row }: { row: ActionPlanRow }) {
-  if (row.matchingActivities.length === 0) {
-    return <span className="pill muted">None recorded</span>;
-  }
+function stateTone(state: string): string {
+  if (state === 'Overdue' || state === 'Escalated') return 'pill bad';
+  if (state === 'Assignment requires attention' || state === 'Awaiting assignment') return 'pill warn';
+  if (state === 'Completed') return 'pill ok';
+  if (state === 'No longer required' || state === 'Cancelled') return 'pill muted';
+  return 'pill info';
+}
+
+/**
+ * The case's other work, kept visible and attributed to nothing.
+ *
+ * These activities name no planned action. Most predate Phase 8 and record no origin at all, and
+ * the screen says exactly that — the alternative, matching them to a planned action by type, is
+ * the defect this release removed.
+ */
+function UnattributedActivities({ items }: { items: readonly UnattributedItem[] }) {
+  if (items.length === 0) return null;
   return (
-    <span className="row-actions">
-      <span className={row.hasCompletedMatch ? 'pill ok' : 'pill info'}>
-        {formatCount(row.matchingActivities.length)} of this type
-      </span>
-      {row.hasCompletedMatch && <span className="hint-inline">one completed</span>}
-    </span>
+    <Card
+      title="Other recorded work"
+      subtitle="Activity on this case that no planned action claims."
+    >
+      <table className="grid" data-testid="case-unattributed">
+        <thead>
+          <tr>
+            <th>Activity</th>
+            <th style={{ width: '220px' }}>Raised by</th>
+            <th style={{ width: '140px' }}>Recorded</th>
+            <th style={{ width: '140px' }}>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map(item => (
+            <tr key={item.key}>
+              <td>{item.subject}</td>
+              <td>{item.origin}</td>
+              <td>{item.recordedOn}</td>
+              <td>{item.status}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
   );
 }
 

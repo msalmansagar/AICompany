@@ -306,6 +306,7 @@ function ActionsTab({ detail }: { detail: CaseDetail }) {
       caseId={caseId}
       {...(detail.strategyId !== undefined ? { strategyId: detail.strategyId } : {})}
       {...(detail.strategyName !== undefined ? { strategyName: detail.strategyName } : {})}
+      {...(detail.episodeNumber !== undefined ? { episodeNumber: detail.episodeNumber } : {})}
     />
     </>
   );

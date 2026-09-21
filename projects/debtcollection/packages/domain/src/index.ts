@@ -430,6 +430,7 @@ export type {
 // ── Phase 8 — strategy automation and provenance (KI-71) ─────────────────────
 export {
   ACTIVITY_ORIGIN_CODES,
+  originFromCode,
   ActivityOriginSchema,
   ActivityProvenanceSchema,
   EvaluationContextSchema,
@@ -502,3 +503,15 @@ export type {
   WorkState,
   WorkStateInput,
 } from './tatEscalation.js';
+
+// ── Phase 8 — Action Plan presentation (WP8) ─────────────────────────────────
+export {
+  DUE_NOT_CONFIGURED,
+  NOT_ASSIGNED,
+  ORIGIN_NOT_RECORDED,
+  describeDue,
+  describeOriginLabel,
+  satisfiesPlannedAction,
+  toActionPlanItem,
+} from './actionPlanItem.js';
+export type { ActionPlanInput, ActionPlanItem } from './actionPlanItem.js';

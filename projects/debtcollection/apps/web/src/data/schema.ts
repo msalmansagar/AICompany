@@ -178,6 +178,8 @@ export const ACTIVITY_COLUMNS = [
   // Provenance (KI-71, Phase 8). Both are optional: an activity created before provenance was
   // recorded carries neither, and that absence is read as "unknown", never as "manual".
   '_qdb_strategyactionid_value', 'qdb_origin',
+  // Escalation is READ from the platform, never inferred from a passed deadline (WP7).
+  'qdb_supervisorescalated',
 ] as const;
 
 export const PTP_COLUMNS = [

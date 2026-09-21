@@ -287,3 +287,18 @@ function dueDateFor(action: StrategyAction, asOf: Date): string | undefined {
   due.setUTCDate(due.getUTCDate() + action.dayOffset);
   return due.toISOString();
 }
+
+/**
+ * The stored option value, back to an origin — or to nothing at all.
+ *
+ * `undefined` is returned for an absent column and for any value that is not one of the two
+ * provisioned codes. Neither is defaulted to `Manual`: an activity created before Phase 8 stores no
+ * origin, and calling that "an officer made it" writes a fact into the record that nobody
+ * established. An unrecognised code means the organisation knows something this build does not,
+ * which is also not a licence to guess.
+ */
+export function originFromCode(value: unknown): ActivityOrigin | undefined {
+  if (value === ACTIVITY_ORIGIN_CODES.Manual) return 'Manual';
+  if (value === ACTIVITY_ORIGIN_CODES.StrategyGenerated) return 'StrategyGenerated';
+  return undefined;
+}
