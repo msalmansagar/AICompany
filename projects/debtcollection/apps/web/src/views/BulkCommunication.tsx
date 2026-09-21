@@ -146,6 +146,7 @@ function NewRunPanel({ onCreated }: { onCreated: (runId: string) => void }) {
   const { scopeFilter } = useOrg();
   const [mode, setMode] = useState<SelectionMode>('FilterDefinition');
   const [bucket, setBucket] = useState('');
+  const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<ReadonlyMap<string, string>>(new Map());
   const [composition, setComposition] = useState<Composition>(INITIAL_COMPOSITION);
   const [confirming, setConfirming] = useState(false);
@@ -154,15 +155,16 @@ function NewRunPanel({ onCreated }: { onCreated: (runId: string) => void }) {
   const population = useMemo<CaseQuery>(() => ({
     ...(scopeFilter !== undefined ? { scopeFilter } : {}),
     ...(bucket ? { bucket } : {}),
+    ...(search ? { search } : {}),
     openOnly: true,
-  }), [scopeFilter, bucket]);
+  }), [scopeFilter, bucket, search]);
 
   const target = usePopulationCount(population, mode, selected.size);
   const offered = useOfferedTemplates(composition);
   const template = offered.find(candidate => candidate.id === composition.templateId) ?? null;
   const rendered = template ? renderTemplate(template, composition.values) : null;
   const unresolved = rendered && !rendered.rendered ? rendered.unresolved : [];
-  const ready = Boolean(rendered?.rendered) && target > 0;
+  const ready = Boolean(rendered?.rendered) && target !== null && target > 0;
 
   return (
     <Card
@@ -170,8 +172,8 @@ function NewRunPanel({ onCreated }: { onCreated: (runId: string) => void }) {
       subtitle="Choose who it goes to, agree the wording, then confirm. Both are fixed from that moment."
     >
       <PopulationChooser
-        mode={mode} onModeChange={setMode}
-        bucket={bucket} onBucketChange={setBucket}
+        filters={{ mode, bucket, search }}
+        onFiltersChange={next => { setMode(next.mode); setBucket(next.bucket); setSearch(next.search); }}
         population={population} selected={selected} onSelectedChange={setSelected}
       />
 
@@ -190,7 +192,9 @@ function NewRunPanel({ onCreated }: { onCreated: (runId: string) => void }) {
 
       <div className="action-row">
         <span className="hint" data-testid="bulk-target-count">
-          <b>{formatCount(target)}</b> recipients will be contacted.
+          {target === null
+            ? 'Counting how many recipients this matches…'
+            : <><b>{formatCount(target)}</b> recipients will be contacted.</>}
         </span>
         <button
           type="button" className="btn primary" data-testid="bulk-confirm-open"
@@ -200,7 +204,7 @@ function NewRunPanel({ onCreated }: { onCreated: (runId: string) => void }) {
         </button>
       </div>
 
-      {confirming && rendered?.rendered && (
+      {confirming && rendered?.rendered && target !== null && (
         <ConfirmRun
           target={target}
           channel={composition.channel}
@@ -227,9 +231,9 @@ function NewRunPanel({ onCreated }: { onCreated: (runId: string) => void }) {
  */
 function usePopulationCount(
   population: CaseQuery, mode: SelectionMode, selectedCount: number,
-): number {
+): number | null {
   const { adapter } = useCrmSession();
-  const [count, setCount] = useState(0);
+  const [count, setCount] = useState<number | null>(null);
   // The question's identity, so an unchanged filter does not re-ask and a changed one always does.
   const fingerprint = fingerprintQuery(population);
   const latest = useRef(population);
@@ -238,11 +242,12 @@ function usePopulationCount(
   useEffect(() => {
     if (mode === 'SelectedRecords') return;
     let live = true;
+    setCount(null);
     void countPopulation(adapter, latest.current)
-      .then(result => { if (live) setCount(result.value ?? 0); })
-      // A count that cannot be read must not become a number. Zero disables the confirm control,
-      // which is the safe direction: no run is started against a population nobody could size.
-      .catch(() => { if (live) setCount(0); });
+      // `null` is "not known", and it is deliberately not zero. A count that could not be read must
+      // not be shown as a number, because "0 recipients" reads as a fact about the population.
+      .then(result => { if (live) setCount(result.value ?? null); })
+      .catch(() => { if (live) setCount(null); });
     return () => { live = false; };
   }, [adapter, fingerprint, mode]);
 
@@ -269,18 +274,25 @@ function useOfferedTemplates(composition: Composition): readonly CommunicationTe
 
 // ── Who it goes to ───────────────────────────────────────────────────────────
 
-function PopulationChooser({
-  mode, onModeChange, bucket, onBucketChange, population, selected, onSelectedChange,
-}: {
+/** How the population is narrowed. One object, because they are one question. */
+interface PopulationFilters {
   mode: SelectionMode;
-  onModeChange: (mode: SelectionMode) => void;
   bucket: string;
-  onBucketChange: (bucket: string) => void;
+  /** Case number or customer reference. Sent to the source, never applied to fetched rows. */
+  search: string;
+}
+
+function PopulationChooser({
+  filters, onFiltersChange, population, selected, onSelectedChange,
+}: {
+  filters: PopulationFilters;
+  onFiltersChange: (filters: PopulationFilters) => void;
   population: CaseQuery;
   selected: ReadonlyMap<string, string>;
   onSelectedChange: (selected: ReadonlyMap<string, string>) => void;
 }) {
   const { adapter } = useCrmSession();
+  const { mode } = filters;
   const fetchPage = useMemo(() => createCaseQuery(adapter), [adapter]);
 
   const toggle = useCallback((row: CaseRow) => {
@@ -309,13 +321,25 @@ function PopulationChooser({
             { value: 'FilterDefinition', label: 'Everyone matching a filter' },
             { value: 'SelectedRecords', label: 'Only the cases I tick' },
           ]}
-          onChange={next => onModeChange(next as SelectionMode)}
+          onChange={next => onFiltersChange({ ...filters, mode: next as SelectionMode })}
         />
         <SelectField
-          label="Arrears bucket" value={bucket} testId="bulk-bucket"
+          label="Arrears bucket" value={filters.bucket} testId="bulk-bucket"
           placeholder="Every bucket"
           choices={Object.values(LABELS.BUCKET_LABELS).map(name => ({ value: name, label: name }))}
-          onChange={onBucketChange}
+          onChange={next => onFiltersChange({ ...filters, bucket: next })}
+        />
+        {/*
+          Bucket alone is far too coarse to commit a campaign to: on this organisation the narrowest
+          bucket is still thousands of cases. Narrowing by case number or customer reference is what
+          makes a small, deliberate run expressible at all — and it is the same server-side filter
+          the Collection Cases list sends, so what is counted is what was being looked at.
+        */}
+        <TextField
+          label="Case number or customer reference" testId="bulk-search"
+          value={filters.search}
+          hint="Narrows the population. Leave empty to include every matching case."
+          onChange={next => onFiltersChange({ ...filters, search: next })}
         />
       </div>
 

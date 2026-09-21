@@ -179,6 +179,34 @@ export class XrmCrmAdapter implements ICrmAdapter, IConcurrencyControlledWrites 
   }
 
   /**
+   * Counts matching rows without fetching them.
+   *
+   * It goes through the transport rather than `Xrm.WebApi` because **the client API does not return
+   * `@odata.count` at all** — a `retrieveMultipleRecords` response carries `entities` and
+   * `nextLink`, and nothing else, however the query is written. Proved against `org5869857f`:
+   * `$count=true` through `Xrm.WebApi` yields `undefined`, and the identical URL through a
+   * same-origin fetch yields 4,363.
+   *
+   * This was invisible to every test, because a fake `Xrm` that returns `@odata.count` is answering
+   * a question the real one ignores. It is also why the My Day tiles have always shown an em dash.
+   *
+   * Returns `null` when the platform does not answer, so a caller can say "unknown" rather than
+   * show a zero it has no evidence for.
+   */
+  async count(entitySet: string, filter?: string): Promise<number | null> {
+    const transport = this.requireWriteTransport('count matching rows');
+    // No `$select`: one row of whatever the entity has is a negligible payload, and an empty
+    // `$select=` is not valid OData. `$top=1` is what keeps this a count rather than a read.
+    const query = `?$top=1&$count=true`
+      + (filter ? `&$filter=${encodeURIComponent(filter)}` : '');
+    const response = await transport.get(`/${entitySet}${query}`);
+
+    if (response.status >= 400) return null;
+    const total = (response.body as { '@odata.count'?: unknown } | undefined)?.['@odata.count'];
+    return typeof total === 'number' ? total : null;
+  }
+
+  /**
    * Reads a memo column's real capacity from platform metadata.
    *
    * The bulk executor refuses a population that will not fit the column it is about to be written

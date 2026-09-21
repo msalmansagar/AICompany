@@ -23,19 +23,24 @@ export interface CountResult {
   atLeast: boolean;
 }
 
+/**
+ * Counts through the transport, because the client API does not answer this question.
+ *
+ * This used to ask `retrievePage` for `includeTotalCount`, which goes through
+ * `Xrm.WebApi.retrieveMultipleRecords` — and **that response has no `@odata.count` in it**, however
+ * the query is written. So every count silently came back undefined and every tile rendered an em
+ * dash, which looked like a deliberate "not available yet" rather than a defect. Found by running
+ * the bulk screen against `org5869857f`, where the target count read zero while the grid beneath it
+ * listed cases (KI-96).
+ */
 export async function countMatching(
   adapter: XrmCrmAdapter,
   entitySet: string,
   filter?: string,
 ): Promise<CountResult> {
-  const page = await adapter.retrievePage(entitySet, {
-    select: [],
-    pageSize: 1,
-    includeTotalCount: true,
-    ...(filter !== undefined ? { filter } : {}),
-  });
-  if (page.totalCount === undefined) return { atLeast: false };
-  return { value: page.totalCount, atLeast: page.totalCount >= COUNT_CAP };
+  const total = await adapter.count(entitySet, filter);
+  if (total === null) return { atLeast: false };
+  return { value: total, atLeast: total >= COUNT_CAP };
 }
 
 export interface CountRequest {

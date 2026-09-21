@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from '../App.js';
@@ -44,7 +44,9 @@ function fakeXrm(rows: Record<string, Record<string, unknown>[]> = {}): XrmLike 
         return row;
       },
       async retrieveMultipleRecords(logicalName: string) {
-        return { entities: rows[logicalName] ?? [], '@odata.count': (rows[logicalName] ?? []).length };
+        // No `@odata.count`: the real client API never returns one, whatever is asked for (KI-96).
+        // A count therefore has to come from the transport, and the stub below answers it.
+        return { entities: rows[logicalName] ?? [] };
       },
       async createRecord() { return { id: '{1}' }; },
       async updateRecord() { return { id: '1' }; },
@@ -54,6 +56,26 @@ function fakeXrm(rows: Record<string, Record<string, unknown>[]> = {}): XrmLike 
 
 function install(xrm: XrmLike) {
   (window as unknown as { Xrm?: XrmLike }).Xrm = xrm;
+}
+
+/**
+ * Answers `$count=true` over the same-origin transport, as the platform does.
+ *
+ * Counting cannot go through `Xrm.WebApi`, so a view under test needs this stub to produce a KPI
+ * figure at all — which is the point: before it existed, every tile in this suite was green while
+ * the deployed workspace showed an em dash.
+ */
+function installCounts(rows: Record<string, Record<string, unknown>[]> = {}) {
+  vi.stubGlobal('fetch', async (url: string) => {
+    const set = /\/([a-z_]+)\?/.exec(String(url))?.[1] ?? '';
+    // Named rather than de-pluralised. `qdb_collectioncases` loses one `s`, not `es`, and a
+    // near-miss here would silently count zero — which is the shape of the defect being fixed.
+    const logicalName = set === 'qdb_collectioncases' ? 'qdb_collectioncase' : set;
+    const total = (rows[logicalName] ?? []).length;
+    return new Response(JSON.stringify({ '@odata.count': total, value: [] }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    });
+  });
 }
 
 async function openView(viewId: string, recordId?: string) {
@@ -69,6 +91,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   delete (window as unknown as { Xrm?: XrmLike }).Xrm;
 });
 
@@ -282,6 +305,7 @@ describe('a KPI is a platform count or an em dash, never an invention', () => {
 
   it('counts open cases through the platform', async () => {
     install(fakeXrm({ qdb_collectioncase: [CASE_ROW] }));
+    installCounts({ qdb_collectioncase: [CASE_ROW] });
     await openView('dashboards');
     const tiles = await screen.findAllByText('Open cases');
     const tile = tiles[0]!.closest('.kpi-tile')!;

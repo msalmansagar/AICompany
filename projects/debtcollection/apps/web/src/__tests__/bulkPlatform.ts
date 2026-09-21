@@ -53,6 +53,16 @@ export class FakePlatform {
   metadataReadable = true;
   frozenPopulationCapacity = 100000;
 
+  /**
+   * The rows a `$count` is answered from.
+   *
+   * Counting goes through the transport, not `Xrm.WebApi`, because the client API does not return
+   * `@odata.count` at all (KI-96). A fake that answered counts through `Xrm` would be answering a
+   * question the real platform ignores — which is exactly how the target count reached the live
+   * organisation reading zero over a grid full of cases.
+   */
+  constructor(private readonly rows: Rows = {}) {}
+
   install(): void {
     vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => this.route(url, init));
   }
@@ -79,7 +89,23 @@ export class FakePlatform {
     if (path.startsWith('/faxes(') || path.startsWith('/emails(')) {
       return Promise.resolve(this.activityRoute(path, headers));
     }
+    if (method === 'GET' && path.includes('$count=true')) return this.countRoute(path);
     return Promise.resolve(new Response(null, { status: 404 }));
+  }
+
+  /**
+   * Answers `$count=true` the way the platform does — in the body, over a same-origin fetch.
+   *
+   * The entity **set** in the URL is mapped back to its logical name so the fixture rows can be
+   * found, and the filter is honoured, so a count that ignored its filter cannot pass as one that
+   * applied it.
+   */
+  private countRoute(path: string): Promise<Response> {
+    const entitySet = /^\/([a-z_]+)\?/.exec(path)?.[1] ?? '';
+    const logicalName = LOGICAL_NAME_OF[entitySet] ?? entitySet.replace(/e?s$/, '');
+    const options = decodeURIComponent(path);
+    const matching = applyFilter(this.rows[logicalName] ?? [], options);
+    return Promise.resolve(json({ '@odata.count': matching.length, value: matching.slice(0, 1) }));
   }
 
   private metadata(): Promise<Response> {
@@ -162,6 +188,12 @@ export class FakePlatform {
   }
 }
 
+/** Entity set → logical name, for the sets these fixtures answer counts for. */
+const LOGICAL_NAME_OF: Readonly<Record<string, string>> = {
+  qdb_collectioncases: 'qdb_collectioncase',
+  qdb_communicationruns: 'qdb_communicationrun',
+};
+
 function idIn(path: string): string {
   return /\(([^)]+)\)/.exec(path)?.[1]?.toLowerCase() ?? '';
 }
@@ -207,7 +239,11 @@ export function fakeXrm(rows: Rows, organizationName = 'org5869857f'): XrmLike {
       async retrieveMultipleRecords(logicalName: string, options = '') {
         const all = rows[logicalName] ?? [];
         const entities = applyFilter(all, String(options));
-        return { entities, '@odata.count': entities.length };
+        // **No `@odata.count`, whatever the query asks for.** That is what the real client API does
+        // on `org5869857f`: the response carries `entities` and `nextLink` and nothing else. The
+        // previous fake returned a count here, so every count-reading screen passed its tests and
+        // rendered nothing on the organisation (KI-96).
+        return { entities };
       },
       async createRecord() { return { id: '{1}' }; },
       async updateRecord() { return { id: '1' }; },
@@ -220,6 +256,7 @@ function applyFilter(all: Record<string, unknown>[], options: string): Record<st
   const organization = /qdb_organizationcode eq (\d+)/.exec(options)?.[1];
   const status = /qdb_status eq (\d+)/.exec(options)?.[1];
   const ids = [...options.matchAll(/qdb_collectioncaseid eq ([0-9a-f-]+)/gi)].map(match => match[1]);
+  const search = /contains\(qdb_casenumber,'([^']*)'\)/.exec(options)?.[1];
 
   return all.filter(row => {
     if (organization !== undefined
@@ -227,6 +264,10 @@ function applyFilter(all: Record<string, unknown>[], options: string): Record<st
     if (status !== undefined && Number(row['qdb_status']) !== Number(status)) return false;
     if (ids.length > 0
       && !ids.includes(String(row['qdb_collectioncaseid']))) return false;
+    // Honoured so a search that never left the browser cannot pass as one that narrowed.
+    if (search !== undefined
+      && !String(row['qdb_casenumber'] ?? '').includes(search)
+      && !String(row['qdb_customerbusinessid'] ?? '').includes(search)) return false;
     return true;
   });
 }

@@ -149,7 +149,7 @@ async function confirmRun() {
 
 beforeEach(() => {
   window.location.hash = '';
-  platform = new FakePlatform();
+  platform = new FakePlatform(rows());
   platform.install();
 });
 
@@ -178,16 +178,33 @@ describe('the population an officer commits to', () => {
     await waitFor(() => expect(screen.getByTestId('bulk-target-count').textContent).toMatch(/\b1\b/));
   });
 
+  it('narrows the population by case number, and re-counts what it narrowed to', async () => {
+    await openBulk();
+    await waitFor(() =>
+      expect(screen.getByTestId('bulk-target-count').textContent).toMatch(/\b3\b/));
+
+    // The fake honours `contains(qdb_casenumber,…)`, so a search that reached the source changes
+    // the count and one that was applied to already-fetched rows would not.
+    await userEvent.type(screen.getByTestId('bulk-search'), 'COL-HL-000101');
+
+    await waitFor(() =>
+      expect(screen.getByTestId('bulk-target-count').textContent).toMatch(/\b1\b/));
+  });
+
   it('never loads the population into the browser to count it', async () => {
     await openBulk();
     await waitFor(() =>
       expect(screen.getByTestId('bulk-target-count').textContent).toMatch(/\b3\b/));
 
-    // The count is the platform's own `$count`, asked for with a page size of one. A screen that
-    // counted by fetching the population would be indistinguishable on screen and catastrophic on
-    // the real book.
-    const populationReads = platform.requests.filter(request => request.url.includes('$top'));
-    expect(populationReads).toHaveLength(0);
+    // The count is the platform's own `$count`, asked for over the transport with a page size of
+    // one — because `Xrm.WebApi` does not return a count at all (KI-96). A screen that counted by
+    // fetching the population would look identical here and be catastrophic on the real book, so
+    // the assertion is on the row budget of the request that produced the number.
+    const counts = platform.requests.filter(request => request.url.includes('$count=true'));
+    expect(counts.length, 'nothing asked the platform for a count').toBeGreaterThan(0);
+    for (const request of counts) {
+      expect(request.url, 'a count asked for more than one row').toContain('$top=1');
+    }
   });
 });
 

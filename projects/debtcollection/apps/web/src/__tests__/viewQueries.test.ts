@@ -351,19 +351,49 @@ describe('Customer 360 aggregates without creating a customer master', () => {
 
 // ── Counts ───────────────────────────────────────────────────────────────────
 
+/**
+ * A transport that answers `$count`, and an `Xrm` that never does.
+ *
+ * That split is the whole point. `Xrm.WebApi.retrieveMultipleRecords` returns `entities` and
+ * `nextLink` and **no `@odata.count`**, whatever the query asks for — verified against
+ * `org5869857f`. The old fake supplied a count through `Xrm`, so these tests passed while every
+ * KPI tile on the deployed workspace showed an em dash and the bulk target count read zero over a
+ * grid full of cases (KI-96).
+ */
+function countingAdapter(total: number) {
+  const urls: string[] = [];
+  const transport = {
+    async get(url: string) {
+      urls.push(url);
+      return { status: 200, body: { '@odata.count': total, value: [] } };
+    },
+    async patch() { throw new Error('not used'); },
+    async createOnly() { throw new Error('not used'); },
+    async post() { throw new Error('not used'); },
+  };
+  const { adapter: base, calls } = recordingXrm({});
+  const adapter = new XrmCrmAdapter(
+    (base as unknown as { xrm: XrmLike }).xrm, undefined, transport as never);
+  return { adapter, urls, calls };
+}
+
 describe('a KPI count is answered by the platform, not by reading rows', () => {
-  it('asks for one row and reads the count', async () => {
-    const { adapter, calls } = recordingXrm({ qdb_collectioncase: [caseRowFromPlatform()] }, 1295);
+  it('asks for one row and reads the count, over the transport that actually returns one', async () => {
+    const { adapter, urls, calls } = countingAdapter(1295);
+
     const result = await countMatching(adapter, 'qdb_collectioncases', 'statecode eq 0');
-    expect(calls).toHaveLength(1);
-    expect(calls[0]!.maxPageSize).toBe(1);
-    expect(calls[0]!.options).toContain('$count=true');
+
+    expect(urls).toHaveLength(1);
+    expect(urls[0]).toContain('$top=1');
+    expect(urls[0]).toContain('$count=true');
+    // The client API cannot answer this, so a count that went through it would be undefined.
+    expect(calls, 'a count must not be asked of Xrm.WebApi').toHaveLength(0);
     expect(result.value).toBe(1295);
     expect(result.atLeast).toBe(false);
   });
 
   it('reports the platform cap as a floor rather than as a total', async () => {
-    const { adapter } = recordingXrm({ qdb_collectioncase: [caseRowFromPlatform()] }, COUNT_CAP);
+    const { adapter } = countingAdapter(COUNT_CAP);
     const result = await countMatching(adapter, 'qdb_collectioncases');
     expect(result.atLeast).toBe(true);
     expect(formatCountResult(result)).toBe('5,000+');

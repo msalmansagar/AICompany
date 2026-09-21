@@ -38,7 +38,11 @@ const FORBIDDEN: readonly { what: string; pattern: RegExp }[] = [
   { what: 'ActivityParty terminology', pattern: /activity\s*part(y|ies)|participationtypemask/i },
   { what: 'an ETag', pattern: /\bETag\b|W\/"/i },
   { what: 'a precondition header', pattern: /If-(Match|None-Match)/i },
-  { what: 'an HTTP status code', pattern: /\b(400|401|403|404|412|500|503)\b(?!\s*(DPD|days))/ },
+  // Not inside a hyphenated range. The arrears buckets are `361-500` and `501-1000`, so a bare
+  // `\b500\b` reports an HTTP status wherever the bucket picker is rendered — which the live sweep
+  // of the bulk screen duly did. A guard that cries wolf on business data gets ignored, and an
+  // ignored guard is the same as no guard.
+  { what: 'an HTTP status code', pattern: /(?<![-\d])(400|401|403|404|412|500|503)(?![-\d])(?!\s*(DPD|days))/ },
   { what: 'a KI number', pattern: /\bKI-\d+/ },
   { what: 'a stack trace', pattern: /\bat\s+\w+\s*\(.*:\d+:\d+\)/ },
   { what: 'an unrendered object', pattern: /\[object Object\]/ },
