@@ -468,3 +468,17 @@ export type {
   ReevaluationOutcome,
   ReevaluationTrigger,
 } from './strategyReevaluation.js';
+
+// ── Phase 8 — assignment decision (WP6) ──────────────────────────────────────
+export {
+  ambiguousAssignment,
+  awaitingAssignment,
+  decideAssignment,
+  shouldWriteAssignment,
+  worthRetrying,
+} from './assignmentDecision.js';
+export type {
+  AssignmentDecision,
+  AssignmentStatus,
+  AssignmentTarget,
+} from './assignmentDecision.js';

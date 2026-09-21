@@ -77,6 +77,20 @@ export const NAVIGATION_PROPERTIES = {
   caseToAssignedTeam: 'qdb_assignedteamid',
   caseToCustomerContact: 'qdb_customerid_contact',
   caseToCustomerAccount: 'qdb_customerid_account',
+  /**
+   * Ownership — and the clearest example yet that nothing in this family is derivable.
+   *
+   * The **same** attribute, `ownerid`, binds through a **different** navigation property on each of
+   * these two entities: `ownerid_qdb_collectionactivity` on the activity, bare `ownerid` on the
+   * case. Both were read from `ManyToOneRelationships` and are checked back by
+   * `crm/scripts/verify-view-columns.mts`.
+   *
+   * Assuming either form would have worked on exactly one of the two entities and failed on the
+   * other — and a failed assignment reads like a permissions problem, which is the most expensive
+   * way for this to be wrong.
+   */
+  activityToOwner: 'ownerid_qdb_collectionactivity',
+  caseToOwner: 'ownerid',
 } as const;
 
 /** Every navigation property above, with the entity and attribute it belongs to, for verification. */
@@ -113,6 +127,8 @@ export const NAVIGATION_REGISTRY: readonly {
   { entity: 'qdb_collectionactivity', attribute: 'qdb_activitytypeid', navigationProperty: NAVIGATION_PROPERTIES.activityToType },
   { entity: 'qdb_collectionactivity', attribute: 'qdb_outcomeid', navigationProperty: NAVIGATION_PROPERTIES.activityToOutcome },
   { entity: 'qdb_collectionactivity', attribute: 'qdb_strategyactionid', navigationProperty: NAVIGATION_PROPERTIES.activityToStrategyAction },
+  { entity: 'qdb_collectionactivity', attribute: 'ownerid', navigationProperty: NAVIGATION_PROPERTIES.activityToOwner },
+  { entity: 'qdb_collectioncase', attribute: 'ownerid', navigationProperty: NAVIGATION_PROPERTIES.caseToOwner },
   { entity: 'qdb_activityoutcome', attribute: 'qdb_activitytypeid', navigationProperty: NAVIGATION_PROPERTIES.outcomeToType },
   { entity: 'qdb_communicationrun', attribute: 'qdb_templateid', navigationProperty: NAVIGATION_PROPERTIES.runToTemplate },
   { entity: 'fax', attribute: 'regardingobjectid', navigationProperty: NAVIGATION_PROPERTIES.faxToCase },
