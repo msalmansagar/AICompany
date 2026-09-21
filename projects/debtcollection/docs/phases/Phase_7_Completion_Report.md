@@ -1,19 +1,26 @@
 # Phase 7 — Communications: Single Send, Bulk, and the Unified History
 
-**Status: READY FOR CLOSURE. Phase 7 is _not_ formally closed.** Submitted for QDB acceptance.
-Phase 8 has not been branched, planned or started.
+**Status: CLOSED. Formally accepted by QDB on 2026-09-21.**
+Phase 8 has not been branched, planned or started, and is not authorised.
 
 **Organisation:** `org5869857f` (Cloud development sandbox) — the only organisation touched.
 **Branch:** `feat/dcp-phase7-communications`.
 **Runtime gates 0–9** (single send, history, eligibility, leakage) accepted by QDB on the reported
 browser evidence and the subsequent fixes and redeployment.
-**Bulk gates 1–14** exercised by an officer on the deployed workspace, 2026-09-21.
+**Bulk gates 1–14** exercised by an officer on the deployed workspace, 2026-09-21, and accepted.
 
 Nothing in this report claims a runtime result the build awarded itself.
+
+**Closure does not resolve anything listed as open in §6.** The open items remain governed by their
+existing status, in particular KI-79, KI-83, KI-76, KI-95 and KI-97.
 
 > **This supersedes the 2026-09-20 draft**, which reported bulk as engine-complete and
 > screen-incomplete. WP12 — the officer-facing Bulk Communication screen — has since been built,
 > deployed and validated in the browser, and the scope statement below is no longer qualified.
+>
+> **The 1,210-test figure in that draft is superseded and must not be used as the closure baseline.**
+> It contained a cached `@dcp/api` count. The accepted baseline is the one in §3: **1,261**
+> TypeScript, **10** tooling, **147** C#, 0 failed, 0 skipped, all executed at closure.
 
 ---
 
@@ -190,6 +197,9 @@ the run record, and the officer reopens the run from the Bulk runs list with eve
 is lost is the navigation position, and that is inherited from the Phase 5 routing model, not
 introduced by the bulk screen.
 
+**Accepted at closure as UX/routing debt and tracked as KI-97.** It is not specific to bulk and is
+not a closure blocker.
+
 ### Live checks against `org5869857f`
 
 | Check | Result |
@@ -229,7 +239,7 @@ fully green at the time. This is the most important evidence Phase 7 produced.
 | **KI-92** 🟡 | The confirmation promised the message would appear in the history; the history did not re-read | No test asserted that the promise the screen makes is kept | A send bumps a reload token and the history re-reads **from the platform**; the guard counts reads on the client API, not fetches |
 | **KI-93** 🟠 | The raw organisation unique name was rendered on every screen, and in the Configuration session card | Inherited from Phase 5 and never reviewed | `officerLeakage.test.tsx` sweeps **every routed view on both the happy and failing paths** for 13 leak classes |
 | **KI-94** 🔴 | **The leakage guard was itself vacuous, twice over** — it swept role-gated views without proving the route was taken, and its pattern began with a word boundary that could never match | Found only because the browser showed the leak while the guard reported clean | `openView` asserts `data-view`; `assertClean` requires real content. **Both faults confirmed by reintroducing the leak and watching the guard fail** |
-| **KI-96** 🔴 | **`Xrm.WebApi` does not return `@odata.count` at all**, so every count in the workspace was silently unknown. The bulk screen rendered **"0 recipients will be contacted"** above a grid listing cases; the My Day and Dashboard KPI tiles have shown an em dash since Phase 5, reading as "a later phase owns this" rather than as a defect | **436 tests passed over it.** The fake `Xrm` returned a count the real one never sends — a fake answering a question the platform ignores | Counting goes through the transport, which does return it. A count that cannot be read is **`null` — "not known", deliberately not zero**. The fakes no longer answer counts through `Xrm`, so a regression to that path fails |
+| **KI-96** 🔴 *(cross-phase)* | **`Xrm.WebApi` does not return `@odata.count` at all**, so every count in the workspace was silently unknown. The bulk screen rendered **"0 recipients will be contacted"** above a grid listing cases; the My Day and Dashboard KPI tiles have shown an em dash since Phase 5, reading as "a later phase owns this" rather than as a defect | **436 tests passed over it.** The fake `Xrm` returned a count the real one never sends — a fake answering a question the platform ignores | Counting goes through the transport, which does return it. A count that cannot be read is **`null` — "not known", deliberately not zero**. The fakes no longer answer counts through `Xrm`, so a regression to that path fails |
 
 Also closed earlier in the phase and found the same way: **KI-87** (a second copy of the entity-set
 map drifted and failed mid-run, after writing rows) and **KI-88** (the Contact Hold resolver read all
@@ -250,6 +260,13 @@ been watched to fail.** Two of WP12's own new guards were vacuous when first wri
 
 A third guard was found to cry wolf rather than sleep: the HTTP-status leak pattern matched the
 arrears bucket label `361-500`. A guard that fires on business data gets ignored, so it was tightened.
+
+**KI-96 carries forward as cross-phase technical debt**, because it originated before Phase 7 and
+its correction is a standing rule rather than a Phase 7 fix: **an unknown count is `null`, never
+`0`** — where the transport cannot supply a trustworthy count, the surface says "not known" rather
+than displaying a zero it has no evidence for. The real-transport regression coverage is preserved
+deliberately, so that a fake `Xrm` can never again claim a capability production `Xrm.WebApi` does
+not provide.
 
 ---
 
@@ -283,6 +300,7 @@ arrears bucket label `361-500`. A guard that fires on business data gets ignored
 | **KI-83** 🔴 | **QDB's SMS/WhatsApp dispatcher exists on-prem but is absent from the Cloud development organisation.** The `fax` schema is fully present; a sweep of 400 workflows and 200 plugin assemblies found every SMS-related item to belong to Microsoft. The architecture is confirmed, not unknown | **External delivery is unproven in Cloud**; it is an on-prem deployment test. Record creation, binding and read-back are proven | No |
 | **KI-80** 🟡 | **The Arabic/English template model is not established.** `qdb_communicationtemplate.qdb_language` is a picklist; `fax.qdb_language` is free-text. Whether a bilingual template is one row per language or one row carrying both, and what `fax.qdb_language` expects, is not in evidence. **Impact:** the `P7-` set carries one language per row, the simpler reversible option, and per-language approval works because approval is a property of the row. **Non-blocking** because the choice is reversible and no production template content exists to migrate | Not for the mechanism; QDB must confirm before authoring production templates | No |
 | **KI-82** 🟡 | **Whether `qdb_privsendsms` is the intended authorisation control point is unconfirmed.** It exists with 0 rows beside a family of `qdb_priv_*` marker entities, which is QDB's established convention — but nothing states it is the one DCP should check. **Impact:** the design checks it rather than inventing a DCP privilege. **Non-blocking** because CRM native RBAC on `fax` and `email` remains authoritative regardless, so no send escapes authorisation | No — native RBAC governs regardless | No |
+| **KI-97** 🟡 | **A top-level browser reload returns the workspace to its default view**, because a web resource owns only its own URL fragment and the host restores the iframe at its original `src`. Present since Phase 5; made visible by WP12, where a run is something an officer returns to. **No state is lost** — it lives on the run record, and the officer reopens the run from the list. **Accepted as UX/routing debt at closure** | No | No |
 | **KI-95** 🟡 | **"CUSTOMER TABLE" is unnecessarily technical officer-facing terminology.** Contact and Account are intentional DCP domain concepts — HL's customer master is Contact, BFD's is Account — so their presence is not an information leak, and Gate 8 was accepted on that basis. The label is the issue, not the concept. **UX debt, not a closure blocker**; a future UI may use *Customer Type* or *Customer Source*. Not renamed now, at QDB's instruction, because it would require a regression cycle already completed | No | No |
 
 ### Carried forward from earlier phases, still applicable
@@ -431,9 +449,22 @@ will continue to fail closed until QDB supplies an actual contract.
 
 ---
 
-## Proposal
+## Closure
 
-# Phase 7 — Ready for Closure
+# Phase 7 — CLOSED
 
-Submitted for QDB acceptance. Phase 7 is **not** marked closed by this report. No Phase 8 branch has
-been created and no Phase 8 discovery or implementation has begun; both await explicit acceptance.
+**Formally accepted by QDB on 2026-09-21**, on the delivery scope, WP12 evidence, regression
+baseline, documentation and timing recorded above.
+
+Accepted with these statements preserved and **not to be upgraded without corresponding runtime
+evidence**:
+
+- **Cloud SMS/WhatsApp: Native Record Creation Proven — External Delivery Unproven.**
+- **Dynamics 365 CE 9.1 On-Prem — Compatible by Design; Phase 7 Runtime Validation Pending.**
+
+Closure resolves nothing that §6 records as open. KI-79, KI-83, KI-76, KI-95, KI-97 and every other
+previously open item remain governed by their existing status.
+
+**Phase 8 is not authorised.** No branch, no discovery, no implementation. The Phase 8 prerequisites
+in §9 — **KI-71 above all**, the missing Collection Activity → Strategy Action provenance
+relationship — are to be reviewed separately before Phase 8 discovery may begin.

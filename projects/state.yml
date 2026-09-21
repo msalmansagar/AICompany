@@ -92,11 +92,12 @@ projects:
 
   - name: debtcollection
     type: integration   # React workspace + Fastify router over two D365 CE orgs
-    phase: architecture
+    phase: build
+    build_phase: "Phase 7 — CLOSED (accepted 2026-09-21)"
     started: 2026-07-30
-    last_updated: 2026-09-14
-    last_agent: ceo (architecture-gate)
-    ceo_approved_phases: [phase-1, brd, architecture]
+    last_updated: 2026-09-21
+    last_agent: ceo (phase-7-closure)
+    ceo_approved_phases: [phase-1, brd, architecture, build-0, build-1, build-2, build-3, build-4, build-5, build-6, build-7]
     output_dir: projects/debtcollection/
     status: approved_with_conditions
     brd_gate_decision: APPROVED WITH CONDITIONS
@@ -266,9 +267,32 @@ projects:
       CEO BRD gate: APPROVED WITH CONDITIONS 2026-09-13 (7 conditions).
       Q-01 RESOLVED (broad reading: 6 modules in Phase 1).
       Q-02..Q-14 carried as open items with owners and defaults.
-      Architecture (Phase 3) is BLOCKED until COND-DCP-001/002/003/005/006/007 close.
-      Build/Go-live additionally BLOCKED on COND-DCP-004.
-      ADR-DCP-01/02/03 drafted and standing. Next: close conditions, then architect.
+      ADR-DCP-01/02/03 drafted and standing.
+
+      BUILD PHASES 0-7 COMPLETE. Delivery tracker:
+      projects/debtcollection/DebtCollection_Project_Tracker.xlsx (Phases sheet).
+
+      PHASE 7 (Communication Centre) CLOSED — formally accepted by QDB 2026-09-21.
+      Accepted: single SMS / WhatsApp / Email and Bulk SMS / Bulk Email, all officer-usable and
+      runtime validated on org5869857f. Out of scope: Bulk WhatsApp, Warning Letters.
+      Closure baseline actually executed: TypeScript 1,261 (domain 454, web 436, api 325,
+      dataverse-client 32, auth-adapters 14), tooling 10, C# 147; 0 failed, 0 skipped.
+      Report: docs/phases/Phase_7_Completion_Report.md. ADR-DCP-20 recorded.
+
+      RUNTIME STATUS, not to be upgraded without runtime evidence:
+      Cloud SMS/WhatsApp — Native Record Creation Proven, External Delivery Unproven (KI-83);
+      Dynamics 365 CE 9.1 On-Prem — Compatible by Design, Phase 7 Runtime Validation Pending.
+
+      OPEN AND UNRESOLVED BY CLOSURE: KI-79 (no authoritative Contact Hold source; production
+      sends fail closed), KI-83, KI-76, KI-95 (UX wording debt), KI-96 (cross-phase: an unknown
+      count is null, never 0), KI-97 (UX/routing debt), plus every other previously open KI under
+      its existing status. The COND-DCP-* conditions above are unaffected by Phase 7 closure.
+
+      PHASE 8 NOT AUTHORISED — no branch, no discovery, no implementation. The prerequisite review
+      must be explicitly authorised first, KI-71 above all: there is no schema link from a
+      Collection Activity to the Strategy Action that produced it, so Phase 8 cannot report what a
+      strategy did, cannot avoid re-materialising an action, and cannot be audited. It is a schema
+      change and needs QDB approval BEFORE Phase 8 design.
 
 # Example entry:
 # projects:
