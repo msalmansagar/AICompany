@@ -4,7 +4,10 @@ import {
   type CommunicationRequest, type CommunicationTemplate,
   type HistoryEntry, type TemplateChannel, type TemplateLanguage,
 } from '@dcp/domain';
-import { Card, EmptyState, InfoBanner, StatusPill, formatDate } from '../components/primitives.js';
+import {
+  Card, EmptyState, InfoBanner, Pivot, StatusPill, formatDate, type PivotTab,
+} from '../components/primitives.js';
+import { BulkCommunicationView } from './BulkCommunication.js';
 import { SelectField, TextAreaField, TextField } from '../components/forms.js';
 import { loadTemplateCatalogue } from '../data/templateQueries.js';
 import {
@@ -50,20 +53,65 @@ const HISTORY_PAGE = 20;
 const HISTORY_FAILED = 'The communication history could not be loaded. Refresh to try again.';
 const SEND_FAILED = 'The message could not be sent. Nothing was recorded — try again.';
 
-export function CommunicationCenterView({ caseId, onSelectCase }: {
+/**
+ * The Communication view: one message to one customer, or one run to many.
+ *
+ * Both live here because they are the same act at two scales, and because the invariants an officer
+ * depends on — approved templates only, eligibility at send time, no claim of delivery — are the
+ * same on both tabs. The tab is part of the URL, so a bulk run survives a refresh and can be sent
+ * to a colleague as a link.
+ */
+export function CommunicationCenterView({ caseId, runId, mode, onSelectCase, onNavigate }: {
+  caseId?: string | undefined;
+  runId?: string | undefined;
+  mode: CommunicationMode;
+  onSelectCase: (id: string) => void;
+  onNavigate: (recordId?: string, tab?: string) => void;
+}) {
+  const tabs: readonly PivotTab[] = [
+    { id: 'single', label: 'One customer', render: () => <SingleTab caseId={caseId} onSelectCase={onSelectCase} /> },
+    {
+      id: 'bulk',
+      label: 'Bulk SMS & Email',
+      render: () => (
+        <BulkCommunicationView
+          {...(runId !== undefined ? { runId } : {})}
+          onOpenRun={id => onNavigate(BULK_SEGMENT, id)}
+          onCloseRun={() => onNavigate(BULK_SEGMENT)}
+        />
+      ),
+    },
+  ];
+
+  return (
+    <div data-testid="view-comms">
+      <Pivot
+        tabs={tabs} activeId={mode} testId="comms-pivot"
+        onSelect={id => onNavigate(id === 'bulk' ? BULK_SEGMENT : undefined)}
+      />
+    </div>
+  );
+}
+
+export type CommunicationMode = 'single' | 'bulk';
+
+/** The hash segment that means "the bulk tab" rather than a case. A case id is always a GUID. */
+export const BULK_SEGMENT = 'bulk';
+
+function SingleTab({ caseId, onSelectCase }: {
   caseId?: string | undefined;
   onSelectCase: (id: string) => void;
 }) {
   if (!caseId) {
     return (
-      <div data-testid="view-comms">
+      <>
         <InfoBanner>
           Communications belong to a case. Choose one to see its history and to send from it.
         </InfoBanner>
         <Card title="Choose a case">
           <CasesView onOpenCase={onSelectCase} />
         </Card>
-      </div>
+      </>
     );
   }
   return <CaseCommunications caseId={caseId} />;
@@ -100,7 +148,7 @@ function CaseCommunications({ caseId }: { caseId: string }) {
   }, [adapter, caseId]);
 
   return (
-    <div data-testid="view-comms" className="comms-layout">
+    <div className="comms-layout">
       <InfoBanner>
         DCP records the message; <b>QDB's own mechanism delivers it</b>. This screen never reports a
         message as delivered — the status shown is the platform's own.

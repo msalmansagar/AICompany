@@ -43,5 +43,15 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
     css: false,
+    /**
+     * Raised from the 5s default because these tests mount the **whole application**.
+     *
+     * A bulk run drives several batches through the real service composition, and files run in
+     * parallel, so a machine under load can exceed 5s on work that is progressing perfectly well.
+     * The failures that produced were all timeouts on previously green tests — a slow suite
+     * reported as a broken one, which trains people to re-run rather than to read.
+     */
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
   },
 });

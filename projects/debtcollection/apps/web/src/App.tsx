@@ -3,7 +3,7 @@ import { AppShell, Command } from './shell/AppShell.js';
 import { CrmSessionProvider, OrgProvider, RoleProvider, type CrmSession } from './shell/context.js';
 import { useHashRoute } from './shell/useHashRoute.js';
 import { isPending, type ViewDefinition } from './shell/routes.js';
-import { CommunicationCenterView } from './views/CommunicationCenter.js';
+import { BULK_SEGMENT, CommunicationCenterView } from './views/CommunicationCenter.js';
 import { findXrm, readCrmContext, CrmContextError, type XrmLike } from './platform/crmContext.js';
 import { XrmCrmAdapter } from './platform/XrmCrmAdapter.js';
 import { SameOriginWriteTransport } from './platform/writeTransport.js';
@@ -82,6 +82,7 @@ function Workspace() {
         onOpenCase={id => route.go('case', id)}
         onOpenCustomer={customerBusinessId => route.go('customer', customerBusinessId)}
         onOpenComms={id => route.go('comms', id)}
+        onNavigateComms={(recordId, tab) => route.go('comms', recordId, tab)}
       />
     </AppShell>
   );
@@ -94,13 +95,16 @@ function Workspace() {
  * so. That is the UI Requirements Matrix enforced at runtime: every route resolves to something, and
  * nothing resolves to invented data.
  */
-function ViewHost({ view, recordId, tab, onOpenCase, onOpenCustomer, onOpenComms }: {
+function ViewHost({
+  view, recordId, tab, onOpenCase, onOpenCustomer, onOpenComms, onNavigateComms,
+}: {
   view: ViewDefinition;
   recordId?: string | undefined;
   tab?: string | undefined;
   onOpenCase: (id: string) => void;
   onOpenCustomer: (customerBusinessId: string) => void;
   onOpenComms: (caseId: string) => void;
+  onNavigateComms: (recordId?: string, tab?: string) => void;
 }) {
   if (isPending(view)) return <PendingView view={view} />;
 
@@ -118,8 +122,20 @@ function ViewHost({ view, recordId, tab, onOpenCase, onOpenCustomer, onOpenComms
     case 'dashboards': return <DashboardsView view={view} />;
     case 'admin': return <ConfigurationView view={view} />;
     case 'audit': return <AuditView />;
-    case 'comms':
-      return <CommunicationCenterView {...(recordId !== undefined ? { caseId: recordId } : {})} onSelectCase={onOpenComms} />;
+    case 'comms': {
+      // `#comms/bulk` and `#comms/bulk/<runId>` are the bulk tab; anything else in that position is
+      // a case id. A case id is always a GUID, so the two can never be confused.
+      const onBulk = recordId === BULK_SEGMENT;
+      return (
+        <CommunicationCenterView
+          mode={onBulk ? 'bulk' : 'single'}
+          {...(onBulk ? {} : recordId !== undefined ? { caseId: recordId } : {})}
+          {...(onBulk && tab !== undefined ? { runId: tab } : {})}
+          onSelectCase={onOpenComms}
+          onNavigate={onNavigateComms}
+        />
+      );
+    }
     default:
       // Every Phase 5 view above resolves to an implementation, and every later-phase view resolved
       // to `PendingView` at the top. A route reaching here would mean the route table and this switch

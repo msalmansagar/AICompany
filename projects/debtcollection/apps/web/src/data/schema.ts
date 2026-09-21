@@ -252,7 +252,21 @@ export const COMMUNICATION_RUN_COLUMNS = [
   'qdb_communicationrunid', 'qdb_name', 'qdb_channel', 'qdb_status', 'qdb_selectionmode',
   'qdb_messagebody', 'qdb_subject', 'qdb_filterdefinition', 'qdb_frozenpopulation',
   'qdb_totalrecipients', 'qdb_cursor', 'qdb_failedrecipients',
-  'qdb_startedon', 'qdb_completedon', 'statecode', 'statuscode', '_qdb_templateid_value',
+  'qdb_startedon', 'qdb_completedon', 'createdon', 'statecode', 'statuscode', '_qdb_templateid_value',
+] as const;
+
+/**
+ * A run as a **list row** needs it — deliberately a different, smaller set.
+ *
+ * `qdb_frozenpopulation` and `qdb_failedrecipients` are memo columns holding one line per recipient.
+ * Selecting them for a grid would pull a run's entire population into the browser for every row on
+ * the page, which is the one thing the large-data contract forbids, and it would do it invisibly —
+ * the grid would look correct and the payload would be megabytes. A run's population is read once,
+ * by the executor, for the run being worked.
+ */
+export const COMMUNICATION_RUN_LIST_COLUMNS = [
+  'qdb_communicationrunid', 'qdb_name', 'qdb_channel', 'qdb_status',
+  'qdb_totalrecipients', 'qdb_cursor', 'qdb_startedon', 'qdb_completedon', 'createdon',
 ] as const;
 
 /** The template catalogue the composer offers. */

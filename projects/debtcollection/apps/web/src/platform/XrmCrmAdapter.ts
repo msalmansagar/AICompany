@@ -178,6 +178,29 @@ export class XrmCrmAdapter implements ICrmAdapter, IConcurrencyControlledWrites 
     return ((response.body as { value?: CrmRecord[] } | undefined)?.value ?? []);
   }
 
+  /**
+   * Reads a memo column's real capacity from platform metadata.
+   *
+   * The bulk executor refuses a population that will not fit the column it is about to be written
+   * into, and that refusal is only honest if it is sized against the column that **exists** rather
+   * than the one that was requested when it was provisioned. So the number is read from
+   * `EntityDefinitions`, exactly as the provisioning verifier reads it back.
+   *
+   * Returns `null` when metadata cannot be read. The caller must then refuse to start a run: a
+   * capacity nobody could establish is not a capacity to send against.
+   */
+  async readMemoCapacity(entityLogicalName: string, attribute: string): Promise<number | null> {
+    const transport = this.requireWriteTransport('read column metadata');
+    const response = await transport.get(
+      `/EntityDefinitions(LogicalName='${entityLogicalName}')`
+      + `/Attributes(LogicalName='${attribute}')`
+      + '/Microsoft.Dynamics.CRM.MemoAttributeMetadata?$select=LogicalName,MaxLength');
+
+    if (response.status >= 400) return null;
+    const maxLength = (response.body as { MaxLength?: unknown } | undefined)?.MaxLength;
+    return typeof maxLength === 'number' ? maxLength : null;
+  }
+
   private requireWriteTransport(what: string): WriteTransport {
     if (!this.writeTransport) {
       throw new Error(

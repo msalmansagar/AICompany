@@ -54,12 +54,17 @@ export interface CommunicationRun {
 
 export type RunStatus = 'Draft' | 'Running' | 'Paused' | 'Completed' | 'Cancelled' | 'Failed';
 
-/** Option values as provisioned. Explicit so the same number means the same thing on both platforms. */
-const STATUS_CODES: Readonly<Record<RunStatus, number>> = {
+/**
+ * Option values as provisioned. Explicit so the same number means the same thing on both platforms.
+ *
+ * Exported because the run list renders these same choices, and a second copy of the numbers in a
+ * query module would be free to drift from the ones the executor writes. One set, read both ways.
+ */
+export const STATUS_CODES: Readonly<Record<RunStatus, number>> = {
   Draft: 100000710, Running: 100000711, Paused: 100000712,
   Completed: 100000713, Cancelled: 100000714, Failed: 100000715,
 };
-const CHANNEL_CODES: Readonly<Record<'SMS' | 'Email', number>> = { SMS: 100000700, Email: 100000701 };
+export const CHANNEL_CODES: Readonly<Record<'SMS' | 'Email', number>> = { SMS: 100000700, Email: 100000701 };
 const SELECTION_CODES = { SelectedRecords: 100000720, FilterDefinition: 100000721 } as const;
 
 const statusFromCode = (code: number): RunStatus =>

@@ -1,7 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { App } from '../App.js';
 import { VIEWS, isPending } from '../shell/routes.js';
+import { serialiseNonSuccesses } from '@dcp/domain';
+import { STATUS_CODES } from '../services/bulkCommunicationService.js';
+import { FakePlatform } from './bulkPlatform.js';
 import type { XrmLike } from '../platform/crmContext.js';
 
 /**
@@ -100,6 +103,19 @@ function install(xrm: XrmLike) {
  */
 async function openView(viewId: string) {
   window.location.hash = `#${viewId}`;
+  return openHash(viewId);
+}
+
+/**
+ * Opens a deep route and proves the route was taken.
+ *
+ * A tab inside a view is not reached by `#<viewId>`, so the sweep above never sees it. The bulk
+ * screens are exactly that shape, and leaving them unswept would repeat KI-94's mistake in a new
+ * place: a guard that covers the pages it happens to know about reports safety for the ones it
+ * does not.
+ */
+async function openHash(viewId: string, hash?: string) {
+  if (hash !== undefined) window.location.hash = hash;
   render(<App />);
   const content = await screen.findByTestId('content');
   expect(
@@ -121,6 +137,7 @@ beforeEach(() => { window.location.hash = ''; });
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   delete (window as unknown as { Xrm?: XrmLike }).Xrm;
 });
 
@@ -146,6 +163,92 @@ describe('every routed view is free of developer internals', () => {
       install(fakeXrm());
       await openView(view.id);
       assertClean(view.id);
+    });
+  }
+});
+
+describe('the bulk screens are swept, on both paths', () => {
+  const RUN_ID = '9f1d2c3b-4a5e-6f70-8192-a3b4c5d6e7f8';
+  const RECIPIENT_ID = 'aaaaaaa1-1111-1111-1111-111111111111';
+
+  /**
+   * A real run to sweep, rather than an empty screen.
+   *
+   * Sweeping a bulk run that does not exist would read an error card and prove nothing about the
+   * screen an officer actually uses. This seeds the run header the detail view reads, including a
+   * recipient that needs attention — so the progress tiles, the controls and the outcomes table are
+   * all rendered and all in scope.
+   */
+  function seedRun(): FakePlatform {
+    const platform = new FakePlatform();
+    platform.runs.set(RUN_ID, {
+      version: 1,
+      record: {
+        qdb_communicationrunid: RUN_ID,
+        qdb_name: 'SMS to 3 recipients',
+        qdb_channel: 100000700,
+        qdb_status: STATUS_CODES.Paused,
+        qdb_messagebody: 'Your account is overdue.',
+        qdb_frozenpopulation: RECIPIENT_ID.replace(/-/g, ''),
+        qdb_totalrecipients: 1,
+        qdb_cursor: 1,
+        qdb_failedrecipients: serialiseNonSuccesses([
+          { recipientId: RECIPIENT_ID, outcome: 'failed', detail: 'incomplete communication' },
+        ]),
+      },
+    });
+    platform.install();
+    return platform;
+  }
+
+  /** A platform every request fails against, so the failure path renders rather than hanging. */
+  function refuseEverything(): void {
+    vi.stubGlobal('fetch', () => Promise.reject({ message: 'Network failure', status: 503 }));
+  }
+
+  /**
+   * Each route, with the element that proves **this screen** has finished resolving.
+   *
+   * Waiting for `content` to be non-empty is not enough and was actively misleading: the shell, the
+   * nav rail and the header fill it immediately, so the sweep read the page before the bulk screen
+   * had rendered at all — and passed with the run id plainly on screen. That is the same vacuous
+   * guard as KI-94, reproduced in a new place by the same shortcut. The marker below is the screen
+   * itself, so the sweep cannot run early.
+   */
+  const routes: readonly { what: string; hash: string; settled: readonly string[] }[] = [
+    { what: 'the bulk tab', hash: '#comms/bulk', settled: ['bulk-communication'] },
+    // A run id in the URL is what makes refresh and deep-linking work — and it is also a GUID in
+    // front of a user. The address bar is the host's; the page must not repeat it.
+    {
+      what: 'a bulk run',
+      hash: `#comms/bulk/${RUN_ID}`,
+      settled: ['bulk-run-detail', 'bulk-run-error'],
+    },
+  ];
+
+  /** Waits until one of the screen's own markers exists, so the sweep reads the right page. */
+  async function settle(markers: readonly string[]) {
+    await waitFor(() => {
+      const found = markers.some(marker => screen.queryAllByTestId(marker).length > 0);
+      expect(found, `none of ${markers.join(', ')} rendered — this sweep would prove nothing`).toBe(true);
+    });
+  }
+
+  for (const route of routes) {
+    it(`${route.what} shows nothing an officer would not recognise`, async () => {
+      install(fakeXrm());
+      seedRun();
+      await openHash('comms', route.hash);
+      await settle(route.settled);
+      assertClean(route.what);
+    });
+
+    it(`${route.what} stays clean when every read fails`, async () => {
+      install(failingXrm());
+      refuseEverything();
+      await openHash('comms', route.hash);
+      await settle(route.settled);
+      assertClean(`${route.what} (failing reads)`);
     });
   }
 });
