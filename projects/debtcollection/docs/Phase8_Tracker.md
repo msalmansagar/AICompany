@@ -36,8 +36,8 @@ Claims — which the original plan carried only as Phase 9 placeholders in the n
 
 | Revised WP | Original WP | Scope | Depends on | Status | Est. hrs |
 |---|---|---|---|---|---|
-| **WP12** | *new* | **Disputes & Complaints — discovery.** Existing QDB Case/Complaint capability, semantically searched. Dispute vs Complaint distinction. Collection-control-during-dispute policy. No DCP entity created before discovery proves one is needed | 8 | **▶ NEXT** | 2.00 |
-| **WP13** | *new* | **Disputes & Complaints — Collection-side capability** and, where discovery proves a downstream process, its adapter and traceability | 12 | pending WP12 | 2.50 |
+| **WP12** | *new* | **Disputes & Complaints — discovery.** Complaint = native `incident`, 108 custom columns, established. Collection Dispute **not modelled by QDB**. No collection-control policy exists | 8 | **✅ done** — KI-118/119/120 | 2.00 |
+| **WP13** | *new* | **Disputes & Complaints — Collection-side capability.** No downstream hand-off: KI-118 must be answered first. Nothing pauses collection (KI-119) | 12 | **▶ NEXT** | 2.50 |
 | **WP14** | 9, 10 (completion) | **Legal hand-off — Collection-side completion.** The read-model states an officer sees, end to end. Fail-closed: no enabled hand-off control while KI-109 is unresolved | 9, 10 | ready | 1.50 |
 | **WP15** | *new* | **Deceased & Insurance Claims — discovery.** HL and BFD separately. The 724 MIS deceased flags remain **data-only** | 14 | pending | 2.00 |
 | **WP16** | *new* | **Deceased & Insurance Claims — Collection-side capability.** Deceased identification and insurance claim modelled **independently**, never collapsed into one status | 15 | pending | 2.50 |
