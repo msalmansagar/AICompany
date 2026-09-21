@@ -450,3 +450,21 @@ export type {
   ExistingWork,
   IntendedActivity,
 } from './strategyAutomation.js';
+
+// ── Phase 8 — controlled re-evaluation (WP5) ─────────────────────────────────
+export {
+  REEVALUATION_TRIGGERS,
+  belongsToEpisode,
+  buildEvaluationTrace,
+  reevaluate,
+  strategyFactsChanged,
+} from './strategyReevaluation.js';
+export type {
+  ActivityState,
+  Disposition,
+  DispositionEntry,
+  EvaluationTrace,
+  ExistingActivity,
+  ReevaluationOutcome,
+  ReevaluationTrigger,
+} from './strategyReevaluation.js';

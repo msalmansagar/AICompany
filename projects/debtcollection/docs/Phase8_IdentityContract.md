@@ -91,10 +91,22 @@ does — the evaluation is written as a JSON diagnostic block in `description`, 
 *business* trace of which action produced which activity lives on the activity, which is what WP2
 provisioned it for.
 
-### One thing found while looking, and not silently fixed
+### Designed audit mechanism vs. currently enabled runtime coverage
 
-**Native Dynamics Audit is disabled on `qdb_collectionactivity` and `qdb_collectioncase`.** §23 names
-native Audit as the business audit mechanism, and it is currently off on the two entities Phase 8
-writes to most. Enabling it is an organisation setting with a storage cost, not a code change, so it
-is **recorded rather than switched on unilaterally** — see KI-99. Phase 8's own trace does not depend
-on it.
+These are **not the same thing**, and Phase 8 must not let one be read as the other.
+
+| | |
+|---|---|
+| **Designed business audit mechanism** | Native Dynamics Audit, as §23 of the authorisation specifies. Unchanged, and not replaced |
+| **Currently enabled runtime coverage** | **None on `qdb_collectionactivity` or `qdb_collectioncase`** — `IsAuditEnabled = false` on both, verified 2026-09-21 |
+| **What Phase 8 therefore claims** | Only its own technical evaluation trace in `qdb_crmlogs`. **No business audit coverage is claimed for these entities**, because there is none to claim |
+
+So: field-level history — who changed a status, who reassigned, who cancelled an activity — is
+**not being captured today** on the two entities Phase 8 writes to most. That is a configuration
+gap, recorded as **KI-99** and left for QDB, because enabling entity auditing affects storage,
+retention, performance and governance across a shared organisation and is not a build's decision.
+
+**It is also not compensated for.** No custom business-audit entity is created to fill the gap —
+that would be the duplicate log §23 forbids, and it would quietly become the thing everyone relies
+on instead of the mechanism QDB actually chose. Phase 8's trace stays what it is: diagnostics of an
+automated run, in the approved technical log.
