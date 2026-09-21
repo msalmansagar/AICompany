@@ -108,20 +108,25 @@ export function describeOrigin(provenance: ActivityProvenance): string {
 // ── Evaluation context ───────────────────────────────────────────────────────
 
 /**
- * What a strategy evaluation was *about*, and therefore what makes its work unique.
+ * What a strategy evaluation was *about*.
  *
  * The episode is part of the identity and not an afterthought. A cured case that re-delinquents is
  * a **new episode**, and the same strategy action must be allowed to produce work again — while a
  * re-evaluation within one episode must not. `qdb_collectioncase.qdb_episodenumber` already carries
  * this, so nothing new is stored to express it.
  *
- * `rulesetVersion` is carried so a configuration change is visible in the identity: when the
- * ruleset that selected the strategy changes, the work it justifies is legitimately different.
+ * `rulesetVersion` travels with every evaluation and is deliberately **NOT hashed into the
+ * identity**. A ruleset version is a property of the decision, not of the work: hashing it would
+ * mean that republishing configuration mid-episode raised a second copy of every outstanding
+ * action, with no business event behind it. It is written to the evaluation trace instead, where
+ * an auditor can read why a decision was made without it being able to manufacture work.
+ *
+ * See `docs/Phase8_IdentityContract.md` for the ten scenarios this separation was tested against.
  */
 export const EvaluationContextSchema = z.object({
   caseId: z.string().uuid(),
   episodeNumber: z.number().int().nonnegative(),
-  /** The ruleset version that selected the strategy, where the engine supplies one. */
+  /** Evidence only — never part of work identity. */
   rulesetVersion: z.string().optional(),
 });
 export type EvaluationContext = z.infer<typeof EvaluationContextSchema>;
@@ -132,9 +137,19 @@ const STRATEGY_NAMESPACE = '2f8c5b19-7e43-4a6d-9c02-5b1e8d7a4f63';
 /**
  * The id a strategy action's work will take on this case, in this episode.
  *
- * Derived from exactly the four things that make the work distinct. Two actions of the same type in
- * one strategy give different ids because the **action id** differs, which is the defect Activity
- * Type correlation could never fix.
+ * **Three components, and deliberately not a fourth.** Case, episode and action are what make the
+ * work distinct. Two actions of the same type in one strategy give different ids because the
+ * **action id** differs — the defect Activity Type correlation could never fix.
+ *
+ * `rulesetVersion` is **excluded on purpose**: including it would mean a configuration republish
+ * mid-episode duplicated every outstanding action. A timestamp or a counter would do the same
+ * damage one step removed, and would destroy idempotency for the retry and concurrency cases this
+ * whole design exists to make safe.
+ *
+ * Where a strategy action's configuration genuinely requires *new* work, the representation is a
+ * **new `qdb_strategyaction` record** — which yields a new id for free. Editing an action changes
+ * how that action is described; it does not create a second obligation on a case that already
+ * holds its work.
  *
  * Lower-cased before hashing: Dataverse returns ids in mixed case depending on the call, and an id
  * that depended on that would produce two records for one intent.
@@ -148,9 +163,49 @@ export function strategyActivityId(
     context.caseId.toLowerCase(),
     String(context.episodeNumber),
     strategyActionId.toLowerCase(),
-    context.rulesetVersion ?? '',
   ].join('|');
   return uuidV5(name, STRATEGY_NAMESPACE);
+}
+
+// ── Regeneration ─────────────────────────────────────────────────────────────
+
+/**
+ * Whether work that already exists may be raised again within the same episode.
+ *
+ * **KI-98 — this is a QDB policy question, and Phase 8 does not answer it.** Should a reminder call
+ * completed on day 3 be raised again on day 30 of the same episode, or is that a *different* action
+ * in configuration? Should a cancelled field visit be reinstated by the next evaluation, or did the
+ * officer's cancellation settle it? Both readings are defensible and they differ materially.
+ *
+ * The conservative direction is taken until QDB decides: **existing work is authoritative**, whether
+ * it is open, completed or cancelled. That neither duplicates work nor overrides a human decision
+ * with a scheduler, and it can be relaxed later without having already produced records nobody
+ * asked for. The opposite default cannot be undone.
+ */
+export const REGENERATION_POLICY = 'existing-work-is-authoritative' as const;
+
+/** What the executor found when it looked for work it was about to create. */
+export type ExistingWork = 'none' | 'open' | 'settled';
+
+/**
+ * Whether the executor should create this intended activity.
+ *
+ * Returns a decision rather than a boolean so the caller can record *why* nothing happened — "it
+ * already exists" and "it was cancelled and we do not reinstate" are different facts to an officer
+ * reading an Action Plan, and collapsing them into `false` loses the one that needs explaining.
+ */
+export function regenerationDecision(existing: ExistingWork): {
+  create: boolean; reason: string;
+} {
+  if (existing === 'none') return { create: true, reason: 'No activity exists for this action yet.' };
+  if (existing === 'open') {
+    return { create: false, reason: 'This action already has open work on the case.' };
+  }
+  return {
+    create: false,
+    reason: 'This action was already completed or cancelled in this delinquency episode. '
+      + 'Whether it may be raised again is a QDB policy decision that has not been made (KI-98).',
+  };
 }
 
 // ── Intended work ────────────────────────────────────────────────────────────

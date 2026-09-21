@@ -439,11 +439,14 @@ export {
   describeOrigin,
   isStrategyGenerated,
   planStrategyWork,
+  regenerationDecision,
   strategyActivityId,
+  REGENERATION_POLICY,
 } from './strategyAutomation.js';
 export type {
   ActivityOrigin,
   ActivityProvenance,
   EvaluationContext,
+  ExistingWork,
   IntendedActivity,
 } from './strategyAutomation.js';

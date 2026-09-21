@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ACTIVITY_ORIGIN_CODES, ProvenanceError, assertProvenance, describeOrigin, isStrategyGenerated,
-  planStrategyWork, strategyActivityId,
+  planStrategyWork, regenerationDecision, strategyActivityId,
   type EvaluationContext,
 } from './strategyAutomation.js';
 import type { CollectionStrategy, StrategyAction } from './strategy.js';
@@ -134,9 +134,17 @@ describe('the same intent reaches the same id', () => {
       .not.toBe(strategyActivityId(context({ caseId: OTHER_CASE }), ACTION_A));
   });
 
-  it('changes when the ruleset that justified the work changes', () => {
+  it('is UNCHANGED when the ruleset is republished, because a version is not work', () => {
+    // The defect this contract exists to prevent. Hashing the version would mean every
+    // configuration publish mid-episode raised a second copy of every outstanding action, with
+    // no business event behind it. See docs/Phase8_IdentityContract.md.
     expect(strategyActivityId(context({ rulesetVersion: '1.0' }), ACTION_A))
-      .not.toBe(strategyActivityId(context({ rulesetVersion: '1.1' }), ACTION_A));
+      .toBe(strategyActivityId(context({ rulesetVersion: '1.1' }), ACTION_A));
+  });
+
+  it('is unchanged when no ruleset version is supplied at all', () => {
+    expect(strategyActivityId(context({ rulesetVersion: undefined }), ACTION_A))
+      .toBe(strategyActivityId(context({ rulesetVersion: '2.7' }), ACTION_A));
   });
 
   it('is insensitive to the case of an id, because Dataverse is not consistent about it', () => {
@@ -215,5 +223,80 @@ describe('planning the work a strategy intends', () => {
     // evaluation happened. The due dates legitimately differ.
     expect(second.map(item => item.activityId)).toEqual(first.map(item => item.activityId));
     expect(second[0]!.dueDate).not.toBe(first[0]!.dueDate);
+  });
+});
+
+// ── The ten scenarios, as a contract ─────────────────────────────────────────
+
+/**
+ * `docs/Phase8_IdentityContract.md` analyses ten scenarios before freezing the identity. These pin
+ * the conclusions, so a future change to `strategyActivityId` cannot quietly reopen one.
+ */
+describe('the Phase 8 idempotency contract', () => {
+  const same = (a: string, b: string) => expect(a).toBe(b);
+  const distinct = (a: string, b: string) => expect(a).not.toBe(b);
+
+  it('1. same case, episode, action and ruleset — same intended activity', () => {
+    same(strategyActivityId(context({ rulesetVersion: '1.0' }), ACTION_A),
+      strategyActivityId(context({ rulesetVersion: '1.0' }), ACTION_A));
+  });
+
+  it('2. concurrent evaluation derives one id, so the platform can refuse the second create', () => {
+    const workerA = strategyActivityId(context(), ACTION_A);
+    const workerB = strategyActivityId(context(), ACTION_A);
+    same(workerA, workerB);
+  });
+
+  it('3. a retry after an uncertain create targets the id that already exists', () => {
+    same(strategyActivityId(context(), ACTION_A), strategyActivityId(context(), ACTION_A));
+  });
+
+  it('4. DPD or bucket moved but the action still applies — existing work stays authoritative', () => {
+    // Neither DPD nor bucket is in the identity, so a number moving cannot raise a second copy of
+    // work the officer already holds.
+    same(strategyActivityId(context(), ACTION_A), strategyActivityId(context(), ACTION_A));
+    expect(regenerationDecision('open').create).toBe(false);
+  });
+
+  it('5. republishing configuration does not duplicate semantically identical work', () => {
+    same(strategyActivityId(context({ rulesetVersion: '3.4.1' }), ACTION_A),
+      strategyActivityId(context({ rulesetVersion: '3.5.0' }), ACTION_A));
+  });
+
+  it('6. genuinely new work is represented by a NEW strategy action, which yields a new id', () => {
+    // The contract: editing an action changes how it is described; it does not create a second
+    // obligation on a case that already holds its work. A new obligation is a new action record.
+    distinct(strategyActivityId(context(), ACTION_A), strategyActivityId(context(), ACTION_B));
+  });
+
+  it('7. a COMPLETED action is not silently regenerated in the same episode (KI-98)', () => {
+    const decision = regenerationDecision('settled');
+    expect(decision.create).toBe(false);
+    expect(decision.reason).toMatch(/KI-98/);
+  });
+
+  it('8. a CANCELLED action is not reinstated over an officer\u2019s decision (KI-98)', () => {
+    // Settled covers both. The reason says so, because "nothing happened" and "an officer
+    // cancelled this and we do not overrule that" are different facts to whoever reads the plan.
+    expect(regenerationDecision('settled').create).toBe(false);
+  });
+
+  it('9. strategy A to B, both holding the same activity type, stay distinct', () => {
+    distinct(strategyActivityId(context(), ACTION_A), strategyActivityId(context(), ACTION_B));
+  });
+
+  it('10. A to B and back to A in one episode regenerates nothing', () => {
+    const firstVisit = strategyActivityId(context(), ACTION_A);
+    const afterReturning = strategyActivityId(context(), ACTION_A);
+    same(firstVisit, afterReturning);
+    expect(regenerationDecision('open').create).toBe(false);
+  });
+
+  it('creates when there is genuinely nothing there', () => {
+    expect(regenerationDecision('none').create).toBe(true);
+  });
+
+  it('explains a refusal rather than returning a bare false', () => {
+    expect(regenerationDecision('open').reason).toMatch(/already has open work/i);
   });
 });
