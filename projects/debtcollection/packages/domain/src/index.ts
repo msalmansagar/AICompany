@@ -426,3 +426,24 @@ export type {
   ReconciliationVerdict,
   BatchPlan,
 } from './bulkCommunication.js';
+
+// ── Phase 8 — strategy automation and provenance (KI-71) ─────────────────────
+export {
+  ACTIVITY_ORIGIN_CODES,
+  ActivityOriginSchema,
+  ActivityProvenanceSchema,
+  EvaluationContextSchema,
+  ProvenanceError,
+  StrategyPlanError,
+  assertProvenance,
+  describeOrigin,
+  isStrategyGenerated,
+  planStrategyWork,
+  strategyActivityId,
+} from './strategyAutomation.js';
+export type {
+  ActivityOrigin,
+  ActivityProvenance,
+  EvaluationContext,
+  IntendedActivity,
+} from './strategyAutomation.js';

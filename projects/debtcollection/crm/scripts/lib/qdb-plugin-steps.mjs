@@ -69,4 +69,12 @@ export const PLUGIN_STEPS = [
 
   // ── ActivitySubjectComposerPlugin ───────────────────────────────────────────
   { pluginType: 'ActivitySubjectComposerPlugin', entity: 'qdb_collectionactivity', message: 'Create', stage: 20, mode: 0, filterAttributes: 'qdb_activitytypeid', image: null },
+
+  // ── ActivityProvenanceGuardPlugin (Phase 8, KI-71) ──────────────────────────
+  // Strategy-generated work must name the strategy action that requested it. Create is always
+  // checked. Update is filtered to the two provenance columns and carries a PreImage of both,
+  // because the damaging write is an Update that CLEARS the lookup on an activity that is already
+  // strategy generated — and the Target alone cannot show that.
+  { pluginType: 'ActivityProvenanceGuardPlugin', entity: 'qdb_collectionactivity', message: 'Create', stage: 20, mode: 0, filterAttributes: '',                                  image: null },
+  { pluginType: 'ActivityProvenanceGuardPlugin', entity: 'qdb_collectionactivity', message: 'Update', stage: 20, mode: 0, filterAttributes: 'qdb_origin,qdb_strategyactionid', image: { alias: 'PreImage', attributes: 'qdb_origin,qdb_strategyactionid' } },
 ];

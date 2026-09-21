@@ -125,7 +125,7 @@ because there is no alternate key and nothing on the Legal record points back at
 
 ---
 
-## 3. Restructuring — four candidates, none authoritative
+## 3. Restructuring — none identified **in the Cloud development organisation**
 
 Swept all **3,144** entities and all **1,622** workflows for
 `restructur|workout|reschedul|settlement|writeoff|waiver|deferral|moratorium`:
@@ -139,8 +139,15 @@ Swept all **3,144** entities and all **1,622** workflows for
 
 **Workflows matching: 0 of 1,622.**
 
-Four plausible implementations, all empty, none wired. The authoritative one cannot be determined
-from evidence — see §8.
+**Stated precisely, because Legal has already shown why the looser statement would be wrong:**
+
+> No authoritative Restructuring/Workout process has yet been identified **in the Cloud development
+> organisation**. The existing On-Premises implementation status **requires QDB confirmation**.
+
+This is deliberately not "QDB has no restructuring process". The Legal finding in §2 was exactly
+this shape — an empty Cloud sandbox that turned out to reflect an environment difference, not an
+absent process. Concluding absence from Cloud metadata alone would repeat the error one section
+later.
 
 ---
 
@@ -293,17 +300,14 @@ WP9 and WP10 are **unblocked**. Detail and consequences in §2 above.
 
 Four candidate entities, all empty, no workflows.
 
-**Proceeding on §17's own directed fallback rather than holding.** §17 says to stop when several
-plausible implementations exist and the authoritative one is unclear; it also says what to do when
-**no** existing process exists — stop at *Strategy → Restructuring Recommendation → Assignment →
-TAT/Escalation* and record the full process as a Phase 9 requirement. Four empty tables with no
-workflow, no plugin and no data are closer to "no process" than to "several processes", so WP11
-takes that fallback and builds nothing beyond the recommendation.
+**PENDING QDB CONFIRMATION — not concluded.** No authoritative Restructuring/Workout process has
+yet been identified in the Cloud development organisation; the On-Premises position is unknown and
+is QDB's to confirm. It is **not** recorded as absent, and **not** moved permanently to Phase 9.
 
-**This is reversible and cheap to correct.** If QDB names an authoritative restructuring process —
-and the Legal answer above shows Cloud emptiness can be a sandbox artefact rather than the truth —
-WP11 gains a hand-off exactly like Legal's, against whichever entity is named. Nothing built under
-the fallback has to be unbuilt. **Flagged for confirmation, not blocking.**
+Phase 8 therefore builds only *Strategy → Restructuring Recommendation → Assignment →
+TAT/Escalation*, and **no new Restructuring lifecycle**. The downstream hand-off sits behind the
+same boundary Legal uses, so if QDB confirms an On-Premises process WP11 integrates with it
+**without redesigning strategy automation**. Nothing built now has to be unbuilt.
 
 ---
 
