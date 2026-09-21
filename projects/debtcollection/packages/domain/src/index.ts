@@ -482,3 +482,23 @@ export type {
   AssignmentStatus,
   AssignmentTarget,
 } from './assignmentDecision.js';
+
+// ── Phase 8 — TAT and escalation (WP7) ───────────────────────────────────────
+export {
+  computeDeadline,
+  continuousElapsed,
+  deriveWorkState,
+  escalationDue,
+  escalationEventId,
+  isCurrentWork,
+} from './tatEscalation.js';
+export type {
+  EscalationEventKind,
+  TatBasis,
+  TatCalendar,
+  TatDeadline,
+  TatInstants,
+  TatStartPolicy,
+  WorkState,
+  WorkStateInput,
+} from './tatEscalation.js';
