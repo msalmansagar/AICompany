@@ -515,3 +515,17 @@ export {
   toActionPlanItem,
 } from './actionPlanItem.js';
 export type { ActionPlanInput, ActionPlanItem } from './actionPlanItem.js';
+
+// ── Phase 8 — Legal hand-off (WP9) ───────────────────────────────────────────
+export {
+  decideLegalHandoff,
+  interpretHandoffWrite,
+  litigationRequestId,
+  remainsAvailable,
+  resolveLegalCustomer,
+  worthRetrying as legalHandoffWorthRetrying,
+} from './legalHandoff.js';
+export type {
+  CustomerTable, LegalCustomerResolution, LegalHandoffDecision, LegalHandoffOutcome,
+  LegalQualificationPolicy, LegalRecommendation,
+} from './legalHandoff.js';
