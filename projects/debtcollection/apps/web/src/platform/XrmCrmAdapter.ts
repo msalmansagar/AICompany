@@ -19,6 +19,7 @@ import {
 } from '@dcp/domain';
 import type { XrmLike } from './crmContext.js';
 import { PRECONDITION_FAILED, type WriteTransport } from './writeTransport.js';
+import { interpretRejection, type DataverseFailure } from './dataverseErrors.js';
 
 /**
  * The browser half of `ICrmAdapter`, over `Xrm.WebApi`.
@@ -287,25 +288,26 @@ export class XrmCrmAdapter implements ICrmAdapter, IConcurrencyControlledWrites 
   /**
    * A single record, with the reason a read failed rather than just its absence.
    *
-   * `retrieve` returns null on 404 and throws on everything else, which is right for a record the
-   * caller either has or has not got. It is wrong for the Litigation Request: **403 and 404 mean
-   * opposite things there**. 403 means the request exists and this officer may not see it; 404
-   * means the organisation does not hold it. Collapsing them would tell every Collection Officer
-   * that no litigation exists, because no DCP role holds read permission on the Legal entity.
+   * `retrieve` returns null on absence and throws on everything else, which is right for a record
+   * the caller either has or has not got. It is wrong for the Litigation Request: **absence and
+   * refusal mean opposite things there**. Refusal means the request exists and this officer may not
+   * see it; absence means the organisation does not hold it. Collapsing them would tell every
+   * Collection Officer that no litigation exists, because no DCP role holds read permission on the
+   * Legal entity.
    *
    * Reads as the signed-in user through `Xrm.WebApi`, never through a privileged identity.
    */
-  async retrieveWithStatus(
+  async retrieveClassified(
     reference: CrmReference, select: string[],
-  ): Promise<{ status: number; record?: CrmRecord }> {
+  ): Promise<{ record?: CrmRecord; failure?: DataverseFailure }> {
     try {
       const record = await this.xrm.WebApi.retrieveRecord(
         this.toLogicalName(reference.entity), reference.id, `?$select=${select.join(',')}`);
-      return { status: 200, record };
+      return { record };
     } catch (error) {
-      const status = (error as { status?: number })?.status;
-      // An error the platform did not put a status on is unknown, not permitted and not absent.
-      return { status: typeof status === 'number' ? status : 0 };
+      // No status is read here. `Xrm.WebApi` supplies none, and the code that read one anyway
+      // turned every refusal and every absence into the same unclassified failure.
+      return { failure: interpretRejection(error) };
     }
   }
 
@@ -422,19 +424,14 @@ export class XrmCrmAdapter implements ICrmAdapter, IConcurrencyControlledWrites 
   /**
    * A read that found nothing, told apart from a read that failed.
    *
-   * **The client API does not report a status.** `Xrm.WebApi.retrieveRecord` rejects with a plain
-   * object carrying `errorCode`, `message`, `code`, `title` and `raw` — and no `status` at all, so
-   * a check for 404 alone never matched and every absent record surfaced as an error. The Deceased
-   * Review card showed one to an officer: a case with no review recorded read "This could not be
-   * read", because asking for a record that does not exist is how that screen asks the question.
+   * The classification lives in `interpretRejection`, because the two channels this workspace
+   * uses report absence differently and every caller that decided for itself decided wrongly.
    *
-   * Both shapes are accepted, because both are real: the transport answers with HTTP 404, and the
-   * client API answers with `0x80040217` — read from the platform, not assumed.
+   * Anything **not positively identified as absent is re-thrown**. An unknown failure must never
+   * become `null`, because `null` reads to the caller as "there is no such record".
    */
   private nullIfNotFound(error: unknown): null {
-    const failure = error as { status?: number; errorCode?: number };
-    if (failure?.status === NOT_FOUND_STATUS) return null;
-    if (failure?.errorCode === OBJECT_DOES_NOT_EXIST) return null;
+    if (interpretRejection(error).kind === 'notFound') return null;
     throw error;
   }
 }
@@ -445,17 +442,6 @@ export class XrmCrmAdapter implements ICrmAdapter, IConcurrencyControlledWrites 
  * Read from the organisation's `EntityDefinitions`, not inferred. Each one here is a name that the
  * naive rule would have produced incorrectly.
  */
-/** HTTP, as the direct transport reports a missing record. */
-const NOT_FOUND_STATUS = 404;
-
-/**
- * `0x80040217` — the platform's own "record does not exist", as `Xrm.WebApi` reports it.
- *
- * Decimal because that is how the client API hands it over. Confirmed by asking the organisation
- * for a record that was never created and reading the rejection.
- */
-const OBJECT_DOES_NOT_EXIST = 2147746327;
-
 export const DEFAULT_LOGICAL_NAMES: Readonly<Record<string, string>> = {
   qdb_crmlogses: 'qdb_crmlogs',
   qdb_collectionactivities: 'qdb_collectionactivity',
@@ -526,13 +512,62 @@ export function buildOptions(query: {
   // An empty `$select` is rejected by the platform — "'select' and 'expand' cannot be both null or
   // empty" — so it is omitted rather than sent blank. A count asks for no columns, which is a real
   // and correct request: what it wants is the number in the envelope, not the rows.
-  const parts = query.select.length > 0 ? [`$select=${query.select.join(',')}`] : [];
-  if (query.expand && query.expand.length > 0) parts.push(`$expand=${query.expand.join(',')}`);
-  if (query.filter) parts.push(`$filter=${query.filter}`);
+  const parts = query.select.length > 0 ? [`$select=${namesOnly(query.select.join(','), '$select')}`] : [];
+  if (query.expand && query.expand.length > 0) {
+    parts.push(`$expand=${namesOnly(query.expand.join(','), '$expand')}`);
+  }
+  // The only option that carries caller text, and therefore the only one encoded.
+  if (query.filter) parts.push(`$filter=${encodeQueryValue(query.filter)}`);
   if (query.sort && query.sort.length > 0) {
-    parts.push(`$orderby=${query.sort.map(s => `${s.field}${s.descending ? ' desc' : ' asc'}`).join(',')}`);
+    const orderBy = query.sort.map(s => `${s.field}${s.descending ? ' desc' : ' asc'}`).join(',');
+    parts.push(`$orderby=${namesOnly(orderBy, '$orderby')}`);
   }
   if (query.top !== undefined) parts.push(`$top=${query.top}`);
   if (query.count) parts.push('$count=true');
   return `?${parts.join('&')}`;
 }
+
+/**
+ * Column and navigation-property names only — nothing a customer can influence.
+ *
+ * `$select`, `$expand` and `$orderby` are built from the registered schema, so they are left
+ * unencoded: their commas, parentheses and slashes are **structure**, and percent-encoding those
+ * would change what the option means rather than protect it.
+ *
+ * That assumption is worth exactly as much as its enforcement, so it is enforced. If caller text
+ * ever reaches one of these, the request is refused here rather than being sent as a malformed
+ * query the platform answers with something unhelpful.
+ */
+function namesOnly(option: string, name: string): string {
+  if (!SAFE_OPTION.test(option)) {
+    throw new Error(`${name} may contain only schema names, and received: ${option.slice(0, 80)}`);
+  }
+  return option;
+}
+
+/**
+ * Encodes only what can end or alter a query-string value.
+ *
+ * A customer called *Ahmed & Sons* ended the `$filter` early and the platform answered "The
+ * query parameter … is not supported" — reproduced against `org5869857f`, where the same search
+ * through `count()` succeeded because that path already encoded. The list broke while the number
+ * beside it did not.
+ *
+ * **Targeted rather than wholesale.** Percent-encoding the entire expression also works, but it
+ * encodes the spaces, quotes and parentheses that make a filter readable in a trace — and every
+ * stand-in that honours a filter by reading it then has to decode first or quietly stop matching.
+ * These four characters are the ones that are structurally dangerous in a value: everything else
+ * a filter contains is already sent literally today, against this organisation, and works.
+ *
+ * Order matters: the escape character is encoded first, or it would escape the escapes.
+ */
+function encodeQueryValue(value: string): string {
+  return value
+    .split('%').join('%25')
+    .split('&').join('%26')
+    .split('#').join('%23')
+    .split('+').join('%2B');
+}
+
+/** Letters, digits, underscore, and the structural characters these three options legitimately use. */
+const SAFE_OPTION = /^[A-Za-z0-9_,./()=$ '-]*$/;

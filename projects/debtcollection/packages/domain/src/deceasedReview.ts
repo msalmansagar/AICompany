@@ -170,6 +170,13 @@ export interface DeceasedReviewRow {
   ownerName: string;
   /** Whether an officer may start a review now. False once one exists. */
   canStartReview: boolean;
+  /**
+   * The facility the indication belongs to.
+   *
+   * Carried because the review's identity is derived from it, so a caller that can start one
+   * has what it needs without re-reading the snapshot and risking a different answer.
+   */
+  facilityNumber?: string;
 }
 
 const NOT_RECORDED = 'Not recorded';
@@ -197,6 +204,8 @@ export function toDeceasedReviewRow(input: {
     ownerName: review?.ownerName ?? 'Nobody yet',
     // A review can only be started where there is something to review and nothing already open.
     canStartReview: state === 'AwaitingReview',
+    ...(indication.facilityNumber !== undefined
+      ? { facilityNumber: indication.facilityNumber } : {}),
   };
 }
 

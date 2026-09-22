@@ -22,7 +22,9 @@ const NOW = new Date('2026-09-19T12:00:00.000Z');
  * historical activities to planned actions would sail through a green suite. So the fake applies
  * the same clause the platform would.
  */
-function matchesProvenanceSplit(row: Record<string, unknown>, options: string): boolean {
+function matchesProvenanceSplit(row: Record<string, unknown>, rawOptions: string): boolean {
+  // The platform sees the decoded clause; so must anything claiming to apply the same one.
+  const options = decodeURIComponent(rawOptions);
   const attributed = row['_qdb_strategyactionid_value'] !== undefined;
   if (options.includes('_qdb_strategyactionid_value ne null')) return attributed;
   if (options.includes('_qdb_strategyactionid_value eq null')) return !attributed;
@@ -75,7 +77,7 @@ function adapterReturning(
   const xrm = {
     WebApi: {
       retrieveMultipleRecords: async (logicalName: string, options: string) => {
-        requested.push(`${logicalName}${options}`);
+        requested.push(decodeURIComponent(`${logicalName}${options}`));
         const rows = rowsByLogicalName[logicalName] ?? [];
         if (honourSplit === false) return { entities: rows };
         return { entities: rows.filter(row => matchesProvenanceSplit(row, options)) };

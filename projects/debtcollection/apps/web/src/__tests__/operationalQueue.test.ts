@@ -36,7 +36,7 @@ function adapterReturning(rows: Record<string, unknown>[], count?: number) {
   const xrm = {
     WebApi: {
       retrieveMultipleRecords: async (logicalName: string, query: string, maxPageSize?: number) => {
-        requested.push(`${logicalName}${query}|maxPageSize=${maxPageSize}`);
+        requested.push(decodeURIComponent(`${logicalName}${query}|maxPageSize=${maxPageSize}`));
         return { entities: rows };
       },
     },

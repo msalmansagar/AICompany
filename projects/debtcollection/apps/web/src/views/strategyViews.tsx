@@ -16,7 +16,7 @@ import {
 } from '@dcp/domain';
 import { loadCaseLegalTraces, type LegalTraceRow } from '../data/caseLegalTraces.js';
 import { loadCaseConcerns, type CaseConcerns as CaseConcernsData } from '../data/caseConcerns.js';
-import { loadDeceasedReviewRow } from '../data/deceasedQueries.js';
+import { findDeceasedTypeId, loadDeceasedReviewRow, recordDeceasedReview } from '../data/deceasedQueries.js';
 import {
   Card, EmptyState, Icon, InfoBanner, KpiRow, PartialCapabilityNotice, formatCount, formatMoney, formatDate,
 } from '../components/primitives.js';
@@ -314,6 +314,8 @@ export function CaseDeceasedReview({ caseId }: { caseId: string }) {
   const [row, setRow] = useState<DeceasedReviewRow | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState('');
+  const [starting, setStarting] = useState(false);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -329,7 +331,33 @@ export function CaseDeceasedReview({ caseId }: { caseId: string }) {
     // Cancelling on a case change is what stops a slow read painting one case's indication over
     // another's — the most dangerous stale value on this screen.
     return () => { cancelled = true; };
-  }, [adapter, caseId]);
+  }, [adapter, caseId, reload]);
+
+  /**
+   * Starts the review, and asks the card to read itself again.
+   *
+   * The write is idempotent at a derived id, so a second click — or two officers at once — reaches
+   * the same record and the platform refuses the duplicate. Nothing is assumed about the outcome:
+   * the card re-reads rather than patching its own state from what it hoped happened.
+   */
+  const startReview = async (facilityNumber: string): Promise<void> => {
+    setStarting(true);
+    try {
+      const activityTypeId = await findDeceasedTypeId(adapter);
+      if (!activityTypeId) {
+        setError('No activity type is configured for deceased reviews, so one cannot be recorded.');
+        setState('error');
+        return;
+      }
+      await recordDeceasedReview(adapter, { caseId, facilityNumber, activityTypeId });
+      setReload(previous => previous + 1);
+    } catch (failure: unknown) {
+      setError(describeFailure(failure));
+      setState('error');
+    } finally {
+      setStarting(false);
+    }
+  };
 
   if (state === 'loading') {
     return <div className="empty-state" data-testid="deceased-loading">Loading…</div>;
@@ -376,9 +404,23 @@ export function CaseDeceasedReview({ caseId }: { caseId: string }) {
           </tr>
         </tbody>
       </table>
+      {row.canStartReview && row.facilityNumber && (
+        <div className="row-actions">
+          <button
+            type="button"
+            className="btn primary"
+            data-testid="deceased-start-review"
+            disabled={starting}
+            onClick={() => { void startReview(row.facilityNumber!); }}
+          >
+            {starting ? 'Recording…' : 'Record deceased review'}
+          </button>
+        </div>
+      )}
       <InfoBanner>
         Check who this customer is with before contacting them. There is no agreed handling rule
-        for this indication yet, so collection, messages and legal action are unchanged.
+        for this indication yet, so collection, messages and legal action are unchanged. Recording
+        a review says someone is checking — never that the customer has died.
       </InfoBanner>
     </Card>
   );

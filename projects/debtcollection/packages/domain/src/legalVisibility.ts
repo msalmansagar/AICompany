@@ -222,3 +222,23 @@ export function interpretLegalRead(status: number): LegalRecordFetch['kind'] {
   if (status === 404) return 'notFound';
   return 'unavailable';
 }
+
+/**
+ * The same question, asked of a **classified** failure rather than an HTTP status.
+ *
+ * The browser reads through `Xrm.WebApi`, which supplies no status at all, so the adapter
+ * classifies the rejection and the screen maps the classification. `interpretLegalRead` remains
+ * for the transport path, where a real status exists — the two agree by construction because both
+ * keep refusal and absence apart, which is the only property that matters here.
+ *
+ * An **unknown** failure maps to `unavailable`, never to `notFound`. Telling an officer that no
+ * litigation exists because a read failed for an unclassified reason is the single worst outcome
+ * this module can produce.
+ */
+export function legalFetchFromFailure(
+  kind: 'notFound' | 'accessDenied' | 'transient' | 'unknown',
+): 'notFound' | 'forbidden' | 'unavailable' {
+  if (kind === 'notFound') return 'notFound';
+  if (kind === 'accessDenied') return 'forbidden';
+  return 'unavailable';
+}

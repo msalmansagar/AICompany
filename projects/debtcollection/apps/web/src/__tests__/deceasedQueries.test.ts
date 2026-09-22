@@ -24,11 +24,11 @@ function adapterReturning(options: {
   const xrm = {
     WebApi: {
       retrieveMultipleRecords: async (logicalName: string, query: string, maxPageSize?: number) => {
-        requested.push(`${logicalName}${query}|maxPageSize=${maxPageSize}`);
+        requested.push(decodeURIComponent(`${logicalName}${query}|maxPageSize=${maxPageSize}`));
         return { entities: options.snapshots ?? [] };
       },
       retrieveRecord: async (logicalName: string, id: string, query: string) => {
-        requested.push(`GET ${logicalName}(${id})${query}`);
+        requested.push(decodeURIComponent(`GET ${logicalName}(${id})${query}`));
         const answer = options.review;
         if (!answer) throw Object.assign(new Error('not found'), { status: 404 });
         if ('status' in answer && typeof answer.status === 'number') {

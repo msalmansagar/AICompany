@@ -31,22 +31,38 @@ in the portfolio** because nobody has said when the clock starts.
 
 No single "Complete" label is used, because it would hide per-capability readiness.
 
-| Capability | Development | Cloud runtime | Officer security | Overall |
+### How to read "delivered"
+
+The PR review found this document claiming delivery in a way that a reader would reasonably
+misunderstand, so the word is now split into the four things it was standing for:
+
+| Mode | Means |
+|---|---|
+| **Contract** | The domain logic exists, is unit-proven, and is the authority on the rule |
+| **Product** | A component of the delivered DCP runtime performs it — not a script |
+| **Officer** | An officer can do it from the workspace |
+| **Harness** | Proven against the organisation by a smoke script that performs the write itself |
+
+**Harness is not Product.** A smoke that creates a record proves the *contract* against the real
+platform; it says nothing about whether anything an officer uses does so. Phase 8 has capabilities
+that are Contract + Harness and deliberately **not** Product, and the matrix now says which.
+
+| Capability | Delivery mode | Cloud runtime | Officer security | Overall |
 |---|---|---|---|---|
-| **Strategy automation** | Complete | **Cloud Runtime Tested** — 13/13 | Pending (KI-100) | Development Complete · Security Validation Pending |
-| **Re-evaluation** | Complete | **Cloud Runtime Tested** — 18/18, no duplication | Pending (KI-100) | Development Complete · regeneration policy held (KI-98) |
-| **Assignment** | Complete | **Cloud Runtime Tested** — 18/18, native ownership, application user only | **Not validated — no principal can hold collection work** | Development Complete · **Security Validation Pending (KI-100)** |
-| **TAT** | Complete | **Cloud Runtime Tested** — 18/18: proves no deadline is invented | Pending | **Fail-Closed Pending QDB Decision (KI-101, KI-102)** |
-| **Escalation** | Complete (surfaced, never inferred) | **Cloud Runtime Tested** — no action performed, 0 policies configured | Pending | **Fail-Closed Pending QDB Decision (KI-104)** |
-| **Action Plan** | Complete | **Cloud Runtime Tested** — 25/25; browser-verified | Pending (KI-100) | Development Complete · Runtime Validated |
-| **Collection Dispute** | Complete | **Cloud Runtime Tested**; browser-verified | Pending (KI-120) | Development Complete · **effect policy pending (KI-119)** |
-| **Customer Complaint** | Complete | **Cloud Runtime Tested** — 19/19; browser-verified, real Case numbers | **Not validated** (KI-120) | Development Complete · **Security Validation Pending** |
-| **Legal Recommendation** | Complete | **Cloud Runtime Tested** — 21/21 | **Not validated** (KI-111) | Development Complete · **Security Validation Pending** |
-| **Legal hand-off** | Complete | **Cloud Runtime Tested** — 32/32, idempotency proven | Pending (KI-111) | **Fail-Closed Pending QDB Decision (KI-109)**; HL blocked (KI-108) |
-| **Deceased Review** | Complete | **Cloud Runtime Tested** — 22/22; browser-verified | **Not validated** (KI-128) | Development Complete · **handling policy pending (KI-124, KI-127)** |
+| **Strategy automation** | **Contract + Harness.** *Not Product* — no app, API or plugin invokes `planStrategyWork`; the intended runtime host is QDB's Process Engine and **that integration is not delivered** | **Cloud Runtime Tested** — 13/13, by the smoke | Pending (KI-100) | Contract Complete · **No execution host delivered** |
+| **Re-evaluation** | **Contract + Harness.** *Not Product* — same missing host as above | **Cloud Runtime Tested** — 18/18, no duplication | Pending (KI-100) | Contract Complete · regeneration policy held (KI-98) |
+| **Assignment** | **Contract + Harness.** Decides *where*, never *who*; the ownership write itself is native Dynamics | **Cloud Runtime Tested** — 18/18, application user only | **Not validated — no principal can hold collection work** | Contract Complete · **Security Validation Pending (KI-100)** |
+| **TAT** | **Contract.** Nothing computes a deadline because no start point exists | **Cloud Runtime Tested** — 18/18: proves no deadline is invented | Pending | **Fail-Closed Pending QDB Decision (KI-101, KI-102)** |
+| **Escalation** | **Contract + Product (read only).** The queue surfaces the platform's own flag; DCP performs no escalation | **Cloud Runtime Tested** — no action performed, 0 policies configured | Pending | **Fail-Closed Pending QDB Decision (KI-104)** |
+| **Action Plan** | **Contract + Product + Officer (read).** The plan and its attributed work are on the case; the work itself is created by the existing activity path | **Cloud Runtime Tested** — 25/25; browser-verified | Pending (KI-100) | Delivered · Runtime Validated |
+| **Collection Dispute** | **Contract + Product + Officer.** Recorded through the existing *Log action* path by choosing the concern activity type; the case card reads it back | **Cloud Runtime Tested**; browser-verified | Pending (KI-120) | Delivered · **effect policy pending (KI-119)** |
+| **Customer Complaint** | **Contract + Product (read only) + Harness (create).** DCP **links to and displays** a Case; **raising one is not in the product** — the smoke creates it, and QDB's complaints team owns the process | **Cloud Runtime Tested** — 19/19; browser-verified, real Case numbers | **Not validated** (KI-120) | Read delivered · **creation not officer-facing** |
+| **Legal Recommendation** | **Contract + Product (read only).** Recommendation and traceability are shown on the case | **Cloud Runtime Tested** — 21/21 | **Not validated** (KI-111) | Read delivered · **Security Validation Pending** |
+| **Legal hand-off** | **Contract + Harness.** *Deliberately not Officer* — no enabled action exists anywhere, and none may until KI-109 is answered | **Cloud Runtime Tested** — 32/32, idempotency proven by the smoke | Pending (KI-111) | **Fail-Closed Pending QDB Decision (KI-109)**; HL blocked (KI-108) |
+| **Deceased Review** | **Contract + Product + Officer.** *Record deceased review* on the case writes at the derived id; idempotent on retry and under concurrency | **Cloud Runtime Tested** — 22/22; browser-verified | **Not validated** (KI-128) | Delivered · **handling policy pending (KI-124, KI-127)** |
 | **Insurance Claims** | **Not built** | — | — | **Deferred — no process exists to build against (KI-125)** |
 | **Restructuring** | Discovery only | — | Pending (KI-116) | **Discovery Complete — Integration Parked** |
-| **Operational Queues** | Complete | **Cloud Runtime Tested** — 11/11 at volume; browser-verified | Pending (KI-100) | Development Complete · Runtime Validated |
+| **Operational Queues** | **Contract + Product + Officer (read).** Projections over existing records | **Cloud Runtime Tested** — 11/11 at volume; browser-verified | Pending (KI-100) | Delivered · Runtime Validated |
 
 ### Deployment runtime status
 
@@ -252,6 +268,11 @@ Phase 8 does **not** deliver:
   action offers *Send to Legal*, *Raise Litigation*, *Submit to Legal* or *Create Litigation
   Request*, for anyone.
 - **An autonomous Smart Assignment or routing algorithm** — native Dynamics ownership only.
+- **A strategy execution host.** `planStrategyWork` is the authority on *what* a strategy implies,
+  and **nothing in the delivered product calls it**. The intended host is QDB's Process Engine, and
+  that integration is not delivered. Strategy-generated work is created today only by the smoke.
+- **Raising a Customer Complaint from the workspace.** DCP links to and reads a Case; creating one
+  belongs to QDB's complaints process.
 - **An invented Complaint lifecycle** — the Case belongs to QDB's complaints process; DCP links to
   it and reads it.
 - **An invented Legal lifecycle** — `qdb_qdblegal` remains entirely owned by QDB's Legal process.

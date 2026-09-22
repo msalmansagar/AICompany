@@ -19,26 +19,33 @@ const LEGAL_TYPE = 'type-legal';
 const OTHER_TYPE = 'type-call';
 
 /**
- * Records every request, and answers a single-record read with a scripted status.
+ * Records every request, and answers a single-record read with a scripted outcome.
  *
- * `retrieveRecord` rejects with a `status`, exactly as `Xrm.WebApi` does, so the 403/404
- * distinction is exercised rather than assumed.
+ * **This fake used to claim `Xrm.WebApi` rejects with a `status`, and it does not.** The real
+ * client API rejects with a plain object carrying `errorCode` and no status at all, so a fake that
+ * supplied one let `retrieveWithStatus` look correct while it could never classify a real failure.
+ * A rejection is now described by what it *is* — `clientNotFound` for the observed `0x80040217`,
+ * or a transport `status` — and the shape is produced accordingly.
  */
 function adapterReturning(options: {
   rows?: Record<string, Record<string, unknown>[]>;
-  legalRead?: { status: number; record?: Record<string, unknown> };
+  legalRead?: { status?: number; clientNotFound?: true; record?: Record<string, unknown> };
 }) {
   const requested: string[] = [];
   const xrm = {
     WebApi: {
       retrieveMultipleRecords: async (logicalName: string, query: string) => {
-        requested.push(`${logicalName}${query}`);
+        requested.push(decodeURIComponent(`${logicalName}${query}`));
         return { entities: options.rows?.[logicalName] ?? [] };
       },
       retrieveRecord: async (logicalName: string, id: string, query: string) => {
-        requested.push(`GET ${logicalName}(${id})${query}`);
-        const answer = options.legalRead ?? { status: 404 };
-        if (answer.status >= 400) throw Object.assign(new Error('refused'), { status: answer.status });
+        requested.push(decodeURIComponent(`GET ${logicalName}(${id})${query}`));
+        const answer = options.legalRead ?? { clientNotFound: true as const };
+        // The client API's own shape: a plain object, not an Error, with no status.
+        if (answer.clientNotFound) throw { errorCode: 2147746327, message: 'The requested record was not found.' };
+        if (answer.status !== undefined && answer.status >= 400) {
+          throw Object.assign(new Error('refused'), { status: answer.status });
+        }
         return answer.record ?? {};
       },
     },
@@ -96,7 +103,7 @@ describe('the Litigation Request read reports why it failed', () => {
   });
 
   it('reports a genuinely missing record as not found', async () => {
-    const { adapter } = adapterReturning({ legalRead: { status: 404 } });
+    const { adapter } = adapterReturning({ legalRead: { clientNotFound: true } });
 
     expect((await loadLitigation(adapter, LEGAL_ID)).kind).toBe('notFound');
   });

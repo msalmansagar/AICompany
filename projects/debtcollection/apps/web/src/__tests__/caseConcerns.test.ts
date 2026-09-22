@@ -47,11 +47,11 @@ function adapterReturning(options: {
   const xrm = {
     WebApi: {
       retrieveMultipleRecords: async (logicalName: string, query: string) => {
-        requested.push(`${logicalName}${query}`);
+        requested.push(decodeURIComponent(`${logicalName}${query}`));
         return { entities: options.rows?.[logicalName] ?? [] };
       },
       retrieveRecord: async (logicalName: string, id: string, query: string) => {
-        requested.push(`GET ${logicalName}(${id})${query}`);
+        requested.push(decodeURIComponent(`GET ${logicalName}(${id})${query}`));
         const answer = options.caseRead ?? { status: 404 };
         if (answer.status >= 400) throw Object.assign(new Error('refused'), { status: answer.status });
         return answer.record ?? {};

@@ -1,10 +1,10 @@
 import {
-  deceasedReviewId, toDeceasedReviewRow,
+  deceasedReviewId, toDeceasedReviewRow, INDICATION_LABEL,
   type DeceasedIndication, type DeceasedReview, type DeceasedReviewRow,
 } from '@dcp/domain';
 import type { ContinuationToken } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
-import { ACTIVITY_COLUMNS, ENTITY_SETS, SNAPSHOT_COLUMNS } from './schema.js';
+import { ACTIVITY_COLUMNS, ENTITY_SETS, NAVIGATION_PROPERTIES, SNAPSHOT_COLUMNS } from './schema.js';
 import { escapeOData, mapPage } from './collectionQueries.js';
 import { toActivityRow } from './caseQueries.js';
 import { loadActivityTypes } from './configurationCatalog.js';
@@ -170,4 +170,39 @@ export function createDeceasedQueue(adapter: XrmCrmAdapter) {
     });
     return mapPage(page, row => row);
   };
+}
+
+/**
+ * Records that someone is looking at a QCB deceased indication.
+ *
+ * **It asserts nothing about the customer.** The activity it creates means *a review has been
+ * started*, never *this person has died* — which is why the subject is the indication's own
+ * wording and why nothing else on the case is touched. There is no customer flag, no case-status
+ * change, no communication suppression, no Legal effect and no exemption inference, because none
+ * of those has an agreed rule behind it (KI-124, KI-127).
+ *
+ * **Written at the derived id**, so the write is the same write however many times it is made:
+ * `If-None-Match: *` turns a repeat into a refusal rather than a second review, and a concurrent
+ * pair resolves to one record. That is also how the card finds it again — the read is by the same
+ * derived id, so anything created elsewhere, under a platform-generated id, is ordinary activity
+ * and not the canonical review.
+ *
+ * Ownership is left to the platform. Native CRM security decides who may create this, and nothing
+ * here elevates, impersonates or assigns around it.
+ */
+export async function recordDeceasedReview(
+  adapter: XrmCrmAdapter,
+  request: { caseId: string; facilityNumber: string; activityTypeId: string },
+): Promise<{ reviewId: string; created: boolean }> {
+  const reviewId = deceasedReviewId(request.caseId, request.facilityNumber);
+
+  const result = await adapter.createIdempotent(ENTITY_SETS.collectionActivity, reviewId, {
+    subject: INDICATION_LABEL,
+    [`${NAVIGATION_PROPERTIES.activityToCase}@odata.bind`]:
+      `/${ENTITY_SETS.collectionCase}(${request.caseId})`,
+    [`${NAVIGATION_PROPERTIES.activityToType}@odata.bind`]:
+      `/${ENTITY_SETS.collectionActivityType}(${request.activityTypeId})`,
+  });
+
+  return { reviewId, created: result.created };
 }

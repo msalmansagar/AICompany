@@ -1,5 +1,5 @@
 import {
-  interpretLegalRead, isComplaintCaseType, resolveComplaintCaseType,
+  legalFetchFromFailure, isComplaintCaseType, resolveComplaintCaseType,
   type CaseTypeResolution, type ComplaintCaseSummary,
 } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
@@ -35,13 +35,13 @@ export async function loadComplaintCase(
   | { kind: 'found'; record: ComplaintCaseSummary }
   | { kind: 'forbidden' | 'notFound' | 'unavailable' }
 > {
-  const { status, record } = await adapter.retrieveWithStatus(
+  const { record, failure } = await adapter.retrieveClassified(
     { entity: ENTITY_SETS.complaintCase, id: complaintCaseId },
     [...COMPLAINT_CASE_COLUMNS],
   );
 
-  const kind = interpretLegalRead(status);
-  if (kind !== 'found' || !record) return { kind: kind === 'found' ? 'unavailable' : kind };
+  if (failure) return { kind: legalFetchFromFailure(failure.kind) };
+  if (!record) return { kind: 'unavailable' };
   return { kind: 'found', record: toComplaintCaseSummary(record) };
 }
 

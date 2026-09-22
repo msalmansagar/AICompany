@@ -1,5 +1,5 @@
 import {
-  interpretLegalRead, type LegalRecordFetch, type LitigationSummary,
+  legalFetchFromFailure, type LegalRecordFetch, type LitigationSummary,
 } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import { ENTITY_SETS, LITIGATION_COLUMNS } from './schema.js';
@@ -35,13 +35,14 @@ export async function loadLitigation(
   adapter: XrmCrmAdapter,
   legalRequestId: string,
 ): Promise<LegalRecordFetch> {
-  const { status, record } = await adapter.retrieveWithStatus(
+  const { record, failure } = await adapter.retrieveClassified(
     { entity: ENTITY_SETS.litigationRequest, id: legalRequestId },
     [...LITIGATION_COLUMNS],
   );
 
-  const kind = interpretLegalRead(status);
-  if (kind !== 'found' || !record) return { kind: kind === 'found' ? 'unavailable' : kind };
+  if (failure) return { kind: legalFetchFromFailure(failure.kind) };
+  // A success with no record is not an absence; it is a read that told us nothing.
+  if (!record) return { kind: 'unavailable' };
   return { kind: 'found', record: toLitigationSummary(record) };
 }
 

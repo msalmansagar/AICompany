@@ -535,6 +535,7 @@ export {
   assertsNoLitigation,
   describeLegalTrace,
   interpretLegalRead,
+  legalFetchFromFailure,
   litigationExists,
 } from './legalVisibility.js';
 export type {
