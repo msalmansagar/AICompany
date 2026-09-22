@@ -307,6 +307,11 @@ function ActionsTab({ detail }: { detail: CaseDetail }) {
       {...(detail.strategyId !== undefined ? { strategyId: detail.strategyId } : {})}
       {...(detail.strategyName !== undefined ? { strategyName: detail.strategyName } : {})}
       {...(detail.episodeNumber !== undefined ? { episodeNumber: detail.episodeNumber } : {})}
+      customer={{
+        ...(detail.customerTable === 'account' || detail.customerTable === 'contact'
+          ? { table: detail.customerTable } : {}),
+        ...(detail.customerId !== undefined ? { id: detail.customerId } : {}),
+      }}
     />
     </>
   );

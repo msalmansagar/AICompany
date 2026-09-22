@@ -10,7 +10,7 @@ import {
 } from '../data/actionPlanRows.js';
 import {
   describeOriginLabel, litigationExists,
-  type ActionPlanItem, type ConcernRow, type LegalTrace, type LegalTraceState,
+  type ActionPlanItem, type ConcernRow, type LegalWorkState, type LegalWorkStateName,
 } from '@dcp/domain';
 import { loadCaseLegalTraces, type LegalTraceRow } from '../data/caseLegalTraces.js';
 import { loadCaseConcerns, type CaseConcerns as CaseConcernsData } from '../data/caseConcerns.js';
@@ -214,11 +214,12 @@ const PLAN_COLUMNS: readonly DataGridColumn<StrategyActionRow>[] = [
  * configured on this organisation (KI-101), so the screen says the due date is not configured
  * rather than showing a date it invented or a blank that reads as a fault.
  */
-export function CaseActionPlan({ caseId, strategyId, strategyName, episodeNumber }: {
+export function CaseActionPlan({ caseId, strategyId, strategyName, episodeNumber, customer }: {
   caseId: string;
   strategyId?: string | undefined;
   strategyName?: string | undefined;
   episodeNumber?: number | undefined;
+  customer?: { table?: 'account' | 'contact'; id?: string } | undefined;
 }) {
   const { adapter } = useCrmSession();
   const [plan, setPlan] = useState<ActionPlan>({ rows: [], unattributed: [] });
@@ -280,7 +281,7 @@ export function CaseActionPlan({ caseId, strategyId, strategyName, episodeNumber
           : <PlanTable items={items} />}
       </Card>
       <UnattributedActivities items={history} />
-      <CaseLegalTrace caseId={caseId} episodeNumber={episodeNumber} />
+      <CaseLegalTrace caseId={caseId} episodeNumber={episodeNumber} customer={customer} />
       <CaseConcerns caseId={caseId} />
     </>
   );
@@ -426,9 +427,11 @@ function ConcernTable({ rows, firstHeading, secondHeading, testId }: {
  * Request you cannot see*. On this organisation the second is what a real Collection Officer gets,
  * because no DCP security role holds read permission on the Legal entity.
  */
-export function CaseLegalTrace({ caseId, episodeNumber }: {
+export function CaseLegalTrace({ caseId, episodeNumber, customer }: {
   caseId: string;
   episodeNumber?: number | undefined;
+  /** The case's own customer. An account resolves for Legal; a contact does not (KI-108). */
+  customer?: { table?: 'account' | 'contact'; id?: string } | undefined;
 }) {
   const { adapter } = useCrmSession();
   const [rows, setRows] = useState<readonly LegalTraceRow[]>([]);
@@ -439,7 +442,7 @@ export function CaseLegalTrace({ caseId, episodeNumber }: {
     let cancelled = false;
     setState('loading');
     setRows([]);
-    loadCaseLegalTraces(adapter, caseId, episodeNumber)
+    loadCaseLegalTraces(adapter, caseId, episodeNumber, customer ?? {})
       .then(result => { if (!cancelled) { setRows(result); setState('ready'); } })
       .catch((failure: unknown) => {
         if (cancelled) return;
@@ -449,7 +452,7 @@ export function CaseLegalTrace({ caseId, episodeNumber }: {
     // Cancelling on a case change is what stops a slow read painting the previous case's Legal
     // information over the new one.
     return () => { cancelled = true; };
-  }, [adapter, caseId, episodeNumber]);
+  }, [adapter, caseId, episodeNumber, customer?.table, customer?.id]);
 
   if (state === 'loading') {
     return <div className="empty-state" data-testid="legal-loading">Loading Legal…</div>;
@@ -475,17 +478,25 @@ export function CaseLegalTrace({ caseId, episodeNumber }: {
         <thead>
           <tr>
             <th>Legal recommendation</th>
-            <th style={{ width: '130px' }}>Recorded</th>
-            <th style={{ width: '280px' }}>Legal hand-off</th>
-            <th style={{ width: '260px' }}>Legal request</th>
+            <th style={{ width: '120px' }}>Recorded</th>
+            <th style={{ width: '150px' }}>With</th>
+            <th style={{ width: '180px' }}>Raised by</th>
+            <th style={{ width: '250px' }}>Legal hand-off</th>
+            <th style={{ width: '240px' }}>Legal request</th>
           </tr>
         </thead>
         <tbody>
           {rows.map(row => (
             <tr key={row.key} data-testid={`legal-row-${row.key}`}
-              data-current={String(row.trace.isCurrent)}>
-              <td>{row.recommendation}</td>
+              data-current={String(row.trace.isCurrent)}
+              data-handoff-available={String(row.trace.handoffAvailable)}>
+              <td>
+                {row.recommendation}
+                <span className="cell-sub">{row.activityStatus}</span>
+              </td>
               <td>{row.recordedOn}</td>
+              <td>{row.ownerName}</td>
+              <td>{row.origin}</td>
               <td><span className={legalTone(row.trace.state)}>{row.trace.label}</span></td>
               <td><LitigationCell trace={row.trace} /></td>
             </tr>
@@ -503,7 +514,7 @@ export function CaseLegalTrace({ caseId, episodeNumber }: {
  * here maps, groups or re-interprets it — a second copy of Legal's 25 stages would drift the first
  * time Legal added one.
  */
-function LitigationCell({ trace }: { trace: LegalTrace }) {
+function LitigationCell({ trace }: { trace: LegalWorkState }) {
   if (!trace.litigation) {
     return <span className="pill muted">{litigationExists(trace.state) ? 'Not shown' : '—'}</span>;
   }
@@ -523,8 +534,8 @@ function LitigationCell({ trace }: { trace: LegalTrace }) {
  * An inaccessible request is deliberately not muted like an absent one: muting it would make the
  * most dangerous state on this screen look like the most ordinary.
  */
-function legalTone(state: LegalTraceState): string {
-  if (state === 'LitigationVisible') return 'pill ok';
+function legalTone(state: LegalWorkStateName): string {
+  if (state === 'LitigationVisible' || state === 'ReadyForHandoff') return 'pill ok';
   if (state === 'LitigationNotVisible' || state === 'LitigationLinkBroken'
     || state === 'LitigationUnavailable') return 'pill warn';
   if (state === 'CustomerResolutionRequired' || state === 'QualificationPending') return 'pill info';

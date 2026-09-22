@@ -160,7 +160,14 @@ describe('a case’s Legal picture is narrowed by the platform', () => {
     const { adapter, requested } = adapterReturning({ rows });
     const traces = await loadCaseLegalTraces(adapter, CASE);
 
-    expect(traces[0]!.trace.state).toBe('RecommendationOnly');
+    /*
+     * Since WP14 the state is DERIVED rather than passed in, so an unlinked recommendation on this
+     * organisation resolves to *awaiting legal authorisation*: no qualification rule is configured
+     * (KI-109) and an empty policy keeps hand-off closed. That is the honest answer, and it is why
+     * no officer is offered a hand-off anywhere in this build.
+     */
+    expect(traces[0]!.trace.state).toBe('QualificationPending');
+    expect(traces[0]!.trace.handoffAvailable, 'fail-closed').toBe(false);
     expect(requested.filter(r => r.includes('qdb_qdblegal')), 'no link, no lookup').toHaveLength(0);
   });
 

@@ -1,4 +1,4 @@
-import { belongsToEpisode } from '@dcp/domain';
+import { belongsToEpisode, describeOriginLabel, type CustomerTable } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import { ACTIVITY_COLUMNS, ENTITY_SETS } from './schema.js';
 import { escapeOData, mapPage } from './collectionQueries.js';
@@ -23,6 +23,7 @@ export async function loadCaseLegalTraces(
   adapter: XrmCrmAdapter,
   caseId: string,
   episodeNumber?: number,
+  customer: { table?: CustomerTable; id?: string } = {},
 ): Promise<readonly LegalTraceRow[]> {
   const legalTypeIds = await readLegalTypeIds(adapter);
   const activities = await readLegalCandidates(adapter, caseId, legalTypeIds);
@@ -31,6 +32,14 @@ export async function loadCaseLegalTraces(
     legalTypeIds,
     episodeIsCurrent: activity => isCurrentEpisode(activity, caseId, episodeNumber),
     formatDate: iso => iso.slice(0, 10),
+    customer,
+    /*
+     * **Empty, deliberately.** QDB has established no rule that qualifies a recommendation for
+     * litigation (KI-109), and an empty policy is what keeps every hand-off closed. Populating it
+     * here to make the screen look finished would be this build inventing QDB's legal authority.
+     */
+    policy: {},
+    describeOrigin: activity => describeOriginLabel(activity.origin),
   });
 }
 

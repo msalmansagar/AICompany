@@ -37,9 +37,9 @@ Claims — which the original plan carried only as Phase 9 placeholders in the n
 | Revised WP | Original WP | Scope | Depends on | Status | Est. hrs |
 |---|---|---|---|---|---|
 | **WP12** | *new* | **Disputes & Complaints — discovery.** Complaint = native `incident`, 108 custom columns, established. Collection Dispute **not modelled by QDB**. No collection-control policy exists | 8 | **✅ done** — KI-118/119/120 | 2.00 |
-| **WP13** | *new* | **Disputes & Complaints — Collection-side capability.** No downstream hand-off: KI-118 must be answered first. Nothing pauses collection (KI-119) | 12 | **▶ NEXT** | 2.50 |
-| **WP14** | 9, 10 (completion) | **Legal hand-off — Collection-side completion.** The read-model states an officer sees, end to end. Fail-closed: no enabled hand-off control while KI-109 is unresolved | 9, 10 | ready | 1.50 |
-| **WP15** | *new* | **Deceased & Insurance Claims — discovery.** HL and BFD separately. The 724 MIS deceased flags remain **data-only** | 14 | pending | 2.00 |
+| **WP13** | *new* | **Disputes & Complaints — Collection-side capability + Complaint integration.** `casetypecode` resolved by label; BFD/HL both proven; `qdb_complaintcaseid` traceability | 12 | **✅ done** — KI-121/122 closed, KI-123 opened | 2.50 |
+| **WP14** | 9, 10 (completion) | **Legal hand-off — Collection-side completion.** State DERIVED from records; `ReadyForHandoff` unreachable while KI-109 is open; queue buckets carry no Legal taxonomy | 9, 10 | **✅ done** | 1.50 |
+| **WP15** | *new* | **Deceased & Insurance Claims — discovery.** HL and BFD separately. The 724 MIS deceased flags remain **data-only** | 14 | **▶ NEXT** | 2.00 |
 | **WP16** | *new* | **Deceased & Insurance Claims — Collection-side capability.** Deceased identification and insurance claim modelled **independently**, never collapsed into one status | 15 | pending | 2.50 |
 | **WP17** | **12** | Operational queues and UI — assigned work, awaiting assignment, attention, due soon, overdue, escalated, legal, disputes, deceased, claims, restructuring **recommendation only** | 13, 14, 16 | pending | 3.00 |
 | **WP18** | **13** | Real Dataverse runtime validation across the new modules | all | pending | 2.00 |

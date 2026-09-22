@@ -100,15 +100,21 @@ const STATE_LABEL: Readonly<Record<LegalTraceState, string>> = {
   LitigationUnavailable: 'Legal request raised — its details could not be loaded just now',
 };
 
-/** Whether the state asserts that no Litigation Request exists. Only three of eight do. */
-export function assertsNoLitigation(state: LegalTraceState): boolean {
+/**
+ * Whether the state asserts that no Litigation Request exists. Only three of eight do.
+ *
+ * Takes the wider Collection-side state too, so a caller never has to narrow one to ask — and
+ * `ReadyForHandoff` answers `false` here for the right reason: nothing has been raised yet, but
+ * that is a statement about readiness, not a claim that none exists.
+ */
+export function assertsNoLitigation(state: LegalTraceState | 'ReadyForHandoff'): boolean {
   return state === 'RecommendationOnly'
     || state === 'CustomerResolutionRequired'
     || state === 'QualificationPending';
 }
 
 /** Whether a Litigation Request is known to exist, whether or not it could be read. */
-export function litigationExists(state: LegalTraceState): boolean {
+export function litigationExists(state: LegalTraceState | 'ReadyForHandoff'): boolean {
   return state === 'LitigationVisible' || state === 'LitigationNotVisible'
     || state === 'LitigationUnavailable' || state === 'LitigationLinkBroken';
 }

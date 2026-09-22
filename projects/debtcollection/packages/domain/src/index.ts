@@ -541,6 +541,16 @@ export type {
   LegalRecordFetch, LegalTrace, LegalTraceInput, LegalTraceState, LitigationSummary,
 } from './legalVisibility.js';
 
+// ── Phase 8 — Collection-side Legal state (WP14) ────────────────────────────
+export {
+  describeLegalWork,
+  isCurrentLegalWork,
+  queueBucketFor,
+} from './legalWorkState.js';
+export type {
+  LegalQueueBucket, LegalWorkInput, LegalWorkState, LegalWorkStateName,
+} from './legalWorkState.js';
+
 // ── Phase 8 — Collection Dispute vs Customer Complaint (WP13) ────────────────
 export {
   describeDisputedSubject,

@@ -1,4 +1,6 @@
-import { describeLegalTrace, type LegalTrace } from '@dcp/domain';
+import {
+  describeLegalWork, type CustomerTable, type LegalQualificationPolicy, type LegalWorkState,
+} from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import type { ActivityRow } from './caseQueries.js';
 import { loadLitigation } from './legalQueries.js';
@@ -42,7 +44,13 @@ export interface LegalTraceRow {
   /** The recommendation's own subject. Collection work, never the Litigation Request. */
   recommendation: string;
   recordedOn: string;
-  trace: LegalTrace;
+  /** Who holds the collection work. Never the Litigation Request's owner. */
+  ownerName: string;
+  /** The activity's own status or outcome — Collection's, not Legal's. */
+  activityStatus: string;
+  /** Whether the strategy asked for this recommendation, or an officer did. */
+  origin: string;
+  trace: LegalWorkState;
 }
 
 export interface LegalTraceContext {
@@ -50,6 +58,21 @@ export interface LegalTraceContext {
   legalTypeIds: ReadonlySet<string>;
   episodeIsCurrent: (activity: ActivityRow) => boolean;
   formatDate: (iso: string) => string;
+  /**
+   * The collection case's customer, as the platform reports its table.
+   *
+   * Decides BFD from HL without an organisation code: an account resolves, a contact does not
+   * (KI-108). Nothing converts one into the other.
+   */
+  customer: { table?: CustomerTable; id?: string };
+  /**
+   * QDB's qualification policy. **Empty today** (KI-109), and empty keeps hand-off closed.
+   *
+   * Threaded through rather than read here so that the day it is configured, exactly one call site
+   * changes and every state below follows.
+   */
+  policy: LegalQualificationPolicy;
+  describeOrigin: (activity: ActivityRow) => string;
 }
 
 /**
@@ -81,9 +104,16 @@ async function toLegalTraceRow(
     ? await loadLitigation(adapter, activity.legalRequestId)
     : undefined;
 
-  const trace = describeLegalTrace({
-    isLegalRecommendation: true,
-    ...(activity.legalRequestId !== undefined ? { legalRequestId: activity.legalRequestId } : {}),
+  const trace = describeLegalWork({
+    recommendation: {
+      activityId: activity.id,
+      lifecycle: lifecycleOf(activity),
+      isLegalRecommendation: true,
+      ...(activity.legalRequestId !== undefined
+        ? { litigationRequestId: activity.legalRequestId } : {}),
+    },
+    customer: context.customer,
+    policy: context.policy,
     ...(fetch !== undefined ? { fetch } : {}),
     episodeIsCurrent: context.episodeIsCurrent(activity),
   });
@@ -92,6 +122,16 @@ async function toLegalTraceRow(
     key: activity.id,
     recommendation: activity.subject,
     recordedOn: activity.createdOn ? context.formatDate(activity.createdOn) : '—',
+    ownerName: activity.ownerName ?? 'Nobody yet',
+    activityStatus: activity.status ?? 'Open',
+    origin: context.describeOrigin(activity),
     trace,
   };
+}
+
+/** Open, completed or cancelled, from the platform's own state code. */
+function lifecycleOf(activity: ActivityRow): 'Open' | 'Completed' | 'Cancelled' {
+  if (activity.stateCode === 1) return 'Completed';
+  if (activity.stateCode === 2) return 'Cancelled';
+  return 'Open';
 }
