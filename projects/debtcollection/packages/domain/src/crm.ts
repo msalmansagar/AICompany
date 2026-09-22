@@ -49,6 +49,17 @@ export interface CrmPageQuery {
   /** Opaque continuation from a previous page. Absent means the first page. */
   continuation?: ContinuationToken;
   filter?: string;
+  /**
+   * Related records to bring back **in the same request**, as navigation-property names.
+   *
+   * What keeps an operational queue from issuing one downstream read per row: fifty activities
+   * each carrying a Litigation Request would otherwise cost fifty-one requests, and a queue whose
+   * cost grows with its page size stops working as the book grows.
+   *
+   * Only honoured on the first page. A continuation is the source's own link and already carries
+   * whatever the first request asked for.
+   */
+  expand?: readonly string[];
   /** Ordering, most significant first. Ties can span a page boundary, so order deliberately. */
   sort?: readonly Sort[];
   search?: string;

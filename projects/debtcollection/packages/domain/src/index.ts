@@ -595,3 +595,20 @@ export {
 export type {
   DeceasedIndication, DeceasedReview, DeceasedReviewRow, DeceasedReviewState, IndicationSource,
 } from './deceasedReview.js';
+
+// ── Phase 8 — the operational read model (WP17) ─────────────────────────────
+export {
+  bucketTotalsAreDisjoint,
+  bucketsFor,
+  dedupeWork,
+  describeBucket,
+  describeCount,
+  describeWorkType,
+  distinctWorkCount,
+  knownCount,
+  toWorkCount,
+  unknownCount,
+} from './operationalWork.js';
+export type {
+  OperationalBucket, WorkCount, WorkItem, WorkType,
+} from './operationalWork.js';

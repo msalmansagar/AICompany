@@ -41,8 +41,8 @@ Claims — which the original plan carried only as Phase 9 placeholders in the n
 | **WP14** | 9, 10 (completion) | **Legal hand-off — Collection-side completion.** State DERIVED from records; `ReadyForHandoff` unreachable while KI-109 is open; queue buckets carry no Legal taxonomy | 9, 10 | **✅ done** | 1.50 |
 | **WP15** | *new* | **Deceased & Insurance Claims — discovery.** No deceased process and **no credit-life insurance** found; BFD claims are guarantee/trade, not death. 724 flags remain data-only | 14 | **✅ discovery done — STOPPED at the gate** — KI-124/125/126/127/128 | 2.00 |
 | **WP16** | *new* | **Deceased Review — Collection-side only.** QCB indication read and reviewed; **no insurance module built** (KI-125). Case byte-identical before and after | 15 | **✅ done** | 2.50 |
-| **WP17** | **12** | **▶ NEXT.** Operational queues and UI — assigned work, awaiting assignment, attention, due soon, overdue, escalated, legal, disputes, deceased, claims, restructuring **recommendation only** | 13, 14, 16 | pending | 3.00 |
-| **WP18** | **13** | Real Dataverse runtime validation across the new modules | all | pending | 2.00 |
+| **WP17** | **12** | **✅ done.** Operational queues and UI — assigned work, awaiting assignment, attention, due soon, overdue, escalated, legal, disputes, deceased, claims, restructuring **recommendation only** | 13, 14, 16 | pending | 3.00 |
+| **WP18** | **13** | **▶ NEXT.** Real Dataverse runtime validation across the new modules | all | pending | 2.00 |
 | **WP19** | **14** | Chrome QA journeys, on the verified QDB profile | 17 | pending | 3.00 |
 | **WP20** | **15** | Regression and hardening | all | pending | 2.00 |
 | **WP21** | **16** | Documentation, ADRs, Phase 8 closure | all | pending | 1.50 |

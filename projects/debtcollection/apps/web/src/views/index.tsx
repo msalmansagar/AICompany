@@ -7,6 +7,7 @@ import { createFollowUpQuery, type FollowUpQuery, type FollowUpWindow } from '..
 import type { ActivityRow } from '../data/caseQueries.js';
 import { formatCountResult, useCounts, type CountRequest } from '../data/counts.js';
 import { ENTITY_SETS } from '../data/schema.js';
+import { MyWorkView } from './MyWorkView.js';
 import {
   BucketPill, Card, EmptyState, InfoBanner, KpiRow, OrgBadge, PendingPhaseNotice, StatusPill,
   formatCount, formatDate, formatMoney,
@@ -289,6 +290,15 @@ export function QueuesView({ onOpenCase }: { onOpenCase?: (id: string) => void }
         Queues are defined once and mirrored into both organisations. A case never leaves the CRM that
         owns it — only its <b>queue</b> and <b>owner</b> change.
       </InfoBanner>
+      {/*
+        * The operational read model lives here rather than in a navigation entry of its own.
+        *
+        * Work Queues is already the workspace's operational area, and the approved navigation is
+        * twenty-one views — a twenty-second would change a contract the shell test holds. Hosting
+        * it here is what "do not invent a second dashboard if the workspace can host it cleanly"
+        * asks for, and the shell guard was right to insist.
+        */}
+      <MyWorkView />
       <Card title="Queue contents" subtitle="All open cases across both organisations.">
         <CasesView {...(onOpenCase ? { onOpenCase } : {})} />
       </Card>

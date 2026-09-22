@@ -357,6 +357,9 @@ export class XrmCrmAdapter implements ICrmAdapter, IConcurrencyControlledWrites 
       ? toOptionsString(readContinuation(query.continuation, fingerprint))
       : buildOptions({
         select: query.select,
+        // Only on the first page: a continuation is the platform's own nextLink, which already
+        // carries the original $expand along with the $select, $filter and $orderby.
+        ...(query.expand !== undefined ? { expand: query.expand } : {}),
         ...(query.filter !== undefined ? { filter: query.filter } : {}),
         ...(query.sort !== undefined ? { sort: query.sort } : {}),
         ...(query.includeTotalCount ? { count: true } : {}),
@@ -482,11 +485,25 @@ export function buildOptions(query: {
   sort?: readonly Sort[];
   top?: number;
   count?: boolean;
+  /**
+   * Related records to bring back **in the same request**.
+   *
+   * This is what keeps an operational queue from issuing one downstream read per row. Fifty
+   * activities that each carry a Litigation Request would otherwise mean fifty-one requests, and a
+   * queue whose cost grows with its page size is a queue that stops working as the book grows.
+   *
+   * Takes the single-valued **navigation property**, not the attribute: `$expand` on
+   * `qdb_legalrequestid` is rejected with 400, while
+   * `qdb_legalrequestid_qdb_collectionactivity` works — verified against the organisation,
+   * alongside a filter and an order-by, which is the combination a queue actually issues.
+   */
+  expand?: readonly string[];
 }): string {
   // An empty `$select` is rejected by the platform — "'select' and 'expand' cannot be both null or
   // empty" — so it is omitted rather than sent blank. A count asks for no columns, which is a real
   // and correct request: what it wants is the number in the envelope, not the rows.
   const parts = query.select.length > 0 ? [`$select=${query.select.join(',')}`] : [];
+  if (query.expand && query.expand.length > 0) parts.push(`$expand=${query.expand.join(',')}`);
   if (query.filter) parts.push(`$filter=${query.filter}`);
   if (query.sort && query.sort.length > 0) {
     parts.push(`$orderby=${query.sort.map(s => `${s.field}${s.descending ? ' desc' : ' asc'}`).join(',')}`);
