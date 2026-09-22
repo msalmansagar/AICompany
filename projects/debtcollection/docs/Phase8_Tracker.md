@@ -1,5 +1,38 @@
 # Phase 8 — work-package tracker
 
+> ## Phase 8 — CLOSED · Production Readiness Dependencies Outstanding
+>
+> **Development closed 2026-09-22.** Final commit **`c09ee67d`** on
+> `feat/dcp-phase8-strategy-automation`, **remote protection verified** — all seven checks pass,
+> local and remote HEAD identical, 24 commits on the remote branch, history unrewritten.
+>
+> | | |
+> |---|---|
+> | Development | **Complete** |
+> | Automated regression | **1,872 passed · 0 failed · 0 skipped** |
+> | Live Cloud regression | **333/333** |
+> | Residue verification | **18/18** |
+> | Cloud | **Cloud Runtime Tested** |
+> | On-Prem | **Dynamics 365 CE 9.1 On-Prem — Compatible by Design; Phase 8 Runtime Validation Pending** |
+> | Original baseline | **36.50 effective hours** |
+> | Revised forecast | **46.00 effective hours** |
+> | Actual | **48.00 effective hours** |
+> | Production readiness | **Dependencies remain as documented in the Phase 8 closure pack** |
+> | Restructuring | **Discovery Complete — Integration Parked** |
+> | Insurance Claims | **Deferred — no applicable process identified** |
+> | Remote protection | **Verified** |
+>
+> **Closing Phase 8 development does NOT close production-readiness dependencies, and must not be
+> read as production readiness.** Every open KI keeps its number, wording, evidence and
+> classification in `KnownIssues.md` and `Phase8_KIRegister.md`. The security dependencies, the
+> QDB decisions, the parked and deferred scope, and the capability matrix stand exactly as
+> documented. **Every browser result in this phase is administrator evidence; no capability has
+> Collection Officer validation.**
+>
+> **Phase 9 is not started.**
+
+---
+
 Authoritative sequence for the remainder of Phase 8, after the QDB sequencing decision of
 2026-09-21. It supersedes the ordering in `Phase8_Discovery.md` §9 while preserving every original
 work-package number, so nothing in the history has to be re-read to follow this.

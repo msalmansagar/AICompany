@@ -306,10 +306,10 @@ estimates. That is stated rather than reconstructed.
 | | |
 |---|---|
 | Branch | `feat/dcp-phase8-strategy-automation` |
-| Closure commit | see `ChangeLog.md` and the closure commit message |
+| Closure commit | **`c09ee67d4f60b25b6d3a66fe797320955bf958d3`** |
 | Working tree | clean at closure |
 | Generated artefacts committed | none — build output, logs and fixtures are excluded |
-| Remote | see the closure report for the push result and the local/remote HEAD comparison |
+| Remote | **Verified 2026-09-22.** `origin/feat/dcp-phase8-strategy-automation` resolves to `c09ee67d`; local and remote HEAD identical (0 ahead, 0 behind); all 18 accepted commits present on the remote ref; 24 commits ahead of the Phase 7 closure point |
 
 **History was not rewritten and nothing was force-pushed.**
 
