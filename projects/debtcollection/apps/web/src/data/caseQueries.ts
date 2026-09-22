@@ -178,6 +178,13 @@ export interface ActivityRow {
    * record may be present and simply unreadable by this officer.
    */
   legalRequestId?: string;
+  /**
+   * The formal Complaint this activity raised, where one was raised.
+   *
+   * Absent means no Complaint was recorded from this activity. It is traceability after the fact,
+   * never the thing that decides whether another may be created.
+   */
+  complaintCaseId?: string;
   createdOn?: string;
   caseId?: string;
   caseNumber?: string;
@@ -211,6 +218,7 @@ export function toActivityRow(row: CrmRow): ActivityRow {
     ...optional('stateCode', readNumber(row, 'statecode')),
     ...optional('supervisorEscalated', readBoolean(row, 'qdb_supervisorescalated')),
     ...optional('legalRequestId', readText(row, '_qdb_legalrequestid_value')),
+    ...optional('complaintCaseId', readText(row, '_qdb_complaintcaseid_value')),
     ...optional('createdOn', readText(row, 'createdon')),
     ...optional('caseId', readText(row, '_qdb_collectioncaseid_value')),
     ...optional('caseNumber', readLookupName(row, '_qdb_collectioncaseid_value')),

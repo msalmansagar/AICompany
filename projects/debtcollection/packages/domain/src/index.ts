@@ -555,3 +555,17 @@ export type {
   CollectionConcern, CollectionDispute, CollectionEffects,
   ComplaintCaseSummary, ConcernRow, DisputedSubject,
 } from './disputeComplaint.js';
+
+// ── Phase 8 — the formal Complaint contract (WP13b) ─────────────────────────
+export {
+  COMPLAINT_CUSTOMER_BINDING,
+  COMPLAINT_CUSTOMER_SET,
+  buildComplaintCreate,
+  complaintCaseId,
+  isComplaintCaseType,
+  lookupProvidesIdempotency,
+  resolveComplaintCaseType,
+} from './complaintContract.js';
+export type {
+  CaseTypeOption, CaseTypeResolution, ComplaintCreateDecision, ComplaintCustomer, ComplaintDraft,
+} from './complaintContract.js';

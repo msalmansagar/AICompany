@@ -36,6 +36,7 @@ export const ENTITY_SETS = {
   contact: 'contacts',
   account: 'accounts',
   litigationRequest: 'qdb_qdblegals',
+  complaintCase: 'incidents',
 } as const;
 
 /**
@@ -70,6 +71,7 @@ export const NAVIGATION_PROPERTIES = {
   activityToOutcome: 'qdb_outcomeid_qdb_collectionactivity',
   activityToStrategyAction: 'qdb_strategyactionid_qdb_collectionactivity',
   activityToLegalRequest: 'qdb_legalrequestid_qdb_collectionactivity',
+  activityToComplaintCase: 'qdb_complaintcaseid_qdb_collectionactivity',
   outcomeToType: 'qdb_activitytypeid',
   runToTemplate: 'qdb_templateid',
   faxToCase: 'regardingobjectid_qdb_collectioncase_fax',
@@ -130,6 +132,7 @@ export const NAVIGATION_REGISTRY: readonly {
   { entity: 'qdb_collectionactivity', attribute: 'qdb_outcomeid', navigationProperty: NAVIGATION_PROPERTIES.activityToOutcome },
   { entity: 'qdb_collectionactivity', attribute: 'qdb_strategyactionid', navigationProperty: NAVIGATION_PROPERTIES.activityToStrategyAction },
   { entity: 'qdb_collectionactivity', attribute: 'qdb_legalrequestid', navigationProperty: NAVIGATION_PROPERTIES.activityToLegalRequest },
+  { entity: 'qdb_collectionactivity', attribute: 'qdb_complaintcaseid', navigationProperty: NAVIGATION_PROPERTIES.activityToComplaintCase },
   { entity: 'qdb_collectionactivity', attribute: 'ownerid', navigationProperty: NAVIGATION_PROPERTIES.activityToOwner },
   { entity: 'qdb_collectioncase', attribute: 'ownerid', navigationProperty: NAVIGATION_PROPERTIES.caseToOwner },
   { entity: 'qdb_activityoutcome', attribute: 'qdb_activitytypeid', navigationProperty: NAVIGATION_PROPERTIES.outcomeToType },
@@ -186,6 +189,9 @@ export const ACTIVITY_COLUMNS = [
   // The authoritative link to QDB's Legal process. Null means no hand-off was recorded — which is
   // NOT the same as no litigation existing, because the Legal record may simply be unreadable.
   '_qdb_legalrequestid_value',
+  // The authoritative link to a formal Customer Complaint. Traceability only — never the
+  // mechanism that makes creating one retry-safe.
+  '_qdb_complaintcaseid_value',
 ] as const;
 
 export const PTP_COLUMNS = [
@@ -232,6 +238,24 @@ export const STRATEGY_ACTION_COLUMNS = [
 export const LITIGATION_COLUMNS = [
   'qdb_qdblegalid', 'qdb_name', 'statecode', 'statuscode', 'createdon',
   'qdb_startdate', 'qdb_outstandingamount', 'qdb_lawyername', '_qdb_customer_value',
+] as const;
+
+
+/**
+ * The formal Complaint, as Collections needs to see it — **8 columns of 330**.
+ *
+ * `incident` carries 330 attributes, 177 of them custom, and its form is configured for a
+ * partner-bank financing application. Reproducing any of that here would invite an officer to treat
+ * the Collection Workspace as Case Management, which it is not. These answer one question: what is
+ * happening with this customer's complaint?
+ *
+ * `statuscode` and `casetypecode` are read for their **formatted values**. Case Management owns
+ * the 13-status complaint lifecycle and the escalation ladder to the CEO; a copy of either here
+ * would be a second state machine that drifts the first time QDB adds a stage.
+ */
+export const COMPLAINT_CASE_COLUMNS = [
+  'incidentid', 'ticketnumber', 'title', 'casetypecode', 'statecode', 'statuscode',
+  'createdon', '_customerid_value',
 ] as const;
 
 /**
@@ -469,6 +493,7 @@ export const READ_REGISTRY: readonly { entitySet: string; columns: readonly stri
   { entitySet: ENTITY_SETS.collectionStrategy, columns: STRATEGY_COLUMNS },
   { entitySet: ENTITY_SETS.strategyAction, columns: STRATEGY_ACTION_COLUMNS },
   { entitySet: ENTITY_SETS.litigationRequest, columns: LITIGATION_COLUMNS },
+  { entitySet: ENTITY_SETS.complaintCase, columns: COMPLAINT_CASE_COLUMNS },
   { entitySet: ENTITY_SETS.collectionActivityType, columns: ACTIVITY_TYPE_COLUMNS },
   { entitySet: ENTITY_SETS.activityOutcome, columns: ACTIVITY_OUTCOME_COLUMNS },
   { entitySet: ENTITY_SETS.communicationTemplate, columns: COMMUNICATION_TEMPLATE_COLUMNS },

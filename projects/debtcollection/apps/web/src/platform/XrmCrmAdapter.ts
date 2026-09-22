@@ -229,6 +229,41 @@ export class XrmCrmAdapter implements ICrmAdapter, IConcurrencyControlledWrites 
     return typeof maxLength === 'number' ? maxLength : null;
   }
 
+  /**
+   * A picklist's options, read from platform metadata.
+   *
+   * The formal Complaint discriminator is `incident.casetypecode = Complaint`, and the number
+   * behind that label is configuration rather than a constant — QDB has already redefined this set
+   * in place once, so `1/2/3` mean Inquiry/Complaint/Suggestion today and meant
+   * Question/Problem/Request before (KI-123). Resolving by label at runtime is what stops a
+   * renumbering from silently filing complaints as something else.
+   *
+   * Returns `null` when metadata cannot be read. A caller must then refuse to raise a Complaint:
+   * a Case written with a guessed case type is a Case filed as the wrong kind of thing.
+   */
+  async readOptionSet(
+    entityLogicalName: string, attribute: string,
+  ): Promise<readonly { value: number; label: string }[] | null> {
+    const transport = this.requireWriteTransport('read option metadata');
+    const response = await transport.get(
+      `/EntityDefinitions(LogicalName='${entityLogicalName}')`
+      + `/Attributes(LogicalName='${attribute}')`
+      + '/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$select=LogicalName&$expand=OptionSet');
+
+    if (response.status >= 400) return null;
+    const options = (response.body as {
+      OptionSet?: { Options?: { Value?: unknown; Label?: { UserLocalizedLabel?: { Label?: unknown } } }[] };
+    } | undefined)?.OptionSet?.Options;
+    if (!Array.isArray(options)) return null;
+
+    return options.flatMap(option => {
+      const value = option?.Value;
+      const label = option?.Label?.UserLocalizedLabel?.Label;
+      if (typeof value !== 'number' || typeof label !== 'string') return [];
+      return [{ value, label }];
+    });
+  }
+
   private requireWriteTransport(what: string): WriteTransport {
     if (!this.writeTransport) {
       throw new Error(
