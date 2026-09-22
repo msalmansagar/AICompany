@@ -5,7 +5,7 @@ import { createIdentityExceptionQuery, type IdentityExceptionRow } from '../data
 import { countMatching, formatCountResult, useCounts, type CountRequest } from '../data/counts.js';
 import { ENTITY_SETS } from '../data/schema.js';
 import {
-  BucketPill, Card, InfoBanner, KpiRow, OrgBadge, PendingPhaseNotice, PromiseOutcome, StatusPill,
+  BucketPill, Card, InfoBanner, KpiRow, OrgBadge, PartialCapabilityNotice, PromiseOutcome, StatusPill,
   formatCount, formatDate, formatMoney,
 } from '../components/primitives.js';
 import { useCrmSession, useOrg } from '../shell/context.js';
@@ -137,7 +137,7 @@ export function PromiseToPayView({ view, onOpenCase }: {
         verified against a payment: payment data is not available to this application yet, so a promise
         marked Kept means the customer said they paid, not that the money arrived.
       </InfoBanner>
-      {view.pendingSummary && <PendingPhaseNotice view={view} />}
+      <PartialCapabilityNotice view={view} />
       <KpiRow items={[
         { label: 'Promises recorded', value: formatCountResult(counts['allPtps']) },
         { label: 'Active', value: formatCountResult(counts['activePtps']) },
@@ -190,7 +190,7 @@ export function DashboardsView({ view }: { view: ViewDefinition }) {
 
   return (
     <div data-testid="view-dashboards">
-      <PendingPhaseNotice view={view} />
+      <PartialCapabilityNotice view={view} />
       <InfoBanner icon="chart">
         Counted by the platform for <b>{scope === 'all' ? 'both organisations' : scope}</b>. Each tile is
         one bounded count, not a portfolio read.

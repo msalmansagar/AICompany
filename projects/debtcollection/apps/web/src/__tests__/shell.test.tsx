@@ -41,6 +41,33 @@ describe('the approved navigation is complete', () => {
     }
   });
 
+  /**
+   * A screen owned by a later phase must not deny capability this one shipped.
+   *
+   * Disputes said "No entity exists for them yet" while the workspace was already recording
+   * collection disputes and raising complaints as Cases in QDB's own process. A pending screen is
+   * the only place an officer is told what a capability is, so a stale denial there is not a
+   * cosmetic error — it is the workspace contradicting itself.
+   */
+  it('never denies a capability that is already delivered from the case', () => {
+    const DELIVERED_ELSEWHERE = ['disputes', 'legal', 'claims'];
+
+    for (const id of DELIVERED_ELSEWHERE) {
+      const summary = VIEWS.find(view => view.id === id)?.pendingSummary ?? '';
+      expect(summary, `${id} must not claim its capability is absent`)
+        .not.toMatch(/no entity exists|does not exist|nothing exists/i);
+      expect(summary, `${id} must say the Collection-side capability is delivered`)
+        .toMatch(/delivered already/i);
+    }
+  });
+
+  /** Parked is not the same as unbuilt, and the screen must not collapse the two. */
+  it('describes restructuring as parked rather than simply future work', () => {
+    const summary = VIEWS.find(view => view.id === 'restructure')?.pendingSummary ?? '';
+
+    expect(summary).toMatch(/parked/i);
+  });
+
   it('keeps thirteen views functional in Phase 5, as the matrix states', () => {
     expect(VIEWS.filter(v => v.phase === 5)).toHaveLength(13);
   });

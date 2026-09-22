@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { describeFailure } from '../platform/errors.js';
 import { DataGrid, type DataGridColumn } from '../data/DataGrid.js';
 import {
   createStrategyActionQuery, createStrategyQuery,
@@ -17,7 +18,7 @@ import { loadCaseLegalTraces, type LegalTraceRow } from '../data/caseLegalTraces
 import { loadCaseConcerns, type CaseConcerns as CaseConcernsData } from '../data/caseConcerns.js';
 import { loadDeceasedReviewRow } from '../data/deceasedQueries.js';
 import {
-  Card, EmptyState, Icon, InfoBanner, KpiRow, PendingPhaseNotice, formatCount, formatMoney, formatDate,
+  Card, EmptyState, Icon, InfoBanner, KpiRow, PartialCapabilityNotice, formatCount, formatMoney, formatDate,
 } from '../components/primitives.js';
 import { useCrmSession } from '../shell/context.js';
 import type { ViewDefinition } from '../shell/routes.js';
@@ -129,7 +130,7 @@ export function StrategyRulesView({ view }: { view: ViewDefinition }) {
 
   return (
     <div data-testid="view-rules">
-      <PendingPhaseNotice view={view} />
+      <PartialCapabilityNotice view={view} />
       <Card title="Strategies" subtitle="Select a strategy to see the actions it resolves to.">
         <DataGrid<StrategyRow, StrategyQuery>
           columns={STRATEGY_COLUMNS} fetchPage={fetchStrategies} query={strategyQuery}
@@ -235,7 +236,7 @@ export function CaseActionPlan({ caseId, strategyId, strategyName, episodeNumber
       .then(result => { if (!cancelled) { setPlan(result); setState('ready'); } })
       .catch((failure: unknown) => {
         if (cancelled) return;
-        setError(failure instanceof Error ? failure.message : String(failure));
+        setError(describeFailure(failure));
         setState('error');
       });
     return () => { cancelled = true; };
@@ -322,7 +323,7 @@ export function CaseDeceasedReview({ caseId }: { caseId: string }) {
       .then(result => { if (!cancelled) { setRow(result); setState('ready'); } })
       .catch((failure: unknown) => {
         if (cancelled) return;
-        setError(failure instanceof Error ? failure.message : String(failure));
+        setError(describeFailure(failure));
         setState('error');
       });
     // Cancelling on a case change is what stops a slow read painting one case's indication over
@@ -424,7 +425,7 @@ export function CaseConcerns({ caseId }: { caseId: string }) {
       .then(result => { if (!cancelled) { setConcerns(result); setState('ready'); } })
       .catch((failure: unknown) => {
         if (cancelled) return;
-        setError(failure instanceof Error ? failure.message : String(failure));
+        setError(describeFailure(failure));
         setState('error');
       });
     // Cancelling on a case change is what stops a slow read painting the previous case's
@@ -555,7 +556,7 @@ export function CaseLegalTrace({ caseId, episodeNumber, customer }: {
       .then(result => { if (!cancelled) { setRows(result); setState('ready'); } })
       .catch((failure: unknown) => {
         if (cancelled) return;
-        setError(failure instanceof Error ? failure.message : String(failure));
+        setError(describeFailure(failure));
         setState('error');
       });
     // Cancelling on a case change is what stops a slow read painting the previous case's Legal
@@ -747,7 +748,7 @@ export function ActionPlanView({ view }: { view: ViewDefinition }) {
 
   return (
     <div data-testid="view-actionplan">
-      <PendingPhaseNotice view={view} />
+      <PartialCapabilityNotice view={view} />
       <KpiRow items={[
         { label: 'Cases with a plan', value: '—', hint: 'Needs per-case strategy resolution (Phase 8)' },
         { label: 'Contact suppressed', value: '—', hint: 'Pending confirmation of the contact-hold source' },

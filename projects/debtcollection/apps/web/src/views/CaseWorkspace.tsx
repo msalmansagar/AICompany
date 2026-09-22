@@ -118,7 +118,15 @@ function tabsFor(detail: CaseDetail): readonly PivotTab[] {
     },
     {
       id: 'workout', label: 'Workout & Legal', pendingPhase: 9,
-      render: () => <PendingPhasePanel phase={9} what="Restructuring, legal referral and claims are Phase 9. No entity exists for any of them yet." />,
+      render: () => (
+        <PendingPhasePanel
+          phase={9}
+          what={'A combined workout screen is Phase 9. Legal recommendations, disputes and '
+            + 'complaints, and deceased reviews are delivered already — they are on the Actions '
+            + 'tab, beside the plan the work belongs to. Restructuring hand-off is parked pending '
+            + 'QDB confirmation.'}
+        />
+      ),
     },
     { id: 'audit', label: 'Audit', render: () => <CaseAuditTab detail={detail} /> },
   ];

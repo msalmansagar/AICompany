@@ -419,9 +419,22 @@ export class XrmCrmAdapter implements ICrmAdapter, IConcurrencyControlledWrites 
     return entitySet;
   }
 
+  /**
+   * A read that found nothing, told apart from a read that failed.
+   *
+   * **The client API does not report a status.** `Xrm.WebApi.retrieveRecord` rejects with a plain
+   * object carrying `errorCode`, `message`, `code`, `title` and `raw` — and no `status` at all, so
+   * a check for 404 alone never matched and every absent record surfaced as an error. The Deceased
+   * Review card showed one to an officer: a case with no review recorded read "This could not be
+   * read", because asking for a record that does not exist is how that screen asks the question.
+   *
+   * Both shapes are accepted, because both are real: the transport answers with HTTP 404, and the
+   * client API answers with `0x80040217` — read from the platform, not assumed.
+   */
   private nullIfNotFound(error: unknown): null {
-    const status = (error as { status?: number; errorCode?: number })?.status;
-    if (status === 404) return null;
+    const failure = error as { status?: number; errorCode?: number };
+    if (failure?.status === NOT_FOUND_STATUS) return null;
+    if (failure?.errorCode === OBJECT_DOES_NOT_EXIST) return null;
     throw error;
   }
 }
@@ -432,6 +445,17 @@ export class XrmCrmAdapter implements ICrmAdapter, IConcurrencyControlledWrites 
  * Read from the organisation's `EntityDefinitions`, not inferred. Each one here is a name that the
  * naive rule would have produced incorrectly.
  */
+/** HTTP, as the direct transport reports a missing record. */
+const NOT_FOUND_STATUS = 404;
+
+/**
+ * `0x80040217` — the platform's own "record does not exist", as `Xrm.WebApi` reports it.
+ *
+ * Decimal because that is how the client API hands it over. Confirmed by asking the organisation
+ * for a record that was never created and reading the rejection.
+ */
+const OBJECT_DOES_NOT_EXIST = 2147746327;
+
 export const DEFAULT_LOGICAL_NAMES: Readonly<Record<string, string>> = {
   qdb_crmlogses: 'qdb_crmlogs',
   qdb_collectionactivities: 'qdb_collectionactivity',

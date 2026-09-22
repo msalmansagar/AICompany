@@ -52,7 +52,8 @@ export const VIEWS: readonly ViewDefinition[] = [
   },
   {
     id: 'actionplan', label: 'Action Plan', icon: 'check', group: 'Strategy', phase: 5,
-    pendingSummary: 'The resolved plan is readable. Accepting and executing actions belongs to Phase 8.',
+    pendingSummary: 'Every action an active strategy can resolve to is listed here. The plan for one ' +
+      'case, and the work attributed to each planned action, are on that case\'s Actions tab.',
   },
 
   // ── Engagement ─────────────────────────────────────────────────────────────
@@ -74,20 +75,19 @@ export const VIEWS: readonly ViewDefinition[] = [
   // ── Workout ────────────────────────────────────────────────────────────────
   {
     id: 'disputes', label: 'Disputes', icon: 'dispute', group: 'Workout', badge: 'openDisputes', phase: 9,
-    pendingSummary: 'Disputes and complaints are Phase 9. No entity exists for them yet.',
+    pendingSummary: 'A dedicated disputes workspace is Phase 9. Recording a collection dispute, and raising a formal complaint as a Case in QDB\'s own complaint process, are delivered already — both are done from the case\'s Actions tab.',
   },
   {
     id: 'restructure', label: 'Restructuring', icon: 'restructure', group: 'Workout', phase: 9,
-    pendingSummary: 'Restructuring proposals and approvals are Phase 9.',
+    pendingSummary: 'Restructuring is parked, not cancelled. QDB handles it as Facility Amendment, and the hand-off waits on QDB confirmation (KI-114). A restructuring recommendation raised by an officer appears in Work Queues today.',
   },
   {
     id: 'legal', label: 'Legal Hand-off', icon: 'legal', group: 'Workout', phase: 9,
-    pendingSummary: 'Legal referral and tracking are Phase 9.',
+    pendingSummary: 'A dedicated legal workspace is Phase 9. Recommending legal action, and following a request through QDB\'s own legal process, are delivered already and done from the case\'s Actions tab. Sending a case to legal stays unavailable until QDB defines which cases qualify (KI-109).',
   },
   {
     id: 'claims', label: 'Deceased & Claims', icon: 'shield', group: 'Workout', phase: 9,
-    pendingSummary: 'Deceased and insurance claim handling is Phase 9. The FR-097 contact hold it depends ' +
-      'on is still awaiting QDB confirmation of its authoritative source (KI-44).',
+    pendingSummary: 'Recording a deceased review is delivered already and done from the case\'s Actions tab; it marks an indication to verify, never a confirmed death. Insurance claims are not built, because no credit-life process was found to build against (KI-125). The FR-097 contact hold still awaits QDB confirmation of its authoritative source (KI-44).',
   },
 
   // ── Oversight ──────────────────────────────────────────────────────────────

@@ -298,7 +298,7 @@ export function QueuesView({ onOpenCase }: { onOpenCase?: (id: string) => void }
         * it here is what "do not invent a second dashboard if the workspace can host it cleanly"
         * asks for, and the shell guard was right to insist.
         */}
-      <MyWorkView />
+      <MyWorkView {...(onOpenCase ? { onOpenCase } : {})} />
       <Card title="Queue contents" subtitle="All open cases across both organisations.">
         <CasesView {...(onOpenCase ? { onOpenCase } : {})} />
       </Card>

@@ -73,7 +73,7 @@ const COLUMNS: readonly DataGridColumn<WorkItem>[] = [
   { key: 'state', header: 'State', width: '180px', render: item => item.domainState ?? '—' },
 ];
 
-export function MyWorkView() {
+export function MyWorkView({ onOpenCase }: { onOpenCase?: (id: string) => void }) {
   const { adapter, context } = useCrmSession();
   // Read from the platform's own context, never assumed or passed in.
   const userId = context.userId;
@@ -96,12 +96,19 @@ export function MyWorkView() {
     let cancelled = false;
     const context = { ...(userId ? { currentUserId: userId } : {}), typeIds };
 
-    void Promise.all(BUCKETS.map(async candidate =>
-      [candidate, await countBucket(adapter, candidate, context)] as const))
-      .then(entries => {
-        if (cancelled) return;
-        setCounts(Object.fromEntries(entries) as Partial<Record<OperationalBucket, WorkCount>>);
-      });
+    /*
+     * A count that cannot be obtained becomes *unknown* — never zero, and never an unhandled
+     * rejection. One bucket is counted per promise so that a single failing count leaves the others
+     * intact, which is the whole reason the failure is caught per bucket rather than around the
+     * batch.
+     */
+    void Promise.all(BUCKETS.map(async candidate => {
+      const count = await countBucket(adapter, candidate, context).catch(() => unknownCount());
+      return [candidate, count] as const;
+    })).then(entries => {
+      if (cancelled) return;
+      setCounts(Object.fromEntries(entries) as Partial<Record<OperationalBucket, WorkCount>>);
+    });
     return () => { cancelled = true; };
   }, [adapter, typeIds, userId]);
 
@@ -172,6 +179,9 @@ export function MyWorkView() {
               pageSize={50}
               emptyMessage="Nothing in this list right now."
               data-testid="mywork-grid"
+              {...(onOpenCase
+                ? { onRowClick: (item: WorkItem) => onOpenCase(item.caseId) }
+                : {})}
             />
           )}
       </Card>
