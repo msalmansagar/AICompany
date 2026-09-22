@@ -25,6 +25,10 @@ Deceased & Insurance Claims → operational queues/UI → validation, QA, harden
 | Remaining from the original baseline — WP12–WP16 | 10.50 |
 | **Revised forecast due to approved scope sequencing/additional functional modules** | **+9.50** |
 | Forecast total to Phase 8 closure | 46.00 |
+| **Actual at closure** | **48.00** |
+| Variance against the original 36.50 baseline | **+11.50** — of which **+9.50 is approved scope** and **+2.00 execution** |
+| Variance against the latest approved revised forecast | **+2.00** |
+| Blocked / waiting time | **0.00** — no open QDB decision ever blocked development |
 
 **The 36.50-hour baseline is not rewritten.** The additional forecast covers two functional modules
 the original sixteen packages did not contain — Disputes & Complaints, and Deceased & Insurance
@@ -32,7 +36,7 @@ Claims — which the original plan carried only as Phase 9 placeholders in the n
 
 ---
 
-## ACTIVE — to complete now
+## CLOSED — Phase 8 development closed 2026-09-22
 
 | Revised WP | Original WP | Scope | Depends on | Status | Est. hrs |
 |---|---|---|---|---|---|
@@ -41,11 +45,11 @@ Claims — which the original plan carried only as Phase 9 placeholders in the n
 | **WP14** | 9, 10 (completion) | **Legal hand-off — Collection-side completion.** State DERIVED from records; `ReadyForHandoff` unreachable while KI-109 is open; queue buckets carry no Legal taxonomy | 9, 10 | **✅ done** | 1.50 |
 | **WP15** | *new* | **Deceased & Insurance Claims — discovery.** No deceased process and **no credit-life insurance** found; BFD claims are guarantee/trade, not death. 724 flags remain data-only | 14 | **✅ discovery done — STOPPED at the gate** — KI-124/125/126/127/128 | 2.00 |
 | **WP16** | *new* | **Deceased Review — Collection-side only.** QCB indication read and reviewed; **no insurance module built** (KI-125). Case byte-identical before and after | 15 | **✅ done** | 2.50 |
-| **WP17** | **12** | **✅ done.** Operational queues and UI — assigned work, awaiting assignment, attention, due soon, overdue, escalated, legal, disputes, deceased, claims, restructuring **recommendation only** | 13, 14, 16 | pending | 3.00 |
-| **WP18** | **13** | **▶ NEXT.** Real Dataverse runtime validation across the new modules | all | pending | 2.00 |
-| **WP19** | **14** | Chrome QA journeys, on the verified QDB profile | 17 | pending | 3.00 |
-| **WP20** | **15** | Regression and hardening | all | pending | 2.00 |
-| **WP21** | **16** | Documentation, ADRs, Phase 8 closure | all | pending | 1.50 |
+| **WP17** | **12** | **✅ done.** Operational queues and UI — assigned work, awaiting assignment, attention, due soon, overdue, escalated, legal, disputes, deceased, claims, restructuring **recommendation only** | 13, 14, 16 | **✅ accepted** `ebd3497c` | 3.00 → **3.50** |
+| **WP18** | **13** | **✅ done.** Full live Cloud regression — 14 scripts, **333/333**; two prior-phase smokes found broken and repaired | all | **✅ done** | 2.00 |
+| **WP19** | **14** | **✅ done.** Integrated Chrome regression on the verified QDB profile — **five product defects found**, all fixed at root cause | 17 | **✅ done** | 3.00 |
+| **WP20** | **15** | **✅ done.** Full automated regression **1,872 green, 0 skipped**; 9 closure guards proven to bite; independent residue sweep 18/18 | all | **✅ done** | 2.00 |
+| **WP21** | **16** | **✅ done.** Closure pack, consolidated KI register, security readiness review, QDB decision register | all | **✅ done** | 1.50 |
 
 ---
 
@@ -74,6 +78,28 @@ Claims — which the original plan carried only as Phase 9 placeholders in the n
    discovery question; treating it as a verified death event is the most likely wrong turn.
 5. **Security gaps are likely.** KI-100, KI-111, KI-116 and KI-120 were all the same shape. Expect
    a fifth and record it rather than working around it.
+
+---
+
+## Phase 8 closure
+
+**Development closed 2026-09-22.** The pack is four documents:
+
+| Document | What it answers |
+|---|---|
+| `Phase8_Closure.md` | Is the software complete and regression-safe? Capability matrix, evidence, what is **not** delivered, Cloud vs On-Prem, timing |
+| `Phase8_KIRegister.md` | Every open KI, classified **A** production blocker / **B** functional acceptance dependency / **C** deferred |
+| `CollectionOfficerSecurityReadiness.md` | The one security finding that arrived five times — KI-100, KI-111, KI-116, KI-120, KI-128 |
+| `QdbDecisionRegister.md` | The same dependencies in management language, grouped by capability, for a QDB workshop |
+
+**Closure evidence:** 1,872 automated tests (0 skipped) · 333/333 live Cloud checks · 18/18
+independent residue sweep, proven non-vacuous · integrated browser regression on the verified QDB
+profile · 21 guards proven to bite across WP17 and closure.
+
+**Administrator runtime is not officer runtime.** No capability has Collection Officer validation.
+
+**Restructuring: Discovery Complete — Downstream Integration Pending QDB Confirmation.** Not
+delivered, not cancelled.
 
 ---
 
