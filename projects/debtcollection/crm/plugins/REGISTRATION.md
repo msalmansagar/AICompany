@@ -93,6 +93,40 @@ methods handle any records that were created before this plugin was deployed.
 | msst_dcpcollectionaction | Create | PreOperation (20) | Sync | msst_actiontype | none |
 | msst_dcpcommunication | Create | PreOperation (20) | Sync | msst_channel | none |
 
+### ActivityProvenanceGuardPlugin — Phase 8, KI-71
+
+| Entity | Message | Stage | Mode | Filter attrs | Images |
+|---|---|---|---|---|---|
+| qdb_collectionactivity | Create | PreOperation (20) | Sync | none | none |
+| qdb_collectionactivity | Update | PreOperation (20) | Sync | `qdb_origin,qdb_strategyactionid` | PreImage: `qdb_origin,qdb_strategyactionid` |
+
+Refuses a Collection Activity marked **Strategy generated** (`qdb_origin` = 100000801) that does
+not name the Strategy Action which requested it. Automated work that cannot say why it exists is
+untraceable activity on a customer's file, with nothing for the officer it lands on — or an
+auditor — to appeal to.
+
+Registered server-side rather than left to the workspace because React is not an authorisation
+boundary: the browser, an import, a script and any future background service all write through the
+platform, and only a plugin holds the rule for all of them. The domain layer enforces the same
+invariant in `strategyAutomation.ts`, and both read the same provisioned option value, asserted by
+a parity test.
+
+**The Update step is the one that matters.** The damaging write is not a bad Create — it is an
+Update that *clears* the lookup on an activity that is already strategy generated. The Target alone
+cannot show that, which is why the step carries a PreImage of both columns and the guard evaluates
+the **resulting state** rather than the delta. Removing the PreImage makes two unit tests fail;
+this was verified by doing it.
+
+Three things it deliberately does not do: it does not require provenance (every Phase 6 and Phase 7
+activity has none, and demanding a value nobody recorded would make it unable to run); it does not
+forbid a **Manual** activity from carrying a Strategy Action (that is an officer accepting planned
+work); and it never writes an origin, so a null keeps meaning "predates provenance" rather than
+"manual".
+
+Live evidence: `crm/scripts/smoke-activity-provenance.mts` — 9/9 against `org5869857f`, including
+the platform refusing both the orphaned Create and the provenance-stripping Update, with cleanup by
+id and zero residue.
+
 ### StopContactQueueMoverPlugin
 
 | Entity | Message | Stage | Mode | Filter attrs | Images |

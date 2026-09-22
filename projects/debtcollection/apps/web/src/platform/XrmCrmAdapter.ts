@@ -19,6 +19,7 @@ import {
 } from '@dcp/domain';
 import type { XrmLike } from './crmContext.js';
 import { PRECONDITION_FAILED, type WriteTransport } from './writeTransport.js';
+import { interpretRejection, type DataverseFailure } from './dataverseErrors.js';
 
 /**
  * The browser half of `ICrmAdapter`, over `Xrm.WebApi`.
@@ -229,6 +230,41 @@ export class XrmCrmAdapter implements ICrmAdapter, IConcurrencyControlledWrites 
     return typeof maxLength === 'number' ? maxLength : null;
   }
 
+  /**
+   * A picklist's options, read from platform metadata.
+   *
+   * The formal Complaint discriminator is `incident.casetypecode = Complaint`, and the number
+   * behind that label is configuration rather than a constant — QDB has already redefined this set
+   * in place once, so `1/2/3` mean Inquiry/Complaint/Suggestion today and meant
+   * Question/Problem/Request before (KI-123). Resolving by label at runtime is what stops a
+   * renumbering from silently filing complaints as something else.
+   *
+   * Returns `null` when metadata cannot be read. A caller must then refuse to raise a Complaint:
+   * a Case written with a guessed case type is a Case filed as the wrong kind of thing.
+   */
+  async readOptionSet(
+    entityLogicalName: string, attribute: string,
+  ): Promise<readonly { value: number; label: string }[] | null> {
+    const transport = this.requireWriteTransport('read option metadata');
+    const response = await transport.get(
+      `/EntityDefinitions(LogicalName='${entityLogicalName}')`
+      + `/Attributes(LogicalName='${attribute}')`
+      + '/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$select=LogicalName&$expand=OptionSet');
+
+    if (response.status >= 400) return null;
+    const options = (response.body as {
+      OptionSet?: { Options?: { Value?: unknown; Label?: { UserLocalizedLabel?: { Label?: unknown } } }[] };
+    } | undefined)?.OptionSet?.Options;
+    if (!Array.isArray(options)) return null;
+
+    return options.flatMap(option => {
+      const value = option?.Value;
+      const label = option?.Label?.UserLocalizedLabel?.Label;
+      if (typeof value !== 'number' || typeof label !== 'string') return [];
+      return [{ value, label }];
+    });
+  }
+
   private requireWriteTransport(what: string): WriteTransport {
     if (!this.writeTransport) {
       throw new Error(
@@ -246,6 +282,32 @@ export class XrmCrmAdapter implements ICrmAdapter, IConcurrencyControlledWrites 
         this.toLogicalName(reference.entity), reference.id, `?$select=${select.join(',')}`);
     } catch (error) {
       return this.nullIfNotFound(error);
+    }
+  }
+
+  /**
+   * A single record, with the reason a read failed rather than just its absence.
+   *
+   * `retrieve` returns null on absence and throws on everything else, which is right for a record
+   * the caller either has or has not got. It is wrong for the Litigation Request: **absence and
+   * refusal mean opposite things there**. Refusal means the request exists and this officer may not
+   * see it; absence means the organisation does not hold it. Collapsing them would tell every
+   * Collection Officer that no litigation exists, because no DCP role holds read permission on the
+   * Legal entity.
+   *
+   * Reads as the signed-in user through `Xrm.WebApi`, never through a privileged identity.
+   */
+  async retrieveClassified(
+    reference: CrmReference, select: string[],
+  ): Promise<{ record?: CrmRecord; failure?: DataverseFailure }> {
+    try {
+      const record = await this.xrm.WebApi.retrieveRecord(
+        this.toLogicalName(reference.entity), reference.id, `?$select=${select.join(',')}`);
+      return { record };
+    } catch (error) {
+      // No status is read here. `Xrm.WebApi` supplies none, and the code that read one anyway
+      // turned every refusal and every absence into the same unclassified failure.
+      return { failure: interpretRejection(error) };
     }
   }
 
@@ -297,6 +359,9 @@ export class XrmCrmAdapter implements ICrmAdapter, IConcurrencyControlledWrites 
       ? toOptionsString(readContinuation(query.continuation, fingerprint))
       : buildOptions({
         select: query.select,
+        // Only on the first page: a continuation is the platform's own nextLink, which already
+        // carries the original $expand along with the $select, $filter and $orderby.
+        ...(query.expand !== undefined ? { expand: query.expand } : {}),
         ...(query.filter !== undefined ? { filter: query.filter } : {}),
         ...(query.sort !== undefined ? { sort: query.sort } : {}),
         ...(query.includeTotalCount ? { count: true } : {}),
@@ -356,9 +421,17 @@ export class XrmCrmAdapter implements ICrmAdapter, IConcurrencyControlledWrites 
     return entitySet;
   }
 
+  /**
+   * A read that found nothing, told apart from a read that failed.
+   *
+   * The classification lives in `interpretRejection`, because the two channels this workspace
+   * uses report absence differently and every caller that decided for itself decided wrongly.
+   *
+   * Anything **not positively identified as absent is re-thrown**. An unknown failure must never
+   * become `null`, because `null` reads to the caller as "there is no such record".
+   */
   private nullIfNotFound(error: unknown): null {
-    const status = (error as { status?: number; errorCode?: number })?.status;
-    if (status === 404) return null;
+    if (interpretRejection(error).kind === 'notFound') return null;
     throw error;
   }
 }
@@ -422,16 +495,79 @@ export function buildOptions(query: {
   sort?: readonly Sort[];
   top?: number;
   count?: boolean;
+  /**
+   * Related records to bring back **in the same request**.
+   *
+   * This is what keeps an operational queue from issuing one downstream read per row. Fifty
+   * activities that each carry a Litigation Request would otherwise mean fifty-one requests, and a
+   * queue whose cost grows with its page size is a queue that stops working as the book grows.
+   *
+   * Takes the single-valued **navigation property**, not the attribute: `$expand` on
+   * `qdb_legalrequestid` is rejected with 400, while
+   * `qdb_legalrequestid_qdb_collectionactivity` works — verified against the organisation,
+   * alongside a filter and an order-by, which is the combination a queue actually issues.
+   */
+  expand?: readonly string[];
 }): string {
   // An empty `$select` is rejected by the platform — "'select' and 'expand' cannot be both null or
   // empty" — so it is omitted rather than sent blank. A count asks for no columns, which is a real
   // and correct request: what it wants is the number in the envelope, not the rows.
-  const parts = query.select.length > 0 ? [`$select=${query.select.join(',')}`] : [];
-  if (query.filter) parts.push(`$filter=${query.filter}`);
+  const parts = query.select.length > 0 ? [`$select=${namesOnly(query.select.join(','), '$select')}`] : [];
+  if (query.expand && query.expand.length > 0) {
+    parts.push(`$expand=${namesOnly(query.expand.join(','), '$expand')}`);
+  }
+  // The only option that carries caller text, and therefore the only one encoded.
+  if (query.filter) parts.push(`$filter=${encodeQueryValue(query.filter)}`);
   if (query.sort && query.sort.length > 0) {
-    parts.push(`$orderby=${query.sort.map(s => `${s.field}${s.descending ? ' desc' : ' asc'}`).join(',')}`);
+    const orderBy = query.sort.map(s => `${s.field}${s.descending ? ' desc' : ' asc'}`).join(',');
+    parts.push(`$orderby=${namesOnly(orderBy, '$orderby')}`);
   }
   if (query.top !== undefined) parts.push(`$top=${query.top}`);
   if (query.count) parts.push('$count=true');
   return `?${parts.join('&')}`;
 }
+
+/**
+ * Column and navigation-property names only — nothing a customer can influence.
+ *
+ * `$select`, `$expand` and `$orderby` are built from the registered schema, so they are left
+ * unencoded: their commas, parentheses and slashes are **structure**, and percent-encoding those
+ * would change what the option means rather than protect it.
+ *
+ * That assumption is worth exactly as much as its enforcement, so it is enforced. If caller text
+ * ever reaches one of these, the request is refused here rather than being sent as a malformed
+ * query the platform answers with something unhelpful.
+ */
+function namesOnly(option: string, name: string): string {
+  if (!SAFE_OPTION.test(option)) {
+    throw new Error(`${name} may contain only schema names, and received: ${option.slice(0, 80)}`);
+  }
+  return option;
+}
+
+/**
+ * Encodes only what can end or alter a query-string value.
+ *
+ * A customer called *Ahmed & Sons* ended the `$filter` early and the platform answered "The
+ * query parameter … is not supported" — reproduced against `org5869857f`, where the same search
+ * through `count()` succeeded because that path already encoded. The list broke while the number
+ * beside it did not.
+ *
+ * **Targeted rather than wholesale.** Percent-encoding the entire expression also works, but it
+ * encodes the spaces, quotes and parentheses that make a filter readable in a trace — and every
+ * stand-in that honours a filter by reading it then has to decode first or quietly stop matching.
+ * These four characters are the ones that are structurally dangerous in a value: everything else
+ * a filter contains is already sent literally today, against this organisation, and works.
+ *
+ * Order matters: the escape character is encoded first, or it would escape the escapes.
+ */
+function encodeQueryValue(value: string): string {
+  return value
+    .split('%').join('%25')
+    .split('&').join('%26')
+    .split('#').join('%23')
+    .split('+').join('%2B');
+}
+
+/** Letters, digits, underscore, and the structural characters these three options legitimately use. */
+const SAFE_OPTION = /^[A-Za-z0-9_,./()=$ '-]*$/;

@@ -20,7 +20,7 @@
  *   node --import tsx --env-file="<path>/.env" crm/scripts/smoke-domain-operations.mts
  */
 
-import { loadConfig, acquireToken, apiGet, apiPost } from './lib/crm-client.mjs';
+import { loadConfig, acquireToken, apiGet, apiPost, buildHeaders } from './lib/crm-client.mjs';
 import { SOLUTION_NAME } from './lib/qdb-plugin-steps.mjs';
 import { cleanSmokeData, SMOKE_MARKER } from './clean-qdb-smoke-data.mjs';
 import { buildNodeHarness } from './lib/node-workspace-harness.mts';
@@ -32,6 +32,14 @@ import { loadActivityTypes, loadOutcomes } from '../../apps/web/src/data/configu
 import { deriveFollowUpDate } from '@dcp/domain';
 import { ENTITY_SETS } from '../../apps/web/src/data/schema.js';
 import type { ActivityOutcomeConfig, RowVersion } from '@dcp/domain';
+
+/**
+ * The Completed option on `qdb_collectionactivity`.
+ *
+ * The entity has configured state transitions, so a bare `statecode` is refused: "Transition
+ * from 'Open' to '2' is not permitted". This is the option whose State is 1.
+ */
+const ACTIVITY_COMPLETED_STATUS = 100000644;
 
 const AUTHORISED_ORG = 'org5869857f';
 const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
@@ -46,12 +54,18 @@ const check = (name: string, passed: boolean, detail = '') => {
 /** A fresh GUID per record, which is what makes a create idempotent (ADR-DCP-19). */
 const newId = () => crypto.randomUUID();
 
+type Config = ReturnType<typeof loadConfig>;
+
 interface Seed {
   contactId: string;
   accountId: string;
   hlCaseId: string;
   bfdCaseId: string;
   strategyId: string;
+  /** The planned action an activity can name. Provenance, not resemblance (WP8). */
+  plannedActionId: string;
+  /** The activity that names that planned action and has been completed. */
+  attributedActivityId: string;
   callTypeId: string;
   ptpTypeId: string;
   outcome: ActivityOutcomeConfig;
@@ -102,7 +116,7 @@ async function main(): Promise<void> {
  * different navigation property per target. Seeding both is the only way this script can claim the
  * workspace is dual-context rather than assume it.
  */
-async function seedFixtures(cfg: unknown, token: string): Promise<Seed> {
+async function seedFixtures(cfg: Config, token: string): Promise<Seed> {
   const post = async (path: string, body: Record<string, unknown>, label: string): Promise<string> => {
     // A Dataverse POST answers 204 with an empty body: the id arrives only in `OData-EntityId`,
     // which `postOnce` has already extracted into `entityId`. Reading it off the parsed body would
@@ -129,7 +143,7 @@ async function seedFixtures(cfg: unknown, token: string): Promise<Seed> {
   const ptpTypeId = await post('/qdb_collectionactivitytypes',
     { qdb_name: mark('PTP'), qdb_code: mark('PTP') }, 'ptp type');
 
-  await post('/qdb_strategyactions', {
+  const plannedActionId = await post('/qdb_strategyactions', {
     qdb_name: mark('PLANNED-CALL'), qdb_sequence: 1, qdb_isactive: true,
     'qdb_strategyid@odata.bind': `/qdb_collectionstrategies(${strategyId})`,
     'qdb_activitytypeid@odata.bind': `/qdb_collectionactivitytypes(${callTypeId})`,
@@ -155,15 +169,47 @@ async function seedFixtures(cfg: unknown, token: string): Promise<Seed> {
     qdb_escalationrequired: false,
   }, 'outcome');
 
+  /**
+   * The activity the Action Plan should attribute to the planned action.
+   *
+   * It names the action outright. Since WP8 that lookup is the ONLY thing that attributes work to
+   * a plan — a matching Activity Type no longer correlates anything, which is why the CALL-1
+   * activity created later, of this very type and without the lookup, must stay unattributed.
+   */
+  const attributedActivityId = await post('/qdb_collectionactivities', {
+    subject: mark('ATTRIBUTED-CALL'),
+    'qdb_collectioncaseid_qdb_collectionactivity@odata.bind': `/qdb_collectioncases(${hlCaseId})`,
+    'qdb_activitytypeid_qdb_collectionactivity@odata.bind': `/qdb_collectionactivitytypes(${callTypeId})`,
+    'qdb_strategyactionid_qdb_collectionactivity@odata.bind': `/qdb_strategyactions(${plannedActionId})`,
+  }, 'attributed activity');
+  await completeActivity(cfg, token, attributedActivityId);
+
   check('seeded both customer contexts — HL contact and BFD account', Boolean(hlCaseId && bfdCaseId));
 
   return {
-    contactId, accountId, hlCaseId, bfdCaseId, strategyId, callTypeId, ptpTypeId,
+    contactId, accountId, hlCaseId, bfdCaseId, strategyId, plannedActionId,
+    attributedActivityId, callTypeId, ptpTypeId,
     outcome: {
       id: outcomeId, code: mark('CONTACTED'), name: 'Contacted',
       requiresFollowUp: true, followUpDays: 3, requiresNotes: true, escalationRequired: false,
     },
   };
+}
+
+/**
+ * Moves a seeded activity to Completed.
+ *
+ * It cannot be created that way: `qdb_collectionactivity` has configured state transitions, and
+ * a create carrying the Completed status is refused — "100000644 is not a valid status code for
+ * state code qdb_collectionactivityState.Open". State and status move together, afterwards.
+ */
+async function completeActivity(cfg: Config, token: string, activityId: string): Promise<void> {
+  const res = await fetch(`${cfg.apiBase}/qdb_collectionactivities(${activityId})`, {
+    method: 'PATCH',
+    headers: buildHeaders(token, SOLUTION_NAME) as Record<string, string>,
+    body: JSON.stringify({ statecode: 1, statuscode: ACTIVITY_COMPLETED_STATUS }),
+  });
+  if (!res.ok) throw new Error(`completing the attributed activity -> ${res.status}: ${await res.text()}`);
 }
 
 // ── The activity lifecycle ───────────────────────────────────────────────────
@@ -375,20 +421,29 @@ async function proveQueries(
     followUps.items.length > 0 && followUps.items.every(row => Boolean(row.followUpDate)),
     `${followUps.items.length} rows`);
 
-  // The Action Plan: one planned call, and the call that was actually made.
+  // The Action Plan: one planned call, and the work that NAMES it.
   const plan = await loadActionPlan(adapter, { caseId: seed.hlCaseId, strategyId: seed.strategyId });
-  check('the Action Plan lists the strategy\'s planned actions', plan.length === 1, `${plan.length} rows`);
-  check('the planned call is correlated with the calls that were made, and one is completed',
-    (plan[0]?.matchingActivities.length ?? 0) > 0 && plan[0]?.hasCompletedMatch === true,
-    `${plan[0]?.matchingActivities.length ?? 0} matched`);
+  check('the Action Plan lists the strategy\'s planned actions', plan.rows.length === 1,
+    `${plan.rows.length} rows`);
+  check('work that names the planned action is attributed to it, and one is completed',
+    plan.rows[0]?.attributed.some(row => row.id === seed.attributedActivityId) === true
+    && plan.rows[0]?.hasCompletedAttributed === true,
+    `${plan.rows[0]?.attributed.length ?? 0} attributed`);
 
   /**
-   * The negative half, which is what makes the positive one mean anything: the promise is an
-   * activity on the same case, of a different type, and must not be counted against a planned call.
-   * Without this, a correlation that simply returned every activity would pass.
+   * The negative half, which is what makes the positive one mean anything.
+   *
+   * CALL-1 is on the same case and of the **same Activity Type as the planned action** — the exact
+   * record the pre-WP8 correlation would have claimed. It does not name the action, so nothing may
+   * attribute it. A plan that simply returned the case's activities would fail here.
    */
-  check('an activity of a different type is NOT correlated with the planned call',
-    plan[0]?.matchingActivities.every(row => row.activityTypeId === seed.callTypeId) === true);
+  check('a look-alike activity of the planned type is NOT attributed to the action',
+    plan.rows[0]?.attributed.every(row => row.id === seed.attributedActivityId) === true,
+    `${plan.rows[0]?.attributed.length ?? 0} attributed`);
+
+  // And it is not discarded either — unattributed work stays on the screen that explains the case.
+  check('the look-alike is kept as unattributed history rather than dropped',
+    plan.unattributed.length > 0);
 
   // BFD context: an account-backed case reads through the same code path.
   const bfdCases = await caseQuery({ pageSize: 10, search: mark('CASE') } as Parameters<typeof caseQuery>[0]);

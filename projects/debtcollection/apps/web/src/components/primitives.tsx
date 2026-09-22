@@ -251,6 +251,27 @@ export function InfoBanner({ icon = 'info', children }: { icon?: string; childre
 }
 
 /**
+ * Shown on a **working** view that is not yet complete.
+ *
+ * The distinction from `PendingPhaseNotice` is not cosmetic. That notice says the screen does not
+ * work and shows nothing real — which, printed above four rows of live data, is a screen
+ * contradicting itself, and it was. This one says what is still to come and makes no claim about
+ * the data, because the data is real.
+ */
+export function PartialCapabilityNotice({ view }: { view: ViewDefinition }) {
+  if (!view.pendingSummary) return null;
+  return (
+    <div className="phase-notice" data-testid={`partial-${view.id}`} data-owning-phase={view.phase}>
+      <Icon name="info" />
+      <div>
+        <strong>This screen is still being completed.</strong>
+        <p>{view.pendingSummary}</p>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Shown on a view whose functionality a later phase owns.
  *
  * The screen keeps its place in the navigation and its approved layout; this says plainly that it

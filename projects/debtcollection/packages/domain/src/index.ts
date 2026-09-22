@@ -426,3 +426,190 @@ export type {
   ReconciliationVerdict,
   BatchPlan,
 } from './bulkCommunication.js';
+
+// ── Phase 8 — strategy automation and provenance (KI-71) ─────────────────────
+export {
+  ACTIVITY_ORIGIN_CODES,
+  originFromCode,
+  ActivityOriginSchema,
+  ActivityProvenanceSchema,
+  EvaluationContextSchema,
+  ProvenanceError,
+  StrategyPlanError,
+  assertProvenance,
+  describeOrigin,
+  isStrategyGenerated,
+  planStrategyWork,
+  regenerationDecision,
+  strategyActivityId,
+  REGENERATION_POLICY,
+} from './strategyAutomation.js';
+export type {
+  ActivityOrigin,
+  ActivityProvenance,
+  EvaluationContext,
+  ExistingWork,
+  IntendedActivity,
+} from './strategyAutomation.js';
+
+// ── Phase 8 — controlled re-evaluation (WP5) ─────────────────────────────────
+export {
+  REEVALUATION_TRIGGERS,
+  belongsToEpisode,
+  buildEvaluationTrace,
+  reevaluate,
+  strategyFactsChanged,
+} from './strategyReevaluation.js';
+export type {
+  ActivityState,
+  Disposition,
+  DispositionEntry,
+  EvaluationTrace,
+  ExistingActivity,
+  ReevaluationOutcome,
+  ReevaluationTrigger,
+} from './strategyReevaluation.js';
+
+// ── Phase 8 — assignment decision (WP6) ──────────────────────────────────────
+export {
+  ambiguousAssignment,
+  awaitingAssignment,
+  decideAssignment,
+  shouldWriteAssignment,
+  worthRetrying,
+} from './assignmentDecision.js';
+export type {
+  AssignmentDecision,
+  AssignmentStatus,
+  AssignmentTarget,
+} from './assignmentDecision.js';
+
+// ── Phase 8 — TAT and escalation (WP7) ───────────────────────────────────────
+export {
+  computeDeadline,
+  continuousElapsed,
+  deriveWorkState,
+  escalationDue,
+  escalationEventId,
+  isCurrentWork,
+} from './tatEscalation.js';
+export type {
+  EscalationEventKind,
+  TatBasis,
+  TatCalendar,
+  TatDeadline,
+  TatInstants,
+  TatStartPolicy,
+  WorkState,
+  WorkStateInput,
+} from './tatEscalation.js';
+
+// ── Phase 8 — Action Plan presentation (WP8) ─────────────────────────────────
+export {
+  DUE_NOT_CONFIGURED,
+  NOT_ASSIGNED,
+  ORIGIN_NOT_RECORDED,
+  describeDue,
+  describeOriginLabel,
+  satisfiesPlannedAction,
+  toActionPlanItem,
+} from './actionPlanItem.js';
+export type { ActionPlanInput, ActionPlanItem } from './actionPlanItem.js';
+
+// ── Phase 8 — Legal hand-off (WP9) ───────────────────────────────────────────
+export {
+  decideLegalHandoff,
+  interpretHandoffWrite,
+  litigationRequestId,
+  remainsAvailable,
+  resolveLegalCustomer,
+  worthRetrying as legalHandoffWorthRetrying,
+} from './legalHandoff.js';
+export type {
+  CustomerTable, LegalCustomerResolution, LegalHandoffDecision, LegalHandoffOutcome,
+  LegalQualificationPolicy, LegalRecommendation,
+} from './legalHandoff.js';
+
+// ── Phase 8 — Legal visibility (WP10) ────────────────────────────────────────
+export {
+  assertsNoLitigation,
+  describeLegalTrace,
+  interpretLegalRead,
+  legalFetchFromFailure,
+  litigationExists,
+} from './legalVisibility.js';
+export type {
+  LegalRecordFetch, LegalTrace, LegalTraceInput, LegalTraceState, LitigationSummary,
+} from './legalVisibility.js';
+
+// ── Phase 8 — Collection-side Legal state (WP14) ────────────────────────────
+export {
+  describeLegalWork,
+  isCurrentLegalWork,
+  queueBucketFor,
+} from './legalWorkState.js';
+export type {
+  LegalQueueBucket, LegalWorkInput, LegalWorkState, LegalWorkStateName,
+} from './legalWorkState.js';
+
+// ── Phase 8 — Collection Dispute vs Customer Complaint (WP13) ────────────────
+export {
+  describeDisputedSubject,
+  effectsOfRaisingComplaint,
+  effectsOfRecordingDispute,
+  hasAnyEffect,
+  impliesOtherConcern,
+  toComplaintRow,
+  toDisputeRow,
+} from './disputeComplaint.js';
+export type {
+  CollectionConcern, CollectionDispute, CollectionEffects,
+  ComplaintCaseSummary, ConcernRow, DisputedSubject,
+} from './disputeComplaint.js';
+
+// ── Phase 8 — the formal Complaint contract (WP13b) ─────────────────────────
+export {
+  COMPLAINT_CUSTOMER_BINDING,
+  COMPLAINT_CUSTOMER_SET,
+  buildComplaintCreate,
+  complaintCaseId,
+  isComplaintCaseType,
+  lookupProvidesIdempotency,
+  resolveComplaintCaseType,
+} from './complaintContract.js';
+export type {
+  CaseTypeOption, CaseTypeResolution, ComplaintCreateDecision, ComplaintCustomer, ComplaintDraft,
+} from './complaintContract.js';
+
+// ── Phase 8 — the QCB deceased indication and its review (WP16) ─────────────
+export {
+  INDICATION_LABEL,
+  NO_INDICATION_LABEL,
+  deceasedReviewId,
+  describeIndication,
+  describeIndicationSource,
+  effectsOfIndication,
+  effectsOfStartingReview,
+  reviewsToGenerateFrom,
+  toDeceasedReviewRow,
+} from './deceasedReview.js';
+export type {
+  DeceasedIndication, DeceasedReview, DeceasedReviewRow, DeceasedReviewState, IndicationSource,
+} from './deceasedReview.js';
+
+// ── Phase 8 — the operational read model (WP17) ─────────────────────────────
+export {
+  bucketTotalsAreDisjoint,
+  bucketsFor,
+  dedupeWork,
+  describeBucket,
+  describeCount,
+  describeWorkType,
+  distinctWorkCount,
+  knownCount,
+  toWorkCount,
+  unknownCount,
+} from './operationalWork.js';
+export type {
+  OperationalBucket, WorkCount, WorkItem, WorkType,
+} from './operationalWork.js';

@@ -205,6 +205,21 @@ describe('the Case Workspace keeps all seven approved tabs', () => {
     expect((await screen.findByTestId('pending-panel-9')).textContent).toContain('none would be real');
   });
 
+  /**
+   * The workout tab told an officer that no entity existed for legal, disputes or claims, on the
+   * very case where all three were already being recorded. A later-phase tab may say a screen is
+   * not built; it may not deny the capability.
+   */
+  it('does not deny capability the case already has', async () => {
+    await openView('case', 'c-1');
+    await screen.findByTestId('view-case');
+    await userEvent.click(screen.getByTestId('case-pivot-tab-workout'));
+
+    const panel = await screen.findByTestId('pending-panel-9');
+    expect(panel.textContent).not.toMatch(/no entity exists/i);
+    expect(panel.textContent).toContain('delivered already');
+  });
+
   it('refuses to invent a case that does not resolve', async () => {
     install(fakeXrm({}));
     await openView('case', 'missing-id');
@@ -310,5 +325,34 @@ describe('a KPI is a platform count or an em dash, never an invention', () => {
     const tiles = await screen.findAllByText('Open cases');
     const tile = tiles[0]!.closest('.kpi-tile')!;
     await waitFor(() => expect(tile.querySelector('.kpi-value')!.textContent).toBe('1'));
+  });
+});
+
+describe('a working screen does not announce itself unimplemented', () => {
+  /**
+   * The Action Plan printed "Not yet implemented — Phase 5 owns this" and "No data is shown here,
+   * because none would be real" directly above four rows of real strategy actions. One component
+   * was carrying two meanings: *this screen does not work* and *this screen is not finished*. Only
+   * the first may claim there is no data.
+   */
+  const WORKING_WITH_MORE_TO_COME = ['actionplan', 'buckets'];
+
+  for (const id of WORKING_WITH_MORE_TO_COME) {
+    it(`${id} says what is still coming without denying what it shows`, async () => {
+      await openView(id);
+      await screen.findByTestId(`view-${id}`);
+
+      expect(screen.queryByTestId(`pending-${id}`), 'must not use the not-implemented notice')
+        .toBeNull();
+      expect(screen.queryByText(/No data is shown here/i)).toBeNull();
+      expect(screen.queryByText(/Not yet implemented/i)).toBeNull();
+    });
+  }
+
+  it('still says plainly that a genuinely pending screen does not work', async () => {
+    await openView('restructure');
+
+    expect(await screen.findByTestId('pending-restructure')).toBeTruthy();
+    expect(screen.getByText(/No data is shown here/i)).toBeTruthy();
   });
 });

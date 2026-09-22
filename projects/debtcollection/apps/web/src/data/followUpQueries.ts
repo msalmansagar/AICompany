@@ -1,4 +1,6 @@
-import type { ContinuationToken, Page } from '@dcp/domain';
+import {
+  satisfiesPlannedAction, type ContinuationToken, type Page,
+} from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import { ACTIVITY_COLUMNS, ENTITY_SETS, STRATEGY_ACTION_COLUMNS } from './schema.js';
 import { escapeOData, mapPage } from './collectionQueries.js';
@@ -85,29 +87,41 @@ export function createFollowUpQuery(adapter: XrmCrmAdapter) {
 // ── The Action Plan ──────────────────────────────────────────────────────────
 
 /**
- * A planned action, and the activity that corresponds to it — if one does.
+ * A planned action, and the work that answers it.
  *
- * **The correspondence is by activity type, not by a link, and that is a schema fact rather than a
- * choice.** `qdb_collectionactivity` carries no lookup to `qdb_strategyaction`. Its only generic
- * reference columns, `qdb_relatedrecordtype` and `qdb_relatedrecordid`, are documented as holding
- * `fax`/`email` when an activity mirrors a send, and are process-populated and read-only — so
- * repurposing them to mean "created from this planned action" would overload a documented column.
+ * **Answering is proven, not inferred.** An activity answers a planned action when it carries that
+ * action's id in `qdb_strategyactionid` — the provenance column WP2 provisioned and
+ * `ActivityProvenanceGuard` enforces server-side. Nothing else attributes work to a plan.
  *
- * The consequence is stated rather than hidden (**KI-71**): this screen can show what the strategy
- * plans and what has actually been done, correlated by type, but it **cannot prove** that a
- * particular activity was created *because of* a particular planned action. Manual and
- * strategy-generated work are therefore not distinguishable today, and nothing here pretends
- * otherwise.
+ * Phase 6 correlated by Activity Type, because no link existed. That correlation was recorded as
+ * **KI-71** at the time: it made an officer's own Legal Recommendation indistinguishable from one
+ * the strategy asked for, and it would silently attribute a manually raised activity to a plan that
+ * never requested it. The link exists now, so the inference is gone rather than kept as a fallback —
+ * a fallback would restore exactly the behaviour the column was provisioned to end.
  *
- * Materialising planned actions into activities automatically is Phase 8's, and is not done here.
+ * Activities that name no action are not thereby manual. They are **unattributed**: every activity
+ * created before Phase 8 carries no provenance, and that absence is a fact about the record, not
+ * about who created it. They are carried in `unattributed` so nothing is hidden, and they are
+ * attached to no planned action.
  */
 export interface ActionPlanRow {
   /** The planned action, from strategy configuration. */
   planned: StrategyActionRow;
-  /** Activities on this case whose type matches the planned action's type. */
-  matchingActivities: readonly ActivityRow[];
-  /** True when at least one matching activity has been completed. */
-  hasCompletedMatch: boolean;
+  /** Activities that name this action. Attribution, not resemblance. */
+  attributed: readonly ActivityRow[];
+  /** True when at least one attributed activity has been completed. */
+  hasCompletedAttributed: boolean;
+}
+
+export interface ActionPlan {
+  rows: readonly ActionPlanRow[];
+  /**
+   * Case activities no planned action claims — history, and work an officer raised independently.
+   *
+   * Kept and shown. Dropping it would make an audited record disappear from the screen that is
+   * supposed to explain the case.
+   */
+  unattributed: readonly ActivityRow[];
 }
 
 export interface ActionPlanQuery {
@@ -115,50 +129,74 @@ export interface ActionPlanQuery {
   strategyId?: string;
 }
 
+/** How many activities either bucket will read. Both reads are narrowed by the platform. */
+const ACTIVITY_PAGE_SIZE = 200;
+
 /**
- * Reads the plan for a case: its strategy's actions, and the activities that correspond.
+ * Reads the plan for a case: its strategy's actions, and the work attributed to them.
  *
- * Bounded by nature on both sides — a strategy carries a handful of actions, and a case a manageable
- * number of activities — so this reads two bounded pages rather than paging. The **Case Activities**
- * list, which does grow, has its own paged query.
+ * Three bounded reads, each narrowed by the source. The two activity reads are split **by the
+ * platform** on `_qdb_strategyactionid_value` rather than fetched together and divided here, so the
+ * distinction between attributed work and unattributed history is one the organisation makes, and
+ * neither bucket can grow without limit because the other did.
  */
 export async function loadActionPlan(
   adapter: XrmCrmAdapter,
   query: ActionPlanQuery,
-): Promise<readonly ActionPlanRow[]> {
-  if (!query.strategyId) return [];
+): Promise<ActionPlan> {
+  const caseFilter = `_qdb_collectioncaseid_value eq ${escapeOData(query.caseId)}`;
+  const [attributed, unattributed] = await Promise.all([
+    readCaseActivities(adapter, `${caseFilter} and _qdb_strategyactionid_value ne null`),
+    readCaseActivities(adapter, `${caseFilter} and _qdb_strategyactionid_value eq null`),
+  ]);
 
-  const actions = mapPage(
+  if (!query.strategyId) return { rows: [], unattributed };
+
+  const actions = await readStrategyActions(adapter, query.strategyId);
+  const rows = actions.map(planned => groupAttributedWork(planned, attributed));
+  return { rows, unattributed };
+}
+
+/** Groups by the id the activity itself names. No type, name or sequence takes part. */
+function groupAttributedWork(
+  planned: StrategyActionRow,
+  activities: readonly ActivityRow[],
+): ActionPlanRow {
+  const attributed = activities.filter(
+    activity => satisfiesPlannedAction(activity, planned.id));
+  return {
+    planned,
+    attributed,
+    hasCompletedAttributed: attributed.some(activity => activity.status === 'Completed'),
+  };
+}
+
+async function readStrategyActions(
+  adapter: XrmCrmAdapter,
+  strategyId: string,
+): Promise<readonly StrategyActionRow[]> {
+  return mapPage(
     await adapter.retrievePage(ENTITY_SETS.strategyAction, {
       select: [...STRATEGY_ACTION_COLUMNS],
       pageSize: 100,
       sort: [{ field: 'qdb_sequence', descending: false }],
-      filter: `_qdb_strategyid_value eq ${escapeOData(query.strategyId)} and qdb_isactive eq true`,
+      filter: `_qdb_strategyid_value eq ${escapeOData(strategyId)} and qdb_isactive eq true`,
     }),
     toStrategyActionRow,
   ).items;
+}
 
-  const activities = mapPage(
+async function readCaseActivities(
+  adapter: XrmCrmAdapter,
+  filter: string,
+): Promise<readonly ActivityRow[]> {
+  return mapPage(
     await adapter.retrievePage(ENTITY_SETS.collectionActivity, {
       select: [...ACTIVITY_COLUMNS],
-      pageSize: 200,
+      pageSize: ACTIVITY_PAGE_SIZE,
       sort: [{ field: 'createdon', descending: true }],
-      filter: `_qdb_collectioncaseid_value eq ${escapeOData(query.caseId)}`,
+      filter,
     }),
     toActivityRow,
   ).items;
-
-  return actions.map(planned => {
-    // Correlated by the activity type's **id**, not its display name — a label is editable
-    // configuration, and a renamed type would silently empty this column. It is a correspondence,
-    // not a provenance claim: see KI-71.
-    const matchingActivities = planned.activityTypeId
-      ? activities.filter(activity => activity.activityTypeId === planned.activityTypeId)
-      : [];
-    return {
-      planned,
-      matchingActivities,
-      hasCompletedMatch: matchingActivities.some(activity => activity.status === 'Completed'),
-    };
-  });
 }

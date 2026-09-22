@@ -81,7 +81,10 @@ export class FakePlatform {
     this.requests.push({ method, url, ...(body !== undefined ? { body } : {}) });
 
     const headers = new Headers(init.headers as HeadersInit | undefined);
-    const path = url.slice(url.indexOf('/api/data/') + '/api/data/'.length).replace(/^v[\d.]+/, '');
+    // Decoded first, because a real server evaluates a filter after percent-decoding it.
+    // Parsing the raw query string made this fake disagree with the platform the moment a
+    // filter value carried an encoded character.
+    const path = decodeURIComponent(url.slice(url.indexOf('/api/data/') + '/api/data/'.length).replace(/^v[\d.]+/, ''));
 
     if (path.startsWith('/EntityDefinitions')) return this.metadata();
     if (path.includes('_activity_parties')) return this.partyRoute(method, path, body);
@@ -252,7 +255,9 @@ export function fakeXrm(rows: Rows, organizationName = 'org5869857f'): XrmLike {
 }
 
 /** The narrow subset of `$filter` these tests depend on, honoured rather than waved through. */
-function applyFilter(all: Record<string, unknown>[], options: string): Record<string, unknown>[] {
+function applyFilter(all: Record<string, unknown>[], rawOptions: string): Record<string, unknown>[] {
+  // A filter is evaluated after decoding, never as it appeared on the wire.
+  const options = decodeURIComponent(rawOptions);
   const organization = /qdb_organizationcode eq (\d+)/.exec(options)?.[1];
   const status = /qdb_status eq (\d+)/.exec(options)?.[1];
   const ids = [...options.matchAll(/qdb_collectioncaseid eq ([0-9a-f-]+)/gi)].map(match => match[1]);

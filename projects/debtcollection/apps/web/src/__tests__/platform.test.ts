@@ -251,6 +251,74 @@ describe('the options string the adapter emits', () => {
     expect(buildOptions({ select: [], filter: 'statecode eq 0', count: true }))
       .toBe('?$filter=statecode eq 0&$count=true');
   });
+
+  /**
+   * A filter carries caller text, and a query string has characters that end a value.
+   *
+   * An unencoded `&` in a customer name ended the `$filter` early and the platform answered
+   * "The query parameter … is not supported" — reproduced against `org5869857f`, where the same
+   * search through `count()` succeeded because that path already encoded. The list broke while
+   * the number beside it did not, which is the most confusing shape this defect can take.
+   */
+  describe('a filter value that contains query-string characters', () => {
+    const RESERVED = [
+      ['an ampersand', "contains(subject,'Ahmed & Sons')", '%26'],
+      ['a plus', "contains(subject,'A+B')", '%2B'],
+      ['a hash', "contains(subject,'Flat #3')", '%23'],
+      ['a percent', "contains(subject,'100%')", '%25'],
+      ['a single quote', "contains(subject,'O''Brien')", "O''Brien"],
+    ] as const;
+
+    for (const [what, filter, encoded] of RESERVED) {
+      it(`encodes ${what} so the value cannot end the query option`, () => {
+        const options = buildOptions({ select: ['subject'], filter });
+
+        expect(options).toContain(encoded);
+        // One option, not two: nothing in the value may introduce another parameter.
+        expect(options.slice(1).split('&')).toHaveLength(2);
+      });
+    }
+
+    it('preserves the filter exactly through a decode, so meaning is not changed', () => {
+      const filter = "contains(subject,'Ahmed & Sons') and statecode eq 0";
+
+      const sent = buildOptions({ select: ['subject'], filter }).split('$filter=')[1]!;
+
+      expect(decodeURIComponent(sent)).toBe(filter);
+    });
+
+    it('keeps an apostrophe, which OData escapes by doubling and the URL leaves alone', () => {
+      const filter = "contains(subject,'O''Brien')";
+
+      const sent = buildOptions({ select: ['subject'], filter }).split('$filter=')[1]!;
+
+      expect(decodeURIComponent(sent)).toBe(filter);
+    });
+  });
+
+  /**
+   * `$select`, `$expand` and `$orderby` are built from the registered schema, so they are sent
+   * unencoded — their commas and parentheses are structure. The assumption is enforced rather
+   * than trusted, because the day caller text reaches one of them it must fail loudly here.
+   */
+  describe('the options built from schema names only', () => {
+    it('sends structural characters through untouched', () => {
+      const options = buildOptions({
+        select: ['subject', 'statecode'],
+        expand: ['qdb_legalrequestid_qdb_collectionactivity($select=qdb_name)'],
+        sort: [{ field: 'createdon', descending: true }],
+      });
+
+      expect(options).toContain('$select=subject,statecode');
+      expect(options).toContain('$expand=qdb_legalrequestid_qdb_collectionactivity($select=qdb_name)');
+      expect(options).toContain('$orderby=createdon desc');
+    });
+
+    it('refuses a name carrying anything a schema name cannot contain', () => {
+      expect(() => buildOptions({ select: ['subject'], sort: [{ field: 'name&evil=1', descending: false }] }))
+        .toThrow(/may contain only schema names/);
+    });
+  });
 });
 
 describe('paging through the client API', () => {

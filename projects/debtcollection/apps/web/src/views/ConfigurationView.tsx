@@ -5,7 +5,7 @@ import {
   type PlatformConfigurationRow, type PlatformMappingRow,
 } from '../data/configurationQueries.js';
 import {
-  Card, EmptyState, FieldList, InfoBanner, OrgBadge, PendingPhaseNotice,
+  Card, EmptyState, FieldList, InfoBanner, OrgBadge, PartialCapabilityNotice,
 } from '../components/primitives.js';
 import { useCrmSession } from '../shell/context.js';
 import type { ViewDefinition } from '../shell/routes.js';
@@ -49,7 +49,7 @@ export function ConfigurationView({ view }: { view: ViewDefinition }) {
 
   return (
     <div data-testid="view-admin">
-      <PendingPhaseNotice view={view} />
+      <PartialCapabilityNotice view={view} />
       <SessionCard />
 
       {state.status === 'loading' && <div className="empty-state" data-testid="config-loading">Loading configuration…</div>}

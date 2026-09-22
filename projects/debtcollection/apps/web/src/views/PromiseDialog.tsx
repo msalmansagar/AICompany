@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { describeFailure } from '../platform/errors.js';
 import {
   PTP_TRANSITIONS, describePromiseVerification, ptpStatusFromCode,
   type PtpStatus, type RowVersion,
@@ -106,7 +107,7 @@ export function PromiseDialog({ mode, caseId, promiseId, onClose, onSaved }: Pro
       setLoadState('ready');
       resetSaveState();
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : String(error));
+      setLoadError(describeFailure(error));
       setLoadState('error');
     }
   }, [adapter, promiseId, mode, resetSaveState]);

@@ -142,6 +142,8 @@ textarea.fluent-input { height: auto; padding: 6px 8px; resize: vertical; min-he
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M1 1l4 4 4-4' stroke='%23605e5c' fill='none' stroke-width='1.4'/></svg>");
 }
 .hint-inline { font-size: 11.5px; color: var(--text-secondary); }
+/* A second line under a cell's main value — the work that answers a planned action. */
+.cell-sub { display: block; font-size: 11.5px; color: var(--text-secondary); margin-top: 2px; }
 .read-pair { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .read-pair .rk { font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-secondary); font-weight: 600; }
 .read-pair .rv { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }

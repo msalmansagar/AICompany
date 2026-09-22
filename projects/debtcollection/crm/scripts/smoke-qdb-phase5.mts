@@ -33,6 +33,7 @@ import { cleanSmokeData, SMOKE_MARKER } from './clean-qdb-smoke-data.mjs';
 import { SOLUTION_NAME } from './lib/qdb-plugin-steps.mjs';
 import { XrmCrmAdapter } from '../../apps/web/src/platform/XrmCrmAdapter.js';
 import type { XrmLike } from '../../apps/web/src/platform/crmContext.js';
+import type { WriteTransport } from '../../apps/web/src/platform/writeTransport.js';
 import { createCaseQuery } from '../../apps/web/src/data/collectionQueries.js';
 import {
   createPtpQuery, createSnapshotQuery, retrieveCase, retrieveCustomer,
@@ -81,7 +82,9 @@ async function send(cfg: Config, token: string, method: string, path: string, bo
  * rather than replaced, which is how the client API behaves and is the defect this spike's
  * predecessor found in the Phase 4 service client.
  */
-function realHttpXrm(apiBase: string, token: string): { xrm: XrmLike; requestCount: () => number } {
+function realHttpXrm(
+  apiBase: string, token: string,
+): { xrm: XrmLike; transport: WriteTransport; requestCount: () => number } {
   const state = { requests: 0 };
 
   const get = async (url: string, pageSize?: number) => {
@@ -128,7 +131,33 @@ function realHttpXrm(apiBase: string, token: string): { xrm: XrmLike; requestCou
   };
   // A function rather than a property: `Object.assign` would copy the counter's value at assignment
   // time, and the run would report zero requests however many it made.
-  return { xrm: xrm as XrmLike, requestCount: () => state.requests };
+  /**
+   * A transport that can only read.
+   *
+   * A count cannot go through `Xrm.WebApi` at all — the client API drops `@odata.count` (KI-96),
+   * so the adapter asks the transport instead. This smoke still writes nothing: every verb that
+   * would change a record refuses, exactly as the shim's `createRecord` does.
+   */
+  const transport: WriteTransport = {
+    async get(url: string) {
+      state.requests++;
+      const res = await fetch(url.startsWith('http') ? url : `${apiBase}${url}`, {
+        headers: buildHeaders(token, SOLUTION_NAME) as Record<string, string>,
+      });
+      const body = res.status === 204 ? undefined : await res.json().catch(() => undefined);
+      return { status: res.status, ...(body !== undefined ? { body } : {}) };
+    },
+    patch: refuseWrite,
+    createOnly: refuseWrite,
+    post: refuseWrite,
+  };
+
+  return { xrm: xrm as XrmLike, transport, requestCount: () => state.requests };
+}
+
+/** The query smoke reads only; seeding uses plain HTTP. */
+function refuseWrite(): never {
+  throw new Error('the query smoke reads only; seeding uses plain HTTP');
 }
 
 /** The shim needs the reverse of the adapter's translation to build a URL. */
@@ -291,8 +320,8 @@ async function main() {
   console.log(`  Marker: ${SMOKE_MARKER}${stamp}`);
 
   const token = await acquireToken(cfg);
-  const { xrm, requestCount } = realHttpXrm(cfg.apiBase, token);
-  const adapter = new XrmCrmAdapter(xrm);
+  const { xrm, transport, requestCount } = realHttpXrm(cfg.apiBase, token);
+  const adapter = new XrmCrmAdapter(xrm, undefined, transport);
 
   // Seeding is inside the try so that a failure part-way through still cleans up what it created.
   // A half-seeded run that left residue behind would poison the next one.

@@ -1,4 +1,6 @@
-import type { ContinuationToken, Page } from '@dcp/domain';
+import {
+  originFromCode, type ActivityOrigin, type ContinuationToken, type Page,
+} from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import {
   ACCOUNT_COLUMNS, ACTIVITY_COLUMNS, BUCKET_LABELS, CASE_DETAIL_COLUMNS, CASE_STATUS_LABELS,
@@ -6,7 +8,7 @@ import {
   PROMISE_TYPE_LABELS, PTP_COLUMNS, PTP_STATUS_LABELS, RESOLUTION_TYPE_LABELS, SNAPSHOT_COLUMNS,
 } from './schema.js';
 import {
-  optional, readChoice, readLookupName, readNumber, readText, type CrmRow,
+  optional, readBoolean, readChoice, readLookupName, readNumber, readText, type CrmRow,
 } from './rowReaders.js';
 import { escapeOData, mapPage, toCaseRow, type CaseRow } from './collectionQueries.js';
 
@@ -152,10 +154,37 @@ export interface ActivityRow {
   followUpDate?: string;
   amount?: number;
   activityType?: string;
-  /** The type's id, which is what correlates an activity with a planned action. */
+  /** The type's id. Describes the work; it does NOT attribute it to a planned action (KI-71). */
   activityTypeId?: string;
+  /**
+   * The Strategy Action that asked for this work, where one did.
+   *
+   * The only thing that attributes an activity to a planned action. Absent on every activity
+   * created before Phase 8, and absent on work an officer raised independently.
+   */
+  strategyActionId?: string;
+  /** Absent means the record predates provenance — never that an officer created it. */
+  origin?: ActivityOrigin;
   ownerName?: string;
   status?: string;
+  /** Open / Completed / Cancelled, which settles a work state ahead of any deadline. */
+  stateCode?: number;
+  /** Read from the platform. An escalation is an action that happened, not a deadline that passed. */
+  supervisorEscalated?: boolean;
+  /**
+   * The Litigation Request this recommendation was handed to, where one was.
+   *
+   * Absent means no hand-off was **recorded**. It does not mean no litigation exists — the Legal
+   * record may be present and simply unreadable by this officer.
+   */
+  legalRequestId?: string;
+  /**
+   * The formal Complaint this activity raised, where one was raised.
+   *
+   * Absent means no Complaint was recorded from this activity. It is traceability after the fact,
+   * never the thing that decides whether another may be created.
+   */
+  complaintCaseId?: string;
   createdOn?: string;
   caseId?: string;
   caseNumber?: string;
@@ -182,8 +211,14 @@ export function toActivityRow(row: CrmRow): ActivityRow {
     ...optional('amount', readNumber(row, 'qdb_amount')),
     ...optional('activityType', readLookupName(row, '_qdb_activitytypeid_value')),
     ...optional('activityTypeId', readText(row, '_qdb_activitytypeid_value')),
+    ...optional('strategyActionId', readText(row, '_qdb_strategyactionid_value')),
+    ...optional('origin', originFromCode(row['qdb_origin'])),
     ...optional('ownerName', readLookupName(row, '_ownerid_value')),
     ...optional('status', readChoice(row, 'statuscode')),
+    ...optional('stateCode', readNumber(row, 'statecode')),
+    ...optional('supervisorEscalated', readBoolean(row, 'qdb_supervisorescalated')),
+    ...optional('legalRequestId', readText(row, '_qdb_legalrequestid_value')),
+    ...optional('complaintCaseId', readText(row, '_qdb_complaintcaseid_value')),
     ...optional('createdOn', readText(row, 'createdon')),
     ...optional('caseId', readText(row, '_qdb_collectioncaseid_value')),
     ...optional('caseNumber', readLookupName(row, '_qdb_collectioncaseid_value')),
