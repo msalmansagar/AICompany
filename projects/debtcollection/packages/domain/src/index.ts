@@ -579,3 +579,19 @@ export {
 export type {
   CaseTypeOption, CaseTypeResolution, ComplaintCreateDecision, ComplaintCustomer, ComplaintDraft,
 } from './complaintContract.js';
+
+// ── Phase 8 — the QCB deceased indication and its review (WP16) ─────────────
+export {
+  INDICATION_LABEL,
+  NO_INDICATION_LABEL,
+  deceasedReviewId,
+  describeIndication,
+  describeIndicationSource,
+  effectsOfIndication,
+  effectsOfStartingReview,
+  reviewsToGenerateFrom,
+  toDeceasedReviewRow,
+} from './deceasedReview.js';
+export type {
+  DeceasedIndication, DeceasedReview, DeceasedReviewRow, DeceasedReviewState, IndicationSource,
+} from './deceasedReview.js';

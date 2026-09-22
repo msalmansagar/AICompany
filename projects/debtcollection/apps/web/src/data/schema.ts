@@ -206,6 +206,14 @@ export const SNAPSHOT_COLUMNS = [
   'qdb_dpd', 'qdb_arrearbucket', 'qdb_loanbalance', 'qdb_totalarrears', 'qdb_installmentamount',
   'qdb_producttypecode', 'qdb_eligibilityoutcome', 'qdb_eligibilityreason', 'qdb_integrationbatchid',
   '_qdb_collectioncaseid_value',
+  /**
+   * The QCB deceased indication, carried as a snapshot fact.
+   *
+   * An *indication*, not a verified death (KI-124). It is set on 724 of 4,373 snapshots and exists
+   * nowhere else — there is no deceased column on the contact or the case — so this is the only
+   * place the browser can read it from, and the filter for it is always sent to the platform.
+   */
+  'qdb_isdeceasedperqcb',
 ] as const;
 
 export const STRATEGY_COLUMNS = [
