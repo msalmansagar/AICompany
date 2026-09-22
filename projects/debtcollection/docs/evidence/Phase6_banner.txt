@@ -1,0 +1,68 @@
+================================================================================
+  DCP-001 — PHASE 6 START
+  Collection Activities, Action Plan & Promise-to-Pay
+================================================================================
+
+  Start (Asia/Qatar, UTC+03:00) ... 2026-09-19 13:28:05
+  Machine UTC at start ............ 2026-09-19T10:28:05.115Z
+  Original estimated effort ....... 36.50 Claude execution hours
+  Expected completion ............. 2026-09-21 01:58:05 (+03:00)
+  Branch .......................... feat/dcp-phase6-activities-ptp
+  Baseline ........................ 76f84ce2 (Phase 5, runtime validated)
+  Organisation .................... org5869857f (Cloud sandbox) — the only one authorised
+
+  WORK PACKAGES                                                      HOURS
+  --------------------------------------------------------------------------
+   1  Scope review, schema discovery, design                           1.50
+   2  Activity type & outcome reference data                           1.00
+   3  Activity transition matrix (C# plugin + step + redeploy)         3.00
+   4  TypeScript mirror + C# parity test                               0.75
+   5  Concurrency spike + ADR                                          2.00
+   6  Domain: activity operations & PTP validation                     2.50
+   7  Browser write path + idempotency                                 2.00
+   8  Query modules (activities, PTP, follow-ups, action plan)         2.00
+   9  Case Workspace — Actions tab                                     2.50
+  10  Case Workspace — Promise-to-Pay tab                              2.50
+  11  Action Plan view                                                 1.50
+  12  Follow-up + My Day                                               1.50
+  13  Dialog / form framework                                          2.00
+  14  Security validation                                              1.50
+  15  Automated tests (domain, service, React)                         3.50
+  16  Live Cloud smoke — real Web API writes, zero residue             2.00
+  17  Volume & paging evidence (4,358-case dataset)                    1.00
+  18  Phase 1-5 regression                                             0.75
+  19  Deployment + publish                                             0.50
+  20  Documentation & completion report                                2.50
+  --------------------------------------------------------------------------
+                                                            TOTAL     36.50
+
+  THREE THINGS WITH NO PRECEDENT IN THIS REPOSITORY
+  --------------------------------------------------------------------------
+  * The activity statuscode lifecycle has NO server-side validator. The
+    plugin filters qdb_ptpstatus only, and the workspace writes directly
+    through Xrm.WebApi with no service layer between — so "server-side"
+    means a plugin change, a new step, and an assembly redeploy.
+  * Browser WRITES have never executed. create / update / retrieveByKey are
+    typed and unit-tested and have never made a real call. Phase 5's three
+    runtime defects were all found the first time a path ran for real.
+  * Optimistic concurrency has no mechanism. Xrm.WebApi exposes no If-Match,
+    so Dataverse ETag concurrency is not reachable through the client API.
+    Spike and ADR before any write screen is built on a guess.
+
+  CONFIGURATION THAT DOES NOT EXIST YET
+  --------------------------------------------------------------------------
+  * qdb_collectionactivitytype .... 1 row, and it is my own DEMO- seed.
+                                    The 11 approved types are not provisioned.
+  * qdb_activityoutcome ........... 0 rows. It carries qdb_requiresfollowup,
+                                    qdb_followupdays, qdb_requiresnotes and
+                                    qdb_escalationrequired — so the outcome
+                                    record DRIVES follow-up scheduling and
+                                    notes-required. The catalogue is QDB
+                                    policy and will be raised as a
+                                    confirmation, not invented.
+
+  OUT OF SCOPE — Phase 7 communications transport, Phase 8 automated strategy
+  execution and assignment, Phase 9 workout / legal / deceased / dispute,
+  Phase 10 reporting. Phase 7 will NOT be started.
+
+================================================================================

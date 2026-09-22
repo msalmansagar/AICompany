@@ -1,0 +1,90 @@
+============================================================
+ DCP — PHASE 5 START
+ React Collection Workspace
+ (conversion of the approved HTML baseline)
+============================================================
+
+Start Time        : Fri, 18 Sep 2026, 21:02:36  (Asia/Qatar, UTC+03:00)
+Estimated Effort  : 32.5 hours
+Expected End Time : Sun, 20 Sep 2026, 05:32:36  (Asia/Qatar, UTC+03:00)
+
+Branch            : feat/dcp-phase5-react-workspace
+Baseline (code)   : 1fc87bfb  (approved Phase 4)
+Baseline (design) : prototype/  — CONFIRMED by the user
+Organisation      : org5869857f  (Cloud sandbox — the only one authorised)
+
+Approved design baseline — what must be preserved
+------------------------------------------------------------
+  21 views across 7 pages, role-gated, with badge counts
+  25 shared helpers · 55 icons · 143 design tokens
+  components.css (21 KB) · uci.css (14 KB)
+  Dual-CRM: HL -> Contact, BFD -> Account, one workspace
+
+Effort Breakdown
+------------------------------------------------------------
+Frontend scaffold & monorepo wiring        1.50
+Design system port                         2.00
+App shell, navigation & routing            2.00
+Browser ICrmAdapter + CRM context          2.00
+Dual-CRM (HL/BFD) context                  1.00
+Large-data engine (virtualization)         3.00
+Server-side search / filter / sort         1.50
+MIS freshness surface                      0.75
+Customer & Loan 360                        1.50
+Case Workspace                             2.00
+Remaining views + phase placeholders       3.50
+RBAC UI behaviour                          0.75
+Automated tests                            3.00
+Frontend performance tests                 1.50
+Web-resource packaging validation          1.00
+Cloud runtime validation                   1.50
+Phase 1-4 regression                       0.50
+UI Requirements Matrix                     1.50
+Documentation & 26-item gate               2.50
+------------------------------------------------------------
+TOTAL                                     32.50
+
+Why this is larger than Phase 4:
+  apps/ contains only api. There is NO React application, no
+  build, no component library and no browser ICrmAdapter to
+  inherit. Phase 4 estimated 19.0h and used 4.783h because its
+  packages sat on Phase 1-3 foundations. The package that best
+  predicts this phase is background sync — the one with no
+  precedent — which used 77% of its estimate, not 25%.
+  This estimate is bottom-up and NOT anchored to 25.2%.
+
+Backend already in place (reused, not rebuilt):
+  paging.ts  — PageRequest / Page / opaque continuation /
+               fingerprint — the exact contract the UI needs
+  misService — freshness, misAsOfDate, retrievedAt, staleReason
+  ICrmAdapter incl. retrievePage (service side proven 22/22)
+  domain types — no business rule re-implemented in JavaScript
+
+Constraints held throughout:
+  - No iframe. Real React components.
+  - No redesign. Deviations documented with a reason.
+  - One workspace, two CRMs. No frontend customer/facility master.
+  - Server-side paging, filtering and sorting. Never download
+    a large population and narrow it in the browser.
+  - Virtualization: no unbounded DOM growth.
+  - Cached MIS figures never shown as live.
+  - React visibility is UX only; CRM RBAC stays authoritative.
+  - No schema change. If one seems needed: STOP and ask.
+
+Risks / TBDs:
+  - Web-resource constraints (CSP, routing, refresh, assets)
+    may force a single-file bundle strategy.
+  - Xrm.WebApi may differ from the service-side assumption —
+    the KI-52 class again; validate against the platform early.
+  - Virtualization x infinite scroll x filter reset is the
+    largest single package and the likeliest to grow.
+  - KI-53 open: MIS transport pending. React must consume the
+    Phase 4 abstraction and NEVER connect to MIS directly.
+
+Reporting posture:
+  Cloud Dataverse — Runtime Tested (to be re-proven for the UI)
+  MIS Production API — Not Tested, Contract Pending QDB
+  On-Prem — Compatible by Design, Runtime Test Pending
+
+Status: IN PROGRESS
+============================================================

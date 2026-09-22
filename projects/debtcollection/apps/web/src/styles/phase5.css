@@ -1,0 +1,88 @@
+/* =====================================================================
+   Phase 5 additions — concepts the approved prototype did not have.
+   Every rule below is built from tokens.css. No token is redefined, no
+   prototype rule is overridden, and nothing here restyles an approved
+   component: this file only covers ideas that did not exist in the
+   prototype because the prototype had no real backend.
+
+   Three of them:
+     * MIS freshness  — live vs cached vs stored, with its timestamps
+     * a phase notice — a screen a later phase owns, saying so
+     * the host panel — what a user sees outside a CRM session
+   ===================================================================== */
+
+/* ============ MIS freshness ============
+   The rule this exists to keep: cached or stored financial information is
+   never presented as current live MIS. An officer deciding whether to call
+   a customer about an overdue amount needs to know whether that amount is
+   from a moment ago or from last night's failed run. */
+.freshness {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 7px 12px; border-radius: var(--radius); font-size: 12.5px;
+  border: 1px solid var(--border); background: var(--surface-alt); margin: 10px 0;
+}
+.freshness svg { flex-shrink: 0; }
+.freshness .freshness-label { font-weight: 600; }
+.freshness .freshness-detail {
+  display: flex; gap: 14px; flex-wrap: wrap; color: var(--text-secondary);
+}
+.freshness .freshness-provider {
+  margin-left: auto; font-weight: 600; color: var(--warning);
+}
+
+/* Live: read from MIS for this request. */
+.freshness.live { border-color: var(--success); background: var(--success-bg); color: var(--success); }
+.freshness.live .freshness-detail { color: var(--success); opacity: .85; }
+
+/* Cached: DCP's own last-known position, because MIS could not be reached. */
+.freshness.cached { border-color: var(--warning); background: var(--warning-bg); color: var(--warning); }
+.freshness.cached .freshness-detail { color: var(--warning); opacity: .85; }
+
+/* Stored: what the case or snapshot table holds. Not a live read at all. */
+.freshness.stored { border-color: var(--border-strong); color: var(--text-secondary); }
+
+.stale-reason {
+  display: flex; align-items: center; gap: 8px; font-size: 12.5px;
+  color: var(--warning); margin: 6px 0 0;
+}
+
+/* ============ A screen a later phase owns ============
+   It keeps its place in the navigation and its approved layout, and says
+   plainly that it does not work yet. Nothing is faked to look finished. */
+.phase-notice {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 14px 16px; margin: 12px 0;
+  border: 1px dashed var(--border-strong); border-radius: var(--radius-lg);
+  background: var(--surface-alt); color: var(--text-secondary);
+}
+.phase-notice svg { flex-shrink: 0; margin-top: 2px; }
+.phase-notice strong { color: var(--text); display: block; margin-bottom: 4px; }
+.phase-notice p { margin: 4px 0 0; max-width: 78ch; }
+
+/* ============ Opened outside a CRM session ============
+   The Form Engine lost an on-premises release to this exact confusion: a
+   page that works at the raw /WebResources/ path and fails at main.aspx,
+   which is the only URL a user ever opens. So it says so, rather than
+   rendering an empty shell. */
+.host-missing {
+  max-width: 68ch; margin: 48px auto; padding: 28px 32px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-2);
+}
+.host-missing h1 { font-size: 20px; margin: 0 0 12px; }
+.host-missing p { margin: 0 0 10px; color: var(--text-secondary); }
+.host-missing code {
+  background: var(--surface-alt); border: 1px solid var(--border);
+  border-radius: 4px; padding: 1px 5px; font-size: 12.5px;
+}
+
+/* ============ A column the platform cannot yet source ============
+   Distinct from `.pill.muted`, which means "this record has no value".
+   This means "no canonical field exists anywhere for this", which is a
+   different statement and must not be mistaken for the first. Collateral,
+   guarantor and insurance are in the approved Customer 360 design and have
+   no field behind them; adding one would be a schema change (Phase 9). */
+.not-sourced {
+  font-size: 12px; font-style: italic; color: var(--text-disabled);
+  white-space: nowrap;
+}

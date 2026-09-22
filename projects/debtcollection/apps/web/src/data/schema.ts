@@ -1,0 +1,525 @@
+/**
+ * Every `qdb_` name the browser knows, in one place.
+ *
+ * This is the frontend's counterpart to the service layer's `qdbBindings.ts`. A view never names a
+ * column; a query module names one only through this file. That is what lets the schema move without
+ * touching twenty-one screens, and it is also what makes the column set *checkable*:
+ * `crm/scripts/verify-view-columns.mts` reads `READ_REGISTRY` below and asserts every entry exists on
+ * the organisation. KI-52 was a column name that looked right, passed every unit test, and returned
+ * nothing from the real platform — so the names here are verified against metadata rather than
+ * believed.
+ *
+ * Choice labels appear here only where the option values are already proven by the service layer and
+ * its live smokes. Where they are not, the renderer reads the platform's own formatted value and
+ * shows an em dash if there is none. **No option value is guessed**, because a wrong label is a
+ * confident lie rather than a visible gap.
+ */
+
+/** Entity SET names — what OData takes. `XrmCrmAdapter.toLogicalName` converts for `Xrm.WebApi`. */
+export const ENTITY_SETS = {
+  collectionCase: 'qdb_collectioncases',
+  delinquencySnapshot: 'qdb_delinquencysnapshots',
+  collectionActivity: 'qdb_collectionactivities',
+  collectionActivityType: 'qdb_collectionactivitytypes',
+  activityOutcome: 'qdb_activityoutcomes',
+  communicationTemplate: 'qdb_communicationtemplates',
+  communicationRun: 'qdb_communicationruns',
+  fax: 'faxes',
+  activityParty: 'activityparties',
+  email: 'emails',
+  identityException: 'qdb_identityexceptions',
+  collectionStrategy: 'qdb_collectionstrategies',
+  strategyAction: 'qdb_strategyactions',
+  crmLog: 'qdb_crmlogses',
+  platformConfiguration: 'qdb_platformconfigurations',
+  platformMapping: 'qdb_platformmappings',
+  contact: 'contacts',
+  account: 'accounts',
+  litigationRequest: 'qdb_qdblegals',
+  complaintCase: 'incidents',
+} as const;
+
+/**
+ * The navigation property to bind each lookup through on a **write**.
+ *
+ * A lookup has three different names and they are not interchangeable:
+ *
+ * | | Example |
+ * |---|---|
+ * | read (`$select`, `$filter`) | `_qdb_collectioncaseid_value` |
+ * | **write** (`@odata.bind`) | `qdb_collectioncaseid_qdb_collectionactivity` |
+ * | storage (accepted, returns nothing) | `qdb_collectioncaseid` |
+ *
+ * **None of it is derivable.** `qdb_collectioncaseid` is suffixed with the referencing entity on
+ * `qdb_collectionactivity` — because `regardingobjectid` also targets the case, so the relationship
+ * name has to be unique — and is *not* suffixed on `qdb_delinquencysnapshot`, where nothing
+ * competes. The same attribute, two different navigation properties, decided by what else happens to
+ * point at the same table.
+ *
+ * Read from `ManyToOneRelationships.ReferencingEntityNavigationPropertyName`, never inferred, and
+ * checked against the organisation by `crm/scripts/verify-view-columns.mts`. This is the third time
+ * this family has cost real debugging — KI-52 (read form), KI-57 (write form), KI-69 (this) — which
+ * is why it is a registry rather than a habit.
+ *
+ * The polymorphic Customer lookup has **one navigation property per target**: binding a contact and
+ * binding an account are different property names, which is what makes HL and BFD work from one
+ * codebase without branching on the organisation.
+ */
+export const NAVIGATION_PROPERTIES = {
+  activityToCase: 'qdb_collectioncaseid_qdb_collectionactivity',
+  activityToType: 'qdb_activitytypeid_qdb_collectionactivity',
+  activityToOutcome: 'qdb_outcomeid_qdb_collectionactivity',
+  activityToStrategyAction: 'qdb_strategyactionid_qdb_collectionactivity',
+  activityToLegalRequest: 'qdb_legalrequestid_qdb_collectionactivity',
+  activityToComplaintCase: 'qdb_complaintcaseid_qdb_collectionactivity',
+  outcomeToType: 'qdb_activitytypeid',
+  runToTemplate: 'qdb_templateid',
+  faxToCase: 'regardingobjectid_qdb_collectioncase_fax',
+  emailToCase: 'regardingobjectid_qdb_collectioncase_email',
+  snapshotToCase: 'qdb_collectioncaseid',
+  caseToStrategy: 'qdb_strategyid',
+  caseToAssignedTeam: 'qdb_assignedteamid',
+  caseToCustomerContact: 'qdb_customerid_contact',
+  caseToCustomerAccount: 'qdb_customerid_account',
+  /**
+   * Ownership — and the clearest example yet that nothing in this family is derivable.
+   *
+   * The **same** attribute, `ownerid`, binds through a **different** navigation property on each of
+   * these two entities: `ownerid_qdb_collectionactivity` on the activity, bare `ownerid` on the
+   * case. Both were read from `ManyToOneRelationships` and are checked back by
+   * `crm/scripts/verify-view-columns.mts`.
+   *
+   * Assuming either form would have worked on exactly one of the two entities and failed on the
+   * other — and a failed assignment reads like a permissions problem, which is the most expensive
+   * way for this to be wrong.
+   */
+  activityToOwner: 'ownerid_qdb_collectionactivity',
+  caseToOwner: 'ownerid',
+} as const;
+
+/** Every navigation property above, with the entity and attribute it belongs to, for verification. */
+/**
+ * The collection-valued navigation property that carries an activity's parties.
+ *
+ * A second family of non-derivable name, and the reason it lives here rather than in the service
+ * that uses it. `fax_activity_parties` is not `fax` plus a suffix anyone could guess — it is the
+ * relationship's `ReferencedEntityNavigationPropertyName`, read from metadata and checked back by
+ * `crm/scripts/verify-view-columns.mts` exactly as the lookup navigation properties are.
+ *
+ * It matters because the party **cannot** travel in the activity's own payload. Writing
+ * `to: [...]` into the create is rejected, and into a later PATCH is rejected too; the party is a
+ * separate POST to this collection. So a communication is two operations, and the name of the
+ * second one is this (KI-85).
+ */
+export const PARTY_COLLECTIONS = {
+  fax: 'fax_activity_parties',
+  email: 'email_activity_parties',
+} as const;
+
+/** Verified against `OneToManyRelationships` on the owning activity, the same way lookups are. */
+export const PARTY_COLLECTION_REGISTRY: readonly {
+  entity: string; collection: string;
+}[] = [
+  { entity: 'fax', collection: PARTY_COLLECTIONS.fax },
+  { entity: 'email', collection: PARTY_COLLECTIONS.email },
+];
+
+export const NAVIGATION_REGISTRY: readonly {
+  entity: string; attribute: string; navigationProperty: string;
+}[] = [
+  { entity: 'qdb_collectionactivity', attribute: 'qdb_collectioncaseid', navigationProperty: NAVIGATION_PROPERTIES.activityToCase },
+  { entity: 'qdb_collectionactivity', attribute: 'qdb_activitytypeid', navigationProperty: NAVIGATION_PROPERTIES.activityToType },
+  { entity: 'qdb_collectionactivity', attribute: 'qdb_outcomeid', navigationProperty: NAVIGATION_PROPERTIES.activityToOutcome },
+  { entity: 'qdb_collectionactivity', attribute: 'qdb_strategyactionid', navigationProperty: NAVIGATION_PROPERTIES.activityToStrategyAction },
+  { entity: 'qdb_collectionactivity', attribute: 'qdb_legalrequestid', navigationProperty: NAVIGATION_PROPERTIES.activityToLegalRequest },
+  { entity: 'qdb_collectionactivity', attribute: 'qdb_complaintcaseid', navigationProperty: NAVIGATION_PROPERTIES.activityToComplaintCase },
+  { entity: 'qdb_collectionactivity', attribute: 'ownerid', navigationProperty: NAVIGATION_PROPERTIES.activityToOwner },
+  { entity: 'qdb_collectioncase', attribute: 'ownerid', navigationProperty: NAVIGATION_PROPERTIES.caseToOwner },
+  { entity: 'qdb_activityoutcome', attribute: 'qdb_activitytypeid', navigationProperty: NAVIGATION_PROPERTIES.outcomeToType },
+  { entity: 'qdb_communicationrun', attribute: 'qdb_templateid', navigationProperty: NAVIGATION_PROPERTIES.runToTemplate },
+  { entity: 'fax', attribute: 'regardingobjectid', navigationProperty: NAVIGATION_PROPERTIES.faxToCase },
+  { entity: 'email', attribute: 'regardingobjectid', navigationProperty: NAVIGATION_PROPERTIES.emailToCase },
+  { entity: 'qdb_delinquencysnapshot', attribute: 'qdb_collectioncaseid', navigationProperty: NAVIGATION_PROPERTIES.snapshotToCase },
+  { entity: 'qdb_collectioncase', attribute: 'qdb_strategyid', navigationProperty: NAVIGATION_PROPERTIES.caseToStrategy },
+  { entity: 'qdb_collectioncase', attribute: 'qdb_assignedteamid', navigationProperty: NAVIGATION_PROPERTIES.caseToAssignedTeam },
+  { entity: 'qdb_collectioncase', attribute: 'qdb_customerid', navigationProperty: NAVIGATION_PROPERTIES.caseToCustomerContact },
+  { entity: 'qdb_collectioncase', attribute: 'qdb_customerid', navigationProperty: NAVIGATION_PROPERTIES.caseToCustomerAccount },
+];
+
+
+/** Builds an `@odata.bind` entry: the one correct way to point a lookup at a record on a write. */
+export function bindLookup(navigationProperty: string, entitySet: string, id: string): Record<string, string> {
+  return { [`${navigationProperty}@odata.bind`]: `/${entitySet}(${id})` };
+}
+
+/** The lookup annotation that names which table a polymorphic lookup points at. */
+export const LOOKUP_TABLE_ANNOTATION = '@Microsoft.Dynamics.CRM.lookuplogicalname';
+
+/** The platform's own display text for a choice, a money value or a lookup. */
+export const FORMATTED_VALUE_ANNOTATION = '@OData.Community.Display.V1.FormattedValue';
+
+// ── Columns, per read ────────────────────────────────────────────────────────
+
+/** A case as a list row needs it. */
+export const CASE_LIST_COLUMNS = [
+  'qdb_collectioncaseid', 'qdb_casenumber', 'qdb_customerbusinessid', 'qdb_facilitynumber',
+  'qdb_facilitysourcesystem', 'qdb_organizationcode', 'statuscode', 'qdb_currentarrearbucket',
+  'qdb_currentdpd', 'qdb_currenttotalarrears', 'qdb_currentloanbalance', 'qdb_misasofdate',
+  'qdb_episodenumber', 'qdb_opendate', '_qdb_customerid_value',
+] as const;
+
+/** Everything the Case Workspace summary shows, on top of the list columns. */
+export const CASE_DETAIL_COLUMNS = [
+  ...CASE_LIST_COLUMNS,
+  'qdb_customertype', 'qdb_producttypecode', 'qdb_productdescription', 'qdb_installmentamount',
+  'qdb_lastmissyncon', 'qdb_curedate', 'qdb_resolutiontype', 'qdb_closeddate', 'qdb_correlationid',
+  'qdb_eligibilityrulesetversion', 'statecode', 'createdon', 'modifiedon',
+  '_qdb_strategyid_value', '_ownerid_value',
+] as const;
+
+export const ACTIVITY_COLUMNS = [
+  'activityid', 'subject', 'qdb_activitynumber', 'qdb_activitydate', 'qdb_followupdate',
+  'qdb_amount', 'statuscode', 'statecode', 'createdon',
+  '_qdb_collectioncaseid_value', '_qdb_activitytypeid_value', '_ownerid_value',
+  // Provenance (KI-71, Phase 8). Both are optional: an activity created before provenance was
+  // recorded carries neither, and that absence is read as "unknown", never as "manual".
+  '_qdb_strategyactionid_value', 'qdb_origin',
+  // Escalation is READ from the platform, never inferred from a passed deadline (WP7).
+  'qdb_supervisorescalated',
+  // The authoritative link to QDB's Legal process. Null means no hand-off was recorded — which is
+  // NOT the same as no litigation existing, because the Legal record may simply be unreadable.
+  '_qdb_legalrequestid_value',
+  // The authoritative link to a formal Customer Complaint. Traceability only — never the
+  // mechanism that makes creating one retry-safe.
+  '_qdb_complaintcaseid_value',
+] as const;
+
+export const PTP_COLUMNS = [
+  ...ACTIVITY_COLUMNS,
+  'qdb_ptpdate', 'qdb_promisedamount', 'qdb_promisetype', 'qdb_ptpstatus',
+  'qdb_amountreceived', 'qdb_paymentreceiveddate', 'qdb_brokendate', 'qdb_brokenreason',
+] as const;
+
+export const SNAPSHOT_COLUMNS = [
+  'qdb_delinquencysnapshotid', 'qdb_snapshotkey', 'qdb_customerbusinessid', 'qdb_facilitynumber',
+  'qdb_facilitysourcesystem', 'qdb_snapshotdate', 'qdb_receivedon', 'qdb_missourcetimestamp',
+  'qdb_dpd', 'qdb_arrearbucket', 'qdb_loanbalance', 'qdb_totalarrears', 'qdb_installmentamount',
+  'qdb_producttypecode', 'qdb_eligibilityoutcome', 'qdb_eligibilityreason', 'qdb_integrationbatchid',
+  '_qdb_collectioncaseid_value',
+  /**
+   * The QCB deceased indication, carried as a snapshot fact.
+   *
+   * An *indication*, not a verified death (KI-124). It is set on 724 of 4,373 snapshots and exists
+   * nowhere else — there is no deceased column on the contact or the case — so this is the only
+   * place the browser can read it from, and the filter for it is always sent to the platform.
+   */
+  'qdb_isdeceasedperqcb',
+] as const;
+
+export const STRATEGY_COLUMNS = [
+  'qdb_collectionstrategyid', 'qdb_code', 'qdb_name', 'qdb_priority', 'qdb_isactive',
+  'qdb_effectivefrom', 'qdb_effectiveto', 'qdb_rulecode', 'qdb_noautomatedcontact', 'qdb_description',
+  'qdb_customertype', 'qdb_producttype', 'qdb_dpdfrom', 'qdb_dpdto', 'qdb_arrearsfrom', 'qdb_arrearsto',
+  'qdb_exposurefrom', 'qdb_exposureto', 'qdb_risklevel', 'qdb_nplflag', 'qdb_brokenptpcountfrom',
+  'qdb_legalstatus', 'qdb_restructurestatus',
+] as const;
+
+export const STRATEGY_ACTION_COLUMNS = [
+  'qdb_strategyactionid', 'qdb_name', 'qdb_sequence', 'qdb_dayoffset', 'qdb_triggerevent',
+  'qdb_communicationchannel', 'qdb_queuename', 'qdb_requiresapproval', 'qdb_ismandatory',
+  'qdb_stoponpayment', 'qdb_stoponptp', 'qdb_escalateifnotcompleted', 'qdb_escalationhours',
+  'qdb_processcode', 'qdb_rulecode', 'qdb_isactive', '_qdb_strategyid_value', '_qdb_activitytypeid_value',
+] as const;
+
+
+/**
+ * The Litigation Request, as Collections needs to see it — **9 columns of 158**.
+ *
+ * The Legal entity is large and belongs to another process. Reproducing its form here would invite
+ * an officer to treat the Collection Workspace as a Legal application, which it is not. These are
+ * the fields that answer "what is happening with Legal on this case": its own reference, the
+ * authoritative status, when it started, who the customer is, and the amount at stake.
+ *
+ * `statuscode` is read for its **formatted value**, never mapped through a table here. Its 25
+ * reasons are Legal's lifecycle, and a copy would drift the first time Legal adds a stage.
+ */
+export const LITIGATION_COLUMNS = [
+  'qdb_qdblegalid', 'qdb_name', 'statecode', 'statuscode', 'createdon',
+  'qdb_startdate', 'qdb_outstandingamount', 'qdb_lawyername', '_qdb_customer_value',
+] as const;
+
+
+/**
+ * The formal Complaint, as Collections needs to see it — **8 columns of 330**.
+ *
+ * `incident` carries 330 attributes, 177 of them custom, and its form is configured for a
+ * partner-bank financing application. Reproducing any of that here would invite an officer to treat
+ * the Collection Workspace as Case Management, which it is not. These answer one question: what is
+ * happening with this customer's complaint?
+ *
+ * `statuscode` and `casetypecode` are read for their **formatted values**. Case Management owns
+ * the 13-status complaint lifecycle and the escalation ladder to the CEO; a copy of either here
+ * would be a second state machine that drifts the first time QDB adds a stage.
+ */
+export const COMPLAINT_CASE_COLUMNS = [
+  'incidentid', 'ticketnumber', 'title', 'casetypecode', 'statecode', 'statuscode',
+  'createdon', '_customerid_value',
+] as const;
+
+/**
+ * The activity-type catalogue, as the Phase 6 forms offer it.
+ *
+ * `qdb_isactive` and `qdb_sequence` are here because the form needs them: a retired type must not
+ * become selectable on a new record, and the order an officer sees is configuration's to decide, not
+ * an alphabetical accident.
+ */
+export const ACTIVITY_TYPE_COLUMNS = [
+  'qdb_collectionactivitytypeid', 'qdb_name', 'qdb_code', 'qdb_category', 'qdb_isactive',
+  'qdb_sequence', 'qdb_notesrequired', 'qdb_amountrequired', 'qdb_requiresfollowup',
+  'qdb_requiresapproval', 'qdb_slahours',
+] as const;
+
+/**
+ * The outcome catalogue.
+ *
+ * An outcome belongs to **one activity type** (`qdb_activitytypeid`), so the outcomes a form offers
+ * are the ones owned by the type the officer chose — offering all of them would let a call be closed
+ * with a field-visit outcome. The four behaviour columns are what `planCompleteActivity` reads.
+ */
+export const ACTIVITY_OUTCOME_COLUMNS = [
+  'qdb_activityoutcomeid', 'qdb_name', 'qdb_code', 'qdb_category', 'qdb_isactive', 'qdb_sequence',
+  'qdb_requiresfollowup', 'qdb_followupdays', 'qdb_requiresnotes', 'qdb_escalationrequired',
+  'qdb_closeactivity', '_qdb_activitytypeid_value',
+] as const;
+
+/**
+ * A Fax row as the workspace reads one.
+ *
+ * Only the columns QDB's confirmed SMS/WhatsApp contract uses, plus the native activity context that
+ * makes the row legible in a timeline. The other 25 qdb_ columns on fax belong to QDB's own
+ * mechanism and other modules and are neither written nor read.
+ */
+export const FAX_COLUMNS = [
+  'activityid', 'subject', 'faxnumber', 'qdb_message_body', 'qdb_sender',
+  'qdb_language', 'qdb_whatsapptemplate', 'qdb_otp',
+  'statecode', 'statuscode', 'createdon', 'directioncode',
+  '_regardingobjectid_value', '_ownerid_value',
+] as const;
+
+/**
+ * An ActivityParty, as the reconciliation reads one.
+ *
+ * Read rather than merely written, because the question "was this communication actually completed?"
+ * can only be answered from the party. A Fax row on its own proves that a record exists; the party
+ * proves someone can receive it. `participationtypemask` distinguishes the recipient from the sender
+ * the platform attaches itself.
+ */
+export const ACTIVITY_PARTY_COLUMNS = [
+  'activitypartyid', '_activityid_value', '_partyid_value', 'participationtypemask',
+] as const;
+
+/** An Email row. Standard Dynamics throughout — DCP adds nothing to this entity. */
+export const EMAIL_COLUMNS = [
+  'activityid', 'subject', 'description',
+  'statecode', 'statuscode', 'createdon', 'directioncode',
+  '_regardingobjectid_value', '_ownerid_value',
+] as const;
+
+/** The bulk run header (KI-84). Never holds a message sent to anyone. */
+export const COMMUNICATION_RUN_COLUMNS = [
+  'qdb_communicationrunid', 'qdb_name', 'qdb_channel', 'qdb_status', 'qdb_selectionmode',
+  'qdb_messagebody', 'qdb_subject', 'qdb_filterdefinition', 'qdb_frozenpopulation',
+  'qdb_totalrecipients', 'qdb_cursor', 'qdb_failedrecipients',
+  'qdb_startedon', 'qdb_completedon', 'createdon', 'statecode', 'statuscode', '_qdb_templateid_value',
+] as const;
+
+/**
+ * A run as a **list row** needs it — deliberately a different, smaller set.
+ *
+ * `qdb_frozenpopulation` and `qdb_failedrecipients` are memo columns holding one line per recipient.
+ * Selecting them for a grid would pull a run's entire population into the browser for every row on
+ * the page, which is the one thing the large-data contract forbids, and it would do it invisibly —
+ * the grid would look correct and the payload would be megabytes. A run's population is read once,
+ * by the executor, for the run being worked.
+ */
+export const COMMUNICATION_RUN_LIST_COLUMNS = [
+  'qdb_communicationrunid', 'qdb_name', 'qdb_channel', 'qdb_status',
+  'qdb_totalrecipients', 'qdb_cursor', 'qdb_startedon', 'qdb_completedon', 'createdon',
+] as const;
+
+/** The template catalogue the composer offers. */
+export const COMMUNICATION_TEMPLATE_COLUMNS = [
+  'qdb_communicationtemplateid', 'qdb_code', 'qdb_name', 'qdb_channel', 'qdb_language',
+  'qdb_subject', 'qdb_body', 'qdb_placeholders', 'qdb_externaltemplateref',
+  'qdb_approvalstatus', 'qdb_freetextallowed', 'qdb_editingallowed', 'qdb_isactive',
+  'qdb_effectivefrom', 'qdb_effectiveto',
+] as const;
+
+export const IDENTITY_EXCEPTION_COLUMNS = [
+  'qdb_identityexceptionid', 'qdb_name', 'qdb_customerbusinessid', 'qdb_facilitynumber',
+  'qdb_source', 'qdb_exceptionreason', 'qdb_exceptionstatus', 'qdb_sourcereference',
+  'qdb_integrationbatchid', 'qdb_receiveddate', 'qdb_resolution', 'qdb_resolvedfacilitynumber',
+] as const;
+
+export const PLATFORM_CONFIGURATION_COLUMNS = [
+  'qdb_platformconfigurationid', 'qdb_name', 'qdb_platformtype', 'qdb_organizationcode',
+  'qdb_environmentcode', 'qdb_customerentity', 'qdb_customerbusinessidfield', 'qdb_facilityentity',
+  'qdb_facilitybusinessidfield', 'qdb_eligibilityrulesetcode', 'qdb_strategyrulesetcode',
+  'qdb_contactholdrulesetcode', 'qdb_snapshotpolicy', 'qdb_customertype', 'qdb_featureflags',
+  'qdb_misintegrationenabled', 'qdb_misprovider', 'qdb_isactive',
+] as const;
+
+export const PLATFORM_MAPPING_COLUMNS = [
+  'qdb_platformmappingid', 'qdb_name', 'qdb_businessobject', 'qdb_canonicalfield',
+  'qdb_crmentitylogicalname', 'qdb_crmfieldlogicalname', 'qdb_datatype', 'qdb_isrequired',
+  'qdb_accessmode', 'qdb_isactive', '_qdb_platformconfigurationid_value',
+] as const;
+
+/**
+ * `qdb_crmlogs` carries no correlation column: the correlation id, batch id and counters are written
+ * into `description` as a JSON diagnostic block. That is why a case's technical trail is found by
+ * searching `description` rather than by a lookup, and why `description` is read rather than only
+ * filtered on — a trail nobody can inspect is not evidence.
+ */
+export const CRM_LOG_COLUMNS = [
+  'activityid', 'qdb_source', 'qdb_type', 'createdon', 'subject', 'qdb_isexception', 'description',
+] as const;
+
+/**
+ * The customer, read from whichever table owns it.
+ *
+ * Housing Loan keeps customers as contacts and BFD as accounts, and which one applies is read from
+ * the case's own lookup annotation — never from a constant that assumes an organisation.
+ */
+export const CONTACT_COLUMNS = [
+  'contactid', 'fullname', 'firstname', 'lastname', 'telephone1', 'mobilephone',
+  'emailaddress1', 'address1_city', 'statecode',
+  // The native channel restrictions the eligibility gate reads. Dynamics contact PREFERENCES —
+  // never relabelled as QDB Collection Contact Hold, which does not exist yet (KI-79).
+  'donotfax', 'donotemail', 'donotphone',
+] as const;
+
+export const ACCOUNT_COLUMNS = [
+  'accountid', 'name', 'accountnumber', 'telephone1', 'emailaddress1', 'address1_city', 'statecode',
+  'donotfax', 'donotemail', 'donotphone',
+] as const;
+
+// ── Choice labels, only where the values are already proven ──────────────────
+
+export const BUCKET_LABELS: Readonly<Record<number, string>> = {
+  100000000: '1-30', 100000001: '31-60', 100000002: '61-90', 100000003: '91-180', 100000004: '181-270',
+  100000005: '271-360', 100000006: '361-500', 100000007: '501-1000', 100000008: '1001-2000', 100000009: '>2000',
+};
+
+export const ORG_LABELS: Readonly<Record<number, string>> = { 100000140: 'HL', 100000141: 'BFD' };
+
+/**
+ * The same two organisations, keyed the other way.
+ *
+ * Configuration is resolved BY organisation code — one active row per organisation, exactly as
+ * `PlatformConfigurationService` resolves it server-side. Reading 'the active configuration'
+ * without this key makes the answer depend on the order the platform returned rows in.
+ */
+export const ORG_CODES: Readonly<Record<string, number>> = { HL: 100000140, BFD: 100000141 };
+
+export const CASE_STATUS_LABELS: Readonly<Record<number, string>> = {
+  100000600: 'New', 100000601: 'Assigned', 100000602: 'In Progress', 100000603: 'Pending Customer Response',
+  100000604: 'PTP Active', 100000605: 'PTP Broken', 100000606: 'Restructure Review', 100000607: 'Restructured',
+  100000608: 'Pending Legal Review', 100000609: 'Referred to Legal', 100000610: 'Under Legal Action',
+  100000611: 'Escalated to Supervisor', 100000612: 'Deceased/Insurance Review', 100000613: 'Settled',
+  100000614: 'Closed', 100000615: 'Written Off', 100000616: 'Reopened',
+};
+
+export const PTP_STATUS_LABELS: Readonly<Record<number, string>> = {
+  100000080: 'Active', 100000081: 'Kept', 100000082: 'Partially Kept',
+  100000083: 'Broken', 100000084: 'Rescheduled', 100000085: 'Cancelled',
+};
+
+export const PROMISE_TYPE_LABELS: Readonly<Record<number, string>> = { 100000580: 'Full', 100000581: 'Partial' };
+
+/**
+ * How an activity came to exist (KI-71).
+ *
+ * There is deliberately no entry for "unknown". An activity created before provenance was recorded
+ * carries no value at all, and the renderer shows an em dash — which is the honest answer. Adding
+ * an `Unknown` option would let a null be mistaken for a recorded fact.
+ */
+export const ACTIVITY_ORIGIN_LABELS: Readonly<Record<number, string>> = {
+  100000800: 'Manual', 100000801: 'Strategy generated',
+};
+
+export const CUSTOMER_TYPE_LABELS: Readonly<Record<number, string>> = {
+  100000020: 'Individual', 100000021: 'SME', 100000022: 'Corporate',
+};
+
+export const RESOLUTION_TYPE_LABELS: Readonly<Record<number, string>> = {
+  100000340: 'Cured', 100000341: 'Settled', 100000342: 'Restructured', 100000343: 'Written Off',
+  100000344: 'Legal', 100000345: 'Deceased', 100000346: 'Closed',
+};
+
+export const ELIGIBILITY_OUTCOME_LABELS: Readonly<Record<number, string>> = {
+  100000260: 'Eligible — create case', 100000261: 'Existing episode — update', 100000262: 'Grace monitor',
+  100000263: 'Excluded — special handling', 100000264: 'Identity exception', 100000265: 'Facility exception',
+};
+
+export const EXCEPTION_REASON_LABELS: Readonly<Record<number, string>> = {
+  100000300: 'Customer not found', 100000301: 'Facility not found', 100000302: 'Duplicate customer',
+  100000303: 'Duplicate facility', 100000304: 'Invalid identifier', 100000305: 'Present in one organisation only',
+};
+
+export const EXCEPTION_STATUS_LABELS: Readonly<Record<number, string>> = {
+  100000320: 'Open', 100000321: 'Under review', 100000322: 'Resolved', 100000323: 'Rejected',
+};
+
+export const TRIGGER_EVENT_LABELS: Readonly<Record<number, string>> = {
+  100000240: 'Day offset', 100000241: 'Bucket change', 100000242: 'Broken PTP', 100000243: 'Cure',
+  100000244: 'New delinquency', 100000245: 'SLA', 100000246: 'Manual',
+};
+
+export const COMMUNICATION_CHANNEL_LABELS: Readonly<Record<number, string>> = {
+  100000100: 'SMS', 100000101: 'WhatsApp', 100000102: 'Email', 100000103: 'Call', 100000104: 'Official letter',
+};
+
+export const PLATFORM_TYPE_LABELS: Readonly<Record<number, string>> = {
+  100000120: 'On-premises', 100000121: 'Cloud',
+};
+
+export const SNAPSHOT_POLICY_LABELS: Readonly<Record<number, string>> = {
+  100000280: 'All received', 100000281: 'Eligible only', 100000282: 'Changed only',
+};
+
+/**
+ * Everything the workspace reads, for the metadata verifier.
+ *
+ * Each entry is an entity set and the columns read from it. The verifier normalises `_x_value` back
+ * to `x` and drops annotations before asking the organisation whether each attribute exists.
+ */
+export const READ_REGISTRY: readonly { entitySet: string; columns: readonly string[] }[] = [
+  { entitySet: ENTITY_SETS.collectionCase, columns: CASE_DETAIL_COLUMNS },
+  { entitySet: ENTITY_SETS.collectionActivity, columns: PTP_COLUMNS },
+  { entitySet: ENTITY_SETS.delinquencySnapshot, columns: SNAPSHOT_COLUMNS },
+  { entitySet: ENTITY_SETS.collectionStrategy, columns: STRATEGY_COLUMNS },
+  { entitySet: ENTITY_SETS.strategyAction, columns: STRATEGY_ACTION_COLUMNS },
+  { entitySet: ENTITY_SETS.litigationRequest, columns: LITIGATION_COLUMNS },
+  { entitySet: ENTITY_SETS.complaintCase, columns: COMPLAINT_CASE_COLUMNS },
+  { entitySet: ENTITY_SETS.collectionActivityType, columns: ACTIVITY_TYPE_COLUMNS },
+  { entitySet: ENTITY_SETS.activityOutcome, columns: ACTIVITY_OUTCOME_COLUMNS },
+  { entitySet: ENTITY_SETS.communicationTemplate, columns: COMMUNICATION_TEMPLATE_COLUMNS },
+  { entitySet: ENTITY_SETS.communicationRun, columns: COMMUNICATION_RUN_COLUMNS },
+  { entitySet: ENTITY_SETS.fax, columns: FAX_COLUMNS },
+  { entitySet: ENTITY_SETS.email, columns: EMAIL_COLUMNS },
+  { entitySet: ENTITY_SETS.activityParty, columns: ACTIVITY_PARTY_COLUMNS },
+  { entitySet: ENTITY_SETS.identityException, columns: IDENTITY_EXCEPTION_COLUMNS },
+  { entitySet: ENTITY_SETS.platformConfiguration, columns: PLATFORM_CONFIGURATION_COLUMNS },
+  { entitySet: ENTITY_SETS.platformMapping, columns: PLATFORM_MAPPING_COLUMNS },
+  { entitySet: ENTITY_SETS.crmLog, columns: CRM_LOG_COLUMNS },
+  { entitySet: ENTITY_SETS.contact, columns: CONTACT_COLUMNS },
+  { entitySet: ENTITY_SETS.account, columns: ACCOUNT_COLUMNS },
+];
+
+/** `_qdb_strategyid_value` → `qdb_strategyid`; an annotation returns undefined. */
+export function toAttributeName(column: string): string | undefined {
+  if (column.includes('@')) return undefined;
+  const lookup = /^_(.+)_value$/.exec(column);
+  return lookup ? lookup[1] : column;
+}
