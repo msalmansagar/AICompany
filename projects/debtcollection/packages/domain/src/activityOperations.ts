@@ -51,6 +51,8 @@ export interface OperationRefusal {
   code:
     | 'AmountNotPositive' | 'DateMissing' | 'DateMalformed' | 'NotesRequired'
     | 'TransitionNotAllowed' | 'ActivityImmutable' | 'OutcomeRequired'
+    // Distinct from OutcomeRequired: nothing the officer can choose exists yet (KI-131).
+    | 'CompletionUnavailable'
     | 'FollowUpDateRequired' | 'SubjectRequired' | 'TypeRequired' | 'CaseRequired'
     | 'PromiseTermsSettled' | 'NothingToSave';
   /** What to tell the user. Names the field so a form can put it in the right place. */
@@ -173,6 +175,15 @@ export function planUpdateActivity(request: UpdateActivityRequest): OperationRes
 export interface CompleteActivityRequest {
   currentStatus: ActivityStatus;
   outcome?: ActivityOutcomeConfig;
+  /**
+   * How many outcomes the activity's **type** has configured.
+   *
+   * Stated by the caller that loaded the catalogue. Zero means the type cannot be concluded at
+   * all, which is a configuration fact rather than anything the officer did wrong — see
+   * `concludability`. Left undefined the rule does not apply, so callers that already supply an
+   * outcome are unaffected.
+   */
+  configuredOutcomeCount?: number;
   notes?: string;
   /** Supplied by the user, or computed from the outcome's configured window when absent. */
   followUpDate?: string;
@@ -236,6 +247,13 @@ export function planCompleteActivity(
   request: CompleteActivityRequest,
 ): OperationResult<CompleteActivityPlan> {
   const refusals: OperationRefusal[] = [];
+
+  // Asked first, because "this type cannot be concluded at all" is a different answer from
+  // "this activity cannot be concluded yet", and the officer deserves the accurate one.
+  const availability = concludability(request.configuredOutcomeCount);
+  if (!availability.available) {
+    return refuse({ code: 'CompletionUnavailable', message: availability.reason });
+  }
 
   if (!isActivityTransitionAllowed(request.currentStatus, 'Completed')) {
     return refuse({
@@ -548,4 +566,37 @@ function readDate(
     return undefined;
   }
   return parsed.toISOString();
+}
+
+/**
+ * Whether an activity type can be concluded at all.
+ *
+ * An activity is concluded by recording a configured **outcome**, and an outcome is QDB's
+ * configuration, not DCP's. Three of the advanced-process types — Legal Recommendation, Deceased
+ * Review and Collection Dispute — have **no outcome configured at all** (KI-131), so they can be
+ * recorded and never finished.
+ *
+ * That is a configuration dependency and this is the whole of DCP's response to it: **one generic
+ * rule**, asked the same way by every screen. There is deliberately no per-process branch here, and
+ * no fallback outcome. Inventing one — *Confirmed deceased*, *Approved for Legal* — would answer in
+ * configuration the business questions KI-124 and KI-109 exist to ask QDB.
+ *
+ * When QDB configures a catalogue, this answers `available` and the existing completion mechanism
+ * uses it, with no new code for any process.
+ *
+ * An **undefined** count means the caller did not state the catalogue, not that it is empty: the
+ * rule then does not apply, so a caller holding an outcome already is never blocked by silence.
+ */
+export type ConcludeAvailability =
+  | { available: true }
+  | { available: false; reason: string };
+
+/** The one sentence an officer reads when a type has nothing to conclude with. */
+export const NO_OUTCOMES_CONFIGURED =
+  'Completion unavailable — no outcomes are configured for this activity type.';
+
+export function concludability(configuredOutcomeCount?: number): ConcludeAvailability {
+  if (configuredOutcomeCount === undefined) return { available: true };
+  if (configuredOutcomeCount > 0) return { available: true };
+  return { available: false, reason: NO_OUTCOMES_CONFIGURED };
 }

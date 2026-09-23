@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { activityStatusFromCode, deriveFollowUpDate, type ActivityStatus, type RowVersion } from '@dcp/domain';
+import {
+  activityStatusFromCode, concludability, deriveFollowUpDate,
+  type ActivityStatus, type RowVersion,
+} from '@dcp/domain';
 import {
   Dialog, FieldGrid, ReadOnlyField, SaveStatus, SelectField, TextAreaField, TextField, DateField,
   type SelectChoice,
@@ -135,6 +138,15 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
   }, [adapter, activityTypeId]);
 
   const outcome = outcomes.find(row => row.id === outcomeId);
+
+  /**
+   * Whether this type can be concluded at all.
+   *
+   * One generic question, asked of the configuration — never a rule about Legal, Deceased or
+   * Dispute specifically. Before this, the Complete action was offered for types with no
+   * outcomes at all, and completing then changed the status with nothing recorded against it.
+   */
+  const concluding = concludability(loadState === 'ready' ? outcomes.length : undefined);
   const status = loaded?.status;
   const isImmutable = status === 'Completed' || status === 'Cancelled';
 
@@ -191,6 +203,9 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
       { id: activityId, version: loaded.version },
       {
         currentStatus: loaded.status,
+        // What the type actually offers. Zero is a configuration fact (KI-131), and the domain
+        // refuses on it rather than completing an activity with nothing recorded against it.
+        configuredOutcomeCount: outcomes.length,
         ...(outcome ? { outcome } : {}),
         notes,
         ...(followUpDate ? { followUpDate: new Date(followUpDate).toISOString() } : {}),
@@ -216,7 +231,7 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
       footer={
         <ActivityFooter
           mode={mode} busy={save.busy} immutable={isImmutable} completing={completing}
-          canComplete={Boolean(loaded) && !isImmutable}
+          canComplete={Boolean(loaded) && !isImmutable && concluding.available}
           onClose={onClose}
           onCreate={() => void handleCreate()}
           onUpdate={handleUpdate}
@@ -238,6 +253,12 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
         <>
           <SaveStatus state={save.state} onReload={mode === 'edit' ? () => void load() : undefined} testId="activity-dialog" />
 
+          {!isImmutable && !completing && loaded && !concluding.available && (
+            <div className="info-banner" data-testid="conclude-unavailable">
+              <Icon name="info" />
+              <div>{concluding.reason}</div>
+            </div>
+          )}
           {!isImmutable && !completing && loaded && (
             <div className="info-banner" data-testid="activity-complete-hint">
               <Icon name="info" />
@@ -300,7 +321,7 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
                 value={outcomeId} onChange={setOutcomeId} disabled={save.busy}
                 choices={outcomes.map(row => ({ value: row.id, label: row.name, disabled: !row.isActive }))}
                 refusal={save.refusalFor('outcome')}
-                hint={outcomes.length === 0 ? 'No outcome is configured for this activity type.' : 'From configuration.'}
+                hint={concluding.available ? 'From configuration.' : concluding.reason}
               />
             )}
 

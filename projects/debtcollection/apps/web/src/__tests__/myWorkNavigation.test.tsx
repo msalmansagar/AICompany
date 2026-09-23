@@ -19,6 +19,13 @@ import type { XrmLike } from '../platform/crmContext.js';
  * work belongs to.
  */
 
+/**
+ * My Work resolves activity types, then counts, then the page — three awaits before a row exists.
+ * The default one-second wait was enough alone and not enough under parallel workers, which made
+ * this suite intermittently red for a reason that had nothing to do with the behaviour it guards.
+ */
+const WAIT = 5000;
+
 const CASE_ID = 'case-0001';
 const ACTIVITY_ID = 'act-0001';
 const USER_ID = 'user-me';
@@ -60,16 +67,16 @@ describe('selecting a piece of work', () => {
     const opened = vi.fn();
     renderMyWork(opened);
 
-    const row = await screen.findByText('Promise to pay');
+    const row = await screen.findByText('Promise to pay', {}, { timeout: WAIT });
     await userEvent.click(row);
 
-    await waitFor(() => expect(opened).toHaveBeenCalledWith(CASE_ID));
+    await waitFor(() => expect(opened).toHaveBeenCalledWith(CASE_ID), { timeout: WAIT });
   });
 
   it('renders without a handler rather than failing, since the grid is also read alone', async () => {
     renderMyWork();
 
-    expect(await screen.findByText('Promise to pay')).toBeTruthy();
+    expect(await screen.findByText('Promise to pay', {}, { timeout: WAIT })).toBeTruthy();
   });
 });
 
@@ -82,9 +89,9 @@ describe('a count that cannot be obtained', () => {
   it('renders as unknown rather than rejecting or showing zero', async () => {
     renderMyWork();
 
-    const bucket = await screen.findByTestId('bucket-Legal');
+    const bucket = await screen.findByTestId('bucket-Legal', {}, { timeout: WAIT });
 
-    await waitFor(() => expect(bucket.getAttribute('data-count')).toBe('Unknown'));
+    await waitFor(() => expect(bucket.getAttribute('data-count')).toBe('Unknown'), { timeout: WAIT });
     expect(bucket.getAttribute('data-count')).not.toBe('0');
   });
 });
@@ -106,9 +113,9 @@ describe('the handler survives the journey through Work Queues', () => {
       </CrmSessionProvider>,
     );
 
-    const view = await screen.findByTestId('view-mywork');
-    await userEvent.click(await within(view).findByText('Promise to pay'));
+    const view = await screen.findByTestId('view-mywork', {}, { timeout: WAIT });
+    await userEvent.click(await within(view).findByText('Promise to pay', {}, { timeout: WAIT }));
 
-    await waitFor(() => expect(opened).toHaveBeenCalledWith(CASE_ID));
+    await waitFor(() => expect(opened).toHaveBeenCalledWith(CASE_ID), { timeout: WAIT });
   });
 });
