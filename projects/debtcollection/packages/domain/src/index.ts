@@ -346,6 +346,7 @@ export {
   planCompleteActivity,
   concludability,
   NO_OUTCOMES_CONFIGURED,
+  type ConcludeAvailability,
   planActivityTransition,
   planFollowUp,
   planCreatePromise,

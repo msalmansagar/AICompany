@@ -17,6 +17,7 @@ import {
 import { loadCaseLegalTraces, type LegalTraceRow } from '../data/caseLegalTraces.js';
 import { loadCaseConcerns, type CaseConcerns as CaseConcernsData } from '../data/caseConcerns.js';
 import { findDeceasedTypeId, loadDeceasedReviewRow, recordDeceasedReview } from '../data/deceasedQueries.js';
+import { useConcludability } from '../data/useConcludability.js';
 import {
   Card, EmptyState, Icon, InfoBanner, KpiRow, PartialCapabilityNotice, formatCount, formatMoney, formatDate,
 } from '../components/primitives.js';
@@ -316,6 +317,19 @@ export function CaseDeceasedReview({ caseId }: { caseId: string }) {
   const [error, setError] = useState('');
   const [starting, setStarting] = useState(false);
   const [reload, setReload] = useState(0);
+  const [deceasedTypeId, setDeceasedTypeId] = useState<string | undefined>(undefined);
+
+  // Resolved by code, once, and used both to start a review and to ask whether one could ever
+  // be concluded. The same question every advanced-process card asks (KI-131).
+  useEffect(() => {
+    let cancelled = false;
+    findDeceasedTypeId(adapter)
+      .then(id => { if (!cancelled) setDeceasedTypeId(id ?? undefined); })
+      .catch(() => { if (!cancelled) setDeceasedTypeId(undefined); });
+    return () => { cancelled = true; };
+  }, [adapter]);
+
+  const concluding = useConcludability(adapter, deceasedTypeId);
 
   useEffect(() => {
     let cancelled = false;
@@ -343,7 +357,7 @@ export function CaseDeceasedReview({ caseId }: { caseId: string }) {
   const startReview = async (facilityNumber: string): Promise<void> => {
     setStarting(true);
     try {
-      const activityTypeId = await findDeceasedTypeId(adapter);
+      const activityTypeId = deceasedTypeId ?? await findDeceasedTypeId(adapter);
       if (!activityTypeId) {
         setError('No activity type is configured for deceased reviews, so one cannot be recorded.');
         setState('error');
@@ -415,6 +429,15 @@ export function CaseDeceasedReview({ caseId }: { caseId: string }) {
           >
             {starting ? 'Recording…' : 'Record deceased review'}
           </button>
+        </div>
+      )}
+      {row.state === 'UnderReview' && !concluding.available && (
+        <div className="info-banner" data-testid="deceased-conclude-unavailable">
+          <Icon name="info" />
+          <div>
+            {concluding.reason} A review stays open until QDB configures what concluding one
+            means.
+          </div>
         </div>
       )}
       <InfoBanner>
