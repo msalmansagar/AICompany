@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Icon } from '../../components/primitives.js';
 import { ROLE_LABELS, useCrmSession, useOrg, useRole } from '../../shell/context.js';
 import type { Route } from '../../shell/useHashRoute.js';
@@ -37,6 +37,7 @@ export function V2Shell({ route, children }: { route: Route & { go: Go }; childr
   const [isCollapsed, setCollapsed] = useState(() => readFlag(COLLAPSE_KEY));
   const [isDrawerOpen, setDrawerOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const main = useRef<HTMLElement | null>(null);
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed(previous => { writeFlag(COLLAPSE_KEY, !previous); return !previous; });
@@ -57,6 +58,10 @@ export function V2Shell({ route, children }: { route: Route & { go: Go }; childr
         data-drawer={isDrawerOpen ? 'open' : 'closed'}
         data-testid="v2-shell"
       >
+        {/* A button, not an anchor: an in-page link would change the hash, and the hash is the route. */}
+        <button type="button" className="v2-skip" onClick={() => main.current?.focus()} data-testid="v2-skip">
+          Skip to content
+        </button>
         <button
           type="button" className="v2-scrim" aria-label="Close navigation" tabIndex={-1}
           onClick={() => setDrawerOpen(false)}
@@ -64,7 +69,7 @@ export function V2Shell({ route, children }: { route: Route & { go: Go }; childr
         <V2Nav activeId={activeNavId(route.view.id)} onNavigate={navigate} onToggle={toggleCollapsed} isCollapsed={isCollapsed} />
         <div className="v2-main">
           <V2Header route={route} onOpenDrawer={() => setDrawerOpen(true)} />
-          <main className="v2-page" data-testid="v2-content" data-view={route.view.id}>{children}</main>
+          <main ref={main} tabIndex={-1} className="v2-page" data-testid="v2-content" data-view={route.view.id}>{children}</main>
         </div>
       </div>
     </V2ShellContext.Provider>

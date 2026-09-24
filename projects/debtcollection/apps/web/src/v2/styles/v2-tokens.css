@@ -70,11 +70,14 @@
   --v2-neutral: #41527A;
   --v2-neutral-bg: #F0F3F8;
 
-  /* Delinquency buckets, from the reference */
-  --v2-bucket-1: #2A6FC9;
+  /*
+   * Delinquency buckets. The reference's hues, each darkened just enough to reach 4.5:1 on its own
+   * 12% tint — three of the originals did not (asserted in v2Contrast.test.ts).
+   */
+  --v2-bucket-1: #2869BF;
   --v2-bucket-2: #1F5CB0;
-  --v2-bucket-3: #9A6410;
-  --v2-bucket-4: #B45A1E;
+  --v2-bucket-3: #925F0F;
+  --v2-bucket-4: #A4521B;
   --v2-bucket-5: #B3302B;
 
   /* Layout */

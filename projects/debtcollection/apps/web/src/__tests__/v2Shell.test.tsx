@@ -145,6 +145,16 @@ describe('the rail', () => {
   });
 });
 
+describe('keyboard access', () => {
+  it('skips straight to the page content without changing the route', async () => {
+    renderV2();
+
+    await userEvent.click(screen.getByTestId('v2-skip'));
+
+    expect([document.activeElement, window.location.hash]).toEqual([screen.getByTestId('v2-content'), '#cases']);
+  });
+});
+
 describe('a route without a V2 page', () => {
   it('renders the V1 view inside the V2 frame', () => {
     window.location.hash = '#audit';
