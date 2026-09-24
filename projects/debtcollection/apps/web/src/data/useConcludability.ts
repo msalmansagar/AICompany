@@ -46,3 +46,26 @@ export function useConcludability(
 
   return concludability(count);
 }
+
+/**
+ * The id of a process's configured activity type, resolved once per adapter.
+ *
+ * Each advanced-process card resolves its type by code in the same way; a type that could not be
+ * resolved is `undefined`, which `useConcludability` reads as "not yet known", never as empty.
+ */
+export function useActivityTypeId(
+  adapter: XrmCrmAdapter,
+  findTypeId: (adapter: XrmCrmAdapter) => Promise<string | null | undefined>,
+): string | undefined {
+  const [typeId, setTypeId] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    findTypeId(adapter)
+      .then(id => { if (!cancelled) setTypeId(id ?? undefined); })
+      .catch(() => { if (!cancelled) setTypeId(undefined); });
+    return () => { cancelled = true; };
+  }, [adapter, findTypeId]);
+
+  return typeId;
+}

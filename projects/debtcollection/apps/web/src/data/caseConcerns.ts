@@ -159,3 +159,15 @@ async function readConcernActivities(
     toActivityRow,
   ).items;
 }
+
+/**
+ * The concern type, for asking whether a dispute or complaint activity can be concluded.
+ *
+ * Disputes and complaints share one configured type on this organisation — the label reads
+ * *Complaint / Dispute* — so one id answers for both cards. What separates the two concepts is the
+ * Complaint link, never the type.
+ */
+export async function findConcernTypeId(adapter: XrmCrmAdapter): Promise<string | undefined> {
+  const ids = await readConcernTypeIds(adapter);
+  return [...ids][0];
+}

@@ -104,3 +104,15 @@ function isCurrentEpisode(
     { caseId, episodeNumber },
   );
 }
+
+/**
+ * The Legal Recommendation type, for asking whether such work can be concluded.
+ *
+ * The first configured type wins, which is the same rule `readLegalTypeIds` applies when it
+ * narrows the read — there is one in practice, and picking differently here would make the card
+ * describe a type the rows do not belong to.
+ */
+export async function findLegalTypeId(adapter: XrmCrmAdapter): Promise<string | undefined> {
+  const ids = await readLegalTypeIds(adapter);
+  return [...ids][0];
+}

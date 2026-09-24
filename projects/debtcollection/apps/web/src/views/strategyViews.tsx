@@ -14,10 +14,12 @@ import {
   type ActionPlanItem, type ConcernRow, type DeceasedReviewRow,
   type LegalWorkState, type LegalWorkStateName,
 } from '@dcp/domain';
-import { loadCaseLegalTraces, type LegalTraceRow } from '../data/caseLegalTraces.js';
-import { loadCaseConcerns, type CaseConcerns as CaseConcernsData } from '../data/caseConcerns.js';
+import { findLegalTypeId, loadCaseLegalTraces, type LegalTraceRow } from '../data/caseLegalTraces.js';
+import {
+  findConcernTypeId, loadCaseConcerns, type CaseConcerns as CaseConcernsData,
+} from '../data/caseConcerns.js';
 import { findDeceasedTypeId, loadDeceasedReviewRow, recordDeceasedReview } from '../data/deceasedQueries.js';
-import { useConcludability } from '../data/useConcludability.js';
+import { useActivityTypeId, useConcludability } from '../data/useConcludability.js';
 import {
   Card, EmptyState, Icon, InfoBanner, KpiRow, PartialCapabilityNotice, formatCount, formatMoney, formatDate,
 } from '../components/primitives.js';
@@ -317,18 +319,9 @@ export function CaseDeceasedReview({ caseId }: { caseId: string }) {
   const [error, setError] = useState('');
   const [starting, setStarting] = useState(false);
   const [reload, setReload] = useState(0);
-  const [deceasedTypeId, setDeceasedTypeId] = useState<string | undefined>(undefined);
-
   // Resolved by code, once, and used both to start a review and to ask whether one could ever
   // be concluded. The same question every advanced-process card asks (KI-131).
-  useEffect(() => {
-    let cancelled = false;
-    findDeceasedTypeId(adapter)
-      .then(id => { if (!cancelled) setDeceasedTypeId(id ?? undefined); })
-      .catch(() => { if (!cancelled) setDeceasedTypeId(undefined); });
-    return () => { cancelled = true; };
-  }, [adapter]);
-
+  const deceasedTypeId = useActivityTypeId(adapter, findDeceasedTypeId);
   const concluding = useConcludability(adapter, deceasedTypeId);
 
   useEffect(() => {
@@ -481,6 +474,7 @@ export function CaseConcerns({ caseId }: { caseId: string }) {
   const [concerns, setConcerns] = useState<CaseConcernsData | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState('');
+  const concluding = useConcludability(adapter, useActivityTypeId(adapter, findConcernTypeId));
 
   useEffect(() => {
     let cancelled = false;
@@ -526,6 +520,15 @@ export function CaseConcerns({ caseId }: { caseId: string }) {
             secondHeading="Detail"
             testId="case-disputes"
           />
+          {!concluding.available && (
+            <div className="info-banner" data-testid="dispute-conclude-unavailable">
+              <Icon name="info" />
+              <div>
+                {concluding.reason} A dispute stays open until QDB configures what concluding one
+                means.
+              </div>
+            </div>
+          )}
         </Card>
       )}
       {concerns.complaints.length > 0 && (
@@ -612,6 +615,7 @@ export function CaseLegalTrace({ caseId, episodeNumber, customer }: {
   const [rows, setRows] = useState<readonly LegalTraceRow[]>([]);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState('');
+  const concluding = useConcludability(adapter, useActivityTypeId(adapter, findLegalTypeId));
 
   useEffect(() => {
     let cancelled = false;
@@ -678,6 +682,15 @@ export function CaseLegalTrace({ caseId, episodeNumber, customer }: {
           ))}
         </tbody>
       </table>
+      {!concluding.available && (
+        <div className="info-banner" data-testid="legal-conclude-unavailable">
+          <Icon name="info" />
+          <div>
+            {concluding.reason} A Legal recommendation stays open until QDB configures what
+            concluding one means.
+          </div>
+        </div>
+      )}
     </Card>
   );
 }
