@@ -105,3 +105,26 @@ Not a PR. V2 not default. V1 intact. Screen 02 not started.
 | Browser (System Administrator, `data=ui=v2`) | matrix (10 rows; DEMO-EARLY / DEMO-PRELEGAL / Not Assigned / Total; grand 4,362 · QAR 213.3M; 1 unbucketed case named) → 61-90 × Not Assigned (227) → Cases chips *DPD: 61-90* + *Strategy: Strategy Not Assigned* → paged to "227 shown — end of results" → case ARR-HL-01615 → ← Cases returns to the filtered list → ← Back to Portfolio & Strategy with the cell marked (`aria-pressed`) · deep link `#cases/filter/bucket=91-180&strategy=none&scope=HL&from=portfolio` after a frame reload → 3 chips, scope HL, 318 rows · keyboard Enter on a focused cell opens Cases · BFD scope: 3 cases / QAR 214K = both-CRMs minus HL · Strategies: DEMO-EARLY actions SMS day 0, Call day 3, activity type *Not configured* · V1: renders, its navigation unchanged (*Segmentation Matrix*), profile left on V1 |
 | Findings fixed live | (1) matrix cells used the grid's `v2-cell` class — Cases headers stacked; renamed to `v2-matrix-cell`, style-contract guard added; (2) ← Cases lost the drill-down filters; the list records them on row open and the case leads back |
 | Not proven | narrow viewport (KI-141, DOM-narrowed only); Collection Officer role evidence; On-Prem |
+
+## Screen 02 — Collection Cases (implementation)
+
+| | |
+|---|---|
+| Authorised | 2026-09-24, reference-accurate Split + Grid redesign; V2 only |
+| **Start** | **2026-09-24 22:37:00 +03** (pre-coding report returned 22:36) |
+| Baseline | **18.5 effective hours** (9 WPs + 1.0 debug) — not rewritten |
+| Expected completion | 2026-09-25 20:00 +03 |
+| Decisions applied | no KPI cards; no Reassign (KI-100); Export deferred (Phase 10); no Risk (KI-144), Priority (KI-143), SLA/TAT (KI-101), Next review, Contact rate; Segment → *Customer type*; ten MIS buckets with an ordinal bucket-visual contract; counts by one FetchXML aggregate built from the same CaseQuery |
+
+| WP | Scope | Est. h | State |
+|---|---|---|---|
+| C1 | Bucket visual contract, ten tokens + contrast pairs, dot + badge, adoption across V2 | 2.0 | — |
+| C2 | CaseQuery additions: owner scope, facility/name search, list columns (name, product, strategy, owner); V1 regression | 1.5 | — |
+| C3 | Bucket facet counts from the same query (FetchXML); All chip; unknown on refusal | 2.0 | — |
+| C4 | Split view: compact rows, selection, keyboard, preview panel, commands via existing dialogs | 4.0 | — |
+| C5 | Grid view: columns, server header sorting, Split/Grid toggle + preference, narrow behaviour | 2.0 | — |
+| C6 | Portfolio filters, return context, selection restore | 1.0 | — |
+| C7 | Tests + guard battery | 3.0 | — |
+| C8 | Deploy (same web resource), browser QA (three flows), V1 smoke | 1.5 | — |
+| C9 | Docs, KIs | 0.5 | — |
+| | Debugging allowance | 1.0 | |
