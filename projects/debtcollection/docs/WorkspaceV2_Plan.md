@@ -30,6 +30,31 @@ list-and-preview for moving through work; a timeline for history; a sticky side 
 several are Phase 10 management measures; most colour-only signals (risk bar, priority flag) carry no
 text; and much of its data is not something DCP has (§6).
 
+### 1b. Second reference — `debt-collection-platform-standalone-latest.html` (19 Sep, added 13:15 +03)
+
+Same design system (identical tokens and shell), but a far more complete product: **14 screens**,
+role switching, modals, toasts, and a full case workspace. **It becomes the primary direction; the
+first reference supplements it** (split list + preview; Customer 360 layout).
+
+| Area | What it adds | V2 decision |
+|---|---|---|
+| Navigation | Groups *Work · Customer · Resolution · Control*, count badges, `title` tooltips when collapsed | **Adopt the grouping**, fed by the real route inventory (§8) |
+| Header | Working search, role select, *Run batch* | Search **adopt**; role select **adopt** (V1's presentation-only role, not security); *Run batch* **omit** — the MIS batch is not officer UI |
+| My Day | KPI strip · **"What needs you today"** list, each row with its own CTA · queue load | **Adopt the structure** on real counts: my work, awaiting assignment, PTPs due (real `ptpDate`), broken PTPs (real PTP status), advanced-process waits. *SLA breached* omitted (KI-101) |
+| Case detail | Back link · avatar, name, bucket pill · **command row** · **stats strip joined to the header** · tabs in the same card · Summary = Customer and Facility key/value cards + a dark *strategy rule* next-action card · Actions as a **timeline** · Promises · Communication log · Workout · Audit | **Adopt as the Case Workspace V2 skeleton.** Next-action card = the real next planned strategy action. Communications tab shows the **real per-case communication history** (V1's tab still says Phase 7 — KI-135) |
+| Case commands | Log action, Capture PTP, Send message, Propose restructure, Refer to Legal, Reassign, Register dispute, Flag deceased | **Keep** Log action, Capture PTP, Send message. **Omit** Propose restructure (parked), Refer to Legal (KI-109), Reassign (KI-100), Flag deceased (no confirmation process; review only on a QCB indication). *Register dispute* = Log action with the dispute type, if the dialog can take a preset type without changing it |
+| Stats strip | Overdue, Outstanding, DPD, Risk, SLA | Arrears, balance, DPD, bucket, "Stored MIS position as of …". Risk and SLA omitted |
+| Status pills | "Contact suppressed" | **Omitted** — no authoritative hold (KI-79); V1 shows native channel preferences, which are not a hold |
+| Promises | Inline *Kept / Broken* | Transitions stay in the existing `PromiseDialog`, which applies the domain rules |
+| Workout tab | Restructure, legal stages, insurance claim, dispute *Uphold / Reject* | Phase 9 cards and capability matrix only; **no** stage buttons, claims or uphold/reject (KI-109, KI-125, KI-131, KI-119) |
+| Modals | 560px, title + subtitle, footer *Cancel* + primary | V1 dialogs are re-skinned to this frame through the token bridge; no behaviour change |
+| Toast | Confirmation after an action | Adopt, for confirmations the server has already returned — never optimistic |
+| Approvals, Dashboards & MIS, Administration with queue editing | — | Approvals and MIS are Phase 10 (omit); Administration = the existing Configuration view only |
+| Invented data | 7 roles with permissions, queue SLAs, risk-based rules, warning letters, salary transfer | Not DCP; ignored |
+
+**Scope change (recorded, baseline unchanged):** reviewing the second reference added **1.00 h**
+to WP1. Original baseline **51.00 h**; revised forecast **52.00 h**; completion forecast unchanged.
+
 ---
 
 ## 2. V1 inventory — protected baseline
