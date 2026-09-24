@@ -68,7 +68,7 @@ export function App() {
       <RoleProvider>
         <OrgProvider>
           {/* V1 stays the default; V2 is chosen only by an explicit, recognised request. */}
-          <WorkspaceVersionRoot renderV1={() => <Workspace />} renderV2={() => <V2Workspace />} />
+          <WorkspaceVersionRoot renderV1={() => <Workspace />} renderV2={() => <V2Workspace renderView={request => <ViewHost {...request} />} />} />
         </OrgProvider>
       </RoleProvider>
     </CrmSessionProvider>
