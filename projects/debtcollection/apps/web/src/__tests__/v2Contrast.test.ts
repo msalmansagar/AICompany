@@ -60,7 +60,7 @@ const PAIRS: readonly [string, string, string][] = [
   ['selected chip', token('accent-ink'), token('accent-soft')],
   ['arrears figure', token('danger-strong'), token('surface')],
   ['next-action button', token('primary'), token('accent')],
-  ...[1, 2, 3, 4, 5].map(n => [`bucket ${n} badge`, token(`bucket-${n}`), tint(token(`bucket-${n}`), 0.12)] as [string, string, string]),
+  ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => [`bucket ${n} badge`, token(`bucket-${n}`), tint(token(`bucket-${n}`), 0.12)] as [string, string, string]),
 ];
 
 describe('the contrast calculation', () => {

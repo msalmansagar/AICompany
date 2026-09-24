@@ -5,11 +5,11 @@ import {
 } from '../../../data/caseQueries.js';
 import { loadActionPlan } from '../../../data/followUpQueries.js';
 import { toPlanItem, type CaseContext } from '../../../data/actionPlanRows.js';
-import { BucketPill, StatusPill, formatCount, formatDate, formatMoney } from '../../../components/primitives.js';
+import { StatusPill, formatCount, formatDate, formatMoney } from '../../../components/primitives.js';
 import { describeFailure } from '../../../platform/errors.js';
 import { formatRecordedAt } from '../../format.js';
 import { useCrmSession } from '../../../shell/context.js';
-import { Card, EmptyState, ErrorState, KeyValueList, LoadingSkeleton } from '../../components/primitives.js';
+import { BucketBadge, Card, EmptyState, ErrorState, KeyValueList, LoadingSkeleton } from '../../components/primitives.js';
 
 /**
  * The case at a glance: who, which facility, what the strategy asks for next, and what has happened.
@@ -63,7 +63,7 @@ function facilityFields(detail: CaseDetail) {
     { label: 'Product', value: detail.productDescription ?? detail.productTypeCode ?? '—' },
     { label: 'Source system', value: detail.sourceSystem },
     { label: 'DPD', value: formatCount(detail.dpd) },
-    { label: 'Bucket', value: <BucketPill bucket={detail.bucket} /> },
+    { label: 'Bucket', value: <BucketBadge bucket={detail.bucket} /> },
     { label: 'Arrears', value: formatMoney(detail.totalArrears) },
     { label: 'Loan balance', value: formatMoney(detail.loanBalance) },
     { label: 'MIS as of', value: formatDate(detail.misAsOfDate) },

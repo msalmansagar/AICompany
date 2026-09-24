@@ -76,3 +76,23 @@ export function recallCaseListReturn(): string | undefined {
     return undefined;
   }
 }
+
+/** The case last previewed in the Split view, so coming back lands on it. An id, never a name. */
+const CASE_SELECTION_KEY = 'dcp.v2.cases.selected';
+
+export function rememberSelectedCase(caseId: string | undefined): void {
+  try {
+    if (caseId) window.sessionStorage.setItem(CASE_SELECTION_KEY, caseId);
+    else window.sessionStorage.removeItem(CASE_SELECTION_KEY);
+  } catch {
+    // Losing the selection costs a click, nothing more.
+  }
+}
+
+export function recallSelectedCase(): string | undefined {
+  try {
+    return window.sessionStorage.getItem(CASE_SELECTION_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}

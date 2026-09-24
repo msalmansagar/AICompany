@@ -5,10 +5,10 @@ import {
 } from '../../../data/caseQueries.js';
 import { createAuditQuery, type AuditQuery, type AuditRow } from '../../../data/collectionQueries.js';
 import {
-  BucketPill, PromiseOutcome, StatusPill, formatCount, formatDate, formatMoney,
+  PromiseOutcome, StatusPill, formatCount, formatDate, formatMoney,
 } from '../../../components/primitives.js';
 import { useCrmSession } from '../../../shell/context.js';
-import { Card, EmptyState } from '../../components/primitives.js';
+import { BucketBadge, Card, EmptyState } from '../../components/primitives.js';
 import { V2DataGrid, type V2Column } from '../../components/V2DataGrid.js';
 
 /**
@@ -83,7 +83,7 @@ const SNAPSHOT_COLUMNS: readonly V2Column<SnapshotRow>[] = [
   { key: 'date', header: 'As of', width: '110px', render: r => formatDate(r.snapshotDate) },
   { key: 'received', header: 'Received', width: '110px', render: r => formatDate(r.receivedOn) },
   { key: 'dpd', header: 'DPD', width: '80px', numeric: true, render: r => formatCount(r.dpd) },
-  { key: 'bucket', header: 'Bucket', width: '120px', render: r => <BucketPill bucket={r.bucket} /> },
+  { key: 'bucket', header: 'Bucket', width: '120px', render: r => <BucketBadge bucket={r.bucket} /> },
   { key: 'arrears', header: 'Arrears', width: '140px', numeric: true, render: r => formatMoney(r.totalArrears) },
   { key: 'balance', header: 'Balance', width: '140px', numeric: true, render: r => formatMoney(r.loanBalance) },
   { key: 'outcome', header: 'Eligibility', render: r => r.eligibilityOutcome ?? '—' },

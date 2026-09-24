@@ -111,7 +111,7 @@ Not a PR. V2 not default. V1 intact. Screen 02 not started.
 | | |
 |---|---|
 | Authorised | 2026-09-24, reference-accurate Split + Grid redesign; V2 only |
-| **Start** | **2026-09-24 22:37:00 +03** (pre-coding report returned 22:36) |
+| **Start** | **2026-09-24 23:28:51 +03** (instruction received; pre-coding report returned 23:36) |
 | Baseline | **18.5 effective hours** (9 WPs + 1.0 debug) — not rewritten |
 | Expected completion | 2026-09-25 20:00 +03 |
 | Decisions applied | no KPI cards; no Reassign (KI-100); Export deferred (Phase 10); no Risk (KI-144), Priority (KI-143), SLA/TAT (KI-101), Next review, Contact rate; Segment → *Customer type*; ten MIS buckets with an ordinal bucket-visual contract; counts by one FetchXML aggregate built from the same CaseQuery |

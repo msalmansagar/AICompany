@@ -71,14 +71,21 @@
   --v2-neutral-bg: #F0F3F8;
 
   /*
-   * Delinquency buckets. The reference's hues, each darkened just enough to reach 4.5:1 on its own
-   * 12% tint — three of the originals did not (asserted in v2Contrast.test.ts).
+   * Delinquency buckets — one hue per MIS bucket, in MIS order (bucketVisual.ts). Blue for the
+   * earliest, through teal, olive and amber, to red and plum for the latest, so neighbouring buckets
+   * stay tellable apart. Each hue is dark enough to reach 4.5:1 on its own 12% tint (asserted in
+   * v2Contrast.test.ts). The colour distinguishes; the label and description carry the meaning.
    */
   --v2-bucket-1: #2869BF;
-  --v2-bucket-2: #1F5CB0;
-  --v2-bucket-3: #925F0F;
-  --v2-bucket-4: #A4521B;
-  --v2-bucket-5: #B3302B;
+  --v2-bucket-2: #1F6F86;
+  --v2-bucket-3: #367028;
+  --v2-bucket-4: #7A6A00;
+  --v2-bucket-5: #925F0F;
+  --v2-bucket-6: #A4521B;
+  --v2-bucket-7: #B3302B;
+  --v2-bucket-8: #9E1F46;
+  --v2-bucket-9: #7D2260;
+  --v2-bucket-10: #4E2A84;
 
   /* Layout */
   --v2-space-1: 4px;
