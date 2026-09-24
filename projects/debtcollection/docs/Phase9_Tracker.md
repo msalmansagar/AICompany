@@ -120,6 +120,35 @@ preserve their status.
 Any scope change records: original baseline · the change · revised forecast · reason · effective
 hours · blocked hours, separately. **The 21.50 baseline is not rewritten.**
 
+### Checkpoint — 2026-09-24 09:20 +03 (after the restart)
+
+| | |
+|---|---|
+| **Current time** | **2026-09-24 09:20 +03 (Asia/Qatar)** |
+| **Elapsed wall-clock since start** | **35.83 h** |
+| **Effective engineering time so far** | **2.18 h** measured |
+| **Non-working time (separate)** | **33.62 h** — see below |
+| **Delivered, at estimate** | WP1 2.00 · WP2 1.50 · WP3 2.00 · WP4/WP5 conclusion banner ≈ 1.50 = **7.00** |
+| **Remaining, at estimate** | WP4/WP5 rest 1.50 · WP6–WP11 11.50 · debugging allowance 1.50 = **14.50** |
+| **Baseline** | **21.50 — unchanged** |
+| **Forecast completion** | **2026-09-24 ~18:00 +03 — kept.** Risk: WP9's browser validation needs the Chrome extension paired. That can wait on the user, and any such wait is recorded as blocked time |
+
+**How "effective" was measured.** From the session transcripts' own message timestamps: the
+intervals between consecutive steps, counting only gaps shorter than 15 minutes. It is measured,
+not estimated, and it is not the same unit as the estimate column. Phase 8 recorded estimate-shaped
+actuals, so this phase's figures are not directly comparable with Phase 8's.
+
+**Non-working intervals** (+03):
+
+| From | To | Hours | What |
+|---|---|---|---|
+| 09-22 22:37 | 09-23 15:44 | 17.12 | Idle between sessions, after the start plan |
+| 09-23 15:53 | 09-23 17:59 | 2.11 | Idle |
+| 09-23 18:22 | 09-24 08:26 | 14.06 | **System restart interrupted WP4/WP5 mid-edit**; recovered from the working tree and transcript, nothing lost |
+| 09-24 08:55 | 09-24 09:14 | 0.33 | Waiting on the user's continue decision |
+
+**Blocked by a QDB decision: 0.00 h.** The restart is an interruption, not a block.
+
 ---
 
 ## Assumptions and dependencies
@@ -145,3 +174,11 @@ configuration or security change arrives mid-phase.
 
 **Phase 9 — IN PROGRESS.** Restructuring and Field Visit **PARKED**; their status does not block
 Phase 9 closure.
+
+| WP | State | Commit |
+|---|---|---|
+| WP1 | Done | `49d972ab` |
+| WP2 | Done | `d246265a` |
+| WP3 | Done | `77d7ad94` |
+| WP4 / WP5 | Conclusion banner done; remaining items in progress | `5f41bba9` |
+| WP6–WP11 | Not started | — |
