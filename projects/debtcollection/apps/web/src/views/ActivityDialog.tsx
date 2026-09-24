@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { activityStatusFromCode, deriveFollowUpDate, type ActivityStatus, type RowVersion } from '@dcp/domain';
+import {
+  DISPUTE_LOGGING_NOTICE, activityStatusFromCode, concludability, deriveFollowUpDate,
+  type ActivityStatus, type RowVersion,
+} from '@dcp/domain';
 import {
   Dialog, FieldGrid, ReadOnlyField, SaveStatus, SelectField, TextAreaField, TextField, DateField,
   type SelectChoice,
@@ -7,6 +10,7 @@ import {
 import { Icon, StatusPill, formatDate } from '../components/primitives.js';
 import { loadActivityTypes, loadOutcomes, type ActivityTypeOption, type OutcomeOption } from '../data/configurationCatalog.js';
 import { ENTITY_SETS, ACTIVITY_COLUMNS } from '../data/schema.js';
+import { isConcernTypeCode } from '../data/caseConcerns.js';
 import { ActivityService } from '../services/activityService.js';
 import { useSaveOperation } from '../services/useSaveOperation.js';
 import { useCrmSession } from '../shell/context.js';
@@ -73,6 +77,8 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
 
   const [types, setTypes] = useState<readonly ActivityTypeOption[]>([]);
   const [outcomes, setOutcomes] = useState<readonly OutcomeOption[]>([]);
+  // Not known until the type's catalogue answers. Only an answered catalogue may say it is empty.
+  const [catalogue, setCatalogue] = useState<'loading' | 'answered' | 'unreadable'>('loading');
   const [loaded, setLoaded] = useState<LoadedActivity | null>(null);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>(mode === 'create' ? 'ready' : 'loading');
   const [loadError, setLoadError] = useState<string>('');
@@ -127,14 +133,28 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
 
   useEffect(() => {
     let cancelled = false;
-    if (!activityTypeId) { setOutcomes([]); return; }
+    setOutcomes([]);
+    setCatalogue('loading');
+    if (!activityTypeId) return;
     loadOutcomes(adapter, activityTypeId)
-      .then(rows => { if (!cancelled) setOutcomes(rows); })
-      .catch(() => { if (!cancelled) setOutcomes([]); });
+      .then(rows => { if (!cancelled) { setOutcomes(rows); setCatalogue('answered'); } })
+      .catch(() => { if (!cancelled) setCatalogue('unreadable'); });
     return () => { cancelled = true; };
   }, [adapter, activityTypeId]);
 
   const outcome = outcomes.find(row => row.id === outcomeId);
+
+  /**
+   * Whether this type can be concluded at all.
+   *
+   * One generic question, asked of the configuration — never a rule about Legal, Deceased or
+   * Dispute specifically. Before this, the Complete action was offered for types with no
+   * outcomes at all, and completing then changed the status with nothing recorded against it.
+   */
+  const concluding = concludability(catalogue === 'answered' ? outcomes.length : undefined);
+  // Completion is offered only on an answered catalogue with something in it; an unknown one is
+  // not permission, because the domain's zero-outcome rule cannot apply to a count nobody has.
+  const canConclude = catalogue === 'answered' && concluding.available;
   const status = loaded?.status;
   const isImmutable = status === 'Completed' || status === 'Cancelled';
 
@@ -191,6 +211,9 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
       { id: activityId, version: loaded.version },
       {
         currentStatus: loaded.status,
+        // What the type actually offers. Zero is a configuration fact (KI-131), and the domain
+        // refuses on it rather than completing an activity with nothing recorded against it.
+        configuredOutcomeCount: outcomes.length,
         ...(outcome ? { outcome } : {}),
         notes,
         ...(followUpDate ? { followUpDate: new Date(followUpDate).toISOString() } : {}),
@@ -216,7 +239,7 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
       footer={
         <ActivityFooter
           mode={mode} busy={save.busy} immutable={isImmutable} completing={completing}
-          canComplete={Boolean(loaded) && !isImmutable}
+          canComplete={Boolean(loaded) && !isImmutable && canConclude}
           onClose={onClose}
           onCreate={() => void handleCreate()}
           onUpdate={handleUpdate}
@@ -238,6 +261,18 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
         <>
           <SaveStatus state={save.state} onReload={mode === 'edit' ? () => void load() : undefined} testId="activity-dialog" />
 
+          {!isImmutable && !completing && loaded && !concluding.available && (
+            <div className="info-banner" data-testid="conclude-unavailable">
+              <Icon name="info" />
+              <div>{concluding.reason}</div>
+            </div>
+          )}
+          {!isImmutable && !completing && loaded && catalogue === 'unreadable' && (
+            <div className="info-banner" data-testid="outcomes-unreadable">
+              <Icon name="info" />
+              <div>The outcomes for this activity type could not be read just now, so completion is not offered.</div>
+            </div>
+          )}
           {!isImmutable && !completing && loaded && (
             <div className="info-banner" data-testid="activity-complete-hint">
               <Icon name="info" />
@@ -259,6 +294,13 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
             </div>
           )}
 
+          {isConcernTypeCode(types.find(type => type.id === activityTypeId)?.code) && (
+            <div className="info-banner" data-testid="activity-dispute-notice">
+              <Icon name="info" />
+              <div>{DISPUTE_LOGGING_NOTICE}</div>
+            </div>
+          )}
+
           <FieldGrid>
             {loaded && <ReadOnlyField label="Status" value={<StatusPill status={loaded.statusLabel} />} />}
 
@@ -272,6 +314,7 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
               refusal={save.refusalFor('activityTypeId')}
               hint={mode === 'edit' ? 'Set when the action was logged.' : 'From configuration.'}
             />
+
 
             <TextField
               label="Subject" required testId="activity-subject"
@@ -300,7 +343,7 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
                 value={outcomeId} onChange={setOutcomeId} disabled={save.busy}
                 choices={outcomes.map(row => ({ value: row.id, label: row.name, disabled: !row.isActive }))}
                 refusal={save.refusalFor('outcome')}
-                hint={outcomes.length === 0 ? 'No outcome is configured for this activity type.' : 'From configuration.'}
+                hint={concluding.available ? 'From configuration.' : concluding.reason}
               />
             )}
 

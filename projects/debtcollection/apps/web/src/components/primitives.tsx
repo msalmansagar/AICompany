@@ -284,7 +284,11 @@ export function PendingPhaseNotice({ view }: { view: ViewDefinition }) {
     <div className="phase-notice" data-testid={`pending-${view.id}`} data-owning-phase={view.phase}>
       <Icon name="info" />
       <div>
-        <strong>Not yet implemented — Phase {view.phase} owns this.</strong>
+        <strong>
+          {view.isParked
+            ? 'Parked by QDB — nothing is being built here until QDB resumes it.'
+            : `Not yet implemented — Phase ${view.phase} owns this.`}
+        </strong>
         {view.pendingSummary && <p>{view.pendingSummary}</p>}
         <p className="hint">
           The screen and its place in the workspace are preserved from the approved design. No data is

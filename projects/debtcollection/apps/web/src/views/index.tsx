@@ -321,7 +321,9 @@ export function PendingView({ view }: { view: ViewDefinition }) {
       <Card title={view.label}>
         <EmptyState
           icon={view.icon}
-          message={`${view.label} is part of Phase ${view.phase}. The screen is preserved here so the approved workspace is complete; its behaviour arrives with that phase.`}
+          message={view.isParked
+            ? `${view.label} is parked by QDB. The screen is preserved here so the approved workspace is complete; nothing further arrives until QDB resumes it.`
+            : `${view.label} is part of Phase ${view.phase}. The screen is preserved here so the approved workspace is complete; its behaviour arrives with that phase.`}
         />
       </Card>
     </div>

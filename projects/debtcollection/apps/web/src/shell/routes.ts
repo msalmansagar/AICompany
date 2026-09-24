@@ -30,6 +30,11 @@ export interface ViewDefinition {
   phase: OwningPhase;
   /** Shown on a future-phase view so the reader knows what it will do, and that it does not yet. */
   pendingSummary?: string;
+  /**
+   * Stopped by QDB rather than waiting on a phase. A parked view is still not implemented, but it
+   * must never claim that its owning phase will deliver it.
+   */
+  isParked?: boolean;
 }
 
 export const VIEWS: readonly ViewDefinition[] = [
@@ -73,31 +78,17 @@ export const VIEWS: readonly ViewDefinition[] = [
   },
 
   // ── Workout ────────────────────────────────────────────────────────────────
+  // Disputes, Legal Hand-off and Deceased & Claims open the operational queue on their own process
+  // (Phase 9). What each can and cannot do is said by the view itself; see `workoutQueueView.tsx`.
+  { id: 'disputes', label: 'Disputes', icon: 'dispute', group: 'Workout', badge: 'openDisputes', phase: 9 },
   {
-    id: 'disputes', label: 'Disputes', icon: 'dispute', group: 'Workout', badge: 'openDisputes', phase: 9,
-    pendingSummary: 'A dedicated disputes workspace is Phase 9. Recording a collection dispute is ' +
-      'delivered already — log an action on the case and choose the dispute type. A formal complaint ' +
-      'is a Case in QDB\'s own complaint process: this workspace shows one and links to it, and ' +
-      'raising one is done by the complaints team, not from here.',
+    id: 'restructure', label: 'Restructuring', icon: 'restructure', group: 'Workout', phase: 9, isParked: true,
+    pendingSummary: 'Restructuring is parked by QDB, not cancelled. QDB handles it as Facility ' +
+      'Amendment, and nothing further is built here until QDB resumes it. A restructuring ' +
+      'recommendation raised by an officer appears in Work Queues today.',
   },
-  {
-    id: 'restructure', label: 'Restructuring', icon: 'restructure', group: 'Workout', phase: 9,
-    pendingSummary: 'Restructuring is parked, not cancelled. QDB handles it as Facility Amendment, and the hand-off waits on QDB confirmation (KI-114). A restructuring recommendation raised by an officer appears in Work Queues today.',
-  },
-  {
-    id: 'legal', label: 'Legal Hand-off', icon: 'legal', group: 'Workout', phase: 9,
-    pendingSummary: 'A dedicated legal workspace is Phase 9. Following a legal request through ' +
-      'QDB\'s own process is delivered already and shown on the case. Sending a case to legal is ' +
-      'not available to anyone until QDB defines which cases qualify (KI-109).',
-  },
-  {
-    id: 'claims', label: 'Deceased & Claims', icon: 'shield', group: 'Workout', phase: 9,
-    pendingSummary: 'Recording a deceased review is delivered already, on the case\'s Actions tab; ' +
-      'it marks an indication to verify, never a confirmed death, and changes nothing else. ' +
-      'Insurance claims are not built, because no credit-life process was found to build against ' +
-      '(KI-125). The FR-097 contact hold still awaits QDB confirmation of its authoritative source ' +
-      '(KI-44).',
-  },
+  { id: 'legal', label: 'Legal Hand-off', icon: 'legal', group: 'Workout', phase: 9 },
+  { id: 'claims', label: 'Deceased & Claims', icon: 'shield', group: 'Workout', phase: 9 },
 
   // ── Oversight ──────────────────────────────────────────────────────────────
   {
@@ -159,6 +150,8 @@ const IMPLEMENTED: ReadonlySet<string> = new Set([
   'rules', 'actionplan', 'ptp', 'dashboards', 'admin', 'audit',
   // Phase 7.
   'comms',
+  // Phase 9 — each opens the operational queue on its own process.
+  'disputes', 'legal', 'claims',
 ]);
 
 /** True when the view's functionality has not been built yet. */

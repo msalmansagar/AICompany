@@ -124,8 +124,42 @@ describe('every Phase 5 view in the route table has an implementation', () => {
   // Pending now means "not built", not "owned by a later phase". Phase 7 delivered the
   // Communication Centre, so it is routed and no longer shows a notice — while still being a
   // Phase 7 view, which is what the route table records.
-  it('has seven views still to build, as the matrix states', () => {
-    expect(VIEWS.filter(isPending)).toHaveLength(7);
+  it('has four views still to build, as the matrix states', () => {
+    expect(VIEWS.filter(isPending)).toHaveLength(4);
+  });
+
+  /**
+   * Phase 9 delivers the Workout entries as the operational queue opened on their own process, and
+   * each says what is possible there — including what is not. Legal must never read as a hand-off.
+   */
+  it.each([
+    ['disputes', /changes nothing about collection/],
+    ['legal', /No recommendation is handed to Legal/],
+    ['claims', /Insurance claims are not offered/],
+  ])('opens %s as a working queue that says what it cannot do', async (id, limitation) => {
+    await openView(id);
+
+    const view = await screen.findByTestId(`workout-queue-${id}`);
+
+    expect(view.textContent).toMatch(limitation);
+  });
+
+  /** Controls for functionality that does not exist are not offered, even disabled. */
+  it('offers no Refer to legal or Propose restructure command', async () => {
+    await openView('restructure');
+    await screen.findByTestId('cmd-log-action');
+
+    expect([screen.queryByTestId('cmd-refer-to-legal'), screen.queryByTestId('cmd-propose-restructure')])
+      .toEqual([null, null]);
+  });
+
+  it('says restructuring is parked by QDB, not waiting on a phase', async () => {
+    await openView('restructure');
+
+    const notice = await screen.findByTestId('pending-restructure');
+
+    expect(notice.textContent).toContain('Parked by QDB');
+    expect(notice.textContent).not.toMatch(/Phase 9 owns/);
   });
 
   for (const view of VIEWS.filter(isPending)) {
@@ -200,24 +234,31 @@ describe('the Case Workspace keeps all seven approved tabs', () => {
   it('shows no data on a later-phase tab', async () => {
     await openView('case', 'c-1');
     await screen.findByTestId('view-case');
-    await userEvent.click(screen.getByTestId('case-pivot-tab-workout'));
+    await userEvent.click(screen.getByTestId('case-pivot-tab-documents'));
     expect(screen.queryByTestId('case-actions')).toBeNull();
-    expect((await screen.findByTestId('pending-panel-9')).textContent).toContain('none would be real');
+    expect((await screen.findByTestId('pending-panel-7')).textContent).toContain('none would be real');
   });
 
   /**
-   * The workout tab told an officer that no entity existed for legal, disputes or claims, on the
-   * very case where all three were already being recorded. A later-phase tab may say a screen is
-   * not built; it may not deny the capability.
+   * The workout tab once told an officer that no entity existed for legal, disputes or claims, on
+   * the very case where all three were already being recorded. Phase 9 delivers the tab: it states
+   * what each process supports, and a delivered capability must read as available there.
    */
   it('does not deny capability the case already has', async () => {
     await openView('case', 'c-1');
     await screen.findByTestId('view-case');
     await userEvent.click(screen.getByTestId('case-pivot-tab-workout'));
 
-    const panel = await screen.findByTestId('pending-panel-9');
-    expect(panel.textContent).not.toMatch(/no entity exists/i);
-    expect(panel.textContent).toContain('delivered already');
+    const matrix = await screen.findByTestId('advanced-processes');
+    expect(matrix.textContent).not.toMatch(/no entity exists/i);
+    expect(within(matrix).getByTestId('process-aspect-legal-record').dataset['capability']).toBe('Actionable');
+  });
+
+  it('no longer marks Workout & Legal as a later phase', async () => {
+    await openView('case', 'c-1');
+    await screen.findByTestId('view-case');
+
+    expect(screen.getByTestId('case-pivot-tab-workout').getAttribute('data-pending-phase')).toBeNull();
   });
 
   it('refuses to invent a case that does not resolve', async () => {

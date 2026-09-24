@@ -1,10 +1,10 @@
 import {
   toComplaintRow, toDisputeRow,
-  type CaseTypeResolution, type CollectionDispute, type ConcernRow,
+  type CaseTypeResolution, type CollectionDispute, type ConcernRow, type Page,
 } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import { ACTIVITY_COLUMNS, ENTITY_SETS } from './schema.js';
-import { escapeOData, mapPage } from './collectionQueries.js';
+import { CASE_CARD_PAGE_SIZE, escapeOData, mapPage } from './collectionQueries.js';
 import { toActivityRow, type ActivityRow } from './caseQueries.js';
 import { loadActivityTypes } from './configurationCatalog.js';
 import { loadComplaintCase, loadComplaintCaseType } from './complaintQueries.js';
@@ -56,6 +56,8 @@ export interface CaseConcerns {
   complaints: readonly ConcernRow[];
   /** Resolved once from metadata, so the UI can say whether raising one is even possible. */
   caseType: CaseTypeResolution;
+  /** Whether the case holds more concern activities than one card reads. */
+  hasMore: boolean;
 }
 
 /**
@@ -74,13 +76,13 @@ export async function loadCaseConcerns(
     loadComplaintCaseType(adapter),
     readConcernTypeIds(adapter),
   ]);
-  const activities = await readConcernActivities(adapter, caseId, concernTypeIds);
+  const page = await readConcernActivities(adapter, caseId, concernTypeIds);
 
   const formatDate = (iso: string) => iso.slice(0, 10);
   const disputes: ConcernRow[] = [];
   const complaints: ConcernRow[] = [];
 
-  for (const activity of activities) {
+  for (const activity of page.items) {
     if (!activity.complaintCaseId) {
       disputes.push(toDisputeRow(toCollectionDispute(activity), formatDate));
       continue;
@@ -88,7 +90,7 @@ export async function loadCaseConcerns(
     complaints.push(await toComplaintConcernRow(adapter, activity, formatDate));
   }
 
-  return { disputes, complaints, caseType };
+  return { disputes, complaints, caseType, hasMore: page.hasMore };
 }
 
 /**
@@ -141,7 +143,7 @@ async function readConcernActivities(
   adapter: XrmCrmAdapter,
   caseId: string,
   concernTypeIds: ReadonlySet<string>,
-): Promise<readonly ActivityRow[]> {
+): Promise<Page<ActivityRow>> {
   const typeClause = [...concernTypeIds]
     .map(id => `_qdb_activitytypeid_value eq ${escapeOData(id)}`)
     .join(' or ');
@@ -152,10 +154,22 @@ async function readConcernActivities(
   return mapPage(
     await adapter.retrievePage(ENTITY_SETS.collectionActivity, {
       select: [...ACTIVITY_COLUMNS],
-      pageSize: 100,
+      pageSize: CASE_CARD_PAGE_SIZE,
       sort: [{ field: 'createdon', descending: true }],
       filter: `_qdb_collectioncaseid_value eq ${escapeOData(caseId)} and ${concernSide}`,
     }),
     toActivityRow,
-  ).items;
+  );
+}
+
+/**
+ * The concern type, for asking whether a dispute or complaint activity can be concluded.
+ *
+ * Disputes and complaints share one configured type on this organisation — the label reads
+ * *Complaint / Dispute* — so one id answers for both cards. What separates the two concepts is the
+ * Complaint link, never the type.
+ */
+export async function findConcernTypeId(adapter: XrmCrmAdapter): Promise<string | undefined> {
+  const ids = await readConcernTypeIds(adapter);
+  return [...ids][0];
 }

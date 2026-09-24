@@ -131,3 +131,25 @@ export function queueBucketFor(state: LegalWorkStateName): LegalQueueBucket | nu
 export function isCurrentLegalWork(state: LegalWorkState): boolean {
   return state.isCurrent;
 }
+
+/**
+ * What a blocked recommendation is waiting on, for the officer who sees it (WP4).
+ *
+ * The state label says *that* a hand-off is blocked; this says *on what*, so an officer can tell a
+ * recommendation nobody has acted on from one that nobody here is able to act on. Both sentences
+ * name who moves it forward and neither offers the officer a step, because there is none — the
+ * qualification rule is QDB's (KI-109), and the customer link is not something this workspace may
+ * create or guess (KI-108).
+ */
+const WAIT_EXPLANATION: Readonly<Partial<Record<LegalWorkStateName, string>>> = {
+  QualificationPending:
+    'QDB has not yet set what qualifies a recommendation for litigation, so no Legal request is '
+    + 'raised from here. The recommendation stays on record until that rule exists.',
+  CustomerResolutionRequired:
+    'Legal requests are raised against a customer account, and this customer does not resolve to '
+    + 'one. Nothing is raised until it does, and no account is created or guessed in its place.',
+};
+
+export function explainLegalWait(state: LegalWorkStateName): string | undefined {
+  return WAIT_EXPLANATION[state];
+}

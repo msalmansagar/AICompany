@@ -155,8 +155,11 @@ export function NavRail({ views, activeId, onNavigate }: {
                   <Icon name={view.icon} />
                   <span>{view.label}</span>
                   {isPending(view) && (
-                    <span className="nav-count" title={`Phase ${view.phase} owns this functionality`}>
-                      P{view.phase}
+                    <span
+                      className="nav-count"
+                      title={view.isParked ? 'Parked by QDB' : `Phase ${view.phase} owns this functionality`}
+                    >
+                      {view.isParked ? 'Parked' : `P${view.phase}`}
                     </span>
                   )}
                 </button>

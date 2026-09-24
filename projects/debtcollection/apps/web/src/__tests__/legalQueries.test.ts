@@ -165,7 +165,7 @@ describe('a case’s Legal picture is narrowed by the platform', () => {
 
   it('reads no Legal record at all when nothing is linked', async () => {
     const { adapter, requested } = adapterReturning({ rows });
-    const traces = await loadCaseLegalTraces(adapter, CASE);
+    const { rows: traces } = await loadCaseLegalTraces(adapter, CASE);
 
     /*
      * Since WP14 the state is DERIVED rather than passed in, so an unlinked recommendation on this
@@ -187,7 +187,7 @@ describe('a case’s Legal picture is narrowed by the platform', () => {
       legalRead: { status: 200, record: { qdb_name: 'LEG-9', [`statuscode${FORMATTED}`]: 'Closed' } },
     });
 
-    const traces = await loadCaseLegalTraces(adapter, CASE);
+    const { rows: traces } = await loadCaseLegalTraces(adapter, CASE);
 
     expect(traces[0]!.trace.state).toBe('LitigationVisible');
     expect(traces[0]!.trace.litigation?.reference).toBe('LEG-9');
@@ -203,7 +203,7 @@ describe('a case’s Legal picture is narrowed by the platform', () => {
       legalRead: { status: 403 },
     });
 
-    const traces = await loadCaseLegalTraces(adapter, CASE);
+    const { rows: traces } = await loadCaseLegalTraces(adapter, CASE);
 
     expect(traces[0]!.trace.state).toBe('LitigationNotVisible');
     expect(traces[0]!.trace.label).toMatch(/raised/i);
@@ -222,7 +222,7 @@ describe('a case’s Legal picture is narrowed by the platform', () => {
       legalRead: { status: 200, record: { qdb_name: 'LEG-9' } },
     });
 
-    expect((await loadCaseLegalTraces(adapter, CASE))[0]!.trace.state).toBe('LitigationVisible');
+    expect((await loadCaseLegalTraces(adapter, CASE)).rows[0]!.trace.state).toBe('LitigationVisible');
   });
 
   it('falls back to the link clause alone when no Legal type is configured', async () => {

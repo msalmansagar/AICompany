@@ -344,6 +344,9 @@ export {
   planCreateActivity,
   planUpdateActivity,
   planCompleteActivity,
+  concludability,
+  NO_OUTCOMES_CONFIGURED,
+  type ConcludeAvailability,
   planActivityTransition,
   planFollowUp,
   planCreatePromise,
@@ -519,6 +522,7 @@ export type { ActionPlanInput, ActionPlanItem } from './actionPlanItem.js';
 // ── Phase 8 — Legal hand-off (WP9) ───────────────────────────────────────────
 export {
   decideLegalHandoff,
+  isQualificationConfigured,
   interpretHandoffWrite,
   litigationRequestId,
   remainsAvailable,
@@ -545,6 +549,7 @@ export type {
 // ── Phase 8 — Collection-side Legal state (WP14) ────────────────────────────
 export {
   describeLegalWork,
+  explainLegalWait,
   isCurrentLegalWork,
   queueBucketFor,
 } from './legalWorkState.js';
@@ -554,6 +559,7 @@ export type {
 
 // ── Phase 8 — Collection Dispute vs Customer Complaint (WP13) ────────────────
 export {
+  DISPUTE_LOGGING_NOTICE,
   describeDisputedSubject,
   effectsOfRaisingComplaint,
   effectsOfRecordingDispute,
@@ -613,3 +619,9 @@ export {
 export type {
   OperationalBucket, WorkCount, WorkItem, WorkType,
 } from './operationalWork.js';
+
+// ── Phase 9 — advanced-process capability matrix (WP6) ───────────────────────
+export { describeAdvancedProcesses } from './advancedProcessState.js';
+export type {
+  AdvancedProcess, AdvancedProcessEvidence, ProcessAspect, ProcessCapability,
+} from './advancedProcessState.js';

@@ -73,11 +73,15 @@ const COLUMNS: readonly DataGridColumn<WorkItem>[] = [
   { key: 'state', header: 'State', width: '180px', render: item => item.domainState ?? '—' },
 ];
 
-export function MyWorkView({ onOpenCase }: { onOpenCase?: (id: string) => void }) {
+export function MyWorkView({ onOpenCase, initialBucket = 'MyAssigned' }: {
+  onOpenCase?: (id: string) => void;
+  /** The bucket to open on — a Workout view opens straight onto its own process. */
+  initialBucket?: OperationalBucket;
+}) {
   const { adapter, context } = useCrmSession();
   // Read from the platform's own context, never assumed or passed in.
   const userId = context.userId;
-  const [bucket, setBucket] = useState<OperationalBucket>('MyAssigned');
+  const [bucket, setBucket] = useState<OperationalBucket>(initialBucket);
   const [search, setSearch] = useState('');
   const [typeIds, setTypeIds] = useState<TypeIds | null>(null);
   const [counts, setCounts] = useState<Partial<Record<OperationalBucket, WorkCount>>>({});

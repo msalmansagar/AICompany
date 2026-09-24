@@ -13,6 +13,7 @@ import { Customer360View } from './views/Customer360.js';
 import { ActionPlanView, SegmentationView, StrategyRulesView } from './views/strategyViews.js';
 import { DashboardsView, DelinquencyIntakeView, PromiseToPayView } from './views/operationsViews.js';
 import { ConfigurationView } from './views/ConfigurationView.js';
+import { WorkoutQueueView } from './views/workoutQueueView.js';
 import './styles/tokens.css';
 import './styles/components.css';
 import './styles/uci.css';
@@ -122,6 +123,10 @@ function ViewHost({
     case 'dashboards': return <DashboardsView view={view} />;
     case 'admin': return <ConfigurationView view={view} />;
     case 'audit': return <AuditView />;
+    case 'disputes':
+    case 'legal':
+    case 'claims':
+      return <WorkoutQueueView viewId={view.id} onOpenCase={onOpenCase} />;
     case 'comms': {
       // `#comms/bulk` and `#comms/bulk/<runId>` are the bulk tab; anything else in that position is
       // a case id. A case id is always a GUID, so the two can never be confused.
@@ -188,8 +193,11 @@ function Commands({ view, recordId, go }: {
           : { disabledReason: 'Open a case to capture a promise against it' })}
       />
       <Command icon="send" label="Send message" pendingPhase={7} />
-      <Command icon="restructure" label="Propose restructure" pendingPhase={9} />
-      <Command icon="legal" label="Refer to legal" pendingPhase={9} />
+      {/*
+        * No "Propose restructure" or "Refer to legal" here (Phase 9). Restructuring is parked by QDB
+        * and a Legal hand-off waits on QDB's qualification rule, so both would be controls for
+        * functionality that does not exist. The Workout & Legal tab says why.
+        */}
       <Command icon="escalate" label="Escalate" pendingPhase={8} />
       <Command icon="copilot" label="Copilot" pendingPhase={10} />
       {view.id === 'cases' && <Command icon="excel" label="Export" pendingPhase={10} />}
