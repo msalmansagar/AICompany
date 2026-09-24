@@ -1,0 +1,150 @@
+/*
+ * Workspace V2 — design tokens.
+ *
+ * Declared on `.dcp-v2`, never on `:root`: V1 keeps its own tokens and themes, and nothing here can
+ * reach it. Values come from the V2 reference (navy navigation, a calm blue-grey canvas, white
+ * surfaces, one accent) and are named by role so no component hard-codes a colour.
+ */
+.dcp-v2 {
+  /* Typography */
+  --v2-font: "Segoe UI", "Segoe UI Web (West European)", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --v2-fs-2xs: 10.5px;
+  --v2-fs-xs: 11.5px;
+  --v2-fs-sm: 12.5px;
+  --v2-fs-base: 13px;
+  --v2-fs-md: 14px;
+  --v2-fs-lg: 16px;
+  --v2-fs-xl: 19px;
+  --v2-fs-2xl: 21px;
+  --v2-fw-regular: 400;
+  --v2-fw-medium: 500;
+  --v2-fw-semibold: 600;
+  --v2-fw-bold: 700;
+  --v2-lh-tight: 1.2;
+  --v2-lh-base: 1.45;
+
+  /* Surfaces and text */
+  --v2-canvas: #EDF1F7;
+  --v2-surface: #FFFFFF;
+  --v2-surface-alt: #F7F9FD;
+  --v2-surface-sunken: #F4F7FC;
+  --v2-hover: #F4F7FC;
+  --v2-selected: #EDF3FC;
+  --v2-border: #D9E1EC;
+  --v2-divider: #E6ECF5;
+  --v2-divider-soft: #EDF1F7;
+  --v2-text: #0F1B3D;
+  --v2-text-strong: #22355F;
+  --v2-text-2: #41527A;
+  --v2-text-muted: #5B6B8C;
+  --v2-text-disabled: #98A4BC;
+
+  /* Brand and action */
+  --v2-primary: #0F1B3D;
+  --v2-primary-hover: #1B2C58;
+  --v2-accent: #4F91E8;
+  --v2-accent-strong: #2A6FC9;
+  --v2-accent-soft: #D2E5FC;
+  --v2-accent-ink: #173163;
+  --v2-link: #2A6FC9;
+
+  /* Navigation */
+  --v2-nav: #0F1B3D;
+  --v2-nav-hover: #1B2C58;
+  --v2-nav-active: #2A6FC9;
+  --v2-nav-card: #18294F;
+  --v2-nav-text: #B9CBE8;
+  --v2-nav-section: #7793C4;
+  --v2-nav-subtle: #8FAEDC;
+
+  /* Semantic states — always paired with text, never colour alone */
+  --v2-success: #1F5C42;
+  --v2-success-bg: #E7F3EC;
+  --v2-warning: #7A4F00;
+  --v2-warning-bg: #FDF3E0;
+  --v2-danger: #96271B;
+  --v2-danger-strong: #B3302B;
+  --v2-danger-bg: #FBE9E7;
+  --v2-info: #173163;
+  --v2-info-bg: #D2E5FC;
+  --v2-neutral: #41527A;
+  --v2-neutral-bg: #F0F3F8;
+
+  /* Delinquency buckets, from the reference */
+  --v2-bucket-1: #2A6FC9;
+  --v2-bucket-2: #1F5CB0;
+  --v2-bucket-3: #9A6410;
+  --v2-bucket-4: #B45A1E;
+  --v2-bucket-5: #B3302B;
+
+  /* Layout */
+  --v2-space-1: 4px;
+  --v2-space-2: 8px;
+  --v2-space-3: 12px;
+  --v2-space-4: 16px;
+  --v2-space-5: 20px;
+  --v2-space-6: 24px;
+  --v2-space-8: 32px;
+  --v2-gutter: clamp(14px, 2.2vw, 26px);
+  --v2-control-sm: 28px;
+  --v2-control: 32px;
+  --v2-control-lg: 36px;
+  --v2-radius-sm: 4px;
+  --v2-radius: 6px;
+  --v2-radius-lg: 10px;
+  --v2-shadow-1: 0 1px 2px rgba(15, 27, 61, .10);
+  --v2-shadow-2: 0 8px 30px rgba(15, 27, 61, .18);
+  --v2-shadow-dialog: 0 20px 60px rgba(15, 27, 61, .35);
+  --v2-focus-ring: 0 0 0 2px #FFFFFF, 0 0 0 4px #4F91E8;
+  --v2-nav-width: 236px;
+  --v2-nav-rail: 64px;
+  --v2-z-header: 20;
+  --v2-z-nav: 50;
+  --v2-z-overlay: 60;
+  --v2-z-dialog: 70;
+  --v2-z-toast: 80;
+}
+
+/*
+ * The token bridge.
+ *
+ * V2 reuses V1 leaf components that carry business rules — the activity and promise dialogs, the
+ * Communication Centre, the Phase 9 cards — rather than copying them. Those components read V1's
+ * variables. Redefining the variables here, inside `.dcp-v2` only, gives them the V2 palette with no
+ * edit to V1 and no effect on V1: custom properties inherit, and outside `.dcp-v2` V1's own values
+ * (and its themes) stand.
+ */
+.dcp-v2 {
+  --font: var(--v2-font);
+  --primary: var(--v2-accent-strong);
+  --primary-hover: #1F5CB0;
+  --primary-pressed: var(--v2-accent-ink);
+  --primary-tint: var(--v2-accent-soft);
+  --primary-tint-2: var(--v2-selected);
+  --bg: var(--v2-canvas);
+  --surface: var(--v2-surface);
+  --surface-alt: var(--v2-surface-alt);
+  --nav-bg: var(--v2-surface-alt);
+  --border: var(--v2-divider);
+  --border-strong: var(--v2-border);
+  --border-input: #B7C4D8;
+  --text: var(--v2-text);
+  --text-secondary: var(--v2-text-muted);
+  --text-disabled: var(--v2-text-disabled);
+  --success: var(--v2-success);
+  --success-bg: var(--v2-success-bg);
+  --warning: var(--v2-warning);
+  --warning-bg: var(--v2-warning-bg);
+  --error: var(--v2-danger);
+  --error-bg: var(--v2-danger-bg);
+  --info: var(--v2-info);
+  --info-bg: var(--v2-info-bg);
+  --neutral-chip: var(--v2-neutral-bg);
+  --shadow-8: var(--v2-shadow-1);
+  --shadow-16: 0 3px 10px rgba(15, 27, 61, .14);
+  --shadow-64: var(--v2-shadow-dialog);
+  --radius: var(--v2-radius);
+  --radius-lg: var(--v2-radius-lg);
+  --field-bg: var(--v2-surface);
+  --app-bg-image: none;
+}

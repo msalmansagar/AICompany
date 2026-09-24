@@ -1,0 +1,62 @@
+/*
+ * Workspace V2 — base.
+ *
+ * V1 sets a handful of global rules (`body`, `h1–h4`, `a`, `button`). Inside `.dcp-v2` they are
+ * restated for V2, so V2 never depends on V1's globals — and V2 declares none of its own.
+ */
+.dcp-v2 {
+  font-family: var(--v2-font);
+  font-size: var(--v2-fs-base);
+  line-height: var(--v2-lh-base);
+  color: var(--v2-text);
+  background: var(--v2-canvas);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.dcp-v2 *,
+.dcp-v2 *::before,
+.dcp-v2 *::after { box-sizing: border-box; }
+
+.dcp-v2 h1,
+.dcp-v2 h2,
+.dcp-v2 h3,
+.dcp-v2 h4 { margin: 0; font-weight: var(--v2-fw-semibold); letter-spacing: -.01em; }
+
+.dcp-v2 a { color: var(--v2-link); text-decoration: none; }
+.dcp-v2 a:hover { color: var(--v2-text); text-decoration: underline; }
+
+.dcp-v2 button,
+.dcp-v2 input,
+.dcp-v2 select,
+.dcp-v2 textarea { font-family: inherit; }
+
+.dcp-v2 :focus-visible { outline: none; box-shadow: var(--v2-focus-ring); border-radius: var(--v2-radius-sm); }
+
+.dcp-v2 .v2-visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* Buttons — one family, three weights of emphasis. */
+.dcp-v2 .v2-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: var(--v2-control);
+  padding: 0 12px; border-radius: var(--v2-radius); border: 1px solid var(--v2-border);
+  background: var(--v2-surface); color: var(--v2-text-strong);
+  font-size: var(--v2-fs-sm); font-weight: var(--v2-fw-semibold); cursor: pointer; white-space: nowrap;
+}
+.dcp-v2 .v2-btn:hover:not(:disabled) { background: var(--v2-hover); }
+.dcp-v2 .v2-btn:disabled { color: var(--v2-text-disabled); cursor: not-allowed; }
+.dcp-v2 .v2-btn.v2-btn-primary { background: var(--v2-primary); border-color: var(--v2-primary); color: #FFFFFF; }
+.dcp-v2 .v2-btn.v2-btn-primary:hover:not(:disabled) { background: var(--v2-primary-hover); }
+.dcp-v2 .v2-btn.v2-btn-primary:disabled { background: var(--v2-neutral-bg); border-color: var(--v2-border); color: var(--v2-text-disabled); }
+.dcp-v2 .v2-btn.v2-btn-subtle { border-color: transparent; background: transparent; font-weight: var(--v2-fw-medium); }
+.dcp-v2 .v2-btn.v2-btn-subtle:hover:not(:disabled) { background: var(--v2-hover); }
+.dcp-v2 .v2-btn .v2-btn-icon { display: flex; color: var(--v2-link); }
+.dcp-v2 .v2-btn.v2-btn-primary .v2-btn-icon { color: inherit; }
+
+/* The one line shown above V1 when V2 could not render. A small island, not a V2 page. */
+.dcp-v2.v2-fallback {
+  min-height: 0; padding: 8px 16px; background: var(--v2-warning-bg); color: var(--v2-warning);
+  border-bottom: 1px solid var(--v2-border); font-size: var(--v2-fs-sm); font-weight: var(--v2-fw-semibold);
+}
