@@ -18,11 +18,14 @@ const WAIT = 5000;
 const CASE_ID = 'case-1';
 const NEXT_LINK = 'https://org5869857f.crm4.dynamics.com/api/data/v9.2/qdb_collectionactivities?$skiptoken=next';
 
+/** The page size each activity read asked the platform for, in the order asked. */
+let requestedPageSizes: (number | undefined)[] = [];
+
 function platform(typeCode: 'P6-LEGALREC' | 'P6-DISPUTE', isMore: boolean): XrmLike {
   return {
     WebApi: {
       retrieveRecord: async () => ({}),
-      retrieveMultipleRecords: async (logicalName: string) => {
+      retrieveMultipleRecords: async (logicalName: string, _options?: string, maxPageSize?: number) => {
         if (logicalName === 'qdb_collectionactivitytype') {
           return {
             entities: [{
@@ -31,6 +34,7 @@ function platform(typeCode: 'P6-LEGALREC' | 'P6-DISPUTE', isMore: boolean): XrmL
           };
         }
         if (logicalName === 'qdb_collectionactivity') {
+          requestedPageSizes.push(maxPageSize);
           return {
             entities: [{
               activityid: 'activity-1', subject: 'Latest', statecode: 0,
@@ -67,7 +71,19 @@ function renderConcerns(isMore: boolean) {
   );
 }
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); requestedPageSizes = []; });
+
+/** The bound itself, not only the notice: each card asks the platform for one page of 100. */
+describe('the read behind each card', () => {
+  it.each([['Legal', renderLegal, 'case-legal'], ['disputes', renderConcerns, 'case-disputes']] as const)(
+    'asks the platform for at most 100 rows — %s', async (_name, renderCard, testId) => {
+      renderCard(false);
+
+      await screen.findByTestId(testId, {}, { timeout: WAIT });
+
+      expect(requestedPageSizes).toEqual([100]);
+    });
+});
 
 describe('the Legal card', () => {
   it('says when the case holds more than it shows, and where the rest are', async () => {
