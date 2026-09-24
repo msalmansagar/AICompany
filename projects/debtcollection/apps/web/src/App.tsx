@@ -21,6 +21,8 @@ import './styles/phase5.css';
 import './styles/phase6.css';
 import './styles/phase7.css';
 import { toError } from './platform/errors.js';
+import { WorkspaceVersionRoot, useWorkspaceVersion } from './v2/version/WorkspaceVersionRoot.js';
+import { V2Workspace } from './v2/V2Workspace.js';
 
 /**
  * Builds the session the whole workspace runs on.
@@ -65,7 +67,8 @@ export function App() {
     <CrmSessionProvider value={session}>
       <RoleProvider>
         <OrgProvider>
-          <Workspace />
+          {/* V1 stays the default; V2 is chosen only by an explicit, recognised request. */}
+          <WorkspaceVersionRoot renderV1={() => <Workspace />} renderV2={() => <V2Workspace />} />
         </OrgProvider>
       </RoleProvider>
     </CrmSessionProvider>
@@ -201,8 +204,18 @@ function Commands({ view, recordId, go }: {
       <Command icon="escalate" label="Escalate" pendingPhase={8} />
       <Command icon="copilot" label="Copilot" pendingPhase={10} />
       {view.id === 'cases' && <Command icon="excel" label="Export" pendingPhase={10} />}
+      <SwitchToV2Command />
     </>
   );
+}
+
+/**
+ * The temporary way from V1 to the redesigned workspace under review. It changes the presentation
+ * only, in place, and is remembered in this browser.
+ */
+function SwitchToV2Command() {
+  const { switchTo } = useWorkspaceVersion();
+  return <Command icon="popout" label="Workspace V2" onClick={() => switchTo('v2')} />;
 }
 
 /**
