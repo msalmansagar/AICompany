@@ -143,3 +143,5 @@
   display: flex; justify-content: space-between; gap: 12px; padding: 10px 14px;
   border-top: 1px solid var(--v2-divider); font-size: var(--v2-fs-xs); color: var(--v2-text-muted);
 }
+.dcp-v2 .v2-row-link[aria-selected='true'] { background: var(--v2-selected); box-shadow: inset 3px 0 0 var(--v2-accent-strong); }
+.dcp-v2 .v2-chip:disabled { cursor: not-allowed; color: var(--v2-text-disabled); background: var(--v2-surface-sunken); border-style: dashed; }

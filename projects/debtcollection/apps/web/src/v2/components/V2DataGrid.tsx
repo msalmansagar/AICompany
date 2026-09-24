@@ -29,6 +29,7 @@ export function V2DataGrid<T, Q extends object>({
   onRowOpen,
   rowLabel,
   isFiltered = false,
+  selectedKey,
   emptyTitle = 'Nothing here yet.',
   pageSize = 50,
   rowHeight = 44,
@@ -44,6 +45,8 @@ export function V2DataGrid<T, Q extends object>({
   rowLabel?: (item: T) => string;
   /** Whether a search or filter is narrowing the list, which changes what "empty" means. */
   isFiltered?: boolean;
+  /** The row shown as selected, for a list-and-preview layout. */
+  selectedKey?: string | undefined;
   emptyTitle?: string;
   pageSize?: number;
   rowHeight?: number;
@@ -86,6 +89,7 @@ export function V2DataGrid<T, Q extends object>({
           <tr
             className={onRowOpen ? 'v2-row-link' : undefined}
             aria-label={rowLabel?.(item)}
+            aria-selected={selectedKey === undefined ? undefined : rowKey(item) === selectedKey}
             {...(onRowOpen ? rowActivation(() => onRowOpen(item)) : {})}
           >
             {columns.map(column => (

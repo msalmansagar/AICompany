@@ -224,7 +224,13 @@ export function CommandButton({ icon, label, onClick, isPrimary = false, disable
   );
 }
 
-export interface ChipOption { id: string; label: string; count?: string | undefined }
+export interface ChipOption {
+  id: string;
+  label: string;
+  count?: string | undefined;
+  /** Why this option cannot be chosen. The option stays visible, so the officer learns why. */
+  disabledReason?: string | undefined;
+}
 
 /** Single-choice filter chips. The count, when shown, is the source's own answer. */
 export function FilterChips({ label, options, selected, onSelect, testId }: {
@@ -243,6 +249,8 @@ export function FilterChips({ label, options, selected, onSelect, testId }: {
           type="button"
           className="v2-chip"
           aria-pressed={option.id === selected}
+          disabled={Boolean(option.disabledReason)}
+          title={option.disabledReason}
           data-testid={`v2-chip-${option.id}`}
           onClick={() => onSelect(option.id)}
         >
