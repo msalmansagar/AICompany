@@ -237,6 +237,14 @@ describe('every narrowing becomes a filter the source applies', () => {
     expect(buildActivityFilter({ promisesOnly: true })).toBe('qdb_ptpdate ne null');
   });
 
+  it('asks the source for one promise status, when one is chosen', () => {
+    expect(buildActivityFilter({ promisesOnly: true, ptpStatus: 100000083 })).toBe('qdb_ptpdate ne null and qdb_ptpstatus eq 100000083');
+  });
+
+  it('adds no status clause when none is chosen, so existing reads are unchanged', () => {
+    expect(buildActivityFilter({ caseId: 'c-1', promisesOnly: true })).toBe('_qdb_collectioncaseid_value eq c-1 and qdb_ptpdate ne null');
+  });
+
   it('scopes snapshots by case, customer or facility', () => {
     expect(buildSnapshotFilter({ caseId: 'c-1' })).toContain('_qdb_collectioncaseid_value eq c-1');
     expect(buildSnapshotFilter({ facilityNumber: 'HL-1' })).toContain("qdb_facilitynumber eq 'HL-1'");
