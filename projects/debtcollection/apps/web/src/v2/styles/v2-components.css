@@ -1,0 +1,8 @@
+/*
+ * Workspace V2 — reusable components. Page layouts, headers, cards, statuses, grids and states are
+ * added here as the V2 pages that use them are built.
+ */
+.dcp-v2 .v2-card {
+  background: var(--v2-surface); border: 1px solid var(--v2-border); border-radius: var(--v2-radius-lg);
+  overflow: hidden;
+}

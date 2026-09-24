@@ -1,0 +1,49 @@
+/*
+ * Workspace V2 — V1 components shown inside V2.
+ *
+ * V2 reuses V1 components that carry business rules instead of copying them. The token bridge (in
+ * `v2-tokens.css`) gives them the V2 palette; these rules adjust their shape to V2's — softer radius,
+ * V2 dividers, V2 type — and apply **only inside `.dcp-v2`**. V1 outside it is untouched.
+ */
+.dcp-v2 {
+  --dpd-0: var(--v2-success);
+  --dpd-1: var(--v2-bucket-1);
+  --dpd-2: var(--v2-bucket-2);
+  --dpd-3: var(--v2-bucket-3);
+  --dpd-4: var(--v2-bucket-4);
+  --dpd-5: var(--v2-bucket-5);
+  --org-hl: var(--v2-accent-strong);
+}
+
+.dcp-v2 .v2-bridged { display: flex; flex-direction: column; gap: var(--v2-space-4); min-width: 0; }
+
+.dcp-v2 .section-card {
+  border: 1px solid var(--v2-border); border-radius: var(--v2-radius-lg);
+  box-shadow: none; background: var(--v2-surface);
+}
+.dcp-v2 .section-card > h3 { font-size: 13.5px; font-weight: var(--v2-fw-semibold); }
+
+.dcp-v2 table.grid { font-size: var(--v2-fs-sm); }
+.dcp-v2 table.grid thead th {
+  background: var(--v2-surface-alt); color: var(--v2-text-muted);
+  font-size: var(--v2-fs-2xs); font-weight: var(--v2-fw-semibold); letter-spacing: .05em; text-transform: uppercase;
+  border-bottom: 1px solid var(--v2-border);
+}
+.dcp-v2 table.grid tbody td { border-bottom-color: var(--v2-divider-soft); }
+.dcp-v2 table.grid tbody tr:hover { background: var(--v2-hover); }
+
+.dcp-v2 .btn { border-radius: var(--v2-radius); font-size: var(--v2-fs-sm); font-weight: var(--v2-fw-semibold); }
+.dcp-v2 .btn.primary { background: var(--v2-primary); border-color: var(--v2-primary); }
+.dcp-v2 .btn.primary:hover { background: var(--v2-primary-hover); }
+
+.dcp-v2 .pill { border-radius: 5px; font-size: var(--v2-fs-xs); font-weight: var(--v2-fw-semibold); }
+
+.dcp-v2 .info-banner { border-radius: var(--v2-radius); font-size: var(--v2-fs-sm); }
+.dcp-v2 .phase-notice { border-radius: var(--v2-radius-lg); }
+
+.dcp-v2 .kpi-tile { border: 1px solid var(--v2-border); border-radius: var(--v2-radius-lg); box-shadow: none; }
+
+.dcp-v2 .dialog { border-radius: 12px; box-shadow: var(--v2-shadow-dialog); }
+
+.dcp-v2 .fluent-input,
+.dcp-v2 .fluent-select { border-radius: var(--v2-radius); border-color: var(--v2-border); }
