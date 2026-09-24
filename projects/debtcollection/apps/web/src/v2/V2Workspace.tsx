@@ -7,6 +7,7 @@ import './styles/v2-tokens.css';
 import './styles/v2-base.css';
 import './styles/v2-shell.css';
 import './styles/v2-components.css';
+import './styles/v2-pages.css';
 import './styles/v2-bridge.css';
 
 /**
