@@ -172,9 +172,11 @@ configuration or security change arrives mid-phase.
 
 ## Status
 
-**Phase 9 — ENGINEERING AND VALIDATION COMPLETE · READY FOR CLOSURE REVIEW** (2026-09-24 ~11:55 +03).
-Closure pack: `docs/Phase9_Closure.md`. Restructuring and Field Visit **PARKED**; their status does
-not block Phase 9 closure.
+**Phase 9 — CLOSED · Production Readiness Dependencies Outstanding** (closure review 2026-09-24).
+Cloud Runtime Tested · System Administrator Runtime Validated · Collection Officer Runtime Validation
+Pending · Dynamics 365 CE 9.1 On-Prem — Compatible by Design; Phase 9 Runtime Validation Pending.
+Closure pack: `docs/Phase9_Closure.md` (§9 holds the review). Restructuring and Field Visit
+**PARKED**; their status does not block Phase 9 closure.
 
 | WP | State | Commit(s) |
 |---|---|---|
@@ -187,16 +189,18 @@ not block Phase 9 closure.
 | WP7 | Done | `d4c8bc21` |
 | WP8 | Done | `4f43aa6e` |
 | WP9 | Done — Cloud + browser (System Administrator evidence) | `bc509230` |
-| WP10 | Done — **2,019** passing, 0 skipped | — |
-| WP11 | Done | closure commit |
+| WP10 | Done — 2,019 at the engineering candidate | — |
+| WP11 | Done | `1bf3bf89` |
+| Closure review | 1 MEDIUM fixed (KI-136), 1 LOW fixed, 1 LOW carried (KI-137); **2,027** passing, 0 skipped | `1259f6ee`, `94eb2fa5`, review commit |
 
 ### Closure timing
 
 | | |
 |---|---|
 | Engineering complete | 2026-09-24 ~11:55 +03 — ahead of the 18:00 forecast |
-| Elapsed wall-clock | 38.4 h |
-| Effective, measured | **4.76 h** |
-| Non-working, separate | 33.62 h (incl. 14.06 h restart interruption) |
+| Effective engineering, measured | **4.80 h** to 11:55 (4.76 h was reported at 11:52) |
+| Closure review, measured | ~0.6 h |
+| Variance against baseline | **−16.70 h (−77.7%)** — different units; see the closure pack §7 |
+| Non-working, separate | 33.62 h = 19.56 h idle + 14.06 h restart interruption |
 | Blocked by QDB | 0.00 h |
 | Baseline | **21.50 h — unchanged** |

@@ -1,154 +1,158 @@
 # Phase 9 — Advanced Collection Processes · Closure
 
-**Status: Phase 9 — ENGINEERING AND VALIDATION COMPLETE · READY FOR CLOSURE REVIEW.**
-Production readiness still depends on QDB decisions that no Phase 9 code can supply (§5).
+**Phase 9 — CLOSED · Production Readiness Dependencies Outstanding**
 
-Branch `feat/dcp-phase9-advanced-processes` · base `81adc5a7` (`origin/main`, Phases 1–8) ·
-Cloud runtime tested on `org5869857f` · **On-Prem: Compatible by Design; Runtime Validation Pending.**
+| | |
+|---|---|
+| Cloud | **Cloud Runtime Tested** (`org5869857f`) |
+| Browser | **System Administrator Runtime Validated · Collection Officer Runtime Validation Pending** |
+| On-Prem | **Dynamics 365 CE 9.1 On-Prem — Compatible by Design; Phase 9 Runtime Validation Pending** |
 
-**All browser evidence in this phase is System Administrator evidence** (`Mohammad Salman`). No
-Collection Officer account was used, and no officer or security KI is closed on it.
+Branch `feat/dcp-phase9-advanced-processes`, based on `main` @ `81adc5a7`. Closed after the formal
+closure review of 2026-09-24 (§9). **Not merged, no PR.**
+
+**Not claimed:** Restructuring delivered · Field Visit delivered · Insurance Claims delivered · Legal
+hand-off operational · formal Complaint creation operational · verified-deceased workflow complete ·
+Collection Officer validated · production ready.
 
 ---
 
 ## 1. What each process supports now
 
-The same statement the workspace itself makes, on the case's *Workout & Legal* tab, derived from
-live configuration (`describeAdvancedProcesses`).
+As the case's *Workout & Legal* tab states it (`describeAdvancedProcesses`). **How each state is
+decided matters, so it is recorded:** *derived* states are computed from live configuration or from
+the same policy constant the Legal card uses, and change without code when those change; *stated*
+states are fixed descriptions of what the product does or of a QDB decision, and change only with
+code.
 
-| Process | Aspect | State | Basis |
-|---|---|---|---|
-| Legal | Record a recommendation | Available | Log action, P6-LEGALREC |
-| Legal | Hand off to Legal | **Awaiting QDB decision** | KI-109 — no qualification rule; no officer hand-off exists in the product |
-| Legal | Follow the Legal request | Read-only | Legal owns it; status passed through |
-| Legal | Conclude | **Awaiting configuration** | KI-131 — 0 outcomes |
-| Deceased review | Record a review | Available | Review card, idempotent at a derived id (Phase 8) |
-| Deceased review | Conclude | **Awaiting configuration** | KI-131 |
-| Deceased review | Change collection for the indication | **Awaiting QDB decision** | KI-124, KI-127 |
-| Collection dispute | Record a dispute | Available | Log action, P6-DISPUTE — now says it is a dispute, not a complaint |
-| Collection dispute | Conclude | **Awaiting configuration** | KI-131 |
-| Collection dispute | Pause or change collection | **Awaiting QDB decision** | KI-119 |
-| Customer complaint | Follow a complaint | Read-only | Native `incident`, Case Management owns it |
-| Customer complaint | Raise one | **Awaiting QDB decision** | KI-120 |
-| Insurance claims | — | **Deferred** | No authoritative process (KI-125) |
-| Restructuring | — | **Parked by QDB** | KI-114–117; no effort spent |
-| Field visit | — | **Parked by QDB** | Loggable as an action; nothing extended |
+| Process | Aspect | State | How decided | Basis |
+|---|---|---|---|---|
+| Legal | Record a recommendation | Available | stated | Log action, P6-LEGALREC |
+| Legal | Hand off to Legal | **Awaiting QDB decision** | derived — `isQualificationConfigured(LEGAL_QUALIFICATION_POLICY)` | KI-109. Even with a rule it can never become Available: no officer hand-off exists |
+| Legal | Follow the Legal request | Read-only | stated | Legal owns it; status passed through |
+| Legal | Conclude | **Awaiting configuration** | derived — live outcome count | KI-131 |
+| Deceased review | Record a review | Available | stated | Review card, idempotent at a derived id (Phase 8) |
+| Deceased review | Conclude | **Awaiting configuration** | derived | KI-131 |
+| Deceased review | Change collection for the indication | **Awaiting QDB decision** | stated | KI-124, KI-127 |
+| Collection dispute | Record a dispute | Available | stated | Log action, P6-DISPUTE — says it is a dispute, not a Complaint |
+| Collection dispute | Conclude | **Awaiting configuration** | derived | KI-131 |
+| Collection dispute | Pause or change collection | **Awaiting QDB decision** | stated | KI-119 |
+| Customer complaint | Follow a complaint | Read-only | stated | Native `incident`; Case Management owns it |
+| Customer complaint | Raise one | **Awaiting QDB decision** | stated | KI-120 |
+| Insurance claims | — | **Deferred** | stated | Deferred Pending Authoritative QDB Process / Integration Contract (KI-125) |
+| Restructuring / Workout | — | **Parked** | stated | PARKED by QDB · Downstream Integration Deferred (KI-114–117) |
+| Field visit | — | **Parked** | stated | PARKED by QDB · Discovery & Implementation Deferred |
 
-**"Delivered" is kept in four senses, as in Phase 8:** *Contract* (the domain rule), *Product* (the
-screen), *Officer* (usable by a Collection Officer), *Harness* (a smoke performs it). Phase 9 delivers
-Contract and Product for every row above. **Officer is not established for any row** (KI-100, 111,
-120, 128). No Phase 9 capability exists only in a harness.
+**Warning Letters — OUT OF SCOPE / DEFERRED BY QDB.** None of the parked or deferred areas received
+implementation effort, and none blocks Phase 9 engineering closure.
+
+"Delivered" keeps Phase 8's four senses — *Contract*, *Product*, *Officer*, *Harness*. Phase 9
+delivers Contract and Product for every row. **Officer is not established for any row.** No Phase 9
+capability exists only in a harness.
 
 ---
 
-## 2. Work delivered, by package
+## 2. Work delivered
 
 | WP | Delivered | Commit(s) |
 |---|---|---|
 | WP1 | Baseline, reconciliation, Insurance Claims gate (deferred) | `49d972ab` |
-| WP2 | One generic conclusion rule; completion refused where a type has no outcomes | `d246265a` |
+| WP2 | One generic conclusion rule — `planCompleteActivity` refuses `CompletionUnavailable` on a zero-outcome type; the dialog passes the live count | `d246265a` |
 | WP3 | Deceased card says why a review stays open; `useConcludability` | `77d7ad94` |
-| WP4 | Legal card says what a blocked recommendation waits on; no control asserted on the rendered card | `5f41bba9`, `c524b48b` |
-| WP5 | Log action says the combined type records a **Collection Dispute**, not a Complaint | `379e6610`, `7d1b9d5b` |
-| WP6 | *Workout & Legal* tab delivered — capability matrix + the three cards; earlier-episode Legal rows labelled; Workout navigation made truthful; two commands for non-existent functionality removed | `41c0ae7a`, `79121798`, `d1fe62a0`, `5687c317`, `9e90234a` |
-| WP7 | Source-level boundary: no write, bind or hand-off helper touches Legal or Complaint | `d4c8bc21` |
-| WP8 | Case cards say when they hold only the most recent page | `4f43aa6e` |
-| WP9 | Deployed ×3, live smoke, browser QA, fixtures seeded and cleaned | `bc509230` + fixes above |
-| WP10 | Full regression | — |
-| WP11 | This document, KI reconciliation, tracker | this commit |
+| WP4 | Legal card says what a blocked recommendation waits on; no control, asserted on the rendered card | `5f41bba9`, `c524b48b` |
+| WP5 | Log action says the combined type records a **Collection Dispute** | `379e6610`, `7d1b9d5b` |
+| WP6 | *Workout & Legal* tab; earlier-episode Legal rows labelled; Workout navigation opens the queue per process; Restructuring shown parked; *Propose restructure* and *Refer to legal* removed | `41c0ae7a` (pure move, verified), `79121798`, `d1fe62a0`, `5687c317`, `9e90234a` |
+| WP7 | Source sweep: no write, bind or hand-off helper touches Legal or Complaint | `d4c8bc21` |
+| WP8 | Case cards say when they hold only the most recent 100 | `4f43aa6e` |
+| WP9 | Deploys, live smoke, browser QA, fixtures seeded and cleaned | `bc509230` |
+| WP10–11 | Regression; closure documentation and KI reconciliation | `1bf3bf89` |
+| Review | KI-136 fix; 100-row bound asserted | `1259f6ee`, `94eb2fa5` |
 
-**No new entity, column, relationship, choice or security role.** No write path was added: the only
-advanced-process write is still Phase 8's idempotent deceased-review create.
+**Nothing structural:** no entity, column, relationship, choice, security role, plugin, C# or
+provisioning change. **No write path was added** — the only advanced-process write remains Phase 8's
+idempotent deceased-review create; the only Dataverse-writing Phase 9 file is the QA fixture script.
 
 ---
 
 ## 3. Evidence
 
-### Automated — run from the closure commit, nothing skipped
+### Automated — at the closure candidate, nothing skipped
 
 | Suite | Tests |
 |---|---|
 | `@dcp/domain` | **817** |
-| `@dcp/web` | **636** |
+| `@dcp/web` | **644** |
 | `@dcp/api` | **351** |
 | `@dcp/dataverse-client` | **32** |
 | `@dcp/auth-adapters` | **14** |
 | Tooling (`node --test`) | **10** |
 | C# plugins | **159** |
-| **Total** | **2,019** (Phase 8 baseline 1,903) |
+| **Total** | **2,027** — 0 failed · 0 skipped (Phase 8 baseline 1,903) |
 
-Skipped 0 · Todo 0 · Failed 0. `turbo run type-check` passes. The api count rose by 2 without an api
-change: its portability guard sweeps every domain source file, and `advancedProcessState.ts` passed it.
+`turbo run type-check` passes. The engineering candidate `1bf3bf89` held 2,019; the closure review
+added 8 web tests (§9). The api count rose by 2 with no api change: its portability guard sweeps every
+domain source file, and `advancedProcessState.ts` passed it.
 
-**Every new guard was shown to fail with its defect reintroduced** — 26 in all, across WP4–WP9.
-Two of my own guards were wrong on first run and were fixed rather than loosened: a phrase ban that
-matched a negation, and a hand-off-helper sweep that matched the legitimate read-link property.
+**Guards shown to fail with their defect restored:** 26 during WP4–WP9, and 4 more in the review. The
+review re-ran the WP4 and WP6 batteries (8/8) and KI-134's regression test against the final code.
 
 ### Cloud runtime — `org5869857f`
 
-- `deploy-workspace-webresource.mjs --publish` **11/11**, three times; stored content byte-identical.
-- `smoke-phase9-advanced.mts` (read-only) **9/9**: live outcome counts `{legal 0, deceased 0,
-  dispute 0}`; the matrix derived from them agrees; the hand-off is blocked. The card-page check was
-  **NOT EXERCISED** while no case held such work, and exercised only on the *not more* side once
-  fixtures existed — the *more* side is proven by component tests alone.
-- Fixtures: `qa-phase9-fixtures.mts` + `smoke-deceased-review.mts --seed-only` on `DEMO-HL-1001`;
-  **no Litigation Request and no incident created**. Cleaned by owned id and re-read as 404.
-- Residue: `verify-phase8-residue.mts` **18/18**; **0** `QA-P9`/`QA-DECEASED` rows on the org.
+- Web resource deployed and published **11/11** four times; each stored copy byte-identical to its
+  build, the last one built from the closure candidate's code.
+- `smoke-phase9-advanced.mts`, read-only: **9/9** with the QA fixtures present; **7/7 plus 2 NOT
+  EXERCISED** after cleanup (no case holds Legal or dispute work). Live outcome counts
+  `{legal 0, deceased 0, dispute 0}`, re-read in the review.
+- Fixtures on `DEMO-HL-1001` only — no Litigation Request, no incident. Removed by owned id and re-read
+  as 404. `verify-phase8-residue.mts` **18/18**; **0** `QA-P9`/`QA-DECEASED` rows remain.
 - **ARR was only read.**
 
-### Browser — System Administrator evidence
+### Browser — System Administrator evidence (`Mohammad Salman`)
 
-Cache-busted iframe, clean console throughout. Verified: all 15 matrix aspects; 0 controls in the
-matrix and the Legal card; each card's wait/conclusion banner; `handoff=false`; the dispute notice
-appears for the dispute type and leaves for another; Workout entries open on their own bucket; the
-parked badge and notice; both commands absent. **The Log action dialog was opened and cancelled —
-nothing was saved.**
+Cache-busted iframe. Verified: all 15 matrix aspects; no control in the matrix or the Legal card; each
+card's wait and conclusion banners; `handoff=false`; the dispute notice; each Workout entry opening on
+its own bucket, including after navigating between them; the parked badge and notice; both commands
+absent; and, after the review fix, a Call activity dialog sampled 142 times from opening with no false
+banner and Complete enabled. Dialogs were opened and cancelled — **nothing was saved**. No console
+errors were recorded from the point console tracking began.
 
-**Browser QA found three defects that the green suite did not** — the dispute notice squeezed into
-one grid cell, the Workout navigation promising Phase 9 work (KI-133), and a bucket surviving
-navigation (KI-134). All fixed, guarded and re-verified live.
+### Automated only
+
+- **KI-132 >100 behaviour: Automated validation only — live >100-record runtime evidence unavailable.**
+- The KI-131 domain refusal on a zero-outcome type (the UI never offers the path live).
+- The KI-136 *unreadable catalogue* branch.
 
 ---
 
 ## 4. Not delivered, and why
 
-- **Concluding** any Legal, Deceased or Dispute activity — no outcome taxonomy configured (KI-131).
-  **None was invented.**
-- **Legal hand-off** from the workspace — KI-109, and HL→BFD (KI-108) behind it.
-- **Any effect** of a dispute or a deceased indication on collection — KI-119, KI-124, KI-127.
-- **Raising a Complaint** — KI-120.
-- **Insurance claims** — no process (KI-125).
-- **Restructuring and Field Visit** — parked by QDB.
+Concluding any Legal, Deceased or Dispute activity (KI-131 — **no taxonomy invented**) · Legal
+hand-off (KI-109, and KI-108 behind it) · any effect of a dispute or a deceased indication on
+collection (KI-119, KI-124, KI-127) · raising a Complaint (KI-120) · Insurance claims (KI-125) ·
+Restructuring and Field Visit (parked) · Warning Letters (out of scope).
 
 ---
 
-## 5. KI reconciliation
+## 5. Known issues
 
-**Opened and closed in Phase 9:** KI-132 (silent page truncation), KI-133 (Workout navigation
-promised Phase 9), KI-134 (bucket survived navigation).
-**Opened and still open:** KI-131 (no outcomes — QDB), KI-135 (stale badges from earlier phases —
-deferred, outside Phase 9 scope).
-
-**Still open, unchanged, each with its own traceability:**
-
-| Blocks | KIs |
+| | |
 |---|---|
-| Legal | KI-108, KI-109, KI-111, KI-112 |
-| Deceased | KI-124, KI-125, KI-126, KI-127, KI-128, KI-79 |
-| Dispute / Complaint | KI-119, KI-120, KI-123 |
-| Anyone holding collection work | KI-100 |
-| Native audit | KI-99 |
-| Restructuring (parked) | KI-114, KI-115, KI-116, KI-117 |
+| Opened and closed in Phase 9 | KI-132, KI-133, KI-134, KI-136 |
+| Open — QDB | **KI-131** (outcome catalogue). It is additive: it does not replace or close KI-109, KI-119 or KI-124 |
+| Open — LOW, carried | **KI-137** (card reads order by `createdon` alone; pre-existing from Phase 8) |
+| Open — deferred | **KI-135** (pre-existing Phase 7/8 labelling debt; verified present on `main` @ `81adc5a7`) |
 
-**KI-100 / 111 / 116 / 120 / 128 remain Open** — every browser result is administrator evidence.
+Still open and unchanged: Legal KI-108, 109, 111, 112 · Deceased KI-124–128, KI-79 · Dispute/Complaint
+KI-119, 120, 123 · KI-100 · KI-99 · Restructuring KI-114–117. **KI-100 / 111 / 116 / 120 / 128 remain
+Open — every browser result is administrator evidence, and no role or privilege workaround exists.**
 
 ---
 
 ## 6. Cloud vs On-Prem
 
-Cloud: runtime tested as above. On-Prem: nothing Phase 9 added depends on a Cloud-only API — reads
-through `Xrm.WebApi` and the existing adapter, no new schema, no new plugin. **Compatible by design;
-no runtime evidence.**
+Nothing Phase 9 added depends on a Cloud-only API: reads go through `Xrm.WebApi` and the existing
+adapter, with no new schema or plugin. **Dynamics 365 CE 9.1 On-Prem — Compatible by Design; Phase 9
+Runtime Validation Pending.**
 
 ---
 
@@ -157,19 +161,49 @@ no runtime evidence.**
 | | |
 |---|---|
 | Start | 2026-09-22 21:30:19 +03 |
-| Engineering complete | 2026-09-24 ~11:55 +03 — ahead of the 18:00 forecast |
-| **Baseline** | **21.50 h — unchanged** |
-| Effective, measured | **4.76 h** (transcript steps, gaps under 15 minutes counted) |
-| Non-working, separate | 33.62 h, incl. the 14.06 h restart interruption |
-| Blocked by a QDB decision | **0.00 h** — every dependent capability fails closed rather than waiting |
+| Engineering complete | 2026-09-24 ~11:55 +03 |
+| Closure review | 2026-09-24 ~11:55 – ~12:45 +03 |
+| **Baseline** | **21.50 effective hours — unchanged** |
+| Effective engineering, measured | **4.80 h** to 11:55 (4.76 h was reported at 11:52) |
+| Closure review, measured | ~0.6 h |
+| Idle / non-working | 19.56 h, **separate** |
+| Restart gap | **14.06 h, separate** (09-23 18:22 → 09-24 08:26) |
+| Blocked by a QDB decision | **0.00 h** — independent work never waited; the QDB dependencies are **not** resolved |
+| **Variance** | **−16.70 h (−77.7%)** measured engineering against the baseline |
 
-The measured figure and the estimate are different units; see the tracker. **Additional work inside
-approved scope:** WP9 browser QA surfaced the Workout navigation and command-bar claims (KI-133),
-which were fixed within WP6's approved "represent capability accurately" scope. No scope was added.
+The variance is reported, not explained away — but the two figures are different units: the baseline
+was an estimate of effort, the actual is measured AI-assisted session time (transcript steps, gaps under
+15 minutes counted). Phase 8 recorded estimate-shaped actuals, so the phases are not directly
+comparable. Idle and restart time are not engineering effort.
 
 ---
 
 ## 8. Repository
 
-Branch `feat/dcp-phase9-advanced-processes`, **not merged, no PR**. Per the instruction, it is pushed
-and local/remote equality verified before closure review; the SHA is recorded in the tracker.
+`feat/dcp-phase9-advanced-processes`, 0 merge commits, 0 behind `main`, no history rewrite; every
+changed file under `projects/debtcollection/`. `git merge-tree` against `origin/main` yields exactly the
+branch's own tree — **merges cleanly**. Pushed with local == remote verified; the final SHA is the
+commit that adds this document.
+
+---
+
+## 9. Closure review — 2026-09-24
+
+| # | Finding | Severity | Outcome |
+|---|---|---|---|
+| F1 | The activity dialog said *no outcomes are configured* before the outcome catalogue answered, and after a failed read — on every activity, including a Call with seven outcomes (KI-136, introduced in WP2) | **MEDIUM** | **Fixed** (`1259f6ee`), 3 guards bite, re-verified live |
+| F2 | The Legal and dispute card reads order by `createdon` alone, so the 100-row boundary is not deterministic under ties (KI-137, pre-existing) | LOW | **Carried** as technical debt |
+| F3 | No test asserted the 100-row bound itself; the KI-132 tests proved only the notice | LOW | **Fixed** (`94eb2fa5`), bites |
+| F4 | This document said the tab was derived from live configuration without distinguishing stated aspects; quoted only the 9/9 smoke; used shortened status wording | LOW | **Corrected** here |
+| O1 | *Available* and QDB-decision aspects are stated, not derived; they can drift from the product only through code, which the WP6 tests pin | Observation | Recorded (§1) |
+| O2 | *Restructuring Recommendation* remains a loggable activity type and a queue bucket — Phase 8's approved recommendation-only fallback, unchanged | Observation | Recorded |
+| O3 | Console errors were observed only from when tracking began, not from page load | Observation | Recorded (§3) |
+
+**Verified with no finding:** Git state and merge-tree; scope (no Restructuring, Field Visit, Warning
+Letter, claims, Legal or Complaint lifecycle; no invented qualification, deceased confirmation, dispute
+effect or outcome; no HL→BFD mapping, suppression, MIS write, security change or facility dependency —
+searched in the added code, not only the docs); no alternate reachable copy of the removed commands;
+KI-131 against live configuration; KI-133/134 regression; KI-135 pre-existing; security; the regression
+totals and their arithmetic.
+
+**Unresolved: 0 BLOCKER · 0 HIGH · 0 MEDIUM · 1 LOW (F2, carried).** The closure gate is met.
