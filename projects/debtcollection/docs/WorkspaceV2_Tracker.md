@@ -11,8 +11,22 @@ plan `docs/WorkspaceV2_Plan.md`.
 | Effective time | measured from session transcripts, gaps under 15 minutes counted |
 | Idle / blocked | recorded separately |
 
-**Status:** V1 is the default and is protected. V2 is parallel, behind the switch. Not a PR, not
-merged, V2 not default. Phase 10 not started.
+**Status: ENGINEERING AND VALIDATION COMPLETE · READY FOR REVIEW** (2026-09-24 ~19:05 +03) — see
+`docs/WorkspaceV2_Closure.md`. V1 is the default and is protected. V2 is parallel, behind the switch.
+Not a PR, not merged, V2 not default. Phase 10 not started.
+
+| Remaining WPs | State | Commit(s) |
+|---|---|---|
+| WP10 Action Plan + Activities | Activities native in the case; global Action Plan re-skinned V1 (KI-142) | `e3d53180` |
+| WP12 Communications + bulk | Re-skinned V1 in the V2 frame — business rules not copied (KI-142) | `e5964184` |
+| WP15 Remaining screens | Re-skinned V1 in the V2 frame (KI-142) | `e5964184` |
+| WP16 A11y / responsive / perf | Done — skip link, AA contrast from tokens, bundle measured; narrow widths not live (KI-141) | `660c5716` |
+| WP17 Regression | Done — 2,235 passing, 0 skipped | — |
+| WP18 Cloud + browser QA | Done — System Administrator evidence; 2 findings fixed | `cb3cd5da` |
+| WP19 Docs + closure | Done | closure commit |
+
+**Final timing:** effective **1.93 h** measured; non-working 4.10 h separate; baseline 51.00 h
+(forecast 52.00) unchanged; variance −49.07 h, in different units.
 
 ### Checkpoint — 2026-09-24 18:35 +03
 
