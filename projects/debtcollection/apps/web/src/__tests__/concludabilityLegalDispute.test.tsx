@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { NO_OUTCOMES_CONFIGURED } from '@dcp/domain';
-import { CaseConcerns, CaseLegalTrace } from '../views/strategyViews.js';
+import { CaseConcerns } from '../views/concernsCard.js';
+import { CaseLegalTrace } from '../views/legalTraceCard.js';
 import { CrmSessionProvider } from '../shell/context.js';
 import { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import type { XrmLike } from '../platform/crmContext.js';

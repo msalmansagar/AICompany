@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { NO_OUTCOMES_CONFIGURED } from '@dcp/domain';
-import { CaseDeceasedReview } from '../views/strategyViews.js';
+import { CaseDeceasedReview } from '../views/deceasedReviewCard.js';
 import { CrmSessionProvider } from '../shell/context.js';
 import { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import type { XrmLike } from '../platform/crmContext.js';
