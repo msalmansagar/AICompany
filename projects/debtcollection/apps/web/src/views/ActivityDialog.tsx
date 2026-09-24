@@ -281,6 +281,13 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
             </div>
           )}
 
+          {isConcernTypeCode(types.find(type => type.id === activityTypeId)?.code) && (
+            <div className="info-banner" data-testid="activity-dispute-notice">
+              <Icon name="info" />
+              <div>{DISPUTE_LOGGING_NOTICE}</div>
+            </div>
+          )}
+
           <FieldGrid>
             {loaded && <ReadOnlyField label="Status" value={<StatusPill status={loaded.statusLabel} />} />}
 
@@ -295,12 +302,6 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
               hint={mode === 'edit' ? 'Set when the action was logged.' : 'From configuration.'}
             />
 
-            {isConcernTypeCode(types.find(type => type.id === activityTypeId)?.code) && (
-              <div className="info-banner" data-testid="activity-dispute-notice">
-                <Icon name="info" />
-                <div>{DISPUTE_LOGGING_NOTICE}</div>
-              </div>
-            )}
 
             <TextField
               label="Subject" required testId="activity-subject"
