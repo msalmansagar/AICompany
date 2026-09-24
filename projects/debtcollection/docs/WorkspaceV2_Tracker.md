@@ -60,3 +60,26 @@ Not a PR, not merged, V2 not default. Phase 10 not started.
 | WP18 Cloud + browser QA | 4.00 | — | |
 | WP19 Docs + closure | 2.00 | — | |
 | Debugging allowance | 3.00 | | |
+
+## Screen 01 — Portfolio & Strategy (implementation)
+
+| | |
+|---|---|
+| Authorised | 2026-09-24, design commit `594828aa` accepted |
+| **Start (resume)** | **2026-09-24 21:12:42 +03** |
+| Baseline | **15.0 effective hours** (9 WPs, design package §15) — not rewritten |
+| Expected completion | 2026-09-25 18:00 +03 |
+| Decisions applied | name *Portfolio & Strategy* (route id `buckets` kept); rows = 10 MIS buckets; columns = strategy + *Strategy Not Assigned* + Total; measure = current arrears; grain = open case (one per delinquent facility); no risk; no exposure; ARR not run through resolution; `AggregateQueryRecordLimit` untouched |
+
+| WP | Scope | Est. h | State |
+|---|---|---|---|
+| S1 | Adapter `aggregate()` over FetchXML; refusal → unknown | 2.0 | — |
+| S2 | Cell contract: one definition → aggregate filter, count, sum, drill-down | 1.5 | — |
+| S3 | Matrix components: heatmap, legend, totals, a11y, sticky column | 2.0 | — |
+| S4 | Drill-down URL, Cases chips + Back, additive strategy filter | 2.0 | — |
+| S5 | Strategies section: config, actions, *Cases governed* | 1.5 | — |
+| S6 | Page assembly, freshness, nav label | 1.0 | — |
+| S7 | Tests + read-only live reconciliation smoke | 2.0 | — |
+| S8 | Deploy (same web resource), browser QA, V1 smoke | 1.5 | — |
+| S9 | Docs, KIs | 0.5 | — |
+| | Debugging allowance | 1.0 | |
