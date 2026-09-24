@@ -126,3 +126,10 @@
 .dcp-v2 .v2-two-line { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .dcp-v2 .v2-two-line-main { font-weight: var(--v2-fw-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dcp-v2 .v2-two-line-sub { font-size: var(--v2-fs-xs); color: var(--v2-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Cases ──────────────────────────────────────────────────────────────── */
+.dcp-v2 .v2-cases { display: flex; flex-direction: column; gap: var(--v2-space-3); }
+.dcp-v2 .v2-filter-summary {
+  display: inline-flex; align-items: center; gap: 4px; margin-left: auto;
+  font-size: var(--v2-fs-xs); color: var(--v2-text-muted);
+}

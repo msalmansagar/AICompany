@@ -7,6 +7,7 @@ import type { ViewRequest } from '../../V2Workspace.js';
 import { useV2Shell } from '../../shell/V2Shell.js';
 import { BucketBadge, Card, EmptyState, FilterChips, KeyValueList, LoadingSkeleton } from '../../components/primitives.js';
 import { V2DataGrid, type V2Column } from '../../components/V2DataGrid.js';
+import { useDebounced } from '../../hooks/useDebounced.js';
 import { useBucketCounts } from '../home/useBucketCounts.js';
 import { useCaseRecord } from '../case/useCaseRecord.js';
 
@@ -192,15 +193,6 @@ function QueuePreview({ item, onOpen }: { item?: WorkItem | undefined; onOpen: (
       <button type="button" className="v2-btn v2-btn-primary" onClick={() => onOpen(item.caseId)} data-testid="v2-queue-open-case">Open case</button>
     </div>
   );
-}
-
-function useDebounced<T>(value: T, delayMs: number): T {
-  const [settled, setSettled] = useState(value);
-  useEffect(() => {
-    const timer = window.setTimeout(() => setSettled(value), delayMs);
-    return () => window.clearTimeout(timer);
-  }, [value, delayMs]);
-  return settled;
 }
 
 function readLayout(): Layout {
