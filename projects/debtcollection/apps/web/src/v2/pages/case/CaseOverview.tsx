@@ -7,6 +7,7 @@ import { loadActionPlan } from '../../../data/followUpQueries.js';
 import { toPlanItem, type CaseContext } from '../../../data/actionPlanRows.js';
 import { BucketPill, StatusPill, formatCount, formatDate, formatMoney } from '../../../components/primitives.js';
 import { describeFailure } from '../../../platform/errors.js';
+import { formatRecordedAt } from '../../format.js';
 import { useCrmSession } from '../../../shell/context.js';
 import { Card, EmptyState, ErrorState, KeyValueList, LoadingSkeleton } from '../../components/primitives.js';
 
@@ -161,7 +162,7 @@ function RecentActivity({ caseId, reloadKey, onOpenAll }: { caseId: string; relo
                 <div className="v2-timeline-head">
                   <span className="v2-timeline-title">{row.activityType ?? 'Action'}</span>
                   <StatusPill status={row.status} />
-                  <span className="v2-timeline-when">{formatDate(row.activityDate ?? row.createdOn)} · {row.ownerName ?? '—'}</span>
+                  <span className="v2-timeline-when">Recorded {formatRecordedAt(row.createdOn)} · {row.ownerName ?? '—'}</span>
                 </div>
                 <p className="v2-timeline-note">{row.subject}</p>
               </div>

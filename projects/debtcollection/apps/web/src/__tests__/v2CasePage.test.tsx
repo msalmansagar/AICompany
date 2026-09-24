@@ -177,6 +177,18 @@ describe('the overview', () => {
   });
 });
 
+describe('the recent-activity timeline', () => {
+  it('shows when each action was recorded, which is the order it is listed in', async () => {
+    await openCase('#case/c-1', {
+      qdb_collectioncase: [CASE_ROW], contact: [CONTACT],
+      qdb_collectionactivity: [{ activityid: 'a-1', subject: 'Called', statecode: 0, qdb_activitydate: '2026-09-25T09:00:00Z', createdon: '2026-09-19T09:00:00Z' }],
+    });
+
+    const timeline = await screen.findByTestId('v2-case-timeline', {}, { timeout: 5000 });
+    expect(timeline.textContent).toContain('Recorded 2026-09-19');
+  });
+});
+
 describe('a case that cannot be read', () => {
   it('says it could not be found', async () => {
     install({});
