@@ -35,7 +35,7 @@ const LAYOUT: readonly { label: string; items: readonly (readonly [string, strin
     label: 'Resolution',
     items: [['disputes', 'Disputes'], ['legal', 'Legal'], ['claims', 'Deceased Review'], ['restructure', 'Restructuring']],
   },
-  { label: 'Strategy', items: [['actionplan', 'Action Plan'], ['buckets', 'Segmentation'], ['rules', 'Strategy Rules']] },
+  { label: 'Strategy', items: [['actionplan', 'Action Plan'], ['buckets', 'Portfolio & Strategy'], ['rules', 'Strategy Rules']] },
   {
     label: 'Control',
     items: [
