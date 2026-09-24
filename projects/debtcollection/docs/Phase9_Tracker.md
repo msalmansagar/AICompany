@@ -172,13 +172,31 @@ configuration or security change arrives mid-phase.
 
 ## Status
 
-**Phase 9 — IN PROGRESS.** Restructuring and Field Visit **PARKED**; their status does not block
-Phase 9 closure.
+**Phase 9 — ENGINEERING AND VALIDATION COMPLETE · READY FOR CLOSURE REVIEW** (2026-09-24 ~11:55 +03).
+Closure pack: `docs/Phase9_Closure.md`. Restructuring and Field Visit **PARKED**; their status does
+not block Phase 9 closure.
 
-| WP | State | Commit |
+| WP | State | Commit(s) |
 |---|---|---|
 | WP1 | Done | `49d972ab` |
 | WP2 | Done | `d246265a` |
 | WP3 | Done | `77d7ad94` |
-| WP4 / WP5 | Conclusion banner done; remaining items in progress | `5f41bba9` |
-| WP6–WP11 | Not started | — |
+| WP4 | Done | `5f41bba9`, `c524b48b` |
+| WP5 | Done | `379e6610`, `7d1b9d5b` |
+| WP6 | Done | `41c0ae7a`, `79121798`, `d1fe62a0`, `5687c317`, `9e90234a` |
+| WP7 | Done | `d4c8bc21` |
+| WP8 | Done | `4f43aa6e` |
+| WP9 | Done — Cloud + browser (System Administrator evidence) | `bc509230` |
+| WP10 | Done — **2,019** passing, 0 skipped | — |
+| WP11 | Done | closure commit |
+
+### Closure timing
+
+| | |
+|---|---|
+| Engineering complete | 2026-09-24 ~11:55 +03 — ahead of the 18:00 forecast |
+| Elapsed wall-clock | 38.4 h |
+| Effective, measured | **4.76 h** |
+| Non-working, separate | 33.62 h (incl. 14.06 h restart interruption) |
+| Blocked by QDB | 0.00 h |
+| Baseline | **21.50 h — unchanged** |
