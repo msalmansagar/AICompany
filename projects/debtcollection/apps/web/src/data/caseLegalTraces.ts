@@ -1,4 +1,6 @@
-import { belongsToEpisode, describeOriginLabel, type CustomerTable } from '@dcp/domain';
+import {
+  belongsToEpisode, describeOriginLabel, type CustomerTable, type LegalQualificationPolicy,
+} from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import { ACTIVITY_COLUMNS, ENTITY_SETS } from './schema.js';
 import { escapeOData, mapPage } from './collectionQueries.js';
@@ -7,6 +9,16 @@ import { loadActivityTypes } from './configurationCatalog.js';
 import { isLegalRecommendationCode, loadLegalTraces, type LegalTraceRow } from './legalTraceRows.js';
 
 export type { LegalTraceRow } from './legalTraceRows.js';
+
+/**
+ * QDB's Legal qualification rule, as this workspace holds it: **empty, deliberately.**
+ *
+ * QDB has established no rule that qualifies a recommendation for litigation (KI-109), and an empty
+ * policy is what keeps every hand-off closed. Populating it here to make the screen look finished
+ * would be this build inventing QDB's legal authority. One constant, so the Legal card and the
+ * capability matrix read the same answer.
+ */
+export const LEGAL_QUALIFICATION_POLICY: LegalQualificationPolicy = {};
 
 /**
  * Reading one case's Legal picture.
@@ -33,12 +45,7 @@ export async function loadCaseLegalTraces(
     episodeIsCurrent: activity => isCurrentEpisode(activity, caseId, episodeNumber),
     formatDate: iso => iso.slice(0, 10),
     customer,
-    /*
-     * **Empty, deliberately.** QDB has established no rule that qualifies a recommendation for
-     * litigation (KI-109), and an empty policy is what keeps every hand-off closed. Populating it
-     * here to make the screen look finished would be this build inventing QDB's legal authority.
-     */
-    policy: {},
+    policy: LEGAL_QUALIFICATION_POLICY,
     describeOrigin: activity => describeOriginLabel(activity.origin),
   });
 }

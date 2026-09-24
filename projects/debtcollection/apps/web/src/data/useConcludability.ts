@@ -25,6 +25,19 @@ export function useConcludability(
   adapter: XrmCrmAdapter,
   activityTypeId: string | undefined,
 ): ConcludeAvailability {
+  return concludability(useOutcomeCount(adapter, activityTypeId));
+}
+
+/**
+ * How many outcomes a type has configured, or `undefined` while unknown or unreadable.
+ *
+ * Exposed raw for the capability matrix, which must tell *not known* apart from *none* — a
+ * distinction `concludability` deliberately folds away for the write path.
+ */
+export function useOutcomeCount(
+  adapter: XrmCrmAdapter,
+  activityTypeId: string | undefined,
+): number | undefined {
   const [count, setCount] = useState<number | undefined>(undefined);
 
   useEffect(() => {
@@ -44,7 +57,7 @@ export function useConcludability(
     return () => { cancelled = true; };
   }, [adapter, activityTypeId]);
 
-  return concludability(count);
+  return count;
 }
 
 /**

@@ -522,6 +522,7 @@ export type { ActionPlanInput, ActionPlanItem } from './actionPlanItem.js';
 // ── Phase 8 — Legal hand-off (WP9) ───────────────────────────────────────────
 export {
   decideLegalHandoff,
+  isQualificationConfigured,
   interpretHandoffWrite,
   litigationRequestId,
   remainsAvailable,
@@ -618,3 +619,9 @@ export {
 export type {
   OperationalBucket, WorkCount, WorkItem, WorkType,
 } from './operationalWork.js';
+
+// ── Phase 9 — advanced-process capability matrix (WP6) ───────────────────────
+export { describeAdvancedProcesses } from './advancedProcessState.js';
+export type {
+  AdvancedProcess, AdvancedProcessEvidence, ProcessAspect, ProcessCapability,
+} from './advancedProcessState.js';

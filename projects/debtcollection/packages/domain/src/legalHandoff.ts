@@ -240,6 +240,14 @@ export function decideLegalHandoff(input: {
   };
 }
 
+/**
+ * Whether QDB has supplied a complete qualification rule — the same test the hand-off decision
+ * applies, so a screen that reports it cannot disagree with what a hand-off would do.
+ */
+export function isQualificationConfigured(policy: LegalQualificationPolicy): boolean {
+  return completePolicy(policy) !== null;
+}
+
 /** Every field, or nothing. A partly configured policy is not a policy. */
 function completePolicy(policy: LegalQualificationPolicy): Required<LegalQualificationPolicy> | null {
   const { qualifyingApprovalStatus, caseType, caseAgainst, caseInitiatedBy } = policy;

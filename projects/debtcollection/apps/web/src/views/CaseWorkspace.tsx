@@ -13,6 +13,7 @@ import { StoredPositionNotice } from '../components/Freshness.js';
 import { ActivityDialog } from './ActivityDialog.js';
 import { PromiseDialog } from './PromiseDialog.js';
 import { CaseActionPlan } from './strategyViews.js';
+import { WorkoutLegalTab } from './workoutLegalTab.js';
 import { useCrmSession } from '../shell/context.js';
 import { toError } from '../platform/errors.js';
 
@@ -21,7 +22,8 @@ import { toError } from '../platform/errors.js';
  *
  * Summary and Audit are Phase 5's. Actions and PTP are **readable** here because the records already
  * exist and hiding them would be less honest than showing them; capturing and evaluating them is
- * Phase 6. Communications, Documents and Workout & Legal have no records to show and say so.
+ * Phase 6. Communications and Documents have no records to show and say so. Workout & Legal is Phase 9's:
+ * what each advanced process supports, and the case's Legal, dispute and deceased records.
  *
  * Nothing on this screen decides anything. The status is the status the server set, the bucket is the
  * bucket MIS reported, and the strategy is the one the server resolved. There is no transition, no
@@ -116,18 +118,7 @@ function tabsFor(detail: CaseDetail): readonly PivotTab[] {
       id: 'documents', label: 'Documents', pendingPhase: 7,
       render: () => <PendingPhasePanel phase={7} what="Document generation and storage arrive with the Communication Centre in Phase 7." />,
     },
-    {
-      id: 'workout', label: 'Workout & Legal', pendingPhase: 9,
-      render: () => (
-        <PendingPhasePanel
-          phase={9}
-          what={'A combined workout screen is Phase 9. Legal recommendations, disputes and '
-            + 'complaints, and deceased reviews are delivered already — they are on the Actions '
-            + 'tab, beside the plan the work belongs to. Restructuring hand-off is parked pending '
-            + 'QDB confirmation.'}
-        />
-      ),
-    },
+    { id: 'workout', label: 'Workout & Legal', render: () => <WorkoutLegalTab detail={detail} /> },
     { id: 'audit', label: 'Audit', render: () => <CaseAuditTab detail={detail} /> },
   ];
 }
@@ -315,11 +306,6 @@ function ActionsTab({ detail }: { detail: CaseDetail }) {
       {...(detail.strategyId !== undefined ? { strategyId: detail.strategyId } : {})}
       {...(detail.strategyName !== undefined ? { strategyName: detail.strategyName } : {})}
       {...(detail.episodeNumber !== undefined ? { episodeNumber: detail.episodeNumber } : {})}
-      customer={{
-        ...(detail.customerTable === 'account' || detail.customerTable === 'contact'
-          ? { table: detail.customerTable } : {}),
-        ...(detail.customerId !== undefined ? { id: detail.customerId } : {}),
-      }}
     />
     </>
   );

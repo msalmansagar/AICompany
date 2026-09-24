@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
+import { isQualificationConfigured,
   decideLegalHandoff, interpretHandoffWrite, litigationRequestId, remainsAvailable,
   resolveLegalCustomer, worthRetrying,
   type LegalQualificationPolicy, type LegalRecommendation,
@@ -258,5 +258,21 @@ describe('the most useful reason is the one reported', () => {
   it('reports a closed recommendation ahead of everything but an existing hand-off', () => {
     expect(decide({ recommendation: { lifecycle: 'Cancelled' }, policy: {} }).outcome)
       .toBe('RecommendationNotActionable');
+  });
+});
+
+describe('isQualificationConfigured', () => {
+  it('is false for the empty policy this organisation holds', () => {
+    expect(isQualificationConfigured({})).toBe(false);
+  });
+
+  it('is false for a partly configured policy, which is not a policy', () => {
+    expect(isQualificationConfigured({ qualifyingApprovalStatus: 1, caseType: 100000001 })).toBe(false);
+  });
+
+  it('is true only when every field is supplied', () => {
+    expect(isQualificationConfigured({
+      qualifyingApprovalStatus: 1, caseType: 100000001, caseAgainst: 1, caseInitiatedBy: 100000006,
+    })).toBe(true);
   });
 });

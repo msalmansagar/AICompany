@@ -10,9 +10,6 @@ import {
   toPlanItem, toUnattributedItem, type CaseContext, type UnattributedItem,
 } from '../data/actionPlanRows.js';
 import { describeOriginLabel, type ActionPlanItem } from '@dcp/domain';
-import { CaseLegalTrace } from './legalTraceCard.js';
-import { CaseConcerns } from './concernsCard.js';
-import { CaseDeceasedReview } from './deceasedReviewCard.js';
 import {
   Card, EmptyState, Icon, InfoBanner, KpiRow, PartialCapabilityNotice, formatCount, formatMoney, formatDate,
 } from '../components/primitives.js';
@@ -213,12 +210,11 @@ const PLAN_COLUMNS: readonly DataGridColumn<StrategyActionRow>[] = [
  * configured on this organisation (KI-101), so the screen says the due date is not configured
  * rather than showing a date it invented or a blank that reads as a fault.
  */
-export function CaseActionPlan({ caseId, strategyId, strategyName, episodeNumber, customer }: {
+export function CaseActionPlan({ caseId, strategyId, strategyName, episodeNumber }: {
   caseId: string;
   strategyId?: string | undefined;
   strategyName?: string | undefined;
   episodeNumber?: number | undefined;
-  customer?: { table?: 'account' | 'contact'; id?: string } | undefined;
 }) {
   const { adapter } = useCrmSession();
   const [plan, setPlan] = useState<ActionPlan>({ rows: [], unattributed: [] });
@@ -280,9 +276,6 @@ export function CaseActionPlan({ caseId, strategyId, strategyName, episodeNumber
           : <PlanTable items={items} />}
       </Card>
       <UnattributedActivities items={history} />
-      <CaseLegalTrace caseId={caseId} episodeNumber={episodeNumber} customer={customer} />
-      <CaseConcerns caseId={caseId} />
-      <CaseDeceasedReview caseId={caseId} />
     </>
   );
 }

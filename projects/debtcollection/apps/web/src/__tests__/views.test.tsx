@@ -200,24 +200,31 @@ describe('the Case Workspace keeps all seven approved tabs', () => {
   it('shows no data on a later-phase tab', async () => {
     await openView('case', 'c-1');
     await screen.findByTestId('view-case');
-    await userEvent.click(screen.getByTestId('case-pivot-tab-workout'));
+    await userEvent.click(screen.getByTestId('case-pivot-tab-documents'));
     expect(screen.queryByTestId('case-actions')).toBeNull();
-    expect((await screen.findByTestId('pending-panel-9')).textContent).toContain('none would be real');
+    expect((await screen.findByTestId('pending-panel-7')).textContent).toContain('none would be real');
   });
 
   /**
-   * The workout tab told an officer that no entity existed for legal, disputes or claims, on the
-   * very case where all three were already being recorded. A later-phase tab may say a screen is
-   * not built; it may not deny the capability.
+   * The workout tab once told an officer that no entity existed for legal, disputes or claims, on
+   * the very case where all three were already being recorded. Phase 9 delivers the tab: it states
+   * what each process supports, and a delivered capability must read as available there.
    */
   it('does not deny capability the case already has', async () => {
     await openView('case', 'c-1');
     await screen.findByTestId('view-case');
     await userEvent.click(screen.getByTestId('case-pivot-tab-workout'));
 
-    const panel = await screen.findByTestId('pending-panel-9');
-    expect(panel.textContent).not.toMatch(/no entity exists/i);
-    expect(panel.textContent).toContain('delivered already');
+    const matrix = await screen.findByTestId('advanced-processes');
+    expect(matrix.textContent).not.toMatch(/no entity exists/i);
+    expect(within(matrix).getByTestId('process-aspect-legal-record').dataset['capability']).toBe('Actionable');
+  });
+
+  it('no longer marks Workout & Legal as a later phase', async () => {
+    await openView('case', 'c-1');
+    await screen.findByTestId('view-case');
+
+    expect(screen.getByTestId('case-pivot-tab-workout').getAttribute('data-pending-phase')).toBeNull();
   });
 
   it('refuses to invent a case that does not resolve', async () => {
