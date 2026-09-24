@@ -30,7 +30,7 @@ const recommendation = (id: string) => ({
 });
 
 /** A platform holding one case with two open, unlinked Legal Recommendations. */
-function platform(): XrmLike {
+function platform(activities = [recommendation('rec-1'), recommendation('rec-2')]): XrmLike {
   return {
     WebApi: {
       retrieveRecord: async () => ({}),
@@ -44,7 +44,7 @@ function platform(): XrmLike {
           };
         }
         if (logicalName === 'qdb_collectionactivity') {
-          return { entities: [recommendation('rec-1'), recommendation('rec-2')] };
+          return { entities: activities };
         }
         return { entities: [] };
       },
@@ -111,5 +111,39 @@ describe('the Legal card', () => {
     const card = await screen.findByTestId('case-legal', {}, { timeout: WAIT });
 
     expect(card.closest('.section-card')?.querySelectorAll('button, a[href], [role="button"]')).toHaveLength(0);
+  });
+});
+
+/**
+ * An earlier episode's recommendation stays readable and is labelled, never hidden. Episode
+ * membership is proved from the derived id, so strategy work whose id does not derive from the
+ * current episode is historical; work with no strategy action cannot be placed and stays current.
+ */
+describe('a recommendation from an earlier episode', () => {
+  const historical = { ...recommendation('rec-old'), _qdb_strategyactionid_value: 'action-1' };
+
+  function renderHistory() {
+    const adapter = new XrmCrmAdapter(platform([recommendation('rec-now'), historical]));
+    return render(
+      <CrmSessionProvider value={{ adapter, context: {} } as never}>
+        <CaseLegalTrace caseId={CASE_ID} episodeNumber={2} customer={{ table: 'account', id: ACCOUNT }} />
+      </CrmSessionProvider>,
+    );
+  }
+
+  it('is labelled as from an earlier episode', async () => {
+    renderHistory();
+
+    const marker = await screen.findByTestId('legal-historical-rec-old', {}, { timeout: WAIT });
+
+    expect(marker.textContent).toBe('From an earlier episode');
+  });
+
+  it('leaves the current recommendation unlabelled', async () => {
+    renderHistory();
+
+    await screen.findByTestId('legal-historical-rec-old', {}, { timeout: WAIT });
+
+    expect(screen.queryByTestId('legal-historical-rec-now')).toBeNull();
   });
 });

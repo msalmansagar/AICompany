@@ -90,6 +90,10 @@ export function CaseLegalTrace({ caseId, episodeNumber, customer }: {
               <td>
                 {row.recommendation}
                 <span className="cell-sub">{row.activityStatus}</span>
+                {!row.trace.isCurrent && (
+                  // Historical work stays readable and out of current queues; it is labelled, never hidden.
+                  <span className="cell-sub" data-testid={`legal-historical-${row.key}`}>From an earlier episode</span>
+                )}
               </td>
               <td>{row.recordedOn}</td>
               <td>{row.ownerName}</td>
