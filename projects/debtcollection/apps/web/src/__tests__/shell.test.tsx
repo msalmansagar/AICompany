@@ -35,7 +35,7 @@ describe('the approved navigation is complete', () => {
   });
 
   it('explains every future-phase view rather than leaving it blank', () => {
-    expect(VIEWS.filter(isPending).length).toBe(7);
+    expect(VIEWS.filter(isPending).length).toBe(4);
     for (const view of VIEWS.filter(isPending)) {
       expect(view.pendingSummary, `${view.id} must say what it will do`).toBeTruthy();
     }
@@ -50,15 +50,11 @@ describe('the approved navigation is complete', () => {
    * cosmetic error — it is the workspace contradicting itself.
    */
   it('never denies a capability that is already delivered from the case', () => {
-    const DELIVERED_ELSEWHERE = ['disputes', 'legal', 'claims'];
+    // Phase 9 delivers these as the operational queue opened on each process, so they are routed
+    // views and cannot fall back to a pending notice that could deny anything.
+    const DELIVERED = ['disputes', 'legal', 'claims'];
 
-    for (const id of DELIVERED_ELSEWHERE) {
-      const summary = VIEWS.find(view => view.id === id)?.pendingSummary ?? '';
-      expect(summary, `${id} must not claim its capability is absent`)
-        .not.toMatch(/no entity exists|does not exist|nothing exists/i);
-      expect(summary, `${id} must say the Collection-side capability is delivered`)
-        .toMatch(/delivered already/i);
-    }
+    expect(VIEWS.filter(view => DELIVERED.includes(view.id) && isPending(view))).toEqual([]);
   });
 
   /** Parked is not the same as unbuilt, and the screen must not collapse the two. */
@@ -147,7 +143,19 @@ describe('the nav rail', () => {
 
   it('marks a view that is still to be built with the phase that owns it', () => {
     renderNav();
-    expect(screen.getByTestId('nav-disputes')).toHaveAttribute('data-pending', '9');
+    expect(screen.getByTestId('nav-templates')).toHaveAttribute('data-pending', '7');
+  });
+
+  /** A parked view is not future work, and its badge must not promise a phase. */
+  it('marks a parked view as parked, never with a phase', () => {
+    renderNav();
+    expect(screen.getByTestId('nav-restructure').textContent).toContain('Parked');
+    expect(screen.getByTestId('nav-restructure').textContent).not.toContain('P9');
+  });
+
+  it('stops marking the Phase 9 Workout views as pending', () => {
+    renderNav();
+    expect(screen.getByTestId('nav-legal')).not.toHaveAttribute('data-pending');
   });
 
   it('stops marking a view as pending once it is built', () => {
