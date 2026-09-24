@@ -37,7 +37,16 @@ export function WorkoutQueueView({ viewId, onOpenCase }: {
   return (
     <div data-testid={`workout-queue-${viewId}`}>
       <InfoBanner icon="info">{WHAT_IS_POSSIBLE[viewId]}</InfoBanner>
-      <MyWorkView initialBucket={OPENING_BUCKET[viewId]} {...(onOpenCase ? { onOpenCase } : {})} />
+      {/*
+        * Keyed by view: the router keeps this component in place when one Workout entry follows
+        * another, and without a fresh queue the bucket chosen by the first would survive into the
+        * second — Legal work listed under a Disputes heading.
+        */}
+      <MyWorkView
+        key={viewId}
+        initialBucket={OPENING_BUCKET[viewId]}
+        {...(onOpenCase ? { onOpenCase } : {})}
+      />
     </div>
   );
 }
