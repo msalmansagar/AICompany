@@ -188,3 +188,12 @@
   background: var(--v2-surface); color: var(--v2-text); font-weight: var(--v2-fw-semibold);
   box-shadow: var(--v2-shadow-1);
 }
+
+/* Skip to content: invisible until focused, then the first thing a keyboard user meets. */
+.dcp-v2 .v2-skip {
+  position: absolute; left: 12px; top: -48px; z-index: var(--v2-z-toast);
+  padding: 8px 14px; border: 0; border-radius: var(--v2-radius);
+  background: var(--v2-primary); color: #FFFFFF; font-size: var(--v2-fs-sm); font-weight: var(--v2-fw-semibold);
+}
+.dcp-v2 .v2-skip:focus { top: 12px; }
+.dcp-v2 .v2-page:focus { outline: none; }
