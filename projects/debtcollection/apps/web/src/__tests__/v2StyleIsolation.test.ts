@@ -30,8 +30,10 @@ const sourcesIn = (dir: string): { file: string; text: string }[] =>
 /** Every selector in a stylesheet, including those inside `@media`, split on commas. */
 export function selectorsOf(css: string): string[] {
   const clean = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  // Keyframe steps ('from', '50%') are not selectors, and an animation name is not a rule.
+  const withoutKeyframes = clean.replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '');
   const out: string[] = [];
-  for (const block of clean.split('{')) {
+  for (const block of withoutKeyframes.split('{')) {
     const head = (block.split('}').pop() ?? '').trim();
     if (!head || head.startsWith('@')) continue;
     out.push(...head.split(',').map(s => s.trim()).filter(Boolean));
@@ -56,6 +58,10 @@ function classNamesIn(text: string): string[] {
 const V2_CLASS = /^(dcp-v2|v2-[a-z0-9-]+)$/;
 
 describe('the rules themselves', () => {
+  it('ignores keyframe steps', () => {
+    expect(selectorsOf('@keyframes k { from { a: 1 } to { a: 2 } } .dcp-v2 .x { b: 1 }')).toEqual(['.dcp-v2 .x']);
+  });
+
   it('finds selectors inside media queries', () => {
     expect(selectorsOf('@media (max-width:1px){ .dcp-v2 .a, .b { x: 1 } }')).toEqual(['.dcp-v2 .a', '.b']);
   });
