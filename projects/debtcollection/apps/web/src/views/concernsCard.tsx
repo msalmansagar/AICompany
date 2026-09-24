@@ -6,6 +6,7 @@ import {
 } from '../data/caseConcerns.js';
 import { useActivityTypeId, useConcludability } from '../data/useConcludability.js';
 import { Card, Icon } from '../components/primitives.js';
+import { MoreOnActionsNotice } from './moreOnActionsNotice.js';
 import { useCrmSession } from '../shell/context.js';
 
 /**
@@ -97,6 +98,7 @@ export function CaseConcerns({ caseId }: { caseId: string }) {
           />
         </Card>
       )}
+      {concerns.hasMore && <MoreOnActionsNotice testId="concerns-more" />}
     </>
   );
 }

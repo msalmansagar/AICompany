@@ -6,6 +6,7 @@ import { describeFailure } from '../platform/errors.js';
 import { findLegalTypeId, loadCaseLegalTraces, type LegalTraceRow } from '../data/caseLegalTraces.js';
 import { useActivityTypeId, useConcludability } from '../data/useConcludability.js';
 import { Card, Icon } from '../components/primitives.js';
+import { MoreOnActionsNotice } from './moreOnActionsNotice.js';
 import { useCrmSession } from '../shell/context.js';
 
 /**
@@ -33,14 +34,18 @@ export function CaseLegalTrace({ caseId, episodeNumber, customer }: {
   const [rows, setRows] = useState<readonly LegalTraceRow[]>([]);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState('');
+  const [hasMore, setHasMore] = useState(false);
   const concluding = useConcludability(adapter, useActivityTypeId(adapter, findLegalTypeId));
 
   useEffect(() => {
     let cancelled = false;
     setState('loading');
     setRows([]);
+    setHasMore(false);
     loadCaseLegalTraces(adapter, caseId, episodeNumber, customer ?? {})
-      .then(result => { if (!cancelled) { setRows(result); setState('ready'); } })
+      .then(result => {
+        if (!cancelled) { setRows(result.rows); setHasMore(result.hasMore); setState('ready'); }
+      })
       .catch((failure: unknown) => {
         if (cancelled) return;
         setError(describeFailure(failure));
@@ -104,6 +109,7 @@ export function CaseLegalTrace({ caseId, episodeNumber, customer }: {
           ))}
         </tbody>
       </table>
+      {hasMore && <MoreOnActionsNotice testId="legal-more" />}
       <LegalWaits rows={rows} />
       {!concluding.available && (
         <div className="info-banner" data-testid="legal-conclude-unavailable">

@@ -200,6 +200,12 @@ export function createAuditQuery(adapter: XrmCrmAdapter) {
  * `appliedPageSize` pass through unchanged: they belong to the source, and a shaping step that
  * rebuilt them would be inventing a paging position.
  */
+/**
+ * How many records a case card reads at once. A case card shows the most recent page and says when
+ * there are more, rather than paging inside a card; the Actions grid pages through all of them.
+ */
+export const CASE_CARD_PAGE_SIZE = 100;
+
 export function mapPage<T>(page: Page<CrmRow>, shape: (row: CrmRow) => T): Page<T> {
   return {
     items: page.items.map(shape),
