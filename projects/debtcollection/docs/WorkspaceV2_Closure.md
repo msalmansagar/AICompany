@@ -139,3 +139,8 @@ KI-135, KI-137 and every Phase 9 policy KI.
 | Non-working | **4.10 h** — a 3.5 h suspension (14:39 → 18:09) and two short waits |
 | Blocked by QDB | 0.00 h |
 | Variance | −49.07 h against the baseline — different units: an effort estimate against measured AI-assisted session time |
+
+## 8. Screen 01 — Portfolio & Strategy (added 2026-09-24)
+
+Built after this closure under a separate authorization; recorded in `docs/WorkspaceV2_Tracker.md`
+(Screen 01 section) and design §17. Still not a PR, V2 still not default, V1 untouched. New KIs 143–146.

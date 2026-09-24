@@ -73,13 +73,35 @@ Not a PR, not merged, V2 not default. Phase 10 not started.
 
 | WP | Scope | Est. h | State |
 |---|---|---|---|
-| S1 | Adapter `aggregate()` over FetchXML; refusal → unknown | 2.0 | — |
-| S2 | Cell contract: one definition → aggregate filter, count, sum, drill-down | 1.5 | — |
-| S3 | Matrix components: heatmap, legend, totals, a11y, sticky column | 2.0 | — |
-| S4 | Drill-down URL, Cases chips + Back, additive strategy filter | 2.0 | — |
-| S5 | Strategies section: config, actions, *Cases governed* | 1.5 | — |
-| S6 | Page assembly, freshness, nav label | 1.0 | — |
-| S7 | Tests + read-only live reconciliation smoke | 2.0 | — |
-| S8 | Deploy (same web resource), browser QA, V1 smoke | 1.5 | — |
-| S9 | Docs, KIs | 0.5 | — |
-| | Debugging allowance | 1.0 | |
+| S1 | Adapter `aggregate()` over FetchXML; refusal → unknown | 2.0 | Done — `15ef385a` |
+| S2 | Cell contract: one definition → aggregate filter, count, sum, drill-down | 1.5 | Done — `15ef385a` (`v2/data/portfolioMatrix.ts`) |
+| S3 | Matrix components: heatmap, legend, totals, a11y, sticky column | 2.0 | Done — `15ef385a`; cell class collision with the grid fixed in `87763c02` |
+| S4 | Drill-down URL, Cases chips + Back, additive strategy filter | 2.0 | Done — `15ef385a`; case → list return added in `87763c02` |
+| S5 | Strategies section: config, actions, *Cases governed* | 1.5 | Done — `15ef385a` |
+| S6 | Page assembly, freshness, nav label | 1.0 | Done — `15ef385a` |
+| S7 | Tests + read-only live reconciliation smoke | 2.0 | Done — 61 new tests (917 web); `crm/scripts/smoke-portfolio-matrix.mts` 57/57 live |
+| S8 | Deploy (same web resource), browser QA, V1 smoke | 1.5 | Done — deployed 3×, 11/11 each; 2 live findings fixed (`87763c02`); V1 smoke clean |
+| S9 | Docs, KIs | 0.5 | Done — KI-143…146, design §17, this record |
+| | Debugging allowance | 1.0 | drawn on for the two live findings |
+
+### Screen 01 closure — 2026-09-24 22:00 +03
+
+**SCREEN 01 — PORTFOLIO & STRATEGY — ENGINEERING AND VALIDATION COMPLETE · AWAITING VISUAL REVIEW.**
+Not a PR. V2 not default. V1 intact. Screen 02 not started.
+
+| | |
+|---|---|
+| Commits | `15ef385a` (feature), `87763c02` (two live findings), docs commit — on `feat/dcp-workspace-v2`, base `cf4e7642` |
+| Start | 2026-09-24 21:12:42 +03 (authorization received 21:11:36 +03) |
+| End | 2026-09-24 22:00 +03 |
+| Baseline | **15.0 h** — not rewritten |
+| Effective, measured | **0.79 h** (transcript steps, gaps under 15 minutes counted; there was no gap of 15 minutes or more) |
+| Idle / blocked | 0.00 h |
+| By commit time | S1–S7 21:12 → 21:32 (0.33 h); S8 incl. two fixes 21:32 → 21:52 (0.33 h); S9 21:52 → 22:00 |
+| Variance | −14.21 h against the baseline — different units: an effort estimate against measured AI-assisted session time |
+| Tests | web 917 / 917 (913 at S7, +4 for the two live findings); the rest of the 2,235 baseline untouched; 0 skipped |
+| Guards that bite | G1 refusal→zeros · G2 drill-down drops strategy · G3 aggregate ignores scope · G4 stale answer repaints · G5 five prototype buckets · G6 activity type inferred · G7 cell forgets origin · G8 Cases ignores URL strategy · G9 page CSS restyles a shared class · G10 case forgets the list · G11 list forgets to record — each planted, each fails a test, each restored |
+| Live reconciliation | `smoke-portfolio-matrix.mts`, read-only, service principal: **57/57** — every populated cell in both scopes, count = `$count` = paged rows, arrears equal to the cent (e.g. 1-30 × Not Assigned 1,670 / QAR 2,440,630.56; >2000 × Not Assigned 548 / QAR 125,115,361.07; 91-180 × DEMO-PRELEGAL 1 / QAR 188,400.00) |
+| Browser (System Administrator, `data=ui=v2`) | matrix (10 rows; DEMO-EARLY / DEMO-PRELEGAL / Not Assigned / Total; grand 4,362 · QAR 213.3M; 1 unbucketed case named) → 61-90 × Not Assigned (227) → Cases chips *DPD: 61-90* + *Strategy: Strategy Not Assigned* → paged to "227 shown — end of results" → case ARR-HL-01615 → ← Cases returns to the filtered list → ← Back to Portfolio & Strategy with the cell marked (`aria-pressed`) · deep link `#cases/filter/bucket=91-180&strategy=none&scope=HL&from=portfolio` after a frame reload → 3 chips, scope HL, 318 rows · keyboard Enter on a focused cell opens Cases · BFD scope: 3 cases / QAR 214K = both-CRMs minus HL · Strategies: DEMO-EARLY actions SMS day 0, Call day 3, activity type *Not configured* · V1: renders, its navigation unchanged (*Segmentation Matrix*), profile left on V1 |
+| Findings fixed live | (1) matrix cells used the grid's `v2-cell` class — Cases headers stacked; renamed to `v2-matrix-cell`, style-contract guard added; (2) ← Cases lost the drill-down filters; the list records them on row open and the case leads back |
+| Not proven | narrow viewport (KI-141, DOM-narrowed only); Collection Officer role evidence; On-Prem |
