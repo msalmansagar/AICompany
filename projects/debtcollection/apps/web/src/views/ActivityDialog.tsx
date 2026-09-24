@@ -77,6 +77,8 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
 
   const [types, setTypes] = useState<readonly ActivityTypeOption[]>([]);
   const [outcomes, setOutcomes] = useState<readonly OutcomeOption[]>([]);
+  // Not known until the type's catalogue answers. Only an answered catalogue may say it is empty.
+  const [catalogue, setCatalogue] = useState<'loading' | 'answered' | 'unreadable'>('loading');
   const [loaded, setLoaded] = useState<LoadedActivity | null>(null);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>(mode === 'create' ? 'ready' : 'loading');
   const [loadError, setLoadError] = useState<string>('');
@@ -131,10 +133,12 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
 
   useEffect(() => {
     let cancelled = false;
-    if (!activityTypeId) { setOutcomes([]); return; }
+    setOutcomes([]);
+    setCatalogue('loading');
+    if (!activityTypeId) return;
     loadOutcomes(adapter, activityTypeId)
-      .then(rows => { if (!cancelled) setOutcomes(rows); })
-      .catch(() => { if (!cancelled) setOutcomes([]); });
+      .then(rows => { if (!cancelled) { setOutcomes(rows); setCatalogue('answered'); } })
+      .catch(() => { if (!cancelled) setCatalogue('unreadable'); });
     return () => { cancelled = true; };
   }, [adapter, activityTypeId]);
 
@@ -147,7 +151,10 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
    * Dispute specifically. Before this, the Complete action was offered for types with no
    * outcomes at all, and completing then changed the status with nothing recorded against it.
    */
-  const concluding = concludability(loadState === 'ready' ? outcomes.length : undefined);
+  const concluding = concludability(catalogue === 'answered' ? outcomes.length : undefined);
+  // Completion is offered only on an answered catalogue with something in it; an unknown one is
+  // not permission, because the domain's zero-outcome rule cannot apply to a count nobody has.
+  const canConclude = catalogue === 'answered' && concluding.available;
   const status = loaded?.status;
   const isImmutable = status === 'Completed' || status === 'Cancelled';
 
@@ -232,7 +239,7 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
       footer={
         <ActivityFooter
           mode={mode} busy={save.busy} immutable={isImmutable} completing={completing}
-          canComplete={Boolean(loaded) && !isImmutable && concluding.available}
+          canComplete={Boolean(loaded) && !isImmutable && canConclude}
           onClose={onClose}
           onCreate={() => void handleCreate()}
           onUpdate={handleUpdate}
@@ -258,6 +265,12 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
             <div className="info-banner" data-testid="conclude-unavailable">
               <Icon name="info" />
               <div>{concluding.reason}</div>
+            </div>
+          )}
+          {!isImmutable && !completing && loaded && catalogue === 'unreadable' && (
+            <div className="info-banner" data-testid="outcomes-unreadable">
+              <Icon name="info" />
+              <div>The outcomes for this activity type could not be read just now, so completion is not offered.</div>
             </div>
           )}
           {!isImmutable && !completing && loaded && (
