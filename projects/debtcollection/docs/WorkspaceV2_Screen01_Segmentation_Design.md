@@ -282,3 +282,17 @@ No schema change. New read-only capability only (aggregate read path). Additive 
    (proposed KI).
 7. **Ops:** the 4,358 ARR cases have never been strategy-resolved; whether to run them through the
    Rule Engine is a QDB operational decision and would change the matrix's columns from empty to real.
+
+## 17. Decisions taken and implementation closure (2026-09-24)
+
+| §16 item | Decision | Applied as |
+|---|---|---|
+| 1 Risk | **Deferred Pending Authoritative Cross-HL/BFD Data Source and Definition** | No risk column, no risk wording (KI-144) |
+| 2 Columns | Strategy + explicit **Strategy Not Assigned** | Neutral column, never an error; all ten MIS buckets as rows |
+| 3 Measure | **Current arrears** (`qdb_currenttotalarrears`); no loan balance toggle | Labelled *arrears* in every cell, legend and screen-reader text |
+| 4 Name | **Portfolio & Strategy** | Route id `buckets` kept; V1 navigation untouched |
+| 5 Scale | `AggregateQueryRecordLimit` **not raised, not modified** | Unavailable state above the limit (KI-145) |
+| 6 Metadata | Recorded, not fixed | KI-143 |
+| 7 ARR resolution | **Not run** — requires explicit QDB authorization; not part of Screen 01 | KI-146 |
+
+Implementation record: `docs/WorkspaceV2_Tracker.md` (Screen 01 section). Commits `15ef385a`, `87763c02`.
