@@ -11,6 +11,7 @@ import { CaseHeader } from './CaseHeader.js';
 import { CaseOverview } from './CaseOverview.js';
 import { ActivitiesTab, AuditTab, HistoryTab, PromisesTab } from './caseTabs.js';
 import { useCaseRecord } from './useCaseRecord.js';
+import { FILTER_SEGMENT, recallCaseListReturn } from '../../data/caseListFilterUrl.js';
 
 /**
  * Case Workspace V2 — the operational centre.
@@ -82,7 +83,7 @@ export function V2CasePage({ request }: { request: ViewRequest }) {
         <CaseHeader
           detail={detail}
           customer={customer}
-          onBack={() => go('cases')}
+          onBack={() => { const list = recallCaseListReturn(); if (list) go('cases', FILTER_SEGMENT, list); else go('cases'); }}
           onLogAction={() => setDialog({ kind: 'activity', mode: 'create' })}
           onCapturePromise={() => setDialog({ kind: 'promise', mode: 'create' })}
           onMessage={() => openTab('comms')}

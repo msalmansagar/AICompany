@@ -3,6 +3,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from '../App.js';
 import { VERSION_STORAGE_KEY } from '../v2/version/workspaceVersion.js';
+import { rememberCaseListReturn } from '../v2/data/caseListFilterUrl.js';
 import type { XrmLike } from '../platform/crmContext.js';
 
 /**
@@ -97,6 +98,26 @@ describe('the case header', () => {
     await openCase();
 
     expect(screen.getByTestId('v2-case-stats').textContent).toMatch(/41,250/);
+  });
+});
+
+describe('the way back', () => {
+  it('returns to the filtered list the case was opened from', async () => {
+    rememberCaseListReturn('bucket=61-90&strategy=none&from=portfolio');
+    await openCase();
+
+    await userEvent.click(screen.getByTestId('v2-case-back'));
+
+    expect(window.location.hash).toBe('#cases/filter/bucket=61-90&strategy=none&from=portfolio');
+  });
+
+  it('returns to the plain list when the case was not opened from a filtered one', async () => {
+    rememberCaseListReturn(undefined);
+    await openCase();
+
+    await userEvent.click(screen.getByTestId('v2-case-back'));
+
+    expect(window.location.hash).toBe('#cases');
   });
 });
 

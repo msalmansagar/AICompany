@@ -10,7 +10,7 @@ import { BucketBadge, Card, FilterChips } from '../../components/primitives.js';
 import { V2DataGrid, type V2Column } from '../../components/V2DataGrid.js';
 import { useDebounced } from '../../hooks/useDebounced.js';
 import {
-  FILTER_SEGMENT, decodeCaseListFilters, encodeCaseListFilters, hasCaseListFilters, type CaseListFilters,
+  FILTER_SEGMENT, decodeCaseListFilters, encodeCaseListFilters, hasCaseListFilters, rememberCaseListReturn, type CaseListFilters,
 } from '../../data/caseListFilterUrl.js';
 import { STRATEGY_NOT_ASSIGNED, STRATEGY_NOT_ASSIGNED_LABEL } from '../../data/portfolioMatrix.js';
 
@@ -159,7 +159,8 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
         </div>
         <V2DataGrid<CaseRow, CaseQuery>
           columns={COLUMNS} fetchPage={fetchPage} query={query} rowKey={row => row.id}
-          onRowOpen={row => request.onOpenCase(row.id)} rowLabel={row => `Open case ${row.caseNumber}`}
+          onRowOpen={row => { rememberCaseListReturn(request.recordId === FILTER_SEGMENT ? request.tab : undefined); request.onOpenCase(row.id); }}
+          rowLabel={row => `Open case ${row.caseNumber}`}
           isFiltered={activeFilters > 0} emptyTitle="There are no open cases in this CRM scope."
           height={560} testId="v2-cases-grid"
         />

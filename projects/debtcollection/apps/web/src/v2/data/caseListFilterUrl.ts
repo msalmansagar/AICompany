@@ -50,3 +50,29 @@ export function decodeCaseListFilters(encoded: string | undefined): CaseListFilt
 export function hasCaseListFilters(filters: CaseListFilters): boolean {
   return Boolean(filters.bucket || filters.strategy || filters.scope);
 }
+
+/**
+ * The filtered list a case was opened from.
+ *
+ * A case's own URL has no room for the list's filters, so "← Cases" would otherwise land on the
+ * unfiltered list and the officer would lose the cell they drilled into. The list records its
+ * filters when a row opens; the case reads them back. Session-scoped, so a new tab starts clean.
+ */
+const CASE_LIST_RETURN_KEY = 'dcp.v2.cases.return';
+
+export function rememberCaseListReturn(encodedFilters: string | undefined): void {
+  try {
+    if (encodedFilters) window.sessionStorage.setItem(CASE_LIST_RETURN_KEY, encodedFilters);
+    else window.sessionStorage.removeItem(CASE_LIST_RETURN_KEY);
+  } catch {
+    // A profile that blocks storage loses the way back, not the case.
+  }
+}
+
+export function recallCaseListReturn(): string | undefined {
+  try {
+    return window.sessionStorage.getItem(CASE_LIST_RETURN_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
