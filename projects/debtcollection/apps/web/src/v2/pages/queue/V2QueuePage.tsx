@@ -8,6 +8,7 @@ import { useV2Shell } from '../../shell/V2Shell.js';
 import { BucketBadge, Card, EmptyState, FilterChips, KeyValueList, LoadingSkeleton } from '../../components/primitives.js';
 import { V2DataGrid, type V2Column } from '../../components/V2DataGrid.js';
 import { useDebounced } from '../../hooks/useDebounced.js';
+import { formatRecordedAt } from '../../format.js';
 import { useBucketCounts } from '../home/useBucketCounts.js';
 import { useCaseRecord } from '../case/useCaseRecord.js';
 
@@ -139,7 +140,7 @@ function pickBucket(requested: string | undefined): OperationalBucket {
   return QUEUE_BUCKETS.find(id => id === requested) ?? 'MyAssigned';
 }
 
-const recorded = (item: WorkItem) => (item.createdOn ? item.createdOn.slice(0, 16).replace('T', ' ') : '—');
+const recorded = (item: WorkItem) => formatRecordedAt(item.createdOn);
 
 const GRID_COLUMNS: readonly V2Column<WorkItem>[] = [
   { key: 'title', header: 'Work', render: item => item.title },
