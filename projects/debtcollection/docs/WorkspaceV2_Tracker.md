@@ -6,6 +6,7 @@ plan `docs/WorkspaceV2_Plan.md`.
 | | |
 |---|---|
 | Baseline | **51.00 effective hours** (AI-assisted estimate) — not rewritten |
+| Revised forecast | **52.00 h** — +1.00 h: second reference reviewed (13:15 +03), see plan §1b |
 | Expected completion | 2026-09-26 18:00 +03 |
 | Effective time | measured from session transcripts, gaps under 15 minutes counted |
 | Idle / blocked | recorded separately |
@@ -15,7 +16,7 @@ merged, V2 not default. Phase 10 not started.
 
 | WP | Est. h | State | Commit(s) |
 |---|---|---|---|
-| WP1 Analysis + inventory | 1.50 | Done | plan commit |
+| WP1 Analysis + inventory (+ second reference) | 1.50 (+1.00) | Done | `6bbbe8fc`, this commit |
 | WP2 Version resolver + switch | 2.00 | — | |
 | WP3 Tokens + isolation | 2.50 | — | |
 | WP4 Shell + navigation | 3.00 | — | |
