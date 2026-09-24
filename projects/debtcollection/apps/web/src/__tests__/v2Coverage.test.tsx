@@ -50,7 +50,7 @@ describe('V2 covers every route', () => {
 
   it('draws these routes natively', () => {
     expect(Object.keys(V2_PAGES).sort()).toEqual(
-      ['case', 'cases', 'claims', 'customer', 'disputes', 'legal', 'myday', 'ptp', 'queues'].sort(),
+      ['buckets', 'case', 'cases', 'claims', 'customer', 'disputes', 'legal', 'myday', 'ptp', 'queues'].sort(),
     );
   });
 

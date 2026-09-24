@@ -78,6 +78,11 @@ export interface CaseQuery {
   sort?: readonly Sort[];
   /** Only cases that are open. */
   openOnly?: boolean;
+  /**
+   * Cases whose resolved strategy is this one — or, with `'none'`, cases with no resolved strategy
+   * at all. Absent means any. Applied by the source, so the population is the platform's answer.
+   */
+  strategy?: string | 'none';
 }
 
 /** Builds the `$filter` the source applies. Composition only — no threshold appears here. */
@@ -85,6 +90,8 @@ export function buildCaseFilter(query: CaseQuery): string | undefined {
   const clauses: string[] = [];
   if (query.scopeFilter) clauses.push(query.scopeFilter);
   if (query.openOnly) clauses.push('statecode eq 0');
+  if (query.strategy === 'none') clauses.push('_qdb_strategyid_value eq null');
+  else if (query.strategy) clauses.push(`_qdb_strategyid_value eq ${escapeOData(query.strategy)}`);
   if (query.bucket) {
     const value = codeFor(BUCKET_LABELS, query.bucket);
     if (value !== undefined) clauses.push(`qdb_currentarrearbucket eq ${value}`);

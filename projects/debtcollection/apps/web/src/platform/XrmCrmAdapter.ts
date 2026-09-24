@@ -208,6 +208,29 @@ export class XrmCrmAdapter implements ICrmAdapter, IConcurrencyControlledWrites 
   }
 
   /**
+   * Runs a FetchXML **aggregate** query and returns its grouped rows.
+   *
+   * This is how a screen asks the platform for a distribution — counts and sums grouped by a
+   * column — without reading the rows it describes. It goes through `Xrm.WebApi`, so it runs as the
+   * signed-in user and CRM security scopes it exactly as it scopes a list of the same records.
+   *
+   * Returns `null` when the platform refuses: a malformed query, or an aggregate over more records
+   * than the organisation's aggregate limit allows (`0x8004E023`). A refusal is *unknown*, never a
+   * set of zeros, and the caller must say so.
+   */
+  async aggregate(entitySet: string, fetchXml: string): Promise<CrmRecord[] | null> {
+    try {
+      const result = await this.xrm.WebApi.retrieveMultipleRecords(
+        this.toLogicalName(entitySet), `?fetchXml=${encodeURIComponent(fetchXml)}`);
+      return result.entities;
+    } catch {
+      // Deliberately swallowed into `null`: the distinction that matters to a screen is
+      // answered / not answered, and the platform's message names columns an officer never sees.
+      return null;
+    }
+  }
+
+  /**
    * Reads a memo column's real capacity from platform metadata.
    *
    * The bulk executor refuses a population that will not fit the column it is about to be written

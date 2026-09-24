@@ -9,6 +9,10 @@ import { useV2Shell } from '../../shell/V2Shell.js';
 import { BucketBadge, Card, FilterChips } from '../../components/primitives.js';
 import { V2DataGrid, type V2Column } from '../../components/V2DataGrid.js';
 import { useDebounced } from '../../hooks/useDebounced.js';
+import {
+  FILTER_SEGMENT, decodeCaseListFilters, encodeCaseListFilters, hasCaseListFilters, type CaseListFilters,
+} from '../../data/caseListFilterUrl.js';
+import { STRATEGY_NOT_ASSIGNED, STRATEGY_NOT_ASSIGNED_LABEL } from '../../data/portfolioMatrix.js';
 
 /**
  * Collection Cases V2 — choose a case to work.
@@ -32,10 +36,14 @@ const TIE_BREAKER: Sort = { field: 'qdb_collectioncaseid', descending: false };
 
 export function V2CasesPage({ request }: { request: ViewRequest }) {
   const { adapter } = useCrmSession();
-  const { scopeFilter } = useOrg();
+  const { scope, scopeFilter, setScope } = useOrg();
   const shell = useV2Shell();
+  // Filters that arrived in the URL — from Portfolio & Strategy, a bookmark or a refresh.
+  const urlFilters = useMemo<CaseListFilters>(
+    () => (request.recordId === FILTER_SEGMENT ? decodeCaseListFilters(request.tab) : {}),
+    [request.recordId, request.tab]);
   const [search, setSearch] = useState(shell.search);
-  const [bucket, setBucket] = useState('');
+  const [bucket, setBucket] = useState(urlFilters.bucket ?? '');
   const [status, setStatus] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('dpd');
   const settledSearch = useDebounced(search.trim(), 300);
@@ -47,27 +55,79 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
     shell.setSearch('');
   }, [shell]);
 
+  // The URL is the record of what narrows the list: when it changes, the list follows it, including
+  // the CRM scope it names, so a cell opened for HL shows HL whatever the picker said before.
+  useEffect(() => {
+    setBucket(urlFilters.bucket ?? '');
+    if (urlFilters.scope && urlFilters.scope !== scope) setScope(urlFilters.scope);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlFilters]);
+
+  const writeUrlFilters = (next: CaseListFilters) => {
+    const kept: CaseListFilters = { ...next, ...(urlFilters.from ? { from: urlFilters.from } : {}) };
+    if (hasCaseListFilters(kept)) shell.go('cases', FILTER_SEGMENT, encodeCaseListFilters(kept));
+    else shell.go('cases');
+  };
+  const chooseBucket = (next: string) => {
+    if (request.recordId === FILTER_SEGMENT) writeUrlFilters({ ...urlFilters, bucket: next || undefined });
+    else setBucket(next);
+  };
+
   const fetchPage = useMemo(() => createCaseQuery(adapter), [adapter]);
   const query = useMemo<CaseQuery>(() => ({
     ...(scopeFilter !== undefined ? { scopeFilter } : {}),
     ...(bucket ? { bucket } : {}),
     ...(status ? { status } : {}),
     ...(settledSearch ? { search: settledSearch } : {}),
+    ...(urlFilters.strategy ? { strategy: urlFilters.strategy } : {}),
     openOnly: true,
     sort: [...SORTS[sortKey].sort, TIE_BREAKER],
-  }), [scopeFilter, bucket, status, settledSearch, sortKey]);
+  }), [scopeFilter, bucket, status, settledSearch, sortKey, urlFilters.strategy]);
 
-  const activeFilters = [bucket, status, settledSearch].filter(Boolean).length;
-  const clearAll = () => { setBucket(''); setStatus(''); setSearch(''); };
+  const activeFilters = [bucket, status, settledSearch, urlFilters.strategy].filter(Boolean).length;
+  const clearAll = () => {
+    setStatus(''); setSearch('');
+    if (request.recordId === FILTER_SEGMENT) writeUrlFilters({}); else setBucket('');
+  };
+  const strategyChip = urlFilters.strategy === STRATEGY_NOT_ASSIGNED
+    ? STRATEGY_NOT_ASSIGNED_LABEL
+    : urlFilters.strategyLabel ?? urlFilters.strategy;
 
   return (
     <div className="v2-cases" data-testid="v2-cases">
       <Card flush>
         <div className="v2-toolbar">
+          {request.recordId === FILTER_SEGMENT && hasCaseListFilters(urlFilters) && (
+            <div className="v2-filtered-by" data-testid="v2-cases-filtered-by">
+              <span className="v2-chips-label">Filtered by</span>
+              {urlFilters.bucket && (
+                <span className="v2-filter-chip" data-testid="v2-filter-chip-bucket">
+                  DPD: {urlFilters.bucket}
+                  <button type="button" className="v2-filter-chip-remove" aria-label={`Remove the DPD ${urlFilters.bucket} filter`} onClick={() => writeUrlFilters({ ...urlFilters, bucket: undefined })}>×</button>
+                </span>
+              )}
+              {urlFilters.strategy && (
+                <span className="v2-filter-chip" data-testid="v2-filter-chip-strategy">
+                  Strategy: {strategyChip}
+                  <button type="button" className="v2-filter-chip-remove" aria-label={`Remove the strategy filter ${strategyChip}`} onClick={() => writeUrlFilters({ ...urlFilters, strategy: undefined, strategyLabel: undefined })}>×</button>
+                </span>
+              )}
+              {urlFilters.scope && urlFilters.scope !== 'all' && (
+                <span className="v2-filter-chip" data-testid="v2-filter-chip-scope">
+                  CRM: {urlFilters.scope === 'HL' ? 'Housing Loan' : 'BFD'}
+                  <button type="button" className="v2-filter-chip-remove" aria-label="Remove the CRM filter" onClick={() => { setScope('all'); writeUrlFilters({ ...urlFilters, scope: undefined }); }}>×</button>
+                </span>
+              )}
+              <button type="button" className="v2-btn v2-btn-subtle" onClick={clearAll} data-testid="v2-cases-clear-url">Clear all</button>
+              {urlFilters.from === 'portfolio' && (
+                <button type="button" className="v2-btn v2-btn-subtle" onClick={() => shell.go('buckets')} data-testid="v2-cases-back-portfolio">← Back to Portfolio &amp; Strategy</button>
+              )}
+            </div>
+          )}
           <FilterChips
             label="Bucket"
             selected={bucket || 'all'}
-            onSelect={id => setBucket(id === 'all' ? '' : id)}
+            onSelect={id => chooseBucket(id === 'all' ? '' : id)}
             testId="v2-cases-buckets"
             options={[{ id: 'all', label: 'All' }, ...Object.values(BUCKET_LABELS).map(label => ({ id: label, label: `${label} DPD` }))]}
           />
