@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { litigationExists, type LegalWorkState, type LegalWorkStateName } from '@dcp/domain';
+import {
+  explainLegalWait, litigationExists, type LegalWorkState, type LegalWorkStateName,
+} from '@dcp/domain';
 import { describeFailure } from '../platform/errors.js';
 import { findLegalTypeId, loadCaseLegalTraces, type LegalTraceRow } from '../data/caseLegalTraces.js';
 import { useActivityTypeId, useConcludability } from '../data/useConcludability.js';
@@ -98,6 +100,7 @@ export function CaseLegalTrace({ caseId, episodeNumber, customer }: {
           ))}
         </tbody>
       </table>
+      <LegalWaits rows={rows} />
       {!concluding.available && (
         <div className="info-banner" data-testid="legal-conclude-unavailable">
           <Icon name="info" />
@@ -108,6 +111,30 @@ export function CaseLegalTrace({ caseId, episodeNumber, customer }: {
         </div>
       )}
     </Card>
+  );
+}
+
+/**
+ * What the blocked recommendations on this case are waiting on — once per reason, not once per row.
+ *
+ * Deliberately text, not a control. Nothing an officer does here moves either wait, and the
+ * sentence says who does.
+ */
+function LegalWaits({ rows }: { rows: readonly LegalTraceRow[] }) {
+  const waits = [...new Set(rows.map(row => row.trace.state))]
+    .flatMap(state => {
+      const explanation = explainLegalWait(state);
+      return explanation ? [{ state, explanation }] : [];
+    });
+  return (
+    <>
+      {waits.map(({ state, explanation }) => (
+        <div key={state} className="info-banner" data-testid={`legal-wait-${state}`}>
+          <Icon name="info" />
+          <div>{explanation}</div>
+        </div>
+      ))}
+    </>
   );
 }
 

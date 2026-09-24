@@ -548,6 +548,7 @@ export type {
 // ── Phase 8 — Collection-side Legal state (WP14) ────────────────────────────
 export {
   describeLegalWork,
+  explainLegalWait,
   isCurrentLegalWork,
   queueBucketFor,
 } from './legalWorkState.js';

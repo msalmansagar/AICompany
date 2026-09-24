@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  describeLegalWork, queueBucketFor, type LegalWorkInput,
+  describeLegalWork, explainLegalWait, queueBucketFor, type LegalWorkInput, type LegalWorkStateName,
 } from './legalWorkState.js';
 import type { LegalQualificationPolicy } from './legalHandoff.js';
 
@@ -236,4 +236,37 @@ describe('Legal lifecycle never decides what is current collection work', () => 
 
     expect(work.isCurrent).toBe(true);
   });
+});
+
+/**
+ * What a blocked recommendation waits on, in an officer's words (WP4).
+ *
+ * Only the two states that assert a hand-off is blocked get a sentence. Every other state either
+ * needs no explanation or already says what is true, and a sentence there would be noise.
+ */
+describe('explainLegalWait', () => {
+  it('says an unauthorised recommendation waits on QDB setting a rule', () => {
+    expect(explainLegalWait('QualificationPending')).toMatch(/QDB has not yet set what qualifies/);
+  });
+
+  it('says an unresolved customer waits on an account, and that none is created in its place', () => {
+    expect(explainLegalWait('CustomerResolutionRequired')).toMatch(/no account is created or guessed/);
+  });
+
+  it.each<LegalWorkStateName>([
+    'NotLegal', 'RecommendationOnly', 'ReadyForHandoff', 'LitigationVisible',
+    'LitigationNotVisible', 'LitigationLinkBroken', 'LitigationUnavailable',
+  ])('has nothing to add for %s', state => {
+    expect(explainLegalWait(state)).toBeUndefined();
+  });
+
+  it.each<LegalWorkStateName>(['QualificationPending', 'CustomerResolutionRequired'])(
+    'names no known issue, column or option value for %s', state => {
+      expect(explainLegalWait(state)).not.toMatch(/KI-|qdb_|d{6,}/);
+    });
+
+  it.each<LegalWorkStateName>(['QualificationPending', 'CustomerResolutionRequired'])(
+    'never invites the officer to act for %s', state => {
+      expect(explainLegalWait(state)).not.toMatch(/click|press|send to legal|please|you (can|should|must)/i);
+    });
 });
