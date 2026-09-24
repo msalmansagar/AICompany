@@ -47,3 +47,27 @@
 
 .dcp-v2 .fluent-input,
 .dcp-v2 .fluent-select { border-radius: var(--v2-radius); border-color: var(--v2-border); }
+
+/* Tabs inside reused V1 views (the Communication Centre's single / bulk switch, for one). */
+.dcp-v2 .pivot { border-bottom: 1px solid var(--v2-divider); gap: 2px; }
+.dcp-v2 .pivot-tab { font-size: var(--v2-fs-sm); color: var(--v2-text-muted); padding: 9px 14px; }
+.dcp-v2 .pivot-tab:hover { color: var(--v2-text); }
+.dcp-v2 .pivot-tab.active { color: var(--v2-text); }
+.dcp-v2 .pivot-tab.active::after { background: var(--v2-accent-strong); }
+
+/* KPI tiles in reused V1 views read like V2's metric tiles. */
+.dcp-v2 .kpi-row { gap: 12px; }
+.dcp-v2 .kpi-tile { border-left-width: 1px; padding: 14px 16px; }
+.dcp-v2 .kpi-label { font-size: var(--v2-fs-xs); text-transform: none; letter-spacing: 0; font-weight: var(--v2-fw-regular); color: var(--v2-text-muted); }
+.dcp-v2 .kpi-value { font-size: 26px; font-weight: var(--v2-fw-semibold); letter-spacing: -.02em; }
+
+.dcp-v2 .chip { border-radius: 99px; font-size: var(--v2-fs-xs); }
+.dcp-v2 .chip.sel { background: var(--v2-accent-soft); border-color: var(--v2-accent-strong); color: var(--v2-accent-ink); }
+
+/* Dialog and panel frames, as the V2 reference draws them. */
+.dcp-v2 .panel-head,
+.dcp-v2 .dialog-head { border-bottom-color: var(--v2-divider); }
+.dcp-v2 .panel-head h3,
+.dcp-v2 .dialog-head h3 { font-size: 15px; }
+.dcp-v2 .panel-foot,
+.dcp-v2 .dialog-foot { background: #F9FBFE; border-top-color: var(--v2-divider); }
