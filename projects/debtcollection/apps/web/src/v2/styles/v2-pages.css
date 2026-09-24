@@ -71,3 +71,23 @@
   background: var(--v2-primary); color: #FFFFFF; border-radius: 9px; padding: 12px 16px;
   box-shadow: var(--v2-shadow-2); font-size: var(--v2-fs-sm); max-width: 380px;
 }
+
+/* ── Home ───────────────────────────────────────────────────────────────── */
+.dcp-v2 .v2-home { display: flex; flex-direction: column; gap: var(--v2-space-4); }
+
+.dcp-v2 .v2-list { list-style: none; margin: 0; padding: 0; }
+.dcp-v2 .v2-list-row {
+  display: flex; align-items: center; gap: 12px; padding: 11px 18px;
+  border-bottom: 1px solid var(--v2-divider-soft);
+}
+.dcp-v2 .v2-list-row:last-child { border-bottom: 0; }
+.dcp-v2 .v2-list-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.dcp-v2 .v2-list-title { font-size: var(--v2-fs-sm); font-weight: var(--v2-fw-semibold); }
+.dcp-v2 .v2-list-meta { font-size: var(--v2-fs-xs); color: var(--v2-text-muted); }
+.dcp-v2 .v2-list-link {
+  flex: 1; display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  margin: -11px -18px; padding: 11px 18px; border: 0; background: transparent; color: inherit;
+  font: inherit; text-align: left; cursor: pointer;
+}
+.dcp-v2 .v2-list-link:hover { background: var(--v2-hover); }
+.dcp-v2 .v2-list-count { font-size: var(--v2-fs-sm); font-weight: var(--v2-fw-semibold); font-variant-numeric: tabular-nums; }
