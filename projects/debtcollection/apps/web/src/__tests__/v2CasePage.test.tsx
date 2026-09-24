@@ -13,8 +13,6 @@ import type { XrmLike } from '../platform/crmContext.js';
  * plainly when there is nothing to show.
  */
 
-const FORMATTED = '@OData.Community.Display.V1.FormattedValue';
-
 const CASE_ROW = {
   qdb_collectioncaseid: 'c-1',
   qdb_casenumber: 'COL-HL-000123',
