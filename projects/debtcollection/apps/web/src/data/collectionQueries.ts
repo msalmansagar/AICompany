@@ -1,10 +1,10 @@
 import type { ContinuationToken, Page, Sort } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import {
-  BUCKET_LABELS, CASE_LIST_COLUMNS, CASE_STATUS_LABELS, CRM_LOG_COLUMNS, ENTITY_SETS, ORG_LABELS,
+  BUCKET_LABELS, CASE_LIST_COLUMNS, CASE_STATUS_LABELS, CRM_LOG_COLUMNS, CUSTOMER_TYPE_LABELS, ENTITY_SETS, ORG_LABELS,
 } from './schema.js';
 import {
-  optional, readBoolean, readChoice, readLookupTable, readNumber, readText, type CrmRow,
+  optional, readBoolean, readChoice, readLookupName, readLookupTable, readNumber, readText, type CrmRow,
 } from './rowReaders.js';
 
 /**
@@ -38,6 +38,15 @@ export interface CaseRow {
   /** Which customer table this case's customer lives in — contact for HL, account for BFD. */
   customerTable?: string;
   customerId?: string;
+  /** The customer's display name, as the platform supplies it beside the lookup. */
+  customerName?: string;
+  customerType?: string;
+  /** MIS's loan-type description, e.g. "Building Housing". */
+  productDescription?: string;
+  lastMisSyncOn?: string;
+  strategyId?: string;
+  strategyName?: string;
+  ownerName?: string;
 }
 
 export function toCaseRow(row: CrmRow): CaseRow {
@@ -62,8 +71,31 @@ export function toCaseRow(row: CrmRow): CaseRow {
     // the hard way.
     ...optional('customerTable', readLookupTable(row, '_qdb_customerid_value')),
     ...optional('customerId', readText(row, '_qdb_customerid_value')),
+    ...optional('customerName', readLookupName(row, '_qdb_customerid_value')),
+    ...optional('customerType', readChoice(row, 'qdb_customertype', CUSTOMER_TYPE_LABELS)),
+    ...optional('productDescription', readText(row, 'qdb_productdescription')),
+    ...optional('lastMisSyncOn', readText(row, 'qdb_lastmissyncon')),
+    ...optional('strategyId', readText(row, '_qdb_strategyid_value')),
+    ...optional('strategyName', readLookupName(row, '_qdb_strategyid_value')),
+    ...optional('ownerName', readLookupName(row, '_ownerid_value')),
   };
 }
+
+/**
+ * Where a search term is looked for. The identifiers are the default and V1's behaviour; the
+ * customer's name lives on the contact or account behind the polymorphic lookup and is reached
+ * through its navigation property — still one `$filter`, still applied by the source.
+ */
+export type CaseSearchField = 'caseNumber' | 'customerBusinessId' | 'facilityNumber' | 'customerName';
+export const IDENTIFIER_SEARCH_FIELDS: readonly CaseSearchField[] = ['caseNumber', 'customerBusinessId'];
+export const WIDE_SEARCH_FIELDS: readonly CaseSearchField[] = ['caseNumber', 'customerBusinessId', 'facilityNumber', 'customerName'];
+
+const SEARCH_CLAUSES: Readonly<Record<CaseSearchField, (term: string) => string>> = {
+  caseNumber: term => `contains(qdb_casenumber,'${term}')`,
+  customerBusinessId: term => `contains(qdb_customerbusinessid,'${term}')`,
+  facilityNumber: term => `contains(qdb_facilitynumber,'${term}')`,
+  customerName: term => `contains(qdb_customerid_contact/fullname,'${term}') or contains(qdb_customerid_account/name,'${term}')`,
+};
 
 /** What a case list may be narrowed by. Every field is applied by the source. */
 export interface CaseQuery {
@@ -71,10 +103,13 @@ export interface CaseQuery {
   scopeFilter?: string;
   bucket?: string;
   status?: string;
-  /** Free-text over case number and customer business id. */
+  /** Free-text over the `searchFields` — case number and customer business id unless said otherwise. */
   search?: string;
+  searchFields?: readonly CaseSearchField[];
   /** Every case belonging to one customer, by the canonical business id. */
   customerBusinessId?: string;
+  /** Only cases owned by this user — the signed-in officer's own list. */
+  ownerId?: string;
   sort?: readonly Sort[];
   /** Only cases that are open. */
   openOnly?: boolean;
@@ -103,9 +138,11 @@ export function buildCaseFilter(query: CaseQuery): string | undefined {
   if (query.customerBusinessId) {
     clauses.push(`qdb_customerbusinessid eq '${escapeOData(query.customerBusinessId)}'`);
   }
+  if (query.ownerId) clauses.push(`_ownerid_value eq ${escapeOData(query.ownerId)}`);
   if (query.search) {
     const term = escapeOData(query.search);
-    clauses.push(`(contains(qdb_casenumber,'${term}') or contains(qdb_customerbusinessid,'${term}'))`);
+    const fields = query.searchFields ?? IDENTIFIER_SEARCH_FIELDS;
+    clauses.push(`(${fields.map(field => SEARCH_CLAUSES[field](term)).join(' or ')})`);
   }
   return clauses.length > 0 ? clauses.join(' and ') : undefined;
 }

@@ -237,3 +237,22 @@
 .dcp-v2 .v2-filter-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 10px; border-radius: 99px; background: var(--v2-accent-soft); color: var(--v2-accent-ink); font-size: var(--v2-fs-xs); font-weight: var(--v2-fw-semibold); }
 .dcp-v2 .v2-filter-chip-remove { width: 20px; height: 20px; border: 0; border-radius: 50%; background: transparent; color: inherit; font-size: 14px; line-height: 1; cursor: pointer; }
 .dcp-v2 .v2-filter-chip-remove:hover { background: rgba(15, 27, 61, .12); }
+.dcp-v2 .v2-matrix-rowlabel { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+
+/* ── Collection Cases: Split rows, preview, sortable headers ─────────────── */
+.dcp-v2 .v2-case-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.dcp-v2 .v2-case-row .v2-two-line-sub { display: flex; align-items: center; gap: 4px; }
+.dcp-v2 .v2-chip .v2-bucket-dot { margin-right: 6px; }
+.dcp-v2 .v2-case-preview { padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.dcp-v2 .v2-preview-head { display: flex; align-items: flex-start; gap: 12px; }
+.dcp-v2 .v2-preview-names { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.dcp-v2 .v2-preview-name { margin: 0; font-size: 17px; font-weight: var(--v2-fw-semibold); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dcp-v2 .v2-preview-stats { border: 1px solid var(--v2-divider); border-radius: var(--v2-radius); overflow: hidden; }
+.dcp-v2 .v2-case-preview .v2-kv { border: 1px solid var(--v2-divider); border-radius: var(--v2-radius); }
+.dcp-v2 .v2-sort-header {
+  appearance: none; border: 0; background: none; padding: 0; margin: 0; cursor: pointer;
+  font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.dcp-v2 .v2-sort-header:focus-visible { outline: none; box-shadow: var(--v2-focus-ring); border-radius: 4px; }
+.dcp-v2 .v2-sort-mark { font-size: 9px; line-height: 1; }

@@ -4,7 +4,7 @@ import {
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import {
   ACCOUNT_COLUMNS, ACTIVITY_COLUMNS, BUCKET_LABELS, CASE_DETAIL_COLUMNS, CASE_STATUS_LABELS,
-  CONTACT_COLUMNS, CUSTOMER_TYPE_LABELS, ELIGIBILITY_OUTCOME_LABELS, ENTITY_SETS, ORG_LABELS,
+  CONTACT_COLUMNS, ELIGIBILITY_OUTCOME_LABELS, ENTITY_SETS, ORG_LABELS,
   PROMISE_TYPE_LABELS, PTP_COLUMNS, PTP_STATUS_LABELS, RESOLUTION_TYPE_LABELS, SNAPSHOT_COLUMNS,
 } from './schema.js';
 import {
@@ -29,19 +29,13 @@ import { escapeOData, mapPage, toCaseRow, type CaseRow } from './collectionQueri
 // ── One case, in full ────────────────────────────────────────────────────────
 
 export interface CaseDetail extends CaseRow {
-  customerType?: string;
   productTypeCode?: string;
-  productDescription?: string;
   installmentAmount?: number;
-  lastMisSyncOn?: string;
   cureDate?: string;
   resolutionType?: string;
   closedDate?: string;
   correlationId?: string;
   eligibilityRulesetVersion?: string;
-  strategyId?: string;
-  strategyName?: string;
-  ownerName?: string;
   isOpen: boolean;
   createdOn?: string;
   modifiedOn?: string;
@@ -51,19 +45,13 @@ export function toCaseDetail(row: CrmRow): CaseDetail {
   return {
     ...toCaseRow(row),
     isOpen: readNumber(row, 'statecode') === 0,
-    ...optional('customerType', readChoice(row, 'qdb_customertype', CUSTOMER_TYPE_LABELS)),
     ...optional('productTypeCode', readText(row, 'qdb_producttypecode')),
-    ...optional('productDescription', readText(row, 'qdb_productdescription')),
     ...optional('installmentAmount', readNumber(row, 'qdb_installmentamount')),
-    ...optional('lastMisSyncOn', readText(row, 'qdb_lastmissyncon')),
     ...optional('cureDate', readText(row, 'qdb_curedate')),
     ...optional('resolutionType', readChoice(row, 'qdb_resolutiontype', RESOLUTION_TYPE_LABELS)),
     ...optional('closedDate', readText(row, 'qdb_closeddate')),
     ...optional('correlationId', readText(row, 'qdb_correlationid')),
     ...optional('eligibilityRulesetVersion', readText(row, 'qdb_eligibilityrulesetversion')),
-    ...optional('strategyId', readText(row, '_qdb_strategyid_value')),
-    ...optional('strategyName', readLookupName(row, '_qdb_strategyid_value')),
-    ...optional('ownerName', readLookupName(row, '_ownerid_value')),
     ...optional('createdOn', readText(row, 'createdon')),
     ...optional('modifiedOn', readText(row, 'modifiedon')),
   };

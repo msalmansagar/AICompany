@@ -3,7 +3,7 @@ import { createStrategyActionQuery, createStrategyQuery, type StrategyActionRow,
 import { formatCount, formatDate, formatMoney } from '../../../components/primitives.js';
 import { useCrmSession, useOrg, type OrganizationScope } from '../../../shell/context.js';
 import { useV2Shell } from '../../shell/V2Shell.js';
-import { Card, EmptyState, ErrorState, LoadingSkeleton } from '../../components/primitives.js';
+import { BucketDot, Card, EmptyState, ErrorState, LoadingSkeleton } from '../../components/primitives.js';
 import { FILTER_SEGMENT, encodeCaseListFilters } from '../../data/caseListFilterUrl.js';
 import {
   BUCKET_ROWS, STRATEGY_NOT_ASSIGNED, cellKey, compactArrears, describeArrears, describeCell, loadFreshness,
@@ -200,7 +200,12 @@ function MatrixTable({ columns, scope, onOpen, lastCell, figureOf, totals, maxAr
         <tbody>
           {BUCKET_ROWS.map(bucket => (
             <tr key={bucket} data-testid={`v2-matrix-row-${bucket}`}>
-              <th scope="row" className="v2-matrix-rowhead">{bucket} DPD</th>
+              <th scope="row" className="v2-matrix-rowhead">
+                <span className="v2-matrix-rowlabel">
+                  <BucketDot bucket={bucket} />
+                  {bucket} DPD
+                </span>
+              </th>
               {columns.map(column => {
                 const cell: MatrixCell = { bucket, strategy: column.key, scope };
                 return (

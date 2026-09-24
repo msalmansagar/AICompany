@@ -340,6 +340,7 @@ describe('Collection Cases, arrived at from a cell', () => {
   });
 
   it('records the filtered list when a row opens, so the case can lead back to it', async () => {
+    window.localStorage.setItem('dcp.v2.casesLayout', 'grid');
     await arrive('bucket=61-90&strategy=none&from=portfolio');
     const grid = await screen.findByTestId('v2-cases-grid');
     await waitFor(() => expect(within(grid).getAllByRole('row').length).toBeGreaterThan(1));

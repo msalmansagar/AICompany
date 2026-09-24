@@ -1,5 +1,6 @@
 import type { KeyboardEvent, ReactNode } from 'react';
 import { Icon } from '../../components/primitives.js';
+import { bucketVisual } from '../data/bucketVisual.js';
 
 /**
  * Workspace V2's building blocks. Presentation only: every value they show is passed in, formatted by
@@ -50,24 +51,19 @@ export function StatusBadge({ tone, children, testId }: { tone: Tone; children: 
   );
 }
 
-/** A delinquency bucket, coloured by its position and always labelled. */
+/** A delinquency bucket, tinted by its MIS position (`bucketVisual`) and always labelled. */
 export function BucketBadge({ bucket }: { bucket?: string | undefined }) {
   if (!bucket) return <span className="v2-muted">—</span>;
-  return <span className="v2-bucket" data-bucket={bucketRank(bucket)}>{bucket}</span>;
+  const visual = bucketVisual(bucket);
+  return <span className="v2-bucket" data-bucket={visual.rank} title={visual.description}>{visual.label}</span>;
 }
 
 /**
- * 1–5 from the first number in the bucket's own label ('1-30', '91-180', '>2000'), for colour only.
- * An unrecognised label is neutral (0); nothing is decided from it.
+ * The small bucket dot from the reference — a colour cue beside a label that already says the
+ * bucket, so it is hidden from assistive technology and never carries meaning on its own.
  */
-export function bucketRank(bucket: string): number {
-  const days = Number.parseInt(bucket.replace(/^\D*/, ''), 10);
-  if (Number.isNaN(days)) return 0;
-  if (days <= 30) return 1;
-  if (days <= 60) return 2;
-  if (days <= 90) return 3;
-  if (days <= 180) return 4;
-  return 5;
+export function BucketDot({ bucket }: { bucket?: string | undefined }) {
+  return <span className="v2-bucket-dot" data-bucket={bucketVisual(bucket).rank} aria-hidden="true" />;
 }
 
 /**
@@ -226,7 +222,8 @@ export function CommandButton({ icon, label, onClick, isPrimary = false, disable
 
 export interface ChipOption {
   id: string;
-  label: string;
+  /** Text, or text with a cue beside it — a bucket dot, say. */
+  label: ReactNode;
   count?: string | undefined;
   /** Why this option cannot be chosen. The option stays visible, so the officer learns why. */
   disabledReason?: string | undefined;

@@ -45,6 +45,27 @@
 .dcp-v2 .v2-bucket[data-bucket='3'] { color: var(--v2-bucket-3); background: color-mix(in srgb, var(--v2-bucket-3) 12%, white); }
 .dcp-v2 .v2-bucket[data-bucket='4'] { color: var(--v2-bucket-4); background: color-mix(in srgb, var(--v2-bucket-4) 12%, white); }
 .dcp-v2 .v2-bucket[data-bucket='5'] { color: var(--v2-bucket-5); background: color-mix(in srgb, var(--v2-bucket-5) 12%, white); }
+.dcp-v2 .v2-bucket[data-bucket='6'] { color: var(--v2-bucket-6); background: color-mix(in srgb, var(--v2-bucket-6) 12%, white); }
+.dcp-v2 .v2-bucket[data-bucket='7'] { color: var(--v2-bucket-7); background: color-mix(in srgb, var(--v2-bucket-7) 12%, white); }
+.dcp-v2 .v2-bucket[data-bucket='8'] { color: var(--v2-bucket-8); background: color-mix(in srgb, var(--v2-bucket-8) 12%, white); }
+.dcp-v2 .v2-bucket[data-bucket='9'] { color: var(--v2-bucket-9); background: color-mix(in srgb, var(--v2-bucket-9) 12%, white); }
+.dcp-v2 .v2-bucket[data-bucket='10'] { color: var(--v2-bucket-10); background: color-mix(in srgb, var(--v2-bucket-10) 12%, white); }
+
+/* The reference's small bucket dot: a cue beside a label, never the only signal. */
+.dcp-v2 .v2-bucket-dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto;
+  background: var(--v2-text-disabled); vertical-align: middle;
+}
+.dcp-v2 .v2-bucket-dot[data-bucket='1'] { background: var(--v2-bucket-1); }
+.dcp-v2 .v2-bucket-dot[data-bucket='2'] { background: var(--v2-bucket-2); }
+.dcp-v2 .v2-bucket-dot[data-bucket='3'] { background: var(--v2-bucket-3); }
+.dcp-v2 .v2-bucket-dot[data-bucket='4'] { background: var(--v2-bucket-4); }
+.dcp-v2 .v2-bucket-dot[data-bucket='5'] { background: var(--v2-bucket-5); }
+.dcp-v2 .v2-bucket-dot[data-bucket='6'] { background: var(--v2-bucket-6); }
+.dcp-v2 .v2-bucket-dot[data-bucket='7'] { background: var(--v2-bucket-7); }
+.dcp-v2 .v2-bucket-dot[data-bucket='8'] { background: var(--v2-bucket-8); }
+.dcp-v2 .v2-bucket-dot[data-bucket='9'] { background: var(--v2-bucket-9); }
+.dcp-v2 .v2-bucket-dot[data-bucket='10'] { background: var(--v2-bucket-10); }
 
 /* ── Metric tile ────────────────────────────────────────────────────────── */
 .dcp-v2 .v2-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }

@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { Page } from '@dcp/domain';
+import { ARREAR_BUCKET_CODES, type Page } from '@dcp/domain';
+import { bucketVisual } from '../v2/data/bucketVisual.js';
 import {
-  BucketBadge, CommandButton, EmptyState, FilterChips, MetricTile, StatusBadge, Tabs, bucketRank,
+  BucketBadge, BucketDot, CommandButton, EmptyState, FilterChips, MetricTile, StatusBadge, Tabs,
 } from '../v2/components/primitives.js';
 import { V2DataGrid, type V2Column } from '../v2/components/V2DataGrid.js';
 
@@ -17,11 +18,26 @@ import { V2DataGrid, type V2Column } from '../v2/components/V2DataGrid.js';
 
 afterEach(cleanup);
 
-describe('bucketRank', () => {
+describe('bucketVisual', () => {
+  it('ranks every MIS bucket by its position in the contract, so ten buckets get ten looks', () => {
+    expect(ARREAR_BUCKET_CODES.map(code => bucketVisual(code).rank)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  });
+
   it.each([
-    ['1-30', 1], ['31-60', 2], ['61-90', 3], ['91-180', 4], ['181-270', 5], ['>2000', 5], ['unknown', 0],
-  ])('ranks %s as %i', (label, rank) => {
-    expect(bucketRank(label)).toBe(rank);
+    ['1-30', '1 to 30 days past due'], ['>2000', 'over 2000 days past due'],
+  ])('describes %s for assistive technology as "%s"', (label, description) => {
+    expect(bucketVisual(label).description).toBe(description);
+  });
+
+  it('draws a label the contract does not know as neutral, deciding nothing from it', () => {
+    expect(bucketVisual('unknown').rank).toBe(0);
+  });
+
+  it('gives the badge and the dot the same rank', () => {
+    render(<><BucketBadge bucket="61-90" /><BucketDot bucket="61-90" /></>);
+
+    const ranks = [screen.getByText('61-90').getAttribute('data-bucket'), document.querySelector('.v2-bucket-dot')?.getAttribute('data-bucket')];
+    expect(ranks).toEqual(['3', '3']);
   });
 
   it('labels a missing bucket as unknown rather than guessing', () => {

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import type { ContinuationToken, Page } from '@dcp/domain';
 import { usePagedQuery } from '../../data/usePagedQuery.js';
 import { VirtualizedRows } from '../../data/VirtualizedRows.js';
@@ -19,6 +19,14 @@ export interface V2Column<T> {
   render: (item: T) => ReactNode;
   width?: string;
   numeric?: boolean;
+  /** The source column this one can be ordered by. Absent means the header is not a sort control. */
+  sortField?: string;
+}
+
+/** The order a grid is asking the source for, so a header can show it and change it. */
+export interface GridSort {
+  field: string;
+  descending: boolean;
 }
 
 export function V2DataGrid<T, Q extends object>({
@@ -30,6 +38,8 @@ export function V2DataGrid<T, Q extends object>({
   rowLabel,
   isFiltered = false,
   selectedKey,
+  sort,
+  onSortChange,
   emptyTitle = 'Nothing here yet.',
   pageSize = 50,
   rowHeight = 44,
@@ -47,6 +57,9 @@ export function V2DataGrid<T, Q extends object>({
   isFiltered?: boolean;
   /** The row shown as selected, for a list-and-preview layout. */
   selectedKey?: string | undefined;
+  /** The current order, when headers may change it. The change is the caller's to send to the source. */
+  sort?: GridSort | undefined;
+  onSortChange?: (sort: GridSort) => void;
   emptyTitle?: string;
   pageSize?: number;
   rowHeight?: number;
@@ -82,7 +95,7 @@ export function V2DataGrid<T, Q extends object>({
         rowHeight={rowHeight}
         height={height}
         columnCount={columns.length}
-        head={<HeaderRow columns={columns} />}
+        head={<HeaderRow columns={columns} sort={sort} onSortChange={onSortChange} />}
         onReachEnd={paged.loadMore}
         data-testid={`${testId}-viewport`}
         renderRow={item => (
@@ -91,6 +104,7 @@ export function V2DataGrid<T, Q extends object>({
             aria-label={rowLabel?.(item)}
             aria-selected={selectedKey === undefined ? undefined : rowKey(item) === selectedKey}
             {...(onRowOpen ? rowActivation(() => onRowOpen(item)) : {})}
+            onKeyDown={onRowOpen ? moveBetweenRows(() => onRowOpen(item)) : undefined}
           >
             {columns.map(column => (
               <td key={column.key} className={column.numeric ? 'v2-num' : 'v2-cell'}>{column.render(item)}</td>
@@ -103,19 +117,49 @@ export function V2DataGrid<T, Q extends object>({
   );
 }
 
-function HeaderRow<T>({ columns }: { columns: readonly V2Column<T>[] }) {
+/**
+ * Enter and Space open the row (`rowActivation`); the arrow keys move focus to the neighbouring row,
+ * so a list can be walked from the keyboard without tabbing through every cell.
+ */
+function moveBetweenRows(activate: () => void) {
+  return (event: KeyboardEvent<HTMLTableRowElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(); return; }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    const sibling = event.key === 'ArrowDown' ? event.currentTarget.nextElementSibling : event.currentTarget.previousElementSibling;
+    if (sibling instanceof HTMLTableRowElement && sibling.tabIndex >= 0) { event.preventDefault(); sibling.focus(); }
+  };
+}
+
+function HeaderRow<T>({ columns, sort, onSortChange }: {
+  columns: readonly V2Column<T>[];
+  sort?: GridSort | undefined;
+  onSortChange?: ((sort: GridSort) => void) | undefined;
+}) {
   return (
     <tr>
-      {columns.map(column => (
-        <th
-          key={column.key}
-          scope="col"
-          className={column.numeric ? 'v2-num' : 'v2-cell'}
-          style={column.width ? { width: column.width } : undefined}
-        >
-          {column.header}
-        </th>
-      ))}
+      {columns.map(column => {
+        const isSorted = sort !== undefined && column.sortField === sort.field;
+        const canSort = column.sortField !== undefined && onSortChange !== undefined;
+        return (
+          <th
+            key={column.key}
+            scope="col"
+            className={column.numeric ? 'v2-num' : 'v2-cell'}
+            style={column.width ? { width: column.width } : undefined}
+            aria-sort={isSorted ? (sort.descending ? 'descending' : 'ascending') : undefined}
+          >
+            {canSort ? (
+              <button
+                type="button" className="v2-sort-header" data-testid={`v2-sort-${column.key}`}
+                onClick={() => onSortChange({ field: column.sortField!, descending: isSorted ? !sort.descending : true })}
+              >
+                {column.header}
+                <span className="v2-sort-mark" aria-hidden="true">{isSorted ? (sort.descending ? '▼' : '▲') : ''}</span>
+              </button>
+            ) : column.header}
+          </th>
+        );
+      })}
     </tr>
   );
 }
