@@ -103,6 +103,18 @@ function definedClassNames(): Set<string> {
   return names;
 }
 
+/** Class names a stylesheet gives a `display` or `position` to, by a single-class selector. */
+function layoutClassesOf(css: string): Set<string> {
+  const names = new Set<string>();
+  for (const match of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+    const [, selector, body] = match;
+    if (!/(^|[^-\w])(display|position)\s*:/.test(body ?? '')) continue;
+    const single = (selector ?? '').trim().match(/^\.dcp-v2\s+\.([a-zA-Z][\w-]*)$/);
+    if (single) names.add(single[1]!);
+  }
+  return names;
+}
+
 describe('every class the workspace renders has a rule behind it', () => {
   const files = componentFiles(SOURCE_ROOT);
   const defined = definedClassNames();
@@ -120,6 +132,19 @@ describe('every class the workspace renders has a rule behind it', () => {
         .map(u => `${u.name}  (${relative(SOURCE_ROOT, u.file).replace(/\\/g, '/')})`),
     )].sort();
     expect(missing, `class names with no rule:\n${missing.join('\n')}`).toEqual([]);
+  });
+
+  /**
+   * A page stylesheet re-declaring the layout of a class the shared grid renders stacked every
+   * Collection Cases header into a column — the Screen 01 matrix once styled its cells as `v2-cell`,
+   * the grid's own cell class. A class either belongs to the shared components or to one page.
+   */
+  it('lets no page stylesheet change how a shared component class lays out', () => {
+    const componentSheet = join(SOURCE_ROOT, 'v2', 'styles', 'v2-components.css');
+    const pageSheet = join(SOURCE_ROOT, 'v2', 'styles', 'v2-pages.css');
+    const shared = layoutClassesOf(readFileSync(componentSheet, 'utf8'));
+    const redefined = [...layoutClassesOf(readFileSync(pageSheet, 'utf8'))].filter(name => shared.has(name)).sort();
+    expect(redefined, `page stylesheet re-lays-out shared classes:\n${redefined.join('\n')}`).toEqual([]);
   });
 
   it('builds no class name by gluing a value onto a prefix', () => {

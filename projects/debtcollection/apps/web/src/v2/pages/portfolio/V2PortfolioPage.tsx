@@ -238,40 +238,40 @@ function Cell({ cell, column, figure, maxArrears, isLast, onOpen }: {
   if (figure === undefined) {
     return (
       <button
-        type="button" className="v2-cell v2-cell-unknown" onClick={() => onOpen(cell, column)} data-testid={testId} data-state="unknown"
+        type="button" className="v2-matrix-cell v2-matrix-cell-unknown" onClick={() => onOpen(cell, column)} data-testid={testId} data-state="unknown"
         aria-label={`${cell.bucket} DPD, ${column.label}, count unavailable. Open cases.`} title="Count unavailable — the platform did not answer. Opens the cases, which are paged."
       >
-        <span className="v2-cell-count">—</span>
-        <span className="v2-cell-sub">Count unavailable</span>
+        <span className="v2-matrix-cell-count">—</span>
+        <span className="v2-matrix-cell-sub">Count unavailable</span>
       </button>
     );
   }
   if (figure.cases === 0) {
     return (
-      <span className="v2-cell v2-cell-zero" data-testid={testId} data-state="zero" aria-label={`${cell.bucket} DPD, ${column.label}, no cases`}>
-        <span className="v2-cell-count">0</span>
+      <span className="v2-matrix-cell v2-matrix-cell-zero" data-testid={testId} data-state="zero" aria-label={`${cell.bucket} DPD, ${column.label}, no cases`}>
+        <span className="v2-matrix-cell-count">0</span>
       </span>
     );
   }
   return (
     <button
-      type="button" className="v2-cell v2-cell-live" onClick={() => onOpen(cell, column)} data-testid={testId} data-state="populated"
+      type="button" className="v2-matrix-cell v2-matrix-cell-live" onClick={() => onOpen(cell, column)} data-testid={testId} data-state="populated"
       data-shade={shadeStep(figure.arrears, maxArrears)} aria-pressed={isLast}
       aria-label={describeCell(cell, column.label, figure)} title={`${formatCount(figure.cases)} cases · ${describeArrears(figure.arrears)} current arrears`}
     >
-      <span className="v2-cell-count">{formatCount(figure.cases)}</span>
-      <span className="v2-cell-sub">{compactArrears(figure.arrears)}</span>
-      <span className="v2-cell-unit">arrears</span>
+      <span className="v2-matrix-cell-count">{formatCount(figure.cases)}</span>
+      <span className="v2-matrix-cell-sub">{compactArrears(figure.arrears)}</span>
+      <span className="v2-matrix-cell-unit">arrears</span>
     </button>
   );
 }
 
 function TotalCell({ figure, isGrand = false }: { figure: CellFigure | undefined; isGrand?: boolean }) {
-  if (!figure) return <span className="v2-cell v2-cell-total" data-state="unknown"><span className="v2-cell-count">—</span></span>;
+  if (!figure) return <span className="v2-matrix-cell v2-matrix-cell-total" data-state="unknown"><span className="v2-matrix-cell-count">—</span></span>;
   return (
-    <span className={isGrand ? 'v2-cell v2-cell-total v2-cell-grand' : 'v2-cell v2-cell-total'} data-testid={isGrand ? 'v2-matrix-grand-total' : undefined}>
-      <span className="v2-cell-count">{formatCount(figure.cases)}</span>
-      <span className="v2-cell-sub">{compactArrears(figure.arrears)}</span>
+    <span className={isGrand ? 'v2-matrix-cell v2-matrix-cell-total v2-matrix-cell-grand' : 'v2-matrix-cell v2-matrix-cell-total'} data-testid={isGrand ? 'v2-matrix-grand-total' : undefined}>
+      <span className="v2-matrix-cell-count">{formatCount(figure.cases)}</span>
+      <span className="v2-matrix-cell-sub">{compactArrears(figure.arrears)}</span>
     </span>
   );
 }

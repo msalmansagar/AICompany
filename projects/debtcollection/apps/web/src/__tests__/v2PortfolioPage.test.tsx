@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { ARREAR_BUCKET_CODES } from '@dcp/domain';
 import { App } from '../App.js';
 import { buildCaseFilter } from '../data/collectionQueries.js';
+import { recallCaseListReturn } from '../v2/data/caseListFilterUrl.js';
 import { BUCKET_LABELS } from '../data/schema.js';
 import { VERSION_STORAGE_KEY } from '../v2/version/workspaceVersion.js';
 import type { XrmLike } from '../platform/crmContext.js';
@@ -234,7 +235,7 @@ describe('opening a cell', () => {
   it('lists exactly the population the cell counted — count reconciliation', async () => {
     await openPortfolio();
     await screen.findByTestId('v2-portfolio-matrix');
-    const shown = Number(cell('61-90', 'none').querySelector('.v2-cell-count')?.textContent);
+    const shown = Number(cell('61-90', 'none').querySelector('.v2-matrix-cell-count')?.textContent);
 
     await userEvent.click(cell('61-90', 'none'));
     await screen.findByTestId('v2-cases-filtered-by');
@@ -248,7 +249,7 @@ describe('opening a cell', () => {
   it('shows arrears that sum over exactly that population — arrears reconciliation', async () => {
     await openPortfolio();
     await screen.findByTestId('v2-portfolio-matrix');
-    const shownArrears = cell('61-90', 'none').querySelector('.v2-cell-sub')?.textContent;
+    const shownArrears = cell('61-90', 'none').querySelector('.v2-matrix-cell-sub')?.textContent;
 
     const filter = buildCaseFilter({ openOnly: true, bucket: '61-90', strategy: 'none' })!;
     const sum = DEFAULT_CASES.filter(c => matches(c, filter)).reduce((a, c) => a + c.arrears, 0);
@@ -337,6 +338,17 @@ describe('Collection Cases, arrived at from a cell', () => {
 
     expect(screen.queryByTestId('v2-cases-back-portfolio')).toBeNull();
   });
+
+  it('records the filtered list when a row opens, so the case can lead back to it', async () => {
+    await arrive('bucket=61-90&strategy=none&from=portfolio');
+    const grid = await screen.findByTestId('v2-cases-grid');
+    await waitFor(() => expect(within(grid).getAllByRole('row').length).toBeGreaterThan(1));
+
+    await userEvent.click(within(grid).getAllByRole('row')[1]!);
+
+    expect([window.location.hash.startsWith('#case/'), recallCaseListReturn()])
+      .toEqual([true, 'bucket=61-90&strategy=none&from=portfolio']);
+  });
 });
 
 describe('honesty', () => {
@@ -362,7 +374,7 @@ describe('honesty', () => {
     await openPortfolio({ holdAggregate: fetchXml => (fetchXml.includes('organizationcode') ? undefined : held) });
     // The first (all-scope) aggregate is held; switching to BFD answers immediately.
     await userEvent.selectOptions(screen.getByTestId('v2-org-scope'), 'BFD');
-    const count = () => cell('61-90', 'none').querySelector('.v2-cell-count')?.textContent;
+    const count = () => cell('61-90', 'none').querySelector('.v2-matrix-cell-count')?.textContent;
     await waitFor(() => expect(count()).toBe('3'));
 
     releaseAll();
