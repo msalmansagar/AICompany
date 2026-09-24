@@ -243,6 +243,8 @@ export interface ActivityQuery {
   caseId?: string;
   /** Only rows that carry a promise. Applied by the source, as `qdb_ptpdate ne null`. */
   promisesOnly?: boolean;
+  /** One promise status option value, applied by the source. Absent means every status. */
+  ptpStatus?: number;
   scopeFilter?: string;
 }
 
@@ -250,6 +252,7 @@ export function buildActivityFilter(query: ActivityQuery): string | undefined {
   const clauses: string[] = [];
   if (query.caseId) clauses.push(`_qdb_collectioncaseid_value eq ${escapeOData(query.caseId)}`);
   if (query.promisesOnly) clauses.push('qdb_ptpdate ne null');
+  if (query.ptpStatus !== undefined) clauses.push(`qdb_ptpstatus eq ${query.ptpStatus}`);
   return clauses.length > 0 ? clauses.join(' and ') : undefined;
 }
 
