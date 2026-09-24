@@ -118,13 +118,33 @@ Not a PR. V2 not default. V1 intact. Screen 02 not started.
 
 | WP | Scope | Est. h | State |
 |---|---|---|---|
-| C1 | Bucket visual contract, ten tokens + contrast pairs, dot + badge, adoption across V2 | 2.0 | — |
-| C2 | CaseQuery additions: owner scope, facility/name search, list columns (name, product, strategy, owner); V1 regression | 1.5 | — |
-| C3 | Bucket facet counts from the same query (FetchXML); All chip; unknown on refusal | 2.0 | — |
-| C4 | Split view: compact rows, selection, keyboard, preview panel, commands via existing dialogs | 4.0 | — |
-| C5 | Grid view: columns, server header sorting, Split/Grid toggle + preference, narrow behaviour | 2.0 | — |
-| C6 | Portfolio filters, return context, selection restore | 1.0 | — |
-| C7 | Tests + guard battery | 3.0 | — |
-| C8 | Deploy (same web resource), browser QA (three flows), V1 smoke | 1.5 | — |
-| C9 | Docs, KIs | 0.5 | — |
-| | Debugging allowance | 1.0 | |
+| C1 | Bucket visual contract, ten tokens + contrast pairs, dot + badge, adoption across V2 | 2.0 | Done — `c9fdc447` (`v2/data/bucketVisual.ts`) |
+| C2 | CaseQuery additions: owner scope, facility/name search, list columns (name, product, strategy, owner); V1 regression | 1.5 | Done — `c9fdc447`; V1 identifier search asserted unchanged |
+| C3 | Bucket facet counts from the same query (FetchXML); All chip; unknown on refusal | 2.0 | Done — `c9fdc447` (`v2/data/caseFacets.ts`); live 65/65 |
+| C4 | Split view: compact rows, selection, keyboard, preview panel, commands via existing dialogs | 4.0 | Done — `c9fdc447`, `4b06aee1` |
+| C5 | Grid view: columns, server header sorting, Split/Grid toggle + preference, narrow behaviour | 2.0 | Done — `c9fdc447` |
+| C6 | Portfolio filters, return context, selection restore | 1.0 | Done — `c9fdc447` |
+| C7 | Tests + guard battery | 3.0 | Done — 52 tests in `v2CasesPage.test.tsx` (+4 elsewhere); web 964; 12 planted defects bite |
+| C8 | Deploy (same web resource), browser QA (three flows), V1 smoke | 1.5 | Done — deployed 2×, 11/11; three flows + search + My cases + sort; V1 clean |
+| C9 | Docs, KIs | 0.5 | Done — `WorkspaceV2_Screen02_CollectionCases.md`, KI-147/148, KI-141 amended |
+| | Debugging allowance | 1.0 | drawn on for the G1 test-data gap and the stat-strip wrap |
+
+### Screen 02 closure — 2026-09-25 00:41 +03
+
+**SCREEN 02 — COLLECTION CASES — ENGINEERING AND VALIDATION COMPLETE · AWAITING VISUAL REVIEW.**
+Not a PR. V2 not default. V1 intact. Screen 03 not started.
+
+| | |
+|---|---|
+| Commits | `ce410210` (open), `c9fdc447` (feature), `4b06aee1` (preview strip), docs commit — on `feat/dcp-workspace-v2`, base `cf4e7642` |
+| Start | 2026-09-24 23:28:51 +03 (instruction received; pre-coding report 23:36) |
+| End | 2026-09-25 00:41 +03 |
+| Baseline | **18.5 h** — not rewritten |
+| Effective, measured | **1.21 h** (transcript steps, gaps under 15 minutes counted) |
+| Idle / blocked | 0.00 h |
+| Variance | −17.29 h against the baseline — different units: an effort estimate against measured AI-assisted session time |
+| Tests | web **964 / 964** (917 at Screen 01 → +47); domain 817 · api 351 · dv-client 32 · auth 14 unchanged; 0 skipped |
+| Guards that bite | G1 facet ignores owner · G2 facet ignores search · G3 refusal→zeros · G4 layout switch drops sort · G5 preference forgotten · G6 header sort never flips · G7 row click navigates · G8 My cases without ownership · G9 search narrowed to identifiers · G10 next action invented · G11 arrows do not move · G12 V1 search widened — each planted, each fails a test, each restored |
+| Live reconciliation | `smoke-cases-facets.mts`, read-only, service principal: **65/65** across eight narrowings (both CRMs, HL, status New, Strategy Not Assigned, three searches incl. customer name, ownership) — facet total = `$count`, every non-empty bucket = its narrowed `$count` |
+| Browser (System Administrator) | see `WorkspaceV2_Screen02_CollectionCases.md` §3 — three flows, search "1614" (4 = 4), My cases 0, Grid header sort desc/asc on the wire, V1 unchanged |
+| Not proven | narrow viewport (KI-141); Collection Officer role evidence; On-Prem |
