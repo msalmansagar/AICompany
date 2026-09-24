@@ -558,6 +558,7 @@ export type {
 
 // ── Phase 8 — Collection Dispute vs Customer Complaint (WP13) ────────────────
 export {
+  DISPUTE_LOGGING_NOTICE,
   describeDisputedSubject,
   effectsOfRaisingComplaint,
   effectsOfRecordingDispute,

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  activityStatusFromCode, concludability, deriveFollowUpDate,
+  DISPUTE_LOGGING_NOTICE, activityStatusFromCode, concludability, deriveFollowUpDate,
   type ActivityStatus, type RowVersion,
 } from '@dcp/domain';
 import {
@@ -10,6 +10,7 @@ import {
 import { Icon, StatusPill, formatDate } from '../components/primitives.js';
 import { loadActivityTypes, loadOutcomes, type ActivityTypeOption, type OutcomeOption } from '../data/configurationCatalog.js';
 import { ENTITY_SETS, ACTIVITY_COLUMNS } from '../data/schema.js';
+import { isConcernTypeCode } from '../data/caseConcerns.js';
 import { ActivityService } from '../services/activityService.js';
 import { useSaveOperation } from '../services/useSaveOperation.js';
 import { useCrmSession } from '../shell/context.js';
@@ -293,6 +294,13 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
               refusal={save.refusalFor('activityTypeId')}
               hint={mode === 'edit' ? 'Set when the action was logged.' : 'From configuration.'}
             />
+
+            {isConcernTypeCode(types.find(type => type.id === activityTypeId)?.code) && (
+              <div className="info-banner" data-testid="activity-dispute-notice">
+                <Icon name="info" />
+                <div>{DISPUTE_LOGGING_NOTICE}</div>
+              </div>
+            )}
 
             <TextField
               label="Subject" required testId="activity-subject"

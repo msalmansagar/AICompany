@@ -211,3 +211,14 @@ export function toComplaintRow(
     status: complaint.status ?? 'Status not recorded',
   };
 }
+
+/**
+ * What logging the combined "Complaint / Dispute" type does, said before the officer saves (WP5).
+ *
+ * The configured label names both concepts (KI-118), but an activity logged from the workspace has
+ * no Complaint link, so it is a Collection Dispute. Formal Complaints are raised by Case Management,
+ * not by officers here (KI-120), and no QDB policy gives a dispute any collection effect (KI-119).
+ */
+export const DISPUTE_LOGGING_NOTICE =
+  'This records a Collection Dispute on the case. It does not raise a formal Complaint — Case '
+  + 'Management raises those — and it changes nothing about collection.';
