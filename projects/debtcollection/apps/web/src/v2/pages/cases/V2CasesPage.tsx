@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityDialog } from '../../../views/ActivityDialog.js';
-import { PromiseDialog } from '../../../views/PromiseDialog.js';
 import { WIDE_SEARCH_FIELDS, createCaseQuery, type CaseQuery, type CaseRow } from '../../../data/collectionQueries.js';
 import { BUCKET_LABELS, CASE_STATUS_LABELS } from '../../../data/schema.js';
 import { formatCount } from '../../../components/primitives.js';
@@ -18,6 +16,7 @@ import { readLayout, writeLayout, type ListLayout } from '../../data/layoutPrefe
 import { STRATEGY_NOT_ASSIGNED, STRATEGY_NOT_ASSIGNED_LABEL } from '../../data/portfolioMatrix.js';
 import { CASE_SORTS, GRID_COLUMNS, SPLIT_COLUMNS, describeSort, sortKeyOf, toSourceSort, type CaseSortKey } from './casesColumns.js';
 import { CasePreview } from './CasePreview.js';
+import { CaseCommandDialogs, type CaseCommandDialog } from './CaseCommandDialogs.js';
 import { useBucketFacets } from './useBucketFacets.js';
 
 /**
@@ -48,7 +47,7 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
   const [sort, setSort] = useState<GridSort>(CASE_SORTS.dpd.sort);
   const [layout, setLayout] = useState<ListLayout>(() => readLayout(LAYOUT_KEY));
   const [selectedId, setSelectedId] = useState<string | undefined>(() => recallSelectedCase());
-  const [dialog, setDialog] = useState<'activity' | 'promise' | null>(null);
+  const [dialog, setDialog] = useState<CaseCommandDialog>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [toast, setToast] = useState('');
   const settledSearch = useDebounced(search.trim(), 300);
@@ -240,12 +239,7 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
         )}
       </Card>
 
-      {dialog === 'activity' && selectedId && (
-        <ActivityDialog mode="create" caseId={selectedId} onClose={() => setDialog(null)} onSaved={() => saved('Action recorded.')} />
-      )}
-      {dialog === 'promise' && selectedId && (
-        <PromiseDialog mode="create" caseId={selectedId} onClose={() => setDialog(null)} onSaved={() => saved('Promise recorded.')} />
-      )}
+      <CaseCommandDialogs caseId={selectedId} dialog={dialog} onClose={() => setDialog(null)} onSaved={saved} />
       {toast && <div className="v2-toast-region" aria-live="polite"><div className="v2-toast" data-testid="v2-cases-toast">{toast}</div></div>}
     </div>
   );
