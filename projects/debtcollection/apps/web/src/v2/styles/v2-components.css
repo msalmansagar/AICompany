@@ -67,6 +67,22 @@
 .dcp-v2 .v2-bucket-dot[data-bucket='9'] { background: var(--v2-bucket-9); }
 .dcp-v2 .v2-bucket-dot[data-bucket='10'] { background: var(--v2-bucket-10); }
 
+/* The same cue as the reference's row bar: thin, tall, rounded, at the row's left edge. */
+.dcp-v2 .v2-bucket-bar {
+  display: inline-block; width: 4px; height: 38px; border-radius: 2px; flex: 0 0 auto;
+  background: var(--v2-text-disabled);
+}
+.dcp-v2 .v2-bucket-bar[data-bucket='1'] { background: var(--v2-bucket-1); }
+.dcp-v2 .v2-bucket-bar[data-bucket='2'] { background: var(--v2-bucket-2); }
+.dcp-v2 .v2-bucket-bar[data-bucket='3'] { background: var(--v2-bucket-3); }
+.dcp-v2 .v2-bucket-bar[data-bucket='4'] { background: var(--v2-bucket-4); }
+.dcp-v2 .v2-bucket-bar[data-bucket='5'] { background: var(--v2-bucket-5); }
+.dcp-v2 .v2-bucket-bar[data-bucket='6'] { background: var(--v2-bucket-6); }
+.dcp-v2 .v2-bucket-bar[data-bucket='7'] { background: var(--v2-bucket-7); }
+.dcp-v2 .v2-bucket-bar[data-bucket='8'] { background: var(--v2-bucket-8); }
+.dcp-v2 .v2-bucket-bar[data-bucket='9'] { background: var(--v2-bucket-9); }
+.dcp-v2 .v2-bucket-bar[data-bucket='10'] { background: var(--v2-bucket-10); }
+
 /* ── Metric tile ────────────────────────────────────────────────────────── */
 .dcp-v2 .v2-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
 .dcp-v2 .v2-metric {

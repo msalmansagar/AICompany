@@ -66,6 +66,11 @@ export function BucketDot({ bucket }: { bucket?: string | undefined }) {
   return <span className="v2-bucket-dot" data-bucket={bucketVisual(bucket).rank} aria-hidden="true" />;
 }
 
+/** The same cue as a thin vertical bar at a row's edge — the reference's list rows. */
+export function BucketBar({ bucket }: { bucket?: string | undefined }) {
+  return <span className="v2-bucket-bar" data-bucket={bucketVisual(bucket).rank} aria-hidden="true" />;
+}
+
 /**
  * One figure. An unknown value is shown as unknown — an em dash and the reason — never as zero.
  */

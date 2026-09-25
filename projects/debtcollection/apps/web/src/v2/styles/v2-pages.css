@@ -240,7 +240,7 @@
 .dcp-v2 .v2-matrix-rowlabel { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 
 /* ── Collection Cases: Split rows, preview, sortable headers ─────────────── */
-.dcp-v2 .v2-case-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.dcp-v2 .v2-case-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .dcp-v2 .v2-case-row .v2-two-line-sub { display: flex; align-items: center; gap: 4px; }
 .dcp-v2 .v2-chip .v2-bucket-dot { margin-right: 6px; }
 .dcp-v2 .v2-case-preview { padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
