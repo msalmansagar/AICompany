@@ -184,3 +184,5 @@
 .dcp-v2 .v2-chip:disabled { cursor: not-allowed; color: var(--v2-text-disabled); background: var(--v2-surface-sunken); border-style: dashed; }
 .dcp-v2 .v2-grid-fits table.grid { table-layout: fixed; width: 100%; }
 .dcp-v2 .v2-grid-fits td, .dcp-v2 .v2-grid-fits th { overflow: hidden; text-overflow: ellipsis; }
+.dcp-v2 .v2-grid-fits table.grid td, .dcp-v2 .v2-grid-fits table.grid thead th { padding-left: 8px; padding-right: 8px; }
+.dcp-v2 .v2-grid-fits .v2-bucket { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
