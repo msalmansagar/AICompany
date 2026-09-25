@@ -589,7 +589,7 @@ describe('opening a case in Grid', () => {
     const grid = await screen.findByTestId('v2-cases-grid');
 
     const headers = within(grid).getAllByRole('columnheader').map(h => h.textContent?.replace(/[▲▼]/g, '').trim());
-    expect(headers).toEqual(['Case', 'Customer', 'Arrears', 'Bucket', 'DPD', 'Status', 'Strategy', 'Owner', 'Loan balance']);
+    expect(headers).toEqual(['Case', 'Customer', 'Arrears', 'Bucket', 'DPD', 'Status', 'Strategy', 'Owner']);
     const row = within(grid).getByRole('row', { name: 'Open case DEMO-HL-1000' });
     expect([row.textContent?.includes('Aisha Al-Mansouri'), row.textContent?.includes('HL CRM · Individual'), row.textContent?.includes('Building Housing'), row.querySelector('.v2-bucket-bar')?.getAttribute('data-bucket')]).toEqual([true, true, true, '3']);
     expect(screen.queryByTestId('v2-cases-sort')).toBeNull();
