@@ -41,10 +41,13 @@ const customerName = (row: CaseRow) => row.customerName ?? row.customerBusinessI
 
 export const GRID_COLUMNS: readonly V2Column<CaseRow>[] = [
   {
-    key: 'customer', header: 'Customer', width: '200px', render: row => (
-      <span className="v2-two-line">
-        <span className="v2-two-line-main">{customerName(row)}</span>
-        <span className="v2-two-line-sub">{row.customerBusinessId}</span>
+    key: 'customer', header: 'Customer', width: '210px', render: row => (
+      <span className="v2-case-row">
+        <BucketBar bucket={row.bucket} />
+        <span className="v2-two-line">
+          <span className="v2-two-line-main">{customerName(row)}</span>
+          <span className="v2-two-line-sub">{row.customerBusinessId}</span>
+        </span>
       </span>
     ),
   },

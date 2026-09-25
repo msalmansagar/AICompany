@@ -1,6 +1,6 @@
 import type { KeyboardEvent, ReactNode } from 'react';
 import { Icon } from '../../components/primitives.js';
-import { bucketVisual } from '../data/bucketVisual.js';
+import { bucketVisual } from '../../data/bucketVisual.js';
 
 /**
  * Workspace V2's building blocks. Presentation only: every value they show is passed in, formatted by

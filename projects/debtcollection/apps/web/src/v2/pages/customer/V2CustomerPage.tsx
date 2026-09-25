@@ -5,7 +5,7 @@ import { describeFailure } from '../../../platform/errors.js';
 import { useCrmSession } from '../../../shell/context.js';
 import type { ViewRequest } from '../../V2Workspace.js';
 import { useV2Shell } from '../../shell/V2Shell.js';
-import { BucketBadge, Card, EmptyState, ErrorState, KeyValueList, LoadingSkeleton } from '../../components/primitives.js';
+import { BucketBadge, BucketBar, Card, EmptyState, ErrorState, KeyValueList, LoadingSkeleton } from '../../components/primitives.js';
 import { initialsOf } from '../case/CaseHeader.js';
 
 /**
@@ -108,6 +108,7 @@ function CustomerLayout({ aggregate, onOpenCase }: { aggregate: CustomerAggregat
             {aggregate.facilities.map(facility => (
               <li key={facility.facilityNumber} className="v2-facility">
                 <span className="v2-facility-id">
+                  <BucketBar bucket={facility.bucket} />
                   <OrgBadge org={facility.organization} />
                   <span className="v2-two-line">
                     <span className="v2-two-line-main">{facility.productDescription ?? 'Facility'}</span>
