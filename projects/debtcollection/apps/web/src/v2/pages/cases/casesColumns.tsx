@@ -60,12 +60,12 @@ const customerName = (row: CaseRow) => row.customerName ?? row.customerBusinessI
 
 /**
  * The Grid packs identity into two columns, as the reference does: the case (number over
- * `CRM · customer type`) and the customer (name over product). The facility number and the
+ * `CRM · customer type`) and the customer (name over product). The facility number, the loan balance and the
  * customer's id stay searchable and are one selection away in Split.
  */
 export const GRID_COLUMNS: readonly V2Column<CaseRow>[] = [
   {
-    key: 'case', header: 'Case', width: '190px', sortField: 'qdb_casenumber', render: row => (
+    key: 'case', header: 'Case', width: '160px', sortField: 'qdb_casenumber', render: row => (
       <span className="v2-case-row">
         <BucketBar bucket={row.bucket} />
         <span className="v2-two-line">
@@ -76,20 +76,19 @@ export const GRID_COLUMNS: readonly V2Column<CaseRow>[] = [
     ),
   },
   {
-    key: 'customer', header: 'Customer', width: '230px', render: row => (
+    key: 'customer', header: 'Customer', render: row => (
       <span className="v2-two-line">
         <span className="v2-two-line-main">{customerName(row)}</span>
         <span className="v2-two-line-sub">{row.productDescription ?? row.customerBusinessId}</span>
       </span>
     ),
   },
-  { key: 'arrears', header: 'Arrears', width: '120px', numeric: true, sortField: 'qdb_currenttotalarrears', render: row => formatMoney(row.totalArrears) },
-  { key: 'bucket', header: 'Bucket', width: '120px', render: row => <BucketBadge bucket={row.bucket} /> },
-  { key: 'dpd', header: 'DPD', width: '72px', numeric: true, sortField: 'qdb_currentdpd', render: row => formatCount(row.dpd) },
-  { key: 'status', header: 'Status', width: '150px', render: row => <StatusPill status={row.status} /> },
-  { key: 'strategy', header: 'Strategy', width: '160px', render: row => <StrategyName name={row.strategyName} /> },
-  { key: 'owner', header: 'Owner', width: '150px', render: row => row.ownerName ?? '—' },
-  { key: 'balance', header: 'Loan balance', numeric: true, sortField: 'qdb_currentloanbalance', render: row => formatMoney(row.loanBalance) },
+  { key: 'arrears', header: 'Arrears', width: '112px', numeric: true, sortField: 'qdb_currenttotalarrears', render: row => formatMoney(row.totalArrears) },
+  { key: 'bucket', header: 'Bucket', width: '104px', render: row => <BucketBadge bucket={row.bucket} /> },
+  { key: 'dpd', header: 'DPD', width: '62px', numeric: true, sortField: 'qdb_currentdpd', render: row => formatCount(row.dpd) },
+  { key: 'status', header: 'Status', width: '118px', render: row => <StatusPill status={row.status} /> },
+  { key: 'strategy', header: 'Strategy', width: '150px', render: row => <StrategyName name={row.strategyName} /> },
+  { key: 'owner', header: 'Owner', width: '130px', render: row => row.ownerName ?? '—' },
 ];
 
 export const SPLIT_COLUMNS: readonly V2Column<CaseRow>[] = [
