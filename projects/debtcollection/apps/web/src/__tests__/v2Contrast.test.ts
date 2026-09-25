@@ -73,6 +73,15 @@ describe('the contrast calculation', () => {
   });
 });
 
+describe('one bucket palette across V1 and V2', () => {
+  const V1_TOKENS = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'styles', 'tokens.css'), 'utf8');
+
+  it.each([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])('bucket %i is the same hue in V1 and V2', (n) => {
+    const v1 = new RegExp(`--bucket-${n}:\\s*(#[0-9A-Fa-f]{6})`).exec(V1_TOKENS)?.[1]?.toUpperCase();
+    expect(v1).toBe(token(`bucket-${n}`).toUpperCase());
+  });
+});
+
 describe('V2 text contrast', () => {
   it.each(PAIRS)('%s meets 4.5:1', (_what, foreground, background) => {
     expect(contrast(foreground, background)).toBeGreaterThanOrEqual(4.5);

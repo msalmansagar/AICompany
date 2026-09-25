@@ -3,7 +3,7 @@ import { DataGrid, type DataGridColumn } from '../data/DataGrid.js';
 import { loadCustomerAggregate, type CustomerAggregate, type FacilitySummary } from '../data/customerAggregate.js';
 import { createSnapshotQuery, type SnapshotQuery, type SnapshotRow } from '../data/caseQueries.js';
 import {
-  BucketPill, Card, EmptyState, FieldList, InfoBanner, KpiRow, OrgBadge, StatusPill,
+  BucketBar, BucketPill, Card, EmptyState, FieldList, InfoBanner, KpiRow, OrgBadge, StatusPill,
   formatCount, formatDate, formatMoney,
 } from '../components/primitives.js';
 import { useCrmSession } from '../shell/context.js';
@@ -158,7 +158,7 @@ function CustomerIdentity({ aggregate }: { aggregate: CustomerAggregate }) {
 // ── Facilities ───────────────────────────────────────────────────────────────
 
 const FACILITY_COLUMNS: readonly DataGridColumn<FacilitySummary>[] = [
-  { key: 'facility', header: 'Facility', width: '150px', render: r => r.facilityNumber },
+  { key: 'facility', header: 'Facility', width: '150px', render: r => <span className="row-lead"><BucketBar bucket={r.bucket} />{r.facilityNumber}</span> },
   { key: 'org', header: 'CRM', width: '70px', render: r => <OrgBadge org={r.organization} /> },
   { key: 'balance', header: 'Outstanding', width: '130px', render: r => formatMoney(r.loanBalance) },
   { key: 'overdue', header: 'Overdue', width: '130px', render: r => formatMoney(r.totalArrears) },
@@ -209,7 +209,7 @@ function FacilitiesCard({ aggregate, onOpenCase }: {
 // ── Snapshot history ─────────────────────────────────────────────────────────
 
 const SNAPSHOT_COLUMNS: readonly DataGridColumn<SnapshotRow>[] = [
-  { key: 'date', header: 'As of', width: '110px', render: r => formatDate(r.snapshotDate) },
+  { key: 'date', header: 'As of', width: '110px', render: r => <span className="row-lead"><BucketBar bucket={r.bucket} />{formatDate(r.snapshotDate)}</span> },
   { key: 'facility', header: 'Facility', width: '150px', render: r => r.facilityNumber ?? '—' },
   { key: 'dpd', header: 'DPD', width: '70px', render: r => formatCount(r.dpd) },
   { key: 'bucket', header: 'Bucket', width: '110px', render: r => <BucketPill bucket={r.bucket} /> },

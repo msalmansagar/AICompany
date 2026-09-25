@@ -8,7 +8,7 @@ import {
   PromiseOutcome, StatusPill, formatCount, formatDate, formatMoney,
 } from '../../../components/primitives.js';
 import { useCrmSession } from '../../../shell/context.js';
-import { BucketBadge, Card, EmptyState } from '../../components/primitives.js';
+import { BucketBadge, BucketBar, Card, EmptyState } from '../../components/primitives.js';
 import { V2DataGrid, type V2Column } from '../../components/V2DataGrid.js';
 
 /**
@@ -80,7 +80,7 @@ export function PromisesTab({ caseId, reloadKey, onOpen, onCapture }: {
 }
 
 const SNAPSHOT_COLUMNS: readonly V2Column<SnapshotRow>[] = [
-  { key: 'date', header: 'As of', width: '110px', render: r => formatDate(r.snapshotDate) },
+  { key: 'date', header: 'As of', width: '120px', render: r => <span className="v2-case-row"><BucketBar bucket={r.bucket} />{formatDate(r.snapshotDate)}</span> },
   { key: 'received', header: 'Received', width: '110px', render: r => formatDate(r.receivedOn) },
   { key: 'dpd', header: 'DPD', width: '80px', numeric: true, render: r => formatCount(r.dpd) },
   { key: 'bucket', header: 'Bucket', width: '120px', render: r => <BucketBadge bucket={r.bucket} /> },

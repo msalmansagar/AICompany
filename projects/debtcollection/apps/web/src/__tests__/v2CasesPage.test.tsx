@@ -578,7 +578,8 @@ describe('opening a case in Grid', () => {
 
     const headers = within(grid).getAllByRole('columnheader').map(h => h.textContent?.replace(/[▲▼]/g, '').trim());
     expect(headers).toEqual(['Customer', 'Case', 'CRM', 'Product', 'Bucket', 'DPD', 'Current arrears', 'Loan balance', 'Strategy', 'Status', 'Owner']);
-    expect(within(grid).getByRole('row', { name: 'Open case DEMO-HL-1000' }).textContent).toContain('Aisha Al-Mansouri');
+    const row = within(grid).getByRole('row', { name: 'Open case DEMO-HL-1000' });
+    expect([row.textContent?.includes('Aisha Al-Mansouri'), row.querySelector('.v2-bucket-bar')?.getAttribute('data-bucket')]).toEqual([true, '3']);
   });
 });
 

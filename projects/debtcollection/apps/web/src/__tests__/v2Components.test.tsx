@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ARREAR_BUCKET_CODES, type Page } from '@dcp/domain';
-import { bucketVisual } from '../v2/data/bucketVisual.js';
+import { bucketVisual } from '../data/bucketVisual.js';
+import { BucketBar as V1BucketBar, BucketPill } from '../components/primitives.js';
 import {
   BucketBadge, BucketDot, CommandButton, EmptyState, FilterChips, MetricTile, StatusBadge, Tabs,
 } from '../v2/components/primitives.js';
@@ -31,6 +32,13 @@ describe('bucketVisual', () => {
 
   it('draws a label the contract does not know as neutral, deciding nothing from it', () => {
     expect(bucketVisual('unknown').rank).toBe(0);
+  });
+
+  it('ranks V1\'s pill and bar by the same contract, so both workspaces draw one bucket one way', () => {
+    render(<><BucketPill bucket="501-1000" /><V1BucketBar bucket="501-1000" /></>);
+
+    const ranks = [document.querySelector('.pill.bucket')?.getAttribute('data-bucket'), document.querySelector('.bucket-bar')?.getAttribute('data-bucket')];
+    expect(ranks).toEqual(['8', '8']);
   });
 
   it('gives the badge and the dot the same rank', () => {

@@ -45,12 +45,32 @@ table.grid tfoot td { padding: 9px 12px; font-weight: 700; border-top: 1px solid
 .pill.muted { background: var(--neutral-chip); color: var(--text-disabled); }
 .pill.plain::before { display: none; }
 
-/* DPD bucket colouring — one ramp, used identically in grids, charts and the strategy matrix */
-.pill.b0 { background: color-mix(in srgb, var(--dpd-0) 16%, transparent); color: var(--dpd-0); }
-.pill.b1 { background: color-mix(in srgb, var(--dpd-1) 18%, transparent); color: var(--dpd-1); }
-.pill.b2 { background: color-mix(in srgb, var(--dpd-2) 18%, transparent); color: var(--dpd-2); }
-.pill.b3 { background: color-mix(in srgb, var(--dpd-3) 16%, transparent); color: var(--dpd-3); }
-.pill.b4 { background: color-mix(in srgb, var(--dpd-4) 16%, transparent); color: var(--dpd-4); }
+/* DPD bucket colouring — one hue per MIS bucket (tokens.css), the same ten V2 uses */
+.pill.bucket { background: var(--neutral-chip); color: var(--text-secondary); }
+.pill.bucket[data-bucket='1'] { color: var(--bucket-1); background: color-mix(in srgb, var(--bucket-1) 12%, white); }
+.pill.bucket[data-bucket='2'] { color: var(--bucket-2); background: color-mix(in srgb, var(--bucket-2) 12%, white); }
+.pill.bucket[data-bucket='3'] { color: var(--bucket-3); background: color-mix(in srgb, var(--bucket-3) 12%, white); }
+.pill.bucket[data-bucket='4'] { color: var(--bucket-4); background: color-mix(in srgb, var(--bucket-4) 12%, white); }
+.pill.bucket[data-bucket='5'] { color: var(--bucket-5); background: color-mix(in srgb, var(--bucket-5) 12%, white); }
+.pill.bucket[data-bucket='6'] { color: var(--bucket-6); background: color-mix(in srgb, var(--bucket-6) 12%, white); }
+.pill.bucket[data-bucket='7'] { color: var(--bucket-7); background: color-mix(in srgb, var(--bucket-7) 12%, white); }
+.pill.bucket[data-bucket='8'] { color: var(--bucket-8); background: color-mix(in srgb, var(--bucket-8) 12%, white); }
+.pill.bucket[data-bucket='9'] { color: var(--bucket-9); background: color-mix(in srgb, var(--bucket-9) 12%, white); }
+.pill.bucket[data-bucket='10'] { color: var(--bucket-10); background: color-mix(in srgb, var(--bucket-10) 12%, white); }
+
+/* The bucket as a thin vertical bar at a row's edge — the same cue on every record row */
+.bucket-bar { display: inline-block; width: 4px; height: 26px; border-radius: 2px; flex: 0 0 auto; background: var(--text-disabled); vertical-align: middle; }
+.bucket-bar[data-bucket='1'] { background: var(--bucket-1); }
+.bucket-bar[data-bucket='2'] { background: var(--bucket-2); }
+.bucket-bar[data-bucket='3'] { background: var(--bucket-3); }
+.bucket-bar[data-bucket='4'] { background: var(--bucket-4); }
+.bucket-bar[data-bucket='5'] { background: var(--bucket-5); }
+.bucket-bar[data-bucket='6'] { background: var(--bucket-6); }
+.bucket-bar[data-bucket='7'] { background: var(--bucket-7); }
+.bucket-bar[data-bucket='8'] { background: var(--bucket-8); }
+.bucket-bar[data-bucket='9'] { background: var(--bucket-9); }
+.bucket-bar[data-bucket='10'] { background: var(--bucket-10); }
+.row-lead { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
 
 /* Which CRM owns the record. Present on every record row and every record header. */
 .org-badge {

@@ -5,7 +5,7 @@ import { createIdentityExceptionQuery, type IdentityExceptionRow } from '../data
 import { countMatching, formatCountResult, useCounts, type CountRequest } from '../data/counts.js';
 import { ENTITY_SETS } from '../data/schema.js';
 import {
-  BucketPill, Card, InfoBanner, KpiRow, OrgBadge, PartialCapabilityNotice, PromiseOutcome, StatusPill,
+  BucketBar, BucketPill, Card, InfoBanner, KpiRow, OrgBadge, PartialCapabilityNotice, PromiseOutcome, StatusPill,
   formatCount, formatDate, formatMoney,
 } from '../components/primitives.js';
 import { useCrmSession, useOrg } from '../shell/context.js';
@@ -23,7 +23,7 @@ import type { ViewDefinition } from '../shell/routes.js';
 // ── Delinquency Intake ───────────────────────────────────────────────────────
 
 const SNAPSHOT_COLUMNS: readonly DataGridColumn<SnapshotRow>[] = [
-  { key: 'received', header: 'Received', width: '110px', render: r => formatDate(r.receivedOn) },
+  { key: 'received', header: 'Received', width: '110px', render: r => <span className="row-lead"><BucketBar bucket={r.bucket} />{formatDate(r.receivedOn)}</span> },
   { key: 'asof', header: 'As of', width: '110px', render: r => formatDate(r.snapshotDate) },
   { key: 'customer', header: 'Customer', width: '140px', render: r => r.customerBusinessId ?? '—' },
   { key: 'facility', header: 'Facility', width: '150px', render: r => r.facilityNumber ?? '—' },

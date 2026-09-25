@@ -9,7 +9,7 @@ import { formatCountResult, useCounts, type CountRequest } from '../data/counts.
 import { ENTITY_SETS } from '../data/schema.js';
 import { MyWorkView } from './MyWorkView.js';
 import {
-  BucketPill, Card, EmptyState, InfoBanner, KpiRow, OrgBadge, PendingPhaseNotice, StatusPill,
+  BucketBar, BucketPill, Card, EmptyState, InfoBanner, KpiRow, OrgBadge, PendingPhaseNotice, StatusPill,
   formatCount, formatDate, formatMoney,
 } from '../components/primitives.js';
 import { useCrmSession, useOrg } from '../shell/context.js';
@@ -26,7 +26,7 @@ import type { ViewDefinition } from '../shell/routes.js';
 // ── Collection Cases — the flagship list ─────────────────────────────────────
 
 const CASE_COLUMNS: readonly DataGridColumn<CaseRow>[] = [
-  { key: 'case', header: 'Case', width: '160px', render: r => r.caseNumber },
+  { key: 'case', header: 'Case', width: '160px', render: r => <span className="row-lead"><BucketBar bucket={r.bucket} />{r.caseNumber}</span> },
   { key: 'org', header: 'CRM', width: '70px', render: r => <OrgBadge org={r.organization} /> },
   { key: 'customer', header: 'Customer', width: '150px', render: r => r.customerBusinessId },
   { key: 'facility', header: 'Facility', width: '140px', render: r => r.facilityNumber },
