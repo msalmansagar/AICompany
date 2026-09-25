@@ -251,7 +251,7 @@ describe('Split and Grid', () => {
     await openCases();
 
     await screen.findByTestId('v2-cases-list');
-    expect([screen.getByTestId('v2-cases').getAttribute('data-layout'), Boolean(screen.getByTestId('v2-case-preview-empty'))]).toEqual(['split', true]);
+    expect([screen.getByTestId('v2-cases').getAttribute('data-layout'), Boolean(screen.getByTestId('v2-case-preview-empty')), screen.getByTestId('v2-cases-list').className]).toEqual(['split', true, 'v2-grid v2-grid-fits']);
   });
 
   it('switches to Grid and remembers it for this browser', async () => {

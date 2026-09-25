@@ -117,7 +117,7 @@ describe('Split', () => {
     await openPromises();
     const row = await screen.findByRole('row', { name: /Preview the promise on case COL-HL-000123/ });
 
-    expect([row.querySelector('.v2-bucket-bar')?.getAttribute('data-bucket'), Boolean(screen.getByTestId('v2-case-preview-empty'))]).toEqual(['3', true]);
+    expect([row.querySelector('.v2-bucket-bar')?.getAttribute('data-bucket'), Boolean(screen.getByTestId('v2-case-preview-empty')), screen.getByTestId('v2-promises-list').className]).toEqual(['3', true, 'v2-grid v2-grid-fits']);
   });
 
   it('previews the promise\'s case when a row is chosen, without navigating', async () => {

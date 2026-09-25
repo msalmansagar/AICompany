@@ -107,7 +107,7 @@ export function V2PromisesPage(_props: { request: ViewRequest }) {
                 columns={SPLIT_COLUMNS} fetchPage={fetchPage} query={query} rowKey={row => row.id}
                 onRowOpen={setSelected} selectedKey={selected?.id ?? ''}
                 rowLabel={row => `Preview the promise on case ${row.caseNumber ?? ''} due ${formatDate(row.ptpDate)}`}
-                isFiltered={status !== ALL} emptyTitle="No promise to pay has been recorded." rowHeight={58} height={640} testId="v2-promises-list"
+                isFiltered={status !== ALL} emptyTitle="No promise to pay has been recorded." rowHeight={58} height={640} testId="v2-promises-list" fitsWidth
               />
             </div>
             <CasePreview

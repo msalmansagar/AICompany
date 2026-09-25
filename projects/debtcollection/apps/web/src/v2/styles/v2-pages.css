@@ -259,3 +259,4 @@
 .dcp-v2 .v2-preview-stats .v2-stat-value { white-space: normal; overflow-wrap: anywhere; }
 .dcp-v2 .v2-toolbar-end { margin-left: auto; }
 .dcp-v2 .v2-grid-summary { color: var(--v2-text-2); margin-right: auto; }
+.dcp-v2 .v2-split-list .v2-two-line-sub { min-width: 0; overflow: hidden; }
