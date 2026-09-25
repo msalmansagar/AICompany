@@ -65,7 +65,7 @@ const customerName = (row: CaseRow) => row.customerName ?? row.customerBusinessI
  */
 export const GRID_COLUMNS: readonly V2Column<CaseRow>[] = [
   {
-    key: 'case', header: 'Case', width: '150px', sortField: 'qdb_casenumber', render: row => (
+    key: 'case', header: 'Case', width: '146px', sortField: 'qdb_casenumber', render: row => (
       <span className="v2-case-row">
         <BucketBar bucket={row.bucket} />
         <span className="v2-two-line">
@@ -83,12 +83,12 @@ export const GRID_COLUMNS: readonly V2Column<CaseRow>[] = [
       </span>
     ),
   },
-  { key: 'arrears', header: 'Arrears', width: '104px', numeric: true, sortField: 'qdb_currenttotalarrears', render: row => formatMoney(row.totalArrears) },
-  { key: 'bucket', header: 'Bucket', width: '98px', render: row => <BucketBadge bucket={row.bucket} /> },
-  { key: 'dpd', header: 'DPD', width: '56px', numeric: true, sortField: 'qdb_currentdpd', render: row => formatCount(row.dpd) },
-  { key: 'status', header: 'Status', width: '108px', render: row => <StatusPill status={row.status} /> },
-  { key: 'strategy', header: 'Strategy', width: '128px', render: row => <StrategyName name={row.strategyName} /> },
-  { key: 'owner', header: 'Owner', width: '118px', render: row => row.ownerName ?? '—' },
+  { key: 'arrears', header: 'Arrears', width: '110px', numeric: true, sortField: 'qdb_currenttotalarrears', render: row => formatMoney(row.totalArrears) },
+  { key: 'bucket', header: 'Bucket', width: '108px', render: row => <BucketBadge bucket={row.bucket} /> },
+  { key: 'dpd', header: 'DPD', width: '58px', numeric: true, sortField: 'qdb_currentdpd', render: row => formatCount(row.dpd) },
+  { key: 'status', header: 'Status', width: '96px', render: row => <StatusPill status={row.status} /> },
+  { key: 'strategy', header: 'Strategy', width: '138px', render: row => <StrategyName name={row.strategyName} /> },
+  { key: 'owner', header: 'Owner', width: '124px', render: row => row.ownerName ?? '—' },
 ];
 
 export const SPLIT_COLUMNS: readonly V2Column<CaseRow>[] = [
