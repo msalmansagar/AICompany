@@ -16,7 +16,7 @@ import {
 } from '../../data/caseListFilterUrl.js';
 import { readLayout, writeLayout, type ListLayout } from '../../data/layoutPreference.js';
 import { STRATEGY_NOT_ASSIGNED, STRATEGY_NOT_ASSIGNED_LABEL } from '../../data/portfolioMatrix.js';
-import { CASE_SORTS, GRID_COLUMNS, SPLIT_COLUMNS, sortKeyOf, toSourceSort, type CaseSortKey } from './casesColumns.js';
+import { CASE_SORTS, GRID_COLUMNS, SPLIT_COLUMNS, describeSort, sortKeyOf, toSourceSort, type CaseSortKey } from './casesColumns.js';
 import { CasePreview } from './CasePreview.js';
 import { useBucketFacets } from './useBucketFacets.js';
 
@@ -117,11 +117,24 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
     if (facets.status === 'unknown') return '—';
     return formatCount(label === undefined ? facets.facets.total : facets.facets.counts[label] ?? 0);
   };
+  const unbucketed = facets.status === 'ready' ? facets.facets.unbucketed : 0;
   const bucketOptions: readonly ChipOption[] = [
-    { id: 'all', label: 'All', count: chipCount(undefined) },
+    {
+      id: 'all',
+      label: unbucketed > 0
+        ? <>All <span className="v2-muted" data-testid="v2-cases-unbucketed" title={`${formatCount(unbucketed)} matching ${unbucketed === 1 ? 'case carries' : 'cases carry'} no MIS bucket and ${unbucketed === 1 ? 'sits' : 'sit'} under no bucket chip`}>· {formatCount(unbucketed)} unbucketed</span></>
+        : 'All',
+      count: chipCount(undefined),
+    },
     ...Object.values(BUCKET_LABELS).map(label => ({ id: label, label: <><BucketDot bucket={label} />{label}</>, count: chipCount(label) })),
   ];
   const sortKey = sortKeyOf(sort);
+  const summary = (
+    <>
+      {facets.status === 'ready' ? `${formatCount(facets.facets.total)} ${facets.facets.total === 1 ? 'case' : 'cases'}` : 'Cases'}
+      {' · sorted by '}{describeSort(sort)}
+    </>
+  );
 
   return (
     <div className="v2-cases" data-testid="v2-cases" data-layout={layout}>
@@ -163,7 +176,29 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
               label="Show" selected={owner === 'mine' ? 'owner-mine' : 'owner-all'} onSelect={id => setOwner(id === 'owner-mine' ? 'mine' : 'all')} testId="v2-cases-owner"
               options={[{ id: 'owner-all', label: 'All cases' }, { id: 'owner-mine', label: 'My cases' }]}
             />
-            <div className="v2-segmented" role="group" aria-label="Layout">
+            <label className="v2-picker">
+              <span className="v2-picker-label">Status</span>
+              <select className="v2-select" value={status} onChange={e => setStatus(e.target.value)} data-testid="v2-cases-status">
+                <option value="">Any</option>
+                {Object.values(CASE_STATUS_LABELS).map(label => <option key={label} value={label}>{label}</option>)}
+              </select>
+            </label>
+            {layout === 'split' && (
+              <label className="v2-picker">
+                <span className="v2-picker-label">Sort</span>
+                <select className="v2-select" value={sortKey ?? ''} onChange={e => setSort(CASE_SORTS[e.target.value as CaseSortKey].sort)} data-testid="v2-cases-sort">
+                  {sortKey === undefined && <option value="">By column</option>}
+                  {(Object.keys(CASE_SORTS) as CaseSortKey[]).map(key => <option key={key} value={key}>{CASE_SORTS[key].label}</option>)}
+                </select>
+              </label>
+            )}
+            {activeFilters > 0 && (
+              <span className="v2-filter-summary" data-testid="v2-cases-active-filters">
+                {activeFilters} {activeFilters === 1 ? 'filter' : 'filters'} active
+                <button type="button" className="v2-btn v2-btn-subtle" onClick={clearAll} data-testid="v2-cases-clear">Clear all</button>
+              </span>
+            )}
+            <div className="v2-segmented v2-toolbar-end" role="group" aria-label="Layout">
               {(['split', 'grid'] as const).map(option => (
                 <button key={option} type="button" className="v2-segment" aria-pressed={layout === option} onClick={() => chooseLayout(option)} data-testid={`v2-cases-layout-${option}`}>
                   {option === 'split' ? 'Split' : 'Grid'}
@@ -173,38 +208,13 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
           </div>
           <FilterChips label="Bucket" selected={bucket || 'all'} onSelect={id => chooseBucket(id === 'all' ? '' : id)} testId="v2-cases-buckets" options={bucketOptions} />
           {facets.status === 'unknown' && <p className="v2-toolbar-note" data-testid="v2-cases-counts-unknown">Bucket counts are not available for this list right now — the buckets still filter.</p>}
-          {facets.status === 'ready' && facets.facets.unbucketed > 0 && (
-            <p className="v2-toolbar-note" data-testid="v2-cases-unbucketed">{formatCount(facets.facets.unbucketed)} matching {facets.facets.unbucketed === 1 ? 'case carries' : 'cases carry'} no MIS bucket and {facets.facets.unbucketed === 1 ? 'sits' : 'sit'} under no bucket chip.</p>
-          )}
-          <div className="v2-toolbar-row">
-            <label className="v2-picker">
-              <span className="v2-picker-label">Status</span>
-              <select className="v2-select" value={status} onChange={e => setStatus(e.target.value)} data-testid="v2-cases-status">
-                <option value="">Any</option>
-                {Object.values(CASE_STATUS_LABELS).map(label => <option key={label} value={label}>{label}</option>)}
-              </select>
-            </label>
-            <label className="v2-picker">
-              <span className="v2-picker-label">Sort</span>
-              <select className="v2-select" value={sortKey ?? ''} onChange={e => setSort(CASE_SORTS[e.target.value as CaseSortKey].sort)} data-testid="v2-cases-sort">
-                {sortKey === undefined && <option value="">By column</option>}
-                {(Object.keys(CASE_SORTS) as CaseSortKey[]).map(key => <option key={key} value={key}>{CASE_SORTS[key].label}</option>)}
-              </select>
-            </label>
-            {activeFilters > 0 && (
-              <span className="v2-filter-summary" data-testid="v2-cases-active-filters">
-                {activeFilters} {activeFilters === 1 ? 'filter' : 'filters'} active
-                <button type="button" className="v2-btn v2-btn-subtle" onClick={clearAll} data-testid="v2-cases-clear">Clear all</button>
-              </span>
-            )}
-          </div>
         </div>
 
         {layout === 'grid' && (
           <V2DataGrid<CaseRow, CaseQuery>
             columns={GRID_COLUMNS} fetchPage={fetchPage} query={query} rowKey={row => row.id}
             onRowOpen={row => openCase(row.id)} rowLabel={row => `Open case ${row.caseNumber}`}
-            sort={sort} onSortChange={setSort}
+            sort={sort} onSortChange={setSort} summary={summary}
             isFiltered={activeFilters > 0} emptyTitle="There are no open cases in this CRM scope."
             height={560} testId="v2-cases-grid"
           />
@@ -214,7 +224,7 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
             <div className="v2-split-list">
               <V2DataGrid<CaseRow, CaseQuery>
                 columns={SPLIT_COLUMNS} fetchPage={fetchPage} query={query} rowKey={row => row.id}
-                onRowOpen={selectCase} selectedKey={selectedId ?? ''} rowLabel={row => `Preview case ${row.caseNumber}`}
+                onRowOpen={selectCase} selectedKey={selectedId ?? ''} rowLabel={row => `Preview case ${row.caseNumber}`} summary={summary}
                 isFiltered={activeFilters > 0} emptyTitle="There are no open cases in this CRM scope."
                 rowHeight={58} height={640} testId="v2-cases-list"
               />

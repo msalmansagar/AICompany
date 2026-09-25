@@ -40,6 +40,7 @@ export function V2DataGrid<T, Q extends object>({
   selectedKey,
   sort,
   onSortChange,
+  summary,
   emptyTitle = 'Nothing here yet.',
   pageSize = 50,
   rowHeight = 44,
@@ -60,6 +61,8 @@ export function V2DataGrid<T, Q extends object>({
   /** The current order, when headers may change it. The change is the caller's to send to the source. */
   sort?: GridSort | undefined;
   onSortChange?: (sort: GridSort) => void;
+  /** What the list is, in words, for the footer — "4,363 cases · sorted by worst DPD first". */
+  summary?: ReactNode;
   emptyTitle?: string;
   pageSize?: number;
   rowHeight?: number;
@@ -111,7 +114,7 @@ export function V2DataGrid<T, Q extends object>({
             ))}
           </tr>
         )}
-        footer={<GridFooter paged={paged} testId={testId} />}
+        footer={<GridFooter paged={paged} testId={testId} summary={summary} />}
       />
     </div>
   );
@@ -164,9 +167,10 @@ function HeaderRow<T>({ columns, sort, onSortChange }: {
   );
 }
 
-function GridFooter<T>({ paged, testId }: { paged: ReturnType<typeof usePagedQuery<T, object>>; testId: string }) {
+function GridFooter<T>({ paged, testId, summary }: { paged: ReturnType<typeof usePagedQuery<T, object>>; testId: string; summary?: ReactNode }) {
   return (
     <div className="v2-grid-footer" data-testid={`${testId}-footer`}>
+      {summary !== undefined && <span className="v2-grid-summary" data-testid={`${testId}-summary`}>{summary}</span>}
       {paged.status === 'loadingMore' && <span data-testid={`${testId}-loading-more`}>Loading more…</span>}
       {paged.status === 'error' && paged.items.length > 0 && (
         <span data-testid={`${testId}-page-error`}>

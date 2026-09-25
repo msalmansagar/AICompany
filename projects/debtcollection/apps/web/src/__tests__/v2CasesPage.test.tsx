@@ -323,7 +323,7 @@ describe('the bucket chips', () => {
   it('names the matching cases that carry no bucket instead of losing them', async () => {
     await openCases();
 
-    expect((await screen.findByTestId('v2-cases-unbucketed')).textContent).toContain('1 matching case carries no MIS bucket');
+    expect((await screen.findByTestId('v2-cases-unbucketed')).textContent).toBe('· 1 unbucketed');
   });
 
   it('opens exactly the population a chip counted — count reconciliation', async () => {
@@ -562,6 +562,18 @@ describe('choosing a case in Split', () => {
 });
 
 describe('opening a case in Grid', () => {
+  it('says in the footer how many cases there are and how they are ordered, from the source', async () => {
+    useGrid();
+    await openCases();
+    await screen.findByTestId('v2-cases-grid');
+
+    await waitFor(() => expect(screen.getByTestId('v2-cases-grid-summary').textContent).toBe('13 cases · sorted by DPD, highest first'));
+    await userEvent.click(screen.getByTestId('v2-sort-arrears'));
+    await userEvent.click(screen.getByTestId('v2-sort-arrears'));
+
+    await waitFor(() => expect(screen.getByTestId('v2-cases-grid-summary').textContent).toBe('13 cases · sorted by arrears, lowest first'));
+  });
+
   it('opens it from its row', async () => {
     useGrid();
     await openCases();
@@ -577,9 +589,10 @@ describe('opening a case in Grid', () => {
     const grid = await screen.findByTestId('v2-cases-grid');
 
     const headers = within(grid).getAllByRole('columnheader').map(h => h.textContent?.replace(/[▲▼]/g, '').trim());
-    expect(headers).toEqual(['Customer', 'Case', 'CRM', 'Product', 'Bucket', 'DPD', 'Current arrears', 'Loan balance', 'Strategy', 'Status', 'Owner']);
+    expect(headers).toEqual(['Case', 'Customer', 'Arrears', 'Bucket', 'DPD', 'Status', 'Strategy', 'Owner', 'Loan balance']);
     const row = within(grid).getByRole('row', { name: 'Open case DEMO-HL-1000' });
-    expect([row.textContent?.includes('Aisha Al-Mansouri'), row.querySelector('.v2-bucket-bar')?.getAttribute('data-bucket')]).toEqual([true, '3']);
+    expect([row.textContent?.includes('Aisha Al-Mansouri'), row.textContent?.includes('HL CRM · Individual'), row.textContent?.includes('Building Housing'), row.querySelector('.v2-bucket-bar')?.getAttribute('data-bucket')]).toEqual([true, true, true, '3']);
+    expect(screen.queryByTestId('v2-cases-sort')).toBeNull();
   });
 });
 
