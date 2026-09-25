@@ -166,7 +166,7 @@ function V2Header({ route, onOpenDrawer }: { route: Route; onOpenDrawer: () => v
           <Icon name="search" className="v2-search-icon" />
           <input
             className="v2-search-input" type="search" value={term} onChange={e => setTerm(e.target.value)}
-            placeholder="Case number or customer id" aria-label="Search cases by case number or customer id"
+            placeholder="Search cases, customers, facilities" aria-label="Search cases by case number, customer name or id, or facility number"
             data-testid="v2-search"
           />
         </form>

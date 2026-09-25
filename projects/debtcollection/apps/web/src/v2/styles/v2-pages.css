@@ -257,3 +257,5 @@
 .dcp-v2 .v2-sort-header:focus-visible { outline: none; box-shadow: var(--v2-focus-ring); border-radius: 4px; }
 .dcp-v2 .v2-sort-mark { font-size: 9px; line-height: 1; }
 .dcp-v2 .v2-preview-stats .v2-stat-value { white-space: normal; overflow-wrap: anywhere; }
+.dcp-v2 .v2-toolbar-end { margin-left: auto; }
+.dcp-v2 .v2-grid-summary { color: var(--v2-text-2); margin-right: auto; }
