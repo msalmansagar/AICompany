@@ -4,7 +4,7 @@ import {
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import {
   ACCOUNT_COLUMNS, ACTIVITY_COLUMNS, BUCKET_LABELS, CASE_DETAIL_COLUMNS, CASE_STATUS_LABELS,
-  CONTACT_COLUMNS, ELIGIBILITY_OUTCOME_LABELS, ENTITY_SETS, ORG_LABELS,
+  CONTACT_COLUMNS, CUSTOMER_TYPE_LABELS, ELIGIBILITY_OUTCOME_LABELS, ENTITY_SETS, NAVIGATION_PROPERTIES, ORG_LABELS,
   PROMISE_TYPE_LABELS, PTP_COLUMNS, PTP_STATUS_LABELS, RESOLUTION_TYPE_LABELS, SNAPSHOT_COLUMNS,
 } from './schema.js';
 import {
@@ -187,6 +187,34 @@ export interface PtpRow extends ActivityRow {
   paymentReceivedDate?: string;
   brokenDate?: string;
   brokenReason?: string;
+  /** The case the promise was made on, as the same read expands it — who, which CRM, how late. */
+  caseBucket?: string;
+  caseDpd?: number;
+  caseArrears?: number;
+  caseOrganization?: string;
+  caseCustomerType?: string;
+  caseCustomerName?: string;
+}
+
+/**
+ * What a promise list needs of its case, brought back in the same request through the lookup's
+ * navigation property — one read for a page, not one per row. Honoured on the first page; the
+ * continuation is the source's own link and carries it.
+ */
+const PTP_CASE_EXPANSION = `${NAVIGATION_PROPERTIES.activityToCase}($select=qdb_casenumber,qdb_currentarrearbucket,qdb_currentdpd,qdb_currenttotalarrears,qdb_organizationcode,qdb_customertype,_qdb_customerid_value)`;
+
+function readExpandedCase(row: CrmRow): Record<string, Partial<PtpRow>[keyof PtpRow]> {
+  const expanded = row[NAVIGATION_PROPERTIES.activityToCase];
+  if (!expanded || typeof expanded !== 'object') return {};
+  const caseRow = expanded as CrmRow;
+  return {
+    ...optional('caseBucket', readChoice(caseRow, 'qdb_currentarrearbucket', BUCKET_LABELS)),
+    ...optional('caseDpd', readNumber(caseRow, 'qdb_currentdpd')),
+    ...optional('caseArrears', readNumber(caseRow, 'qdb_currenttotalarrears')),
+    ...optional('caseOrganization', readChoice(caseRow, 'qdb_organizationcode', ORG_LABELS)),
+    ...optional('caseCustomerType', readChoice(caseRow, 'qdb_customertype', CUSTOMER_TYPE_LABELS)),
+    ...optional('caseCustomerName', readLookupName(caseRow, '_qdb_customerid_value')),
+  };
 }
 
 export function toActivityRow(row: CrmRow): ActivityRow {
@@ -224,6 +252,7 @@ export function toPtpRow(row: CrmRow): PtpRow {
     ...optional('paymentReceivedDate', readText(row, 'qdb_paymentreceiveddate')),
     ...optional('brokenDate', readText(row, 'qdb_brokendate')),
     ...optional('brokenReason', readText(row, 'qdb_brokenreason')),
+    ...readExpandedCase(row),
   };
 }
 
@@ -270,6 +299,7 @@ export function createPtpQuery(adapter: XrmCrmAdapter) {
     const filter = buildActivityFilter({ ...request, promisesOnly: true });
     const page = await adapter.retrievePage(ENTITY_SETS.collectionActivity, {
       select: [...PTP_COLUMNS],
+      expand: [PTP_CASE_EXPANSION],
       pageSize: request.pageSize,
       sort: [{ field: 'qdb_ptpdate', descending: true }],
       ...(filter !== undefined ? { filter } : {}),

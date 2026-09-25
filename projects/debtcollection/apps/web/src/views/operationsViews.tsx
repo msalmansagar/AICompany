@@ -112,7 +112,7 @@ const INTAKE_COUNTS: readonly CountRequest[] = [
 // ── Promise to Pay ───────────────────────────────────────────────────────────
 
 const PTP_LIST_COLUMNS: readonly DataGridColumn<PtpRow>[] = [
-  { key: 'promised', header: 'Promised for', width: '120px', render: r => formatDate(r.ptpDate) },
+  { key: 'promised', header: 'Promised for', width: '130px', render: r => <span className="row-lead"><BucketBar bucket={r.caseBucket} />{formatDate(r.ptpDate)}</span> },
   { key: 'case', header: 'Case', width: '160px', render: r => r.caseNumber ?? '—' },
   { key: 'amount', header: 'Amount', width: '130px', render: r => formatMoney(r.promisedAmount) },
   { key: 'type', header: 'Type', width: '90px', render: r => r.promiseType ?? '—' },
