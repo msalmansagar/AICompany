@@ -1,7 +1,7 @@
 import type { Sort } from '@dcp/domain';
 import type { CaseRow } from '../../../data/collectionQueries.js';
 import { OrgBadge, StatusPill, formatCount, formatMoney } from '../../../components/primitives.js';
-import { BucketBadge, BucketDot } from '../../components/primitives.js';
+import { BucketBadge, BucketBar } from '../../components/primitives.js';
 import type { GridSort, V2Column } from '../../components/V2DataGrid.js';
 import { STRATEGY_NOT_ASSIGNED_LABEL } from '../../data/portfolioMatrix.js';
 
@@ -71,7 +71,7 @@ export const SPLIT_COLUMNS: readonly V2Column<CaseRow>[] = [
   {
     key: 'case', header: 'Case', render: row => (
       <span className="v2-case-row">
-        <BucketDot bucket={row.bucket} />
+        <BucketBar bucket={row.bucket} />
         <span className="v2-two-line">
           <span className="v2-two-line-main">{customerName(row)}</span>
           <span className="v2-two-line-sub">{row.caseNumber} · {row.sourceSystem} · <BucketBadge bucket={row.bucket} /></span>

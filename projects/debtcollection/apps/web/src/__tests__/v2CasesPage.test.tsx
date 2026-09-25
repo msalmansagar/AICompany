@@ -451,6 +451,15 @@ describe('the query sent to the source', () => {
 // ── Selection and preview ─────────────────────────────────────────────────────
 
 describe('choosing a case in Split', () => {
+  it('carries the bucket bar at each row\'s edge, ranked by the same contract as the chip dot', async () => {
+    await openCases();
+    const row = await screen.findByRole('row', { name: 'Preview case DEMO-HL-1000' });
+
+    const bar = row.querySelector('.v2-bucket-bar')?.getAttribute('data-bucket');
+    const dot = chip('61-90').querySelector('.v2-bucket-dot')?.getAttribute('data-bucket');
+    expect([bar, dot, row.querySelector('.v2-bucket-dot')]).toEqual(['3', '3', null]);
+  });
+
   it('marks the row, previews the case and does not navigate', async () => {
     await openCases();
     const row = await screen.findByRole('row', { name: 'Preview case DEMO-HL-1000' });
