@@ -41,6 +41,7 @@ export function V2DataGrid<T, Q extends object>({
   sort,
   onSortChange,
   summary,
+  fitsWidth = false,
   emptyTitle = 'Nothing here yet.',
   pageSize = 50,
   rowHeight = 44,
@@ -63,6 +64,11 @@ export function V2DataGrid<T, Q extends object>({
   onSortChange?: (sort: GridSort) => void;
   /** What the list is, in words, for the footer — "4,363 cases · sorted by worst DPD first". */
   summary?: ReactNode;
+  /**
+   * Keep the table inside its container: sized columns keep their width, the unsized ones share
+   * what is left and clip with an ellipsis, so a long name never forces a horizontal scroll.
+   */
+  fitsWidth?: boolean;
   emptyTitle?: string;
   pageSize?: number;
   rowHeight?: number;
@@ -91,7 +97,7 @@ export function V2DataGrid<T, Q extends object>({
   }
 
   return (
-    <div className="v2-grid" data-testid={testId}>
+    <div className={fitsWidth ? 'v2-grid v2-grid-fits' : 'v2-grid'} data-testid={testId}>
       <VirtualizedRows
         items={paged.items}
         rowKey={rowKey}
