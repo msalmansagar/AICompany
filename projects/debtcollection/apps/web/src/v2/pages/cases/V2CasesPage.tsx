@@ -214,7 +214,7 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
           <V2DataGrid<CaseRow, CaseQuery>
             columns={GRID_COLUMNS} fetchPage={fetchPage} query={query} rowKey={row => row.id}
             onRowOpen={row => openCase(row.id)} rowLabel={row => `Open case ${row.caseNumber}`}
-            sort={sort} onSortChange={setSort} summary={summary}
+            sort={sort} onSortChange={setSort} summary={summary} fitsWidth
             isFiltered={activeFilters > 0} emptyTitle="There are no open cases in this CRM scope."
             height={560} testId="v2-cases-grid"
           />
