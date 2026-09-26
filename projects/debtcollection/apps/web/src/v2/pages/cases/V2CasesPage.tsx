@@ -139,9 +139,12 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
     ...Object.values(BUCKET_LABELS).map(label => ({ id: label, label: <><BucketDot bucket={label} />{label}</>, count: chipCount(label) })),
   ];
   const sortKey = sortKeyOf(sort);
+  // The footer states the population the list shows: the chosen bucket's count when a chip is
+  // active, the whole population otherwise (KI-154). Both come from the one facet aggregate.
+  const shown = facets.status === 'ready' ? (bucket ? facets.facets.counts[bucket] ?? 0 : facets.facets.total) : undefined;
   const summary = (
     <>
-      {facets.status === 'ready' ? `${formatCount(facets.facets.total)} ${facets.facets.total === 1 ? 'case' : 'cases'}` : 'Cases'}
+      {shown !== undefined ? `${formatCount(shown)} ${shown === 1 ? 'case' : 'cases'}` : 'Cases'}
       {' · sorted by '}{describeSort(sort)}
     </>
   );

@@ -338,6 +338,20 @@ describe('the bucket chips', () => {
     expect([counted, cases.filter(c => matchesOData(c, filter)).length]).toEqual([2, 2]);
   });
 
+  /** KI-154: the footer must state the chosen bucket's population, not the "All" chip's. */
+  it('says in the footer how many cases the chosen bucket holds, and the whole population again once it is cleared', async () => {
+    await openCases();
+    await waitFor(() => expect(chipCount('61-90')).toBeTruthy());
+    const whole = chipCount('all');
+
+    await userEvent.click(chip('61-90'));
+    await waitFor(() => expect(screen.getByTestId('v2-cases-list-summary').textContent).toBe(`${chipCount('61-90')} cases · sorted by DPD, highest first`));
+    expect(screen.getByTestId('v2-cases-list-summary').textContent).not.toContain(`${whole} cases`);
+
+    await userEvent.click(chip('all'));
+    await waitFor(() => expect(screen.getByTestId('v2-cases-list-summary').textContent).toBe(`${whole} cases · sorted by DPD, highest first`));
+  });
+
   it('reconciles the count with the list under every other filter — search, status, scope and owner alike', async () => {
     const cases = await openCases();
     await userEvent.click(chip('owner-mine'));
