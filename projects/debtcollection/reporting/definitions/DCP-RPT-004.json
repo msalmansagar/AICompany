@@ -1,0 +1,28 @@
+{
+  "code": "DCP-RPT-004",
+  "name": "DCP — Open cases by strategy",
+  "description": "Open collection cases grouped by resolved strategy, with current arrears summed; the row with no strategy is Strategy Not Assigned. Grain: CASE. Source: qdb_collectioncase · qdb_strategyid. Narrowed by source system, bucket and case status when supplied. DCP catalogue DCP-RPT-004.",
+  "version": 1,
+  "mainEntity": "qdb_collectioncase",
+  "category": "Management",
+  "rowLimit": 5000,
+  "grain": "CASE",
+  "mode": "generated",
+  "entity": { "logicalName": "qdb_collectioncase", "alias": "t" },
+  "columns": [
+    { "name": "Strategy", "attribute": "qdb_strategyid", "alias": "strategy", "dataType": "Lookup", "aggregate": "None", "groupOrder": 1, "sortOrder": 1 },
+    { "name": "Cases", "attribute": "qdb_collectioncaseid", "alias": "cases", "dataType": "Integer", "aggregate": "Count", "sortOrder": 2 },
+    { "name": "Current arrears", "attribute": "qdb_currenttotalarrears", "alias": "arrears", "dataType": "Money", "aggregate": "Sum", "sortOrder": 3 }
+  ],
+  "filters": [
+    { "name": "Open cases only", "field": "statecode", "operator": "Equals", "value": "0", "valueType": "Number" },
+    { "name": "Source system", "field": "qdb_organizationcode", "operator": "Equals", "value": "SourceSystem", "runtimePrompt": true },
+    { "name": "Bucket", "field": "qdb_currentarrearbucket", "operator": "Equals", "value": "Bucket", "runtimePrompt": true },
+    { "name": "Case status", "field": "statuscode", "operator": "Equals", "value": "CaseStatus", "runtimePrompt": true }
+  ],
+  "parameters": [
+    { "name": "SourceSystem", "label": "Source system (organisation code)", "type": "Number", "required": false },
+    { "name": "Bucket", "label": "MIS bucket (option value)", "type": "Number", "required": false },
+    { "name": "CaseStatus", "label": "Case status (status code)", "type": "Number", "required": false }
+  ]
+}

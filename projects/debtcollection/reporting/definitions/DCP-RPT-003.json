@@ -1,0 +1,30 @@
+{
+  "code": "DCP-RPT-003",
+  "name": "DCP — Open cases by status",
+  "description": "Open collection cases grouped by their recorded status, with current arrears summed. Grain: CASE. Source: qdb_collectioncase · statuscode. Narrowed by source system, bucket, strategy and owner when supplied. DCP catalogue DCP-RPT-003.",
+  "version": 1,
+  "mainEntity": "qdb_collectioncase",
+  "category": "Management",
+  "rowLimit": 5000,
+  "grain": "CASE",
+  "mode": "generated",
+  "entity": { "logicalName": "qdb_collectioncase", "alias": "t" },
+  "columns": [
+    { "name": "Status", "attribute": "statuscode", "alias": "status", "dataType": "Integer", "aggregate": "None", "groupOrder": 1, "sortOrder": 1 },
+    { "name": "Cases", "attribute": "qdb_collectioncaseid", "alias": "cases", "dataType": "Integer", "aggregate": "Count", "sortOrder": 2 },
+    { "name": "Current arrears", "attribute": "qdb_currenttotalarrears", "alias": "arrears", "dataType": "Money", "aggregate": "Sum", "sortOrder": 3 }
+  ],
+  "filters": [
+    { "name": "Open cases only", "field": "statecode", "operator": "Equals", "value": "0", "valueType": "Number" },
+    { "name": "Source system", "field": "qdb_organizationcode", "operator": "Equals", "value": "SourceSystem", "runtimePrompt": true },
+    { "name": "Bucket", "field": "qdb_currentarrearbucket", "operator": "Equals", "value": "Bucket", "runtimePrompt": true },
+    { "name": "Strategy", "field": "qdb_strategyid", "operator": "Equals", "value": "Strategy", "runtimePrompt": true },
+    { "name": "Owner", "field": "ownerid", "operator": "Equals", "value": "Owner", "runtimePrompt": true }
+  ],
+  "parameters": [
+    { "name": "SourceSystem", "label": "Source system (organisation code)", "type": "Number", "required": false },
+    { "name": "Bucket", "label": "MIS bucket (option value)", "type": "Number", "required": false },
+    { "name": "Strategy", "label": "Strategy (id)", "type": "Lookup", "required": false },
+    { "name": "Owner", "label": "Owner (user id)", "type": "Lookup", "required": false }
+  ]
+}

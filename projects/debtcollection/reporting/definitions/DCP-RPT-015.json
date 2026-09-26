@@ -1,0 +1,33 @@
+{
+  "code": "DCP-RPT-015",
+  "name": "DCP — Portfolio totals",
+  "description": "One row: open cases, distinct customers with an open case, current arrears and loan balance summed. Grain: CASE for cases and sums, CUSTOMER for the distinct count (shown beside the case count, never in its place — KI-18). Source: qdb_collectioncase. Narrowed by source system, bucket, strategy, case status and owner when supplied. DCP catalogue DCP-RPT-015.",
+  "version": 1,
+  "mainEntity": "qdb_collectioncase",
+  "category": "Management",
+  "rowLimit": 10,
+  "grain": "CASE",
+  "mode": "fetchxml",
+  "fetchXml": "<fetch aggregate=\"true\"><entity name=\"qdb_collectioncase\"><attribute name=\"qdb_collectioncaseid\" aggregate=\"count\" alias=\"cases\"/><attribute name=\"qdb_customerid\" aggregate=\"countcolumn\" distinct=\"true\" alias=\"customers\"/><attribute name=\"qdb_currenttotalarrears\" aggregate=\"sum\" alias=\"arrears\"/><attribute name=\"qdb_currentloanbalance\" aggregate=\"sum\" alias=\"balance\"/><filter><condition attribute=\"statecode\" operator=\"eq\" value=\"0\"/></filter></entity></fetch>",
+  "entity": { "logicalName": "qdb_collectioncase", "alias": "t" },
+  "columns": [
+    { "name": "Open cases", "attribute": "qdb_collectioncaseid", "alias": "cases", "dataType": "Integer", "aggregate": "None", "sortOrder": 1 },
+    { "name": "Customers with an open case", "attribute": "qdb_customerid", "alias": "customers", "dataType": "Integer", "aggregate": "None", "sortOrder": 2 },
+    { "name": "Current arrears", "attribute": "qdb_currenttotalarrears", "alias": "arrears", "dataType": "Money", "aggregate": "None", "sortOrder": 3 },
+    { "name": "Loan balance", "attribute": "qdb_currentloanbalance", "alias": "balance", "dataType": "Money", "aggregate": "None", "sortOrder": 4 }
+  ],
+  "filters": [
+    { "name": "Source system", "field": "qdb_organizationcode", "operator": "Equals", "value": "SourceSystem", "runtimePrompt": true },
+    { "name": "Bucket", "field": "qdb_currentarrearbucket", "operator": "Equals", "value": "Bucket", "runtimePrompt": true },
+    { "name": "Strategy", "field": "qdb_strategyid", "operator": "Equals", "value": "Strategy", "runtimePrompt": true },
+    { "name": "Case status", "field": "statuscode", "operator": "Equals", "value": "CaseStatus", "runtimePrompt": true },
+    { "name": "Owner", "field": "ownerid", "operator": "Equals", "value": "Owner", "runtimePrompt": true }
+  ],
+  "parameters": [
+    { "name": "SourceSystem", "label": "Source system (organisation code)", "type": "Number", "required": false },
+    { "name": "Bucket", "label": "MIS bucket (option value)", "type": "Number", "required": false },
+    { "name": "Strategy", "label": "Strategy (id)", "type": "Lookup", "required": false },
+    { "name": "CaseStatus", "label": "Case status (status code)", "type": "Number", "required": false },
+    { "name": "Owner", "label": "Owner (user id)", "type": "Lookup", "required": false }
+  ]
+}
