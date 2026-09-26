@@ -55,9 +55,11 @@ describe('the follow-up filter', () => {
     expect(buildFollowUpFilter({ now: NOW, openOnly: false })).not.toContain('statecode eq 0');
   });
 
-  it('carries an organisation scope through untouched', () => {
-    expect(buildFollowUpFilter({ now: NOW, scopeFilter: 'qdb_organizationcode eq 100000140' }))
-      .toContain('qdb_organizationcode eq 100000140');
+  it('applies an organisation scope through the activity\'s case, never on the activity itself (KI-147)', () => {
+    const filter = buildFollowUpFilter({ now: NOW, scopeFilter: 'qdb_organizationcode eq 100000140' });
+
+    expect(filter).toContain('qdb_collectioncaseid_qdb_collectionactivity/qdb_organizationcode eq 100000140');
+    expect(filter).not.toMatch(/(^| and )qdb_organizationcode eq/);
   });
 });
 
