@@ -8,6 +8,9 @@ import type { ActivityRow } from '../data/caseQueries.js';
 import { formatCountResult, useCounts, type CountRequest } from '../data/counts.js';
 import { loadOpenArrears, myDayCountRequests } from '../data/myDayOversight.js';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
+import type { ReportingScope } from '@dcp/domain';
+import { encodeScope, hasScope } from '../data/caseListScopeUrl.js';
+import { ORG_CODES } from '../data/schema.js';
 import { MyWorkView } from './MyWorkView.js';
 import {
   BucketPill, Card, EmptyState, InfoBanner, KpiRow, OrgBadge, PendingPhaseNotice, StatusPill,
@@ -37,26 +40,42 @@ const CASE_COLUMNS: readonly DataGridColumn<CaseRow>[] = [
   { key: 'status', header: 'Status', width: '150px', render: r => <StatusPill status={r.status} /> },
 ];
 
-export function CasesView({ onOpenCase }: { onOpenCase?: (id: string) => void }) {
+/**
+ * A reporting scope that arrived in the URL — from a dashboard card — becomes the list's own
+ * filters: the CRM scope, the bucket and the status land in the pickers the officer can see and
+ * change; strategy and owner have no picker and are shown as the scope they are.
+ */
+export function CasesView({ onOpenCase, scope = {} }: { onOpenCase?: (id: string) => void; scope?: ReportingScope }) {
   const { adapter } = useCrmSession();
   const { scopeFilter } = useOrg();
-  const [bucket, setBucket] = useState('');
-  const [status, setStatus] = useState('');
+  const [bucket, setBucket] = useState(scope.bucket ?? '');
+  const [status, setStatus] = useState(scope.caseStatus ?? '');
   const [search, setSearch] = useState('');
+  const scopeId = encodeScope(scope);
+
+  useEffect(() => {
+    setBucket(scope.bucket ?? '');
+    setStatus(scope.caseStatus ?? '');
+    // The scope's identity is its encoding; the object is rebuilt every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeId]);
 
   const fetchPage = useMemo(() => createCaseQuery(adapter), [adapter]);
 
   // The query object is the question. A change to any part of it restarts paging, which is exactly
   // what should happen — the engine discards the continuation rather than paging into a population
   // the user stopped asking about.
+  const effectiveScopeFilter = scopeFilterFor(scope.sourceSystem, scopeFilter);
   const query = useMemo<CaseQuery>(() => ({
-    ...(scopeFilter !== undefined ? { scopeFilter } : {}),
+    ...(effectiveScopeFilter !== undefined ? { scopeFilter: effectiveScopeFilter } : {}),
     ...(bucket ? { bucket } : {}),
     ...(status ? { status } : {}),
     ...(search ? { search } : {}),
+    ...(scope.strategy ? { strategy: scope.strategy } : {}),
+    ...(scope.owner ? { ownerId: scope.owner } : {}),
     openOnly: true,
     sort: [{ field: 'qdb_currentdpd', descending: true }],
-  }), [scopeFilter, bucket, status, search]);
+  }), [effectiveScopeFilter, bucket, status, search, scope.strategy, scope.owner]);
 
   return (
     <>
@@ -64,6 +83,16 @@ export function CasesView({ onOpenCase }: { onOpenCase?: (id: string) => void })
         Cases from both <b>Housing Loan CRM</b> and <b>BFD CRM</b> appear together — the badge on each
         row names the system of record.
       </InfoBanner>
+      {hasScope(scope) && (
+        <div className="scope-chips" data-testid="cases-scope">
+          <span className="scope-chips-label">Filtered by</span>
+          {scope.sourceSystem && <span className="chip sel" data-testid="scope-chip-sourceSystem">CRM: {scope.sourceSystem}</span>}
+          {scope.bucket && <span className="chip sel" data-testid="scope-chip-bucket">DPD: {scope.bucket}</span>}
+          {scope.caseStatus && <span className="chip sel" data-testid="scope-chip-caseStatus">Status: {scope.caseStatus}</span>}
+          {scope.strategy && <span className="chip sel" data-testid="scope-chip-strategy">Strategy: {scope.strategy === 'none' ? 'Strategy Not Assigned' : scope.strategy}</span>}
+          {scope.owner && <span className="chip sel" data-testid="scope-chip-owner">Owner: {scope.owner}</span>}
+        </div>
+      )}
 
       <div className="action-row" data-testid="case-filters">
         <label>
@@ -101,6 +130,12 @@ export function CasesView({ onOpenCase }: { onOpenCase?: (id: string) => void })
       />
     </>
   );
+}
+
+/** A source system named by the scope narrows the list even when the header picker says both. */
+function scopeFilterFor(sourceSystem: ReportingScope['sourceSystem'], pickerFilter: string | undefined): string | undefined {
+  if (!sourceSystem) return pickerFilter;
+  return `qdb_organizationcode eq ${ORG_CODES[sourceSystem]}`;
 }
 
 // ── Audit Trail ──────────────────────────────────────────────────────────────

@@ -425,3 +425,31 @@ describe('a working screen does not announce itself unimplemented', () => {
     expect(screen.getByText(/No data is shown here/i)).toBeTruthy();
   });
 });
+
+describe('a reporting scope carried into Collection Cases', () => {
+  it('narrows the list to the population a card counted, and says so', async () => {
+    const xrm = fakeXrm({ qdb_collectioncase: [CASE_ROW] });
+    const queries: string[] = [];
+    const inner = xrm.WebApi.retrieveMultipleRecords.bind(xrm.WebApi);
+    xrm.WebApi.retrieveMultipleRecords = async (name: string, options = '', size?: number) => {
+      if (name === 'qdb_collectioncase' && !decodeURIComponent(options).startsWith('?fetchXml=')) queries.push(decodeURIComponent(options));
+      return inner(name, options, size);
+    };
+    install(xrm);
+    installCounts({ qdb_collectioncase: [CASE_ROW] });
+    window.location.hash = '#cases/scope/sourceSystem=HL&bucket=61-90&strategy=none&owner=u-1';
+    render(<App />);
+    await screen.findByTestId('cases-scope');
+
+    await waitFor(() => expect(queries.at(-1)).toContain('qdb_organizationcode eq 100000140 and statecode eq 0 and _qdb_strategyid_value eq null and _ownerid_value eq u-1 and qdb_currentarrearbucket eq 100000002'));
+    expect([
+      screen.getByTestId('scope-chip-bucket').textContent, screen.getByTestId('scope-chip-strategy').textContent,
+      (screen.getByTestId('filter-bucket') as HTMLSelectElement).value,
+    ]).toEqual(['DPD: 61-90', 'Strategy: Strategy Not Assigned', '61-90']);
+  });
+
+  it('shows no scope strip on the plain list', async () => {
+    await openView('cases');
+    expect(screen.queryByTestId('cases-scope')).toBeNull();
+  });
+});

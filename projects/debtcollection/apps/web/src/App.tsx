@@ -21,6 +21,7 @@ import './styles/phase5.css';
 import './styles/phase6.css';
 import './styles/phase7.css';
 import { toError } from './platform/errors.js';
+import { SCOPE_SEGMENT, decodeScope } from './data/caseListScopeUrl.js';
 
 /**
  * Builds the session the whole workspace runs on.
@@ -112,7 +113,7 @@ function ViewHost({
   switch (view.id) {
     case 'myday': return <MyDayView onOpenCase={onOpenCase} />;
     case 'queues': return <QueuesView onOpenCase={onOpenCase} />;
-    case 'cases': return <CasesView onOpenCase={onOpenCase} />;
+    case 'cases': return <CasesView onOpenCase={onOpenCase} scope={recordId === SCOPE_SEGMENT ? decodeScope(tab) : {}} />;
     case 'case': return <CaseWorkspaceView caseId={recordId} initialTab={tab} onOpenCustomer={onOpenCustomer} />;
     case 'customer': return <Customer360View customerBusinessId={recordId} onOpenCase={onOpenCase} />;
     case 'intake': return <DelinquencyIntakeView />;

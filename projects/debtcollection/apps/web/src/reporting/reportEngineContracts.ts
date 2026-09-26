@@ -47,8 +47,10 @@ export const ReportResultSchema = z.object({
 export const WidgetResultSchema = z.object({
   widgetId: z.string(),
   accessDenied: z.boolean().optional(),
+  /** Present only when this widget failed; the dashboard itself still answers. */
+  error: z.object({ code: z.string().optional(), message: z.string().optional() }).optional(),
   data: z.array(z.object({ label: z.string().nullable(), value: z.unknown() })).optional(),
-});
+}).passthrough();
 
 export const DashboardResultSchema = z.object({
   dashboardId: z.string(),
