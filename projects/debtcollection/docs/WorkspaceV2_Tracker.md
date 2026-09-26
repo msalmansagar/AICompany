@@ -154,3 +154,16 @@ Not a PR. V2 not default. V1 intact. Screen 03 not started.
 **Post-closure, Option 2 alignment (2026-09-25 02:20–02:55 +03, user-approved after analysis):** `a7bfd491` + `bf6def9f` — identity packed into two columns (case over `CRM · customer type`, customer over product), order Case · Customer · Arrears · Bucket · DPD · Status · Strategy · Owner, Loan balance out of the Grid (kept in Split, the preview and the sort options), two-row toolbar with the Split-only sort select and the unbucketed count folded into the All chip, a count-and-order footer from the facet total, header search wording. **No command bar in Grid, by decision:** a Grid row opens the case; actions live on the record and in the Split preview. Presentation only. Web 977/977; deployed 11/11.
 
 **Promise to Pay — Split and Grid (2026-09-26 00:50–01:20 +03, by the user's instruction):** `713db4e1` — a promise row carries its case (bucket, DPD, arrears, CRM, customer type, name) expanded in the same read through `qdb_collectioncaseid_qdb_collectionactivity`, never per row; Split previews the promise's case with the shared `CasePreview` and `CaseCommandDialogs`; Grid opens the case on its Promises tab; preference `dcp.v2.promisesLayout`; V1's Promise to Pay list gains the bar from the same read. Also `928722c4` (fitted-grid padding + widths) landed after the org's customization window cleared. Web 982/982; four planted defects bite; deployed 11/11; both layouts and V1 verified live.
+
+## Rebase onto main + Phase 10 integration (authorised 2026-09-26)
+
+| Item | Value |
+|---|---|
+| Start (Qatar) | 2026-09-26 20:21 +03 |
+| Old V2 tip | `0dbcf59f` (last reported to the user as `226836be`; the Promise to Pay Split/Grid work moved it) — safety tag `v2-pre-rebase-0dbcf59f`, branch `backup/dcp-workspace-v2-pre-rebase`, both on origin |
+| New base | `main` @ `a997496d` (Phase 10 merge commit; merge-base was `cf4e7642`; V2 38 ahead / 12 behind) |
+| Expected conflicts | `apps/web/src/App.tsx`, `apps/web/src/data/collectionQueries.ts`, `docs/KnownIssues.md` (from `git merge-tree`); five more files auto-merge |
+| V2 pre-rebase baseline | **2,365** = TS 2,196 (domain 817 · web 982 · api 351 · dv-client 32 · auth 14) + tooling 10 + C# 159 on record; 0 failed, 0 skipped |
+| Main / Phase 10 baseline | **2,179** = TS 2,010 (domain 829 · web 780 · api 355 · dv-client 32 · auth 14) + tooling 10 + C# 159 |
+| Baseline estimate | **9.75 effective hours** — rebase + three conflicts 0.75 · shared report presentation (one integration, two skins) 0.75 · V2 Dashboards page 1.5 · ReportingScope ↔ V2 case-list filter mapping and drill-down 1.0 · request coordination for `qdb_RunReport` 0.75 · My Day reconciliation 0.75 · integration tests 2.0 · deploy + browser validation 1.0 · docs / KI register 0.75. The earlier "2–3 h" covered the rebase alone; §8–§14 of this authorisation add the integration |
+| Expected completion | 2026-09-27 ~06:00 +03 at the estimate, wall-clock permitting |
