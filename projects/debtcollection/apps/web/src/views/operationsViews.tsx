@@ -8,7 +8,7 @@ import {
   BucketPill, Card, InfoBanner, KpiRow, OrgBadge, PartialCapabilityNotice, PromiseOutcome, StatusPill,
   formatCount, formatDate, formatMoney,
 } from '../components/primitives.js';
-import { useCrmSession, useOrg } from '../shell/context.js';
+import { useCrmSession } from '../shell/context.js';
 import type { ViewDefinition } from '../shell/routes.js';
 
 /**
@@ -173,57 +173,6 @@ const PTP_COUNTS: readonly CountRequest[] = [
   { key: 'brokenPtps', entitySet: ENTITY_SETS.collectionActivity, filter: 'qdb_ptpstatus eq 100000083' },
 ];
 
-// ── Dashboards ───────────────────────────────────────────────────────────────
-
-/**
- * Bounded operational counts.
- *
- * Six numbers the platform can answer without reading the portfolio. Everything the approved design
- * shows beyond them — roll rates, collector performance, trend charts — needs aggregation the Web API
- * does not do and MIS transport that does not exist, so it belongs to Phase 10 and says so.
- */
-export function DashboardsView({ view }: { view: ViewDefinition }) {
-  const { adapter } = useCrmSession();
-  const { scope, scopeFilter } = useOrg();
-  const requests = useMemo<readonly CountRequest[]>(() => dashboardCounts(scopeFilter), [scopeFilter]);
-  const counts = useCounts(adapter, requests);
-
-  return (
-    <div data-testid="view-dashboards">
-      <PartialCapabilityNotice view={view} />
-      <InfoBanner icon="chart">
-        Counted by the platform for <b>{scope === 'all' ? 'both organisations' : scope}</b>. Each tile is
-        one bounded count, not a portfolio read.
-      </InfoBanner>
-      <KpiRow items={[
-        { label: 'Open cases', value: formatCountResult(counts['openCases']) },
-        { label: 'New', value: formatCountResult(counts['newCases']) },
-        { label: 'In progress', value: formatCountResult(counts['inProgress']) },
-        { label: 'PTP active', value: formatCountResult(counts['ptpActive']) },
-        { label: 'Referred to legal', value: formatCountResult(counts['legal']), tone: 'warn' },
-        { label: 'Closed', value: formatCountResult(counts['closed']) },
-      ]} />
-      <Card title="Beyond counts" subtitle="What the approved dashboards show that a bounded count cannot answer.">
-        <ul className="hint">
-          <li>Overdue balance by bucket — needs aggregation the Web API does not perform (Phase 10).</li>
-          <li>Roll rates and transition — needs period-over-period MIS, which is not available yet.</li>
-          <li>Collector performance and SLA breach — needs the SLA model Phase 8 introduces.</li>
-        </ul>
-      </Card>
-    </div>
-  );
-}
-
-function dashboardCounts(scopeFilter: string | undefined): readonly CountRequest[] {
-  const and = (clause: string) => (scopeFilter ? `${scopeFilter} and ${clause}` : clause);
-  return [
-    { key: 'openCases', entitySet: ENTITY_SETS.collectionCase, filter: and('statecode eq 0') },
-    { key: 'newCases', entitySet: ENTITY_SETS.collectionCase, filter: and('statuscode eq 100000600') },
-    { key: 'inProgress', entitySet: ENTITY_SETS.collectionCase, filter: and('statuscode eq 100000602') },
-    { key: 'ptpActive', entitySet: ENTITY_SETS.collectionCase, filter: and('statuscode eq 100000604') },
-    { key: 'legal', entitySet: ENTITY_SETS.collectionCase, filter: and('statuscode eq 100000609') },
-    { key: 'closed', entitySet: ENTITY_SETS.collectionCase, filter: and('statecode eq 1') },
-  ];
-}
+// Dashboards moved to `ReportingDashboardsView` in Phase 10: Report Engine compositions, not bounded counts.
 
 export { countMatching };

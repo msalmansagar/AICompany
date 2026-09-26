@@ -344,3 +344,7 @@ button.chip { cursor: pointer; font-family: inherit; }
   .subgrid { min-width: 460px; }
   .record-facts { gap: 14px; }
 }
+
+/* A reporting scope carried into a list from a dashboard card — the population the card counted */
+.scope-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+.scope-chips-label { font-size: 12px; color: var(--text-secondary); font-weight: 600; }

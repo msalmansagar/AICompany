@@ -3,6 +3,7 @@ import {
 } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import { ACTIVITY_COLUMNS, ENTITY_SETS, STRATEGY_ACTION_COLUMNS } from './schema.js';
+import { scopeThroughCase } from './activityScope.js';
 import { escapeOData, mapPage } from './collectionQueries.js';
 import { toStrategyActionRow, type StrategyActionRow } from './configurationQueries.js';
 import { toActivityRow, type ActivityRow } from './caseQueries.js';
@@ -45,7 +46,7 @@ export function buildFollowUpFilter(query: FollowUpQuery): string {
   const now = (query.now ?? new Date()).toISOString();
   const clauses: string[] = ['qdb_followupdate ne null'];
 
-  if (query.scopeFilter) clauses.push(query.scopeFilter);
+  if (query.scopeFilter) clauses.push(scopeThroughCase(query.scopeFilter));
   // A completed activity's follow-up has already happened or been superseded.
   if (query.openOnly !== false) clauses.push('statecode eq 0');
 

@@ -436,3 +436,14 @@ describe('every column the workspace reads is registered', () => {
     }
   });
 });
+
+describe('a case list narrowed by strategy and owner, for a dashboard drill-down', () => {
+  it('sends the strategy to the source, and asks for no strategy at all with none', () => {
+    expect(buildCaseFilter({ openOnly: true, strategy: 's-early' })).toBe('statecode eq 0 and _qdb_strategyid_value eq s-early');
+    expect(buildCaseFilter({ openOnly: true, strategy: 'none' })).toBe('statecode eq 0 and _qdb_strategyid_value eq null');
+  });
+
+  it('sends the owner to the source', () => {
+    expect(buildCaseFilter({ openOnly: true, ownerId: 'u-1' })).toBe('statecode eq 0 and _ownerid_value eq u-1');
+  });
+});

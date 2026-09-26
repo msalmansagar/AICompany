@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import type { ReportingScope } from '@dcp/domain';
 import { AppShell, Command } from './shell/AppShell.js';
 import { CrmSessionProvider, OrgProvider, RoleProvider, type CrmSession } from './shell/context.js';
 import { useHashRoute } from './shell/useHashRoute.js';
@@ -7,11 +8,13 @@ import { BULK_SEGMENT, CommunicationCenterView } from './views/CommunicationCent
 import { findXrm, readCrmContext, CrmContextError, type XrmLike } from './platform/crmContext.js';
 import { XrmCrmAdapter } from './platform/XrmCrmAdapter.js';
 import { SameOriginWriteTransport } from './platform/writeTransport.js';
+import { XrmReportingService } from './reporting/XrmReportingService.js';
 import { AuditView, CasesView, MyDayView, PendingView, QueuesView } from './views/index.js';
 import { CaseWorkspaceView } from './views/CaseWorkspace.js';
 import { Customer360View } from './views/Customer360.js';
 import { ActionPlanView, SegmentationView, StrategyRulesView } from './views/strategyViews.js';
-import { DashboardsView, DelinquencyIntakeView, PromiseToPayView } from './views/operationsViews.js';
+import { DelinquencyIntakeView, PromiseToPayView } from './views/operationsViews.js';
+import { ReportingDashboardsView } from './views/ReportingDashboardsView.js';
 import { ConfigurationView } from './views/ConfigurationView.js';
 import { WorkoutQueueView } from './views/workoutQueueView.js';
 import './styles/tokens.css';
@@ -20,7 +23,9 @@ import './styles/uci.css';
 import './styles/phase5.css';
 import './styles/phase6.css';
 import './styles/phase7.css';
+import './styles/phase10.css';
 import { toError } from './platform/errors.js';
+import { SCOPE_SEGMENT, decodeScope, encodeScope } from './data/caseListScopeUrl.js';
 
 /**
  * Builds the session the whole workspace runs on.
@@ -40,7 +45,7 @@ import { toError } from './platform/errors.js';
 export function createCrmSession(xrm: XrmLike | null = findXrm()): CrmSession {
   const context = readCrmContext(xrm);
   const transport = new SameOriginWriteTransport(context.apiBase);
-  return { context, adapter: new XrmCrmAdapter(xrm!, undefined, transport) };
+  return { context, adapter: new XrmCrmAdapter(xrm!, undefined, transport), reporting: new XrmReportingService(xrm!) };
 }
 
 /**
@@ -81,6 +86,7 @@ function Workspace() {
         {...(route.recordId !== undefined ? { recordId: route.recordId } : {})}
         {...(route.tab !== undefined ? { tab: route.tab } : {})}
         onOpenCase={id => route.go('case', id)}
+        onOpenCases={scope => route.go('cases', SCOPE_SEGMENT, encodeScope(scope))}
         onOpenCustomer={customerBusinessId => route.go('customer', customerBusinessId)}
         onOpenComms={id => route.go('comms', id)}
         onNavigateComms={(recordId, tab) => route.go('comms', recordId, tab)}
@@ -97,12 +103,14 @@ function Workspace() {
  * nothing resolves to invented data.
  */
 function ViewHost({
-  view, recordId, tab, onOpenCase, onOpenCustomer, onOpenComms, onNavigateComms,
+  view, recordId, tab, onOpenCase, onOpenCases, onOpenCustomer, onOpenComms, onNavigateComms,
 }: {
   view: ViewDefinition;
   recordId?: string | undefined;
   tab?: string | undefined;
   onOpenCase: (id: string) => void;
+  /** The Cases list in a reporting scope — a dashboard row's drill-down. */
+  onOpenCases: (scope: ReportingScope) => void;
   onOpenCustomer: (customerBusinessId: string) => void;
   onOpenComms: (caseId: string) => void;
   onNavigateComms: (recordId?: string, tab?: string) => void;
@@ -112,7 +120,7 @@ function ViewHost({
   switch (view.id) {
     case 'myday': return <MyDayView onOpenCase={onOpenCase} />;
     case 'queues': return <QueuesView onOpenCase={onOpenCase} />;
-    case 'cases': return <CasesView onOpenCase={onOpenCase} />;
+    case 'cases': return <CasesView onOpenCase={onOpenCase} scope={recordId === SCOPE_SEGMENT ? decodeScope(tab) : {}} />;
     case 'case': return <CaseWorkspaceView caseId={recordId} initialTab={tab} onOpenCustomer={onOpenCustomer} />;
     case 'customer': return <Customer360View customerBusinessId={recordId} onOpenCase={onOpenCase} />;
     case 'intake': return <DelinquencyIntakeView />;
@@ -120,7 +128,7 @@ function ViewHost({
     case 'rules': return <StrategyRulesView view={view} />;
     case 'actionplan': return <ActionPlanView view={view} />;
     case 'ptp': return <PromiseToPayView view={view} onOpenCase={onOpenCase} />;
-    case 'dashboards': return <DashboardsView view={view} />;
+    case 'dashboards': return <ReportingDashboardsView view={view} onOpenCases={onOpenCases} />;
     case 'admin': return <ConfigurationView view={view} />;
     case 'audit': return <AuditView />;
     case 'disputes':

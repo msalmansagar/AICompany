@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { App } from '../App.js';
 import { isPending, VIEWS, type ViewDefinition } from '../shell/routes.js';
 import type { XrmLike } from '../platform/crmContext.js';
+import { formatMoney } from '../components/primitives.js';
 
 /**
  * The views, rendered through the real application bootstrap.
@@ -43,7 +44,12 @@ function fakeXrm(rows: Record<string, Record<string, unknown>[]> = {}): XrmLike 
         if (!row) throw { status: 404 };
         return row;
       },
-      async retrieveMultipleRecords(logicalName: string) {
+      async retrieveMultipleRecords(logicalName: string, options = '') {
+        // A FetchXML aggregate is answered as the platform answers it: one grouped row, no records.
+        if (decodeURIComponent(options).startsWith('?fetchXml=')) {
+          const arrears = (rows[logicalName] ?? []).reduce((sum, row) => sum + (typeof row['qdb_currenttotalarrears'] === 'number' ? row['qdb_currenttotalarrears'] : 0), 0);
+          return { entities: [{ arrears }] };
+        }
         // No `@odata.count`: the real client API never returns one, whatever is asked for (KI-96).
         // A count therefore has to come from the transport, and the stub below answers it.
         return { entities: rows[logicalName] ?? [] };
@@ -350,22 +356,49 @@ describe('configuration screens read and never author', () => {
 // ── KPI honesty ──────────────────────────────────────────────────────────────
 
 describe('a KPI is a platform count or an em dash, never an invention', () => {
-  it('shows an em dash and a reason for a figure the platform cannot count', async () => {
+  it('sums current arrears through the platform, as one aggregate over open cases', async () => {
+    install(fakeXrm({ qdb_collectioncase: [CASE_ROW, { ...CASE_ROW, qdb_collectioncaseid: 'c-2', qdb_currenttotalarrears: 1_000 }] }));
+    installCounts({ qdb_collectioncase: [CASE_ROW] });
     await openView('myday');
-    const tiles = await screen.findAllByText('Overdue balance');
-    expect(tiles.length).toBeGreaterThan(0);
+    const tiles = await screen.findAllByText('Current arrears');
     const tile = tiles[0]!.closest('.kpi-tile')!;
-    expect(tile.textContent).toContain('—');
-    expect(tile.textContent).toContain('Phase 10');
+    await waitFor(() => expect(tile.querySelector('.kpi-value')!.textContent).toBe(formatMoney(CASE_ROW.qdb_currenttotalarrears + 1_000)));
+    expect(tile.textContent).toContain('Stored MIS position');
   });
 
-  it('counts open cases through the platform', async () => {
+  it('shows an em dash, never zero, when the platform refuses the sum', async () => {
+    const xrm = fakeXrm({ qdb_collectioncase: [CASE_ROW] });
+    xrm.WebApi.retrieveMultipleRecords = async (_name: string, options = '') => {
+      if (decodeURIComponent(options).startsWith('?fetchXml=')) throw { errorCode: 0x8004E023 };
+      return { entities: [CASE_ROW] };
+    };
+    install(xrm);
+    installCounts({ qdb_collectioncase: [CASE_ROW] });
+    await openView('myday');
+    const tile = (await screen.findAllByText('Current arrears'))[0]!.closest('.kpi-tile')!;
+    await waitFor(() => expect(tile.textContent).toContain('could not sum'));
+    expect(tile.querySelector('.kpi-value')!.textContent).toBe('—');
+  });
+
+  it('states what each My Day tile counts, and claims no SLA', async () => {
+    await openView('myday');
+    const labels = (await screen.findAllByText(/./, { selector: '.kpi-label' })).map(el => el.textContent);
+    expect(labels).toEqual(['Open cases', 'Current arrears', 'My open work', 'Follow-ups overdue', 'Follow-ups upcoming', 'Promises due, 7 days', 'Awaiting assignment', 'Identity exceptions']);
+    expect(document.body.textContent).not.toMatch(/SLA breached|Overdue balance/);
+  });
+
+  /**
+   * Phase 10 made the Dashboards a set of Report Engine reports. A session with no Engine — this
+   * stand-in has no `execute` — must say so on every panel and count nothing itself: a bounded
+   * `$count` shown where an Engine figure belongs would be a second, unreconciled answer.
+   */
+  it('shows no figure on a dashboard whose definitions this organisation does not carry', async () => {
     install(fakeXrm({ qdb_collectioncase: [CASE_ROW] }));
     installCounts({ qdb_collectioncase: [CASE_ROW] });
     await openView('dashboards');
-    const tiles = await screen.findAllByText('Open cases');
-    const tile = tiles[0]!.closest('.kpi-tile')!;
-    await waitFor(() => expect(tile.querySelector('.kpi-value')!.textContent).toBe('1'));
+    const book = await screen.findByTestId('panel-DCP-RPT-015');
+    await waitFor(() => expect(book.textContent).toContain('DCP-RPT-015 is not provisioned on this organisation'));
+    expect(book.querySelector('.kpi-value')).toBeNull();
   });
 });
 
@@ -395,5 +428,33 @@ describe('a working screen does not announce itself unimplemented', () => {
 
     expect(await screen.findByTestId('pending-restructure')).toBeTruthy();
     expect(screen.getByText(/No data is shown here/i)).toBeTruthy();
+  });
+});
+
+describe('a reporting scope carried into Collection Cases', () => {
+  it('narrows the list to the population a card counted, and says so', async () => {
+    const xrm = fakeXrm({ qdb_collectioncase: [CASE_ROW] });
+    const queries: string[] = [];
+    const inner = xrm.WebApi.retrieveMultipleRecords.bind(xrm.WebApi);
+    xrm.WebApi.retrieveMultipleRecords = async (name: string, options = '', size?: number) => {
+      if (name === 'qdb_collectioncase' && !decodeURIComponent(options).startsWith('?fetchXml=')) queries.push(decodeURIComponent(options));
+      return inner(name, options, size);
+    };
+    install(xrm);
+    installCounts({ qdb_collectioncase: [CASE_ROW] });
+    window.location.hash = '#cases/scope/sourceSystem=HL&bucket=61-90&strategy=none&owner=u-1';
+    render(<App />);
+    await screen.findByTestId('cases-scope');
+
+    await waitFor(() => expect(queries.at(-1)).toContain('qdb_organizationcode eq 100000140 and statecode eq 0 and _qdb_strategyid_value eq null and _ownerid_value eq u-1 and qdb_currentarrearbucket eq 100000002'));
+    expect([
+      screen.getByTestId('scope-chip-bucket').textContent, screen.getByTestId('scope-chip-strategy').textContent,
+      (screen.getByTestId('filter-bucket') as HTMLSelectElement).value,
+    ]).toEqual(['DPD: 61-90', 'Strategy: Strategy Not Assigned', '61-90']);
+  });
+
+  it('shows no scope strip on the plain list', async () => {
+    await openView('cases');
+    expect(screen.queryByTestId('cases-scope')).toBeNull();
   });
 });

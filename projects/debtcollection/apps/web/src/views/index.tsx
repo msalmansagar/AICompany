@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DataGrid, type DataGridColumn } from '../data/DataGrid.js';
 import {
   createAuditQuery, createCaseQuery, LABELS, type AuditQuery, type AuditRow, type CaseQuery, type CaseRow,
@@ -6,7 +6,11 @@ import {
 import { createFollowUpQuery, type FollowUpQuery, type FollowUpWindow } from '../data/followUpQueries.js';
 import type { ActivityRow } from '../data/caseQueries.js';
 import { formatCountResult, useCounts, type CountRequest } from '../data/counts.js';
-import { ENTITY_SETS } from '../data/schema.js';
+import { loadOpenArrears, myDayCountRequests } from '../data/myDayOversight.js';
+import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
+import type { ReportingScope } from '@dcp/domain';
+import { encodeScope, hasScope } from '../data/caseListScopeUrl.js';
+import { ORG_CODES } from '../data/schema.js';
 import { MyWorkView } from './MyWorkView.js';
 import {
   BucketPill, Card, EmptyState, InfoBanner, KpiRow, OrgBadge, PendingPhaseNotice, StatusPill,
@@ -36,26 +40,42 @@ const CASE_COLUMNS: readonly DataGridColumn<CaseRow>[] = [
   { key: 'status', header: 'Status', width: '150px', render: r => <StatusPill status={r.status} /> },
 ];
 
-export function CasesView({ onOpenCase }: { onOpenCase?: (id: string) => void }) {
+/**
+ * A reporting scope that arrived in the URL — from a dashboard card — becomes the list's own
+ * filters: the CRM scope, the bucket and the status land in the pickers the officer can see and
+ * change; strategy and owner have no picker and are shown as the scope they are.
+ */
+export function CasesView({ onOpenCase, scope = {} }: { onOpenCase?: (id: string) => void; scope?: ReportingScope }) {
   const { adapter } = useCrmSession();
   const { scopeFilter } = useOrg();
-  const [bucket, setBucket] = useState('');
-  const [status, setStatus] = useState('');
+  const [bucket, setBucket] = useState(scope.bucket ?? '');
+  const [status, setStatus] = useState(scope.caseStatus ?? '');
   const [search, setSearch] = useState('');
+  const scopeId = encodeScope(scope);
+
+  useEffect(() => {
+    setBucket(scope.bucket ?? '');
+    setStatus(scope.caseStatus ?? '');
+    // The scope's identity is its encoding; the object is rebuilt every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeId]);
 
   const fetchPage = useMemo(() => createCaseQuery(adapter), [adapter]);
 
   // The query object is the question. A change to any part of it restarts paging, which is exactly
   // what should happen — the engine discards the continuation rather than paging into a population
   // the user stopped asking about.
+  const effectiveScopeFilter = scopeFilterFor(scope.sourceSystem, scopeFilter);
   const query = useMemo<CaseQuery>(() => ({
-    ...(scopeFilter !== undefined ? { scopeFilter } : {}),
+    ...(effectiveScopeFilter !== undefined ? { scopeFilter: effectiveScopeFilter } : {}),
     ...(bucket ? { bucket } : {}),
     ...(status ? { status } : {}),
     ...(search ? { search } : {}),
+    ...(scope.strategy ? { strategy: scope.strategy } : {}),
+    ...(scope.owner ? { ownerId: scope.owner } : {}),
     openOnly: true,
     sort: [{ field: 'qdb_currentdpd', descending: true }],
-  }), [scopeFilter, bucket, status, search]);
+  }), [effectiveScopeFilter, bucket, status, search, scope.strategy, scope.owner]);
 
   return (
     <>
@@ -63,6 +83,16 @@ export function CasesView({ onOpenCase }: { onOpenCase?: (id: string) => void })
         Cases from both <b>Housing Loan CRM</b> and <b>BFD CRM</b> appear together — the badge on each
         row names the system of record.
       </InfoBanner>
+      {hasScope(scope) && (
+        <div className="scope-chips" data-testid="cases-scope">
+          <span className="scope-chips-label">Filtered by</span>
+          {scope.sourceSystem && <span className="chip sel" data-testid="scope-chip-sourceSystem">CRM: {scope.sourceSystem}</span>}
+          {scope.bucket && <span className="chip sel" data-testid="scope-chip-bucket">DPD: {scope.bucket}</span>}
+          {scope.caseStatus && <span className="chip sel" data-testid="scope-chip-caseStatus">Status: {scope.caseStatus}</span>}
+          {scope.strategy && <span className="chip sel" data-testid="scope-chip-strategy">Strategy: {scope.strategy === 'none' ? 'Strategy Not Assigned' : scope.strategy}</span>}
+          {scope.owner && <span className="chip sel" data-testid="scope-chip-owner">Owner: {scope.owner}</span>}
+        </div>
+      )}
 
       <div className="action-row" data-testid="case-filters">
         <label>
@@ -100,6 +130,12 @@ export function CasesView({ onOpenCase }: { onOpenCase?: (id: string) => void })
       />
     </>
   );
+}
+
+/** A source system named by the scope narrows the list even when the header picker says both. */
+function scopeFilterFor(sourceSystem: ReportingScope['sourceSystem'], pickerFilter: string | undefined): string | undefined {
+  if (!sourceSystem) return pickerFilter;
+  return `qdb_organizationcode eq ${ORG_CODES[sourceSystem]}`;
 }
 
 // ── Audit Trail ──────────────────────────────────────────────────────────────
@@ -146,11 +182,17 @@ export function AuditView() {
 
 // ── My Day ───────────────────────────────────────────────────────────────────
 
+const PROMISE_HORIZON_DAYS = 7;
+
 export function MyDayView({ onOpenCase }: { onOpenCase?: (id: string) => void }) {
-  const { adapter } = useCrmSession();
+  const { adapter, context } = useCrmSession();
   const { scopeFilter } = useOrg();
-  const requests = useMemo<readonly CountRequest[]>(() => myDayCounts(scopeFilter), [scopeFilter]);
+  const [now] = useState(() => new Date());
+  const requests = useMemo<readonly CountRequest[]>(
+    () => myDayCountRequests({ scopeFilter, userId: context.userId, now, promiseHorizonDays: PROMISE_HORIZON_DAYS }),
+    [scopeFilter, context.userId, now]);
   const counts = useCounts(adapter, requests);
+  const arrears = useOpenArrears(adapter, scopeFilter);
 
   return (
     <>
@@ -159,17 +201,18 @@ export function MyDayView({ onOpenCase }: { onOpenCase?: (id: string) => void })
         row names the system of record.
       </InfoBanner>
       {/*
-        The prototype's KPI tiles were mock figures. A tile here is either a count the platform
-        answered or an em dash naming the phase that will supply it. Overdue balance needs a sum over
-        the portfolio, which the Web API does not compute and which must not be faked by adding up one
-        page of rows.
+        Every tile is a count the platform answered, or one server-side sum, or an em dash. The
+        semantics are on the tile: what "overdue", "due" and "my" mean here is stated, not assumed.
       */}
       <KpiRow items={[
-        { label: 'Open cases', value: formatCountResult(counts['open']) },
-        { label: 'Overdue balance', value: '—', hint: 'Needs portfolio aggregation (Phase 10)' },
-        { label: 'Active promises', value: formatCountResult(counts['ptpActive']) },
-        { label: 'Broken promises', value: formatCountResult(counts['ptpBroken']), tone: 'warn' },
-        { label: 'SLA breached', value: '—', hint: 'Needs the SLA model (Phase 8)' },
+        { label: 'Open cases', value: formatCountResult(counts['open']), hint: 'In the selected CRM scope' },
+        { label: 'Current arrears', value: arrears.status === 'ready' ? formatMoney(arrears.value) : '—', hint: arrears.status === 'unknown' ? 'The platform could not sum the portfolio' : 'Stored MIS position over open cases' },
+        { label: 'My open work', value: formatCountResult(counts['myOpenWork']), hint: 'Open activities owned by you' },
+        { label: 'Follow-ups overdue', value: formatCountResult(counts['followUpsOverdue']), tone: 'warn', hint: 'Follow-up date before now' },
+        { label: 'Follow-ups upcoming', value: formatCountResult(counts['followUpsUpcoming']), hint: 'Follow-up date from now on' },
+        { label: `Promises due, ${PROMISE_HORIZON_DAYS} days`, value: formatCountResult(counts['promisesDue']), hint: 'Recorded status Active; not a verified payment' },
+        { label: 'Awaiting assignment', value: formatCountResult(counts['awaitingAssignment']), hint: 'Open activities with no owner' },
+        { label: 'Identity exceptions', value: formatCountResult(counts['identityExceptions']), tone: 'warn', hint: 'Open, both CRMs' },
       ]} />
       <FollowUpsPanel {...(onOpenCase ? { onOpenCase } : {})} />
       <Card
@@ -264,21 +307,20 @@ function FollowUpsPanel({ onOpenCase }: { onOpenCase?: (id: string) => void }) {
   );
 }
 
-/**
- * My Day's counts.
- *
- * "My" is deliberately absent: the workspace does not filter by the signed-in user's id here, because
- * ownership on a case is a CRM owner and the correct question is one CRM already answers through its
- * own views. Counting "cases owned by me" from the browser would encode an assignment rule, and
- * assignment is Smart Assignment's (KI-09). These are portfolio counts within the active scope.
- */
-function myDayCounts(scopeFilter: string | undefined): readonly CountRequest[] {
-  const and = (clause: string) => (scopeFilter ? `${scopeFilter} and ${clause}` : clause);
-  return [
-    { key: 'open', entitySet: ENTITY_SETS.collectionCase, filter: and('statecode eq 0') },
-    { key: 'ptpActive', entitySet: ENTITY_SETS.collectionCase, filter: and('statuscode eq 100000604') },
-    { key: 'ptpBroken', entitySet: ENTITY_SETS.collectionCase, filter: and('statuscode eq 100000605') },
-  ];
+type ArrearsState = { status: 'loading' } | { status: 'ready'; value: number } | { status: 'unknown' };
+
+/** One server-side sum, re-read when the scope changes; a refusal is unknown, never zero. */
+function useOpenArrears(adapter: XrmCrmAdapter, scopeFilter: string | undefined): ArrearsState {
+  const [state, setState] = useState<ArrearsState>({ status: 'loading' });
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: 'loading' });
+    loadOpenArrears(adapter, scopeFilter)
+      .then(value => { if (!cancelled) setState(value === null ? { status: 'unknown' } : { status: 'ready', value }); })
+      .catch(() => { if (!cancelled) setState({ status: 'unknown' }); });
+    return () => { cancelled = true; };
+  }, [adapter, scopeFilter]);
+  return state;
 }
 
 // ── Work Queues ──────────────────────────────────────────────────────────────

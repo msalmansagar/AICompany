@@ -625,3 +625,15 @@ export { describeAdvancedProcesses } from './advancedProcessState.js';
 export type {
   AdvancedProcess, AdvancedProcessEvidence, ProcessAspect, ProcessCapability,
 } from './advancedProcessState.js';
+
+// ── Phase 10 — reporting contracts (WP2) ─────────────────────────────────────
+export {
+  EMPTY_SCOPE, REPORTING_DIMENSIONS, ReportingScopeSchema, SOURCE_SYSTEMS, activeDimensions, restrictScope, scopeKey,
+} from './reporting/reportingScope.js';
+export type { ReportingDimension, ReportingScope, SourceSystem } from './reporting/reportingScope.js';
+export {
+  MEASURES, REPORT_DEFINITIONS, computableMeasuresOf, definitionByCode, measureByCode,
+} from './reporting/reportingCatalogue.js';
+export type {
+  DrillDownTarget, MeasureClassification, MeasureEntry, ReportDefinitionEntry, ReportingAudience, ReportingGrain,
+} from './reporting/reportingCatalogue.js';

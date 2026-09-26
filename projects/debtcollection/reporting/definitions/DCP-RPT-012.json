@@ -1,0 +1,25 @@
+{
+  "code": "DCP-RPT-012",
+  "name": "DCP — Identity exceptions by status and reason",
+  "description": "Identity exceptions raised at intake, grouped by exception status and reason. Grain: EXCEPTION. Source: qdb_identityexception · qdb_exceptionstatus, qdb_exceptionreason. Narrowed by the received-date window when supplied. DCP catalogue DCP-RPT-012.",
+  "version": 1,
+  "mainEntity": "qdb_identityexception",
+  "category": "Operational",
+  "rowLimit": 5000,
+  "grain": "EXCEPTION",
+  "mode": "generated",
+  "entity": { "logicalName": "qdb_identityexception", "alias": "t" },
+  "columns": [
+    { "name": "Status", "attribute": "qdb_exceptionstatus", "alias": "status", "dataType": "Integer", "aggregate": "None", "groupOrder": 1, "sortOrder": 1 },
+    { "name": "Reason", "attribute": "qdb_exceptionreason", "alias": "reason", "dataType": "String", "aggregate": "None", "groupOrder": 2, "sortOrder": 2 },
+    { "name": "Exceptions", "attribute": "qdb_identityexceptionid", "alias": "exceptions", "dataType": "Integer", "aggregate": "Count", "sortOrder": 3 }
+  ],
+  "filters": [
+    { "name": "Received on or after", "field": "qdb_receiveddate", "operator": "GreaterThan", "value": "DateFrom", "runtimePrompt": true },
+    { "name": "Received before", "field": "qdb_receiveddate", "operator": "LessThan", "value": "DateTo", "runtimePrompt": true }
+  ],
+  "parameters": [
+    { "name": "DateFrom", "label": "Received on or after (ISO date)", "type": "Date", "required": false },
+    { "name": "DateTo", "label": "Received before (ISO date)", "type": "Date", "required": false }
+  ]
+}
