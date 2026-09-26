@@ -1,16 +1,15 @@
-import { useEffect, useState } from 'react';
-import { definitionByCode, restrictScope, type ReportDefinitionEntry, type ReportingDimension, type ReportingScope } from '@dcp/domain';
+import { useState } from 'react';
+import { definitionByCode, restrictScope, type ReportingScope } from '@dcp/domain';
 import { InfoBanner, PartialCapabilityNotice, Pivot } from '../components/primitives.js';
-import { describeFailure } from '../platform/errors.js';
-import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import { DCP_DASHBOARDS, type DcpDashboard } from '../reporting/dcpDashboards.js';
-import { resolveDcpDefinitions, type DefinitionIndex } from '../reporting/reportCatalogueResolver.js';
+import { resolutionFor, useDefinitionIndex, type IndexState } from '../reporting/useDefinitionIndex.js';
+import type { IReportingService } from '../reporting/ReportingService.js';
 import { ReportPanel } from './reportPanel.js';
 import { useCrmSession, useOrg, useReportingService } from '../shell/context.js';
 import type { ViewDefinition } from '../shell/routes.js';
 
 /**
- * The Dashboards screen: DCP's four dashboards, each a composition of Report Engine reports run as
+ * The V1 Dashboards screen: DCP's four dashboards, each a composition of Report Engine reports run as
  * the signed-in user in the workspace's current scope.
  *
  * The screen owns nothing numeric. It resolves which definitions this organisation carries, hands
@@ -56,7 +55,7 @@ export function ReportingDashboardsView({ view, onOpenCases }: { view: ViewDefin
 }
 
 function DashboardPanels({ dashboard, scope, index, onOpenCases, reporting }: {
-  dashboard: DcpDashboard; scope: ReportingScope; index: IndexState; onOpenCases: (scope: ReportingScope) => void; reporting: ReturnType<typeof useReportingService>;
+  dashboard: DcpDashboard; scope: ReportingScope; index: IndexState; onOpenCases: (scope: ReportingScope) => void; reporting: IReportingService;
 }) {
   return (
     <div className="report-panels" data-testid={`dashboard-${dashboard.code}`}>
@@ -86,31 +85,3 @@ function DashboardPanels({ dashboard, scope, index, onOpenCases, reporting }: {
 function UnknownDefinition({ code }: { code: string }) {
   return <div className="report-state" data-testid={`unknown-${code}`}>{code} is not in the DCP reporting catalogue.</div>;
 }
-
-export type PanelResolution = { isResolved: false } | { isResolved: true; reportId: string | undefined };
-
-function resolutionFor(index: IndexState, code: string): PanelResolution {
-  if (index.status === 'loading') return { isResolved: false };
-  if (index.status === 'failed') return { isResolved: true, reportId: undefined };
-  return { isResolved: true, reportId: index.definitions.get(code)?.id };
-}
-
-type IndexState =
-  | { status: 'loading' }
-  | { status: 'ok'; definitions: DefinitionIndex }
-  | { status: 'failed'; message: string };
-
-/** The organisation's DCP definitions, read once per session. */
-function useDefinitionIndex(adapter: XrmCrmAdapter): IndexState {
-  const [state, setState] = useState<IndexState>({ status: 'loading' });
-  useEffect(() => {
-    let cancelled = false;
-    resolveDcpDefinitions(adapter)
-      .then(definitions => { if (!cancelled) setState({ status: 'ok', definitions }); })
-      .catch((failure: unknown) => { if (!cancelled) setState({ status: 'failed', message: describeFailure(failure) }); });
-    return () => { cancelled = true; };
-  }, [adapter]);
-  return state;
-}
-
-export type { ReportDefinitionEntry, ReportingDimension };

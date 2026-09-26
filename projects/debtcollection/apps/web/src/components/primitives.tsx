@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { ICON_PATHS } from './icons.js';
 import type { ViewDefinition } from '../shell/routes.js';
+import { bucketVisual } from '../data/bucketVisual.js';
 
 /**
  * The shared visual vocabulary, ported from the prototype's `DC.*` helpers.
@@ -152,20 +153,18 @@ export function FieldList({ fields, testId = 'fields' }: {
 // ── Pills, chips and badges ──────────────────────────────────────────────────
 
 /**
- * The bucket exactly as MIS reported it.
- *
- * The tone comes from a lookup onto the prototype's five bucket classes. **Nothing here derives a
- * bucket from a DPD** — the mapping below is label-to-colour, not days-to-bucket.
+ * The bucket exactly as MIS reported it, coloured by the one bucket contract the whole platform
+ * shares (`data/bucketVisual.ts`): a rank by MIS position, never a bucket derived from a DPD.
  */
-const BUCKET_TONE: Readonly<Record<string, string>> = {
-  '1-30': 'b1', '31-60': 'b2', '61-90': 'b3', '91-180': 'b4', '181-270': 'b4',
-  '271-360': 'b4', '361-500': 'b4', '501-1000': 'b4', '1001-2000': 'b4', '>2000': 'b4',
-};
-
 export function BucketPill({ bucket }: { bucket?: string | undefined }) {
   if (!bucket) return <span className="pill muted">—</span>;
-  const tone = BUCKET_TONE[bucket];
-  return <span className={tone ? `pill ${tone}` : 'pill muted'}>{bucket} DPD</span>;
+  const visual = bucketVisual(bucket);
+  return <span className="pill bucket" data-bucket={visual.rank} title={visual.description}>{bucket} DPD</span>;
+}
+
+/** The same bucket as a thin vertical bar at a row's edge, beside a label that already says it. */
+export function BucketBar({ bucket }: { bucket?: string | undefined }) {
+  return <span className="bucket-bar" data-bucket={bucketVisual(bucket).rank} aria-hidden="true" />;
 }
 
 /**

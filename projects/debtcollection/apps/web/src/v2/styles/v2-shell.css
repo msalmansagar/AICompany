@@ -1,0 +1,199 @@
+/*
+ * Workspace V2 — application shell.
+ *
+ * Navy navigation rail, sticky header, scrolling page. The rail collapses to icons by choice or on a
+ * window under 1180px, and becomes a drawer under 860px. Desktop is the primary target; the narrow
+ * layouts keep the embedded Dynamics frame usable rather than making DCP mobile-first.
+ */
+.dcp-v2 .v2-shell {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 100vh;
+  background: var(--v2-canvas);
+}
+
+.dcp-v2 .v2-main { min-width: 0; display: flex; flex-direction: column; }
+
+.dcp-v2 .v2-page {
+  padding: 20px var(--v2-gutter) 44px;
+  display: flex; flex-direction: column; gap: var(--v2-space-4);
+  min-width: 0;
+}
+
+/* ── Navigation rail ────────────────────────────────────────────────────── */
+.dcp-v2 .v2-nav {
+  width: var(--v2-nav-width);
+  background: var(--v2-nav);
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 0 0 12px;
+  position: sticky; top: 0; height: 100vh; overflow-y: auto; overflow-x: hidden;
+  z-index: var(--v2-z-nav);
+}
+
+.dcp-v2 .v2-nav-brand { display: flex; align-items: center; gap: 10px; padding: 16px 16px 12px; }
+.dcp-v2 .v2-nav-logo {
+  width: 30px; height: 30px; border-radius: 7px; flex: none;
+  background: var(--v2-accent); color: var(--v2-nav);
+  display: grid; place-items: center; font-size: 12px; font-weight: var(--v2-fw-bold);
+}
+.dcp-v2 .v2-nav-brandtext { display: flex; flex-direction: column; min-width: 0; }
+.dcp-v2 .v2-nav-title { color: #FFFFFF; font-size: 13.5px; font-weight: var(--v2-fw-semibold); }
+.dcp-v2 .v2-nav-sub { color: var(--v2-nav-subtle); font-size: var(--v2-fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.dcp-v2 .v2-nav-groups { display: flex; flex-direction: column; }
+.dcp-v2 .v2-nav-group { display: flex; flex-direction: column; gap: 2px; }
+.dcp-v2 .v2-nav-section {
+  padding: 12px 16px 5px; color: var(--v2-nav-section);
+  font-size: var(--v2-fs-2xs); font-weight: var(--v2-fw-semibold); letter-spacing: .09em; text-transform: uppercase;
+}
+
+.dcp-v2 .v2-nav-item,
+.dcp-v2 .v2-nav-toggle {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 10px; padding: 7px 10px; border: 0; border-radius: var(--v2-radius);
+  background: transparent; color: var(--v2-nav-text);
+  font-size: var(--v2-fs-sm); text-align: left; cursor: pointer; white-space: nowrap;
+}
+.dcp-v2 .v2-nav-item:hover,
+.dcp-v2 .v2-nav-toggle:hover { background: var(--v2-nav-hover); color: #FFFFFF; }
+.dcp-v2 .v2-nav-item[aria-current='page'] { background: var(--v2-nav-active); color: #FFFFFF; font-weight: var(--v2-fw-semibold); }
+.dcp-v2 .v2-nav-item:focus-visible,
+.dcp-v2 .v2-nav-toggle:focus-visible { box-shadow: 0 0 0 2px var(--v2-accent); }
+.dcp-v2 .v2-nav-icon { width: 16px; height: 16px; flex: none; display: block; }
+.dcp-v2 .v2-nav-label { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.dcp-v2 .v2-nav-badge {
+  flex: none; padding: 1px 7px; border-radius: 9px;
+  background: var(--v2-nav-hover); color: var(--v2-nav-subtle);
+  font-size: var(--v2-fs-2xs); font-weight: var(--v2-fw-semibold);
+}
+.dcp-v2 .v2-nav-toggle { margin-top: auto; }
+
+.dcp-v2 .v2-nav-user {
+  margin: 8px 14px 0; padding: 10px 12px; border-radius: 8px; background: var(--v2-nav-card);
+  display: flex; align-items: center; gap: 10px; min-width: 0;
+}
+.dcp-v2 .v2-nav-avatar {
+  width: 30px; height: 30px; border-radius: 50%; flex: none;
+  background: var(--v2-accent); color: var(--v2-nav);
+  display: grid; place-items: center; font-size: var(--v2-fs-xs); font-weight: var(--v2-fw-bold);
+}
+.dcp-v2 .v2-nav-usermeta { display: flex; flex-direction: column; min-width: 0; }
+.dcp-v2 .v2-nav-username { color: #FFFFFF; font-size: var(--v2-fs-sm); font-weight: var(--v2-fw-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Icon rail: chosen by the user, or forced on a narrower window. */
+.dcp-v2 .v2-shell[data-collapsed='true'] .v2-nav { width: var(--v2-nav-rail); }
+.dcp-v2 .v2-shell[data-collapsed='true'] .v2-nav-brandtext,
+.dcp-v2 .v2-shell[data-collapsed='true'] .v2-nav-section,
+.dcp-v2 .v2-shell[data-collapsed='true'] .v2-nav-label,
+.dcp-v2 .v2-shell[data-collapsed='true'] .v2-nav-badge,
+.dcp-v2 .v2-shell[data-collapsed='true'] .v2-nav-usermeta { display: none; }
+.dcp-v2 .v2-shell[data-collapsed='true'] .v2-nav-brand { justify-content: center; padding: 16px 0 12px; }
+.dcp-v2 .v2-shell[data-collapsed='true'] .v2-nav-item,
+.dcp-v2 .v2-shell[data-collapsed='true'] .v2-nav-toggle { justify-content: center; margin: 0 8px; padding: 8px 0; }
+.dcp-v2 .v2-shell[data-collapsed='true'] .v2-nav-user { justify-content: center; margin: 8px 8px 0; padding: 8px 0; }
+
+@media (max-width: 1179px) {
+  .dcp-v2 .v2-nav { width: var(--v2-nav-rail); }
+  .dcp-v2 .v2-nav-brandtext,
+  .dcp-v2 .v2-nav-section,
+  .dcp-v2 .v2-nav-label,
+  .dcp-v2 .v2-nav-badge,
+  .dcp-v2 .v2-nav-usermeta,
+  .dcp-v2 .v2-nav-toggle { display: none; }
+  .dcp-v2 .v2-nav-brand { justify-content: center; padding: 16px 0 12px; }
+  .dcp-v2 .v2-nav-item { justify-content: center; margin: 0 8px; padding: 8px 0; }
+  .dcp-v2 .v2-nav-user { justify-content: center; margin: auto 8px 0; padding: 8px 0; }
+}
+
+/* Drawer: the rail leaves the grid and slides in over a scrim. */
+.dcp-v2 .v2-scrim { display: none; }
+.dcp-v2 .v2-burger { display: none; }
+
+@media (max-width: 859px) {
+  .dcp-v2 .v2-shell { grid-template-columns: minmax(0, 1fr); }
+  .dcp-v2 .v2-nav {
+    position: fixed; left: 0; top: 0; width: 250px; height: 100vh;
+    transform: translateX(-100%); transition: transform .2s ease; box-shadow: var(--v2-shadow-dialog);
+    z-index: var(--v2-z-overlay);
+  }
+  .dcp-v2 .v2-shell[data-drawer='open'] .v2-nav { transform: translateX(0); }
+  .dcp-v2 .v2-nav-brandtext,
+  .dcp-v2 .v2-nav-usermeta { display: flex; }
+  .dcp-v2 .v2-nav-section,
+  .dcp-v2 .v2-nav-label,
+  .dcp-v2 .v2-nav-badge { display: initial; }
+  .dcp-v2 .v2-nav-brand { justify-content: flex-start; padding: 16px 16px 12px; }
+  .dcp-v2 .v2-nav-item { justify-content: flex-start; margin: 0 10px; padding: 7px 10px; }
+  .dcp-v2 .v2-nav-user { justify-content: flex-start; margin: auto 14px 0; padding: 10px 12px; }
+  .dcp-v2 .v2-shell[data-drawer='open'] .v2-scrim {
+    display: block; position: fixed; inset: 0; border: 0; padding: 0;
+    background: rgba(15, 27, 61, .45); z-index: calc(var(--v2-z-overlay) - 1);
+  }
+  .dcp-v2 .v2-burger {
+    display: grid; place-items: center; flex: none;
+    width: var(--v2-control-lg); height: var(--v2-control-lg);
+    border: 1px solid var(--v2-border); border-radius: var(--v2-radius);
+    background: var(--v2-surface); color: var(--v2-text); cursor: pointer;
+  }
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.dcp-v2 .v2-header {
+  position: sticky; top: 0; z-index: var(--v2-z-header);
+  background: var(--v2-surface); border-bottom: 1px solid var(--v2-border);
+  padding: 12px var(--v2-gutter);
+  display: flex; align-items: center; gap: 14px; row-gap: 10px; flex-wrap: wrap;
+}
+.dcp-v2 .v2-header-title { flex: 1; min-width: 180px; }
+.dcp-v2 .v2-crumb { font-size: var(--v2-fs-xs); color: var(--v2-text-muted); }
+.dcp-v2 .v2-title { margin-top: 2px; font-size: var(--v2-fs-2xl); line-height: var(--v2-lh-tight); }
+.dcp-v2 .v2-header-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.dcp-v2 .v2-search {
+  display: flex; align-items: center; gap: 7px; height: var(--v2-control);
+  padding: 0 10px; border: 1px solid var(--v2-border); border-radius: var(--v2-radius);
+  background: var(--v2-surface-sunken);
+}
+.dcp-v2 .v2-search:focus-within { border-color: var(--v2-accent); background: var(--v2-surface); }
+.dcp-v2 .v2-search-icon { width: 14px; height: 14px; color: var(--v2-text-muted); flex: none; }
+.dcp-v2 .v2-search-input {
+  border: 0; outline: 0; background: transparent; width: 210px;
+  font-size: var(--v2-fs-sm); color: var(--v2-text);
+}
+.dcp-v2 .v2-search-input:focus-visible { box-shadow: none; }
+
+.dcp-v2 .v2-picker {
+  display: flex; align-items: center; gap: 6px; height: var(--v2-control);
+  padding: 0 4px 0 9px; border: 1px solid var(--v2-border); border-radius: var(--v2-radius);
+  background: var(--v2-surface);
+}
+.dcp-v2 .v2-picker-label {
+  font-size: var(--v2-fs-2xs); font-weight: var(--v2-fw-semibold); color: var(--v2-text-muted);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+.dcp-v2 .v2-select {
+  border: 0; background: transparent; color: var(--v2-text); height: 28px;
+  font-size: var(--v2-fs-sm); cursor: pointer;
+}
+
+.dcp-v2 .v2-segmented {
+  display: inline-flex; gap: 2px; padding: 2px;
+  background: var(--v2-surface-sunken); border: 1px solid var(--v2-divider); border-radius: 7px;
+}
+.dcp-v2 .v2-segment {
+  border: 0; background: transparent; border-radius: 5px; padding: 4px 10px;
+  font-size: var(--v2-fs-xs); font-weight: var(--v2-fw-medium); color: var(--v2-text-muted); cursor: pointer;
+}
+.dcp-v2 .v2-segment[aria-pressed='true'] {
+  background: var(--v2-surface); color: var(--v2-text); font-weight: var(--v2-fw-semibold);
+  box-shadow: var(--v2-shadow-1);
+}
+
+/* Skip to content: invisible until focused, then the first thing a keyboard user meets. */
+.dcp-v2 .v2-skip {
+  position: absolute; left: 12px; top: -48px; z-index: var(--v2-z-toast);
+  padding: 8px 14px; border: 0; border-radius: var(--v2-radius);
+  background: var(--v2-primary); color: #FFFFFF; font-size: var(--v2-fs-sm); font-weight: var(--v2-fw-semibold);
+}
+.dcp-v2 .v2-skip:focus { top: 12px; }
+.dcp-v2 .v2-page:focus { outline: none; }

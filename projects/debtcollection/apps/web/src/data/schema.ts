@@ -166,15 +166,17 @@ export const CASE_LIST_COLUMNS = [
   'qdb_facilitysourcesystem', 'qdb_organizationcode', 'statuscode', 'qdb_currentarrearbucket',
   'qdb_currentdpd', 'qdb_currenttotalarrears', 'qdb_currentloanbalance', 'qdb_misasofdate',
   'qdb_episodenumber', 'qdb_opendate', '_qdb_customerid_value',
+  // What a list row says about who, what and where — the lookups arrive with their display names,
+  // so a row can name its customer, strategy and owner without a read per row.
+  'qdb_customertype', 'qdb_productdescription', 'qdb_lastmissyncon', '_qdb_strategyid_value', '_ownerid_value',
 ] as const;
 
 /** Everything the Case Workspace summary shows, on top of the list columns. */
 export const CASE_DETAIL_COLUMNS = [
   ...CASE_LIST_COLUMNS,
-  'qdb_customertype', 'qdb_producttypecode', 'qdb_productdescription', 'qdb_installmentamount',
-  'qdb_lastmissyncon', 'qdb_curedate', 'qdb_resolutiontype', 'qdb_closeddate', 'qdb_correlationid',
+  'qdb_producttypecode', 'qdb_installmentamount',
+  'qdb_curedate', 'qdb_resolutiontype', 'qdb_closeddate', 'qdb_correlationid',
   'qdb_eligibilityrulesetversion', 'statecode', 'createdon', 'modifiedon',
-  '_qdb_strategyid_value', '_ownerid_value',
 ] as const;
 
 export const ACTIVITY_COLUMNS = [

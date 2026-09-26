@@ -6,7 +6,7 @@ import {
 } from '../data/caseQueries.js';
 import { createAuditQuery, type AuditQuery, type AuditRow } from '../data/collectionQueries.js';
 import {
-  BucketPill, Card, EmptyState, FieldList, OrgBadge, PendingPhasePanel, Pivot, StatusPill,
+  BucketBar, BucketPill, Card, EmptyState, FieldList, OrgBadge, PendingPhasePanel, Pivot, StatusPill,
   PromiseOutcome, formatCount, formatDate, formatMoney, type PivotTab,
 } from '../components/primitives.js';
 import { StoredPositionNotice } from '../components/Freshness.js';
@@ -218,7 +218,7 @@ function SummaryTab({ detail }: { detail: CaseDetail }) {
 }
 
 const SNAPSHOT_COLUMNS: readonly DataGridColumn<SnapshotRow>[] = [
-  { key: 'date', header: 'As of', width: '110px', render: r => formatDate(r.snapshotDate) },
+  { key: 'date', header: 'As of', width: '110px', render: r => <span className="row-lead"><BucketBar bucket={r.bucket} />{formatDate(r.snapshotDate)}</span> },
   { key: 'received', header: 'Received', width: '110px', render: r => formatDate(r.receivedOn) },
   { key: 'dpd', header: 'DPD', width: '70px', render: r => formatCount(r.dpd) },
   { key: 'bucket', header: 'Bucket', width: '110px', render: r => <BucketPill bucket={r.bucket} /> },

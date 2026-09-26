@@ -13,13 +13,13 @@ import { MyWorkView } from './MyWorkView.js';
  */
 export type WorkoutQueueId = 'disputes' | 'legal' | 'claims';
 
-const OPENING_BUCKET: Readonly<Record<WorkoutQueueId, OperationalBucket>> = {
+export const OPENING_BUCKET: Readonly<Record<WorkoutQueueId, OperationalBucket>> = {
   disputes: 'Disputes',
   legal: 'Legal',
   claims: 'DeceasedReview',
 };
 
-const WHAT_IS_POSSIBLE: Readonly<Record<WorkoutQueueId, string>> = {
+export const WHAT_IS_POSSIBLE: Readonly<Record<WorkoutQueueId, string>> = {
   disputes: 'Collection disputes across every case. A dispute is recorded from a case with Log action; '
     + 'it changes nothing about collection. Formal complaints are raised by Case Management, and are '
     + 'listed under Complaints.',
