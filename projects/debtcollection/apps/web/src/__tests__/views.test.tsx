@@ -387,13 +387,18 @@ describe('a KPI is a platform count or an em dash, never an invention', () => {
     expect(document.body.textContent).not.toMatch(/SLA breached|Overdue balance/);
   });
 
-  it('counts open cases through the platform', async () => {
+  /**
+   * Phase 10 made the Dashboards a set of Report Engine reports. A session with no Engine — this
+   * stand-in has no `execute` — must say so on every panel and count nothing itself: a bounded
+   * `$count` shown where an Engine figure belongs would be a second, unreconciled answer.
+   */
+  it('shows no figure on a dashboard whose definitions this organisation does not carry', async () => {
     install(fakeXrm({ qdb_collectioncase: [CASE_ROW] }));
     installCounts({ qdb_collectioncase: [CASE_ROW] });
     await openView('dashboards');
-    const tiles = await screen.findAllByText('Open cases');
-    const tile = tiles[0]!.closest('.kpi-tile')!;
-    await waitFor(() => expect(tile.querySelector('.kpi-value')!.textContent).toBe('1'));
+    const book = await screen.findByTestId('panel-DCP-RPT-015');
+    await waitFor(() => expect(book.textContent).toContain('DCP-RPT-015 is not provisioned on this organisation'));
+    expect(book.querySelector('.kpi-value')).toBeNull();
   });
 });
 

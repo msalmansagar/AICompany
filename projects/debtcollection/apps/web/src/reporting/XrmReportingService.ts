@@ -3,7 +3,7 @@ import { describeFailure } from '../platform/errors.js';
 import {
   DashboardResultSchema, EngineOutputSchema, ReportResultSchema, type DashboardResult, type EngineOutput, type ReportResult,
 } from './reportEngineContracts.js';
-import { scopeToParameters, type IReportingService, type ReportingOutcome, type RunReportRequest } from './ReportingService.js';
+import { ScopeEncodingError, scopeToParameters, type IReportingService, type ReportingOutcome, type RunReportRequest } from './ReportingService.js';
 import type { ZodType } from 'zod';
 
 /**
@@ -37,7 +37,13 @@ export class XrmReportingService implements IReportingService {
   ) {}
 
   async runReport(request: RunReportRequest): Promise<ReportingOutcome<ReportResult>> {
-    const parameters = { ...(request.scope ? scopeToParameters(request.scope) : {}), ...(request.parameters ?? {}) };
+    let parameters: Record<string, string | number | boolean | null>;
+    try {
+      parameters = { ...(request.scope ? scopeToParameters(request.scope) : {}), ...(request.parameters ?? {}) };
+    } catch (failure: unknown) {
+      if (failure instanceof ScopeEncodingError) return { status: 'refused', message: failure.message, code: 'scope_encoding' };
+      throw failure;
+    }
     const body = {
       reportId: request.reportId,
       parametersJson: JSON.stringify(parameters),

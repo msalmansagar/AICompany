@@ -1,6 +1,7 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import type { CrmContext } from '../platform/crmContext.js';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
+import type { IReportingService } from '../reporting/ReportingService.js';
 import type { RoleKey } from './routes.js';
 
 /**
@@ -16,6 +17,12 @@ import type { RoleKey } from './routes.js';
 export interface CrmSession {
   context: CrmContext;
   adapter: XrmCrmAdapter;
+  /**
+   * The Report Engine, reached as the same signed-in user. Optional so a session built without one
+   * — a component under test, or a host with no Custom API — leaves the operational workspace whole
+   * and the reporting screens saying the service is unavailable, never a blank or a zero.
+   */
+  reporting?: IReportingService;
 }
 
 const CrmSessionContext = createContext<CrmSession | null>(null);
@@ -31,6 +38,17 @@ export function useCrmSession(): CrmSession {
   }
   return session;
 }
+
+/** The reporting service, or one that answers "unavailable" to everything when the session has none. */
+export function useReportingService(): IReportingService {
+  const { reporting } = useCrmSession();
+  return reporting ?? UNAVAILABLE_REPORTING;
+}
+
+const UNAVAILABLE_REPORTING: IReportingService = {
+  runReport: async () => ({ status: 'unavailable', message: 'The reporting service is not part of this session.' }),
+  runDashboard: async () => ({ status: 'unavailable', message: 'The reporting service is not part of this session.' }),
+};
 
 // ── Organisation: one workspace, two CRMs ────────────────────────────────────
 

@@ -38,7 +38,7 @@ describe('running a report', () => {
 
     const sent = requests[0] as Record<string, unknown> & { getMetadata: () => { operationName: string; parameterTypes: Record<string, unknown> } };
     expect([sent['reportId'], sent['format'], sent['async'], sent['parametersJson'], sent.getMetadata().operationName, Object.keys(sent.getMetadata().parameterTypes)])
-      .toEqual(['r-1', 'RUN', false, '{"SourceSystem":"HL","Bucket":"61-90"}', 'qdb_RunReport', ['reportId', 'parametersJson', 'format', 'async', 'relationshipId', 'parentKey']]);
+      .toEqual(['r-1', 'RUN', false, '{"SourceSystem":"HL","Bucket":"100000002"}', 'qdb_RunReport', ['reportId', 'parametersJson', 'format', 'async', 'relationshipId', 'parentKey']]);
     expect(outcome).toEqual({ status: 'ok', result: REPORT, executionId: 'x-1' });
   });
 
@@ -114,5 +114,29 @@ describe('contracts', () => {
 
   it('never treats an HTTP failure with no output as an answer', () => {
     expect(interpretResponse(undefined, false, ReportResultSchema).status).toBe('unavailable');
+  });
+});
+
+describe('scope encoding — codes and ids, never labels', () => {
+  /**
+   * Proven live (2026-09-26): `{"Bucket":"61-90"}` fails the run with `unexpected_error`, while
+   * `{"Bucket":"100000002"}` narrows to 228 cases. The scope carries labels because the lists and
+   * the URL do; what leaves for the Engine must be the code.
+   */
+  it('sends the option value for a bucket and a case status, and the state code for an activity state', () => {
+    expect(scopeToParameters({ bucket: '61-90', caseStatus: 'PTP Active', activityState: 'open' }))
+      .toEqual({ Bucket: '100000002', CaseStatus: '100000604', ActivityState: '0' });
+  });
+
+  it('refuses a label it cannot encode instead of dropping the filter and answering for everyone', async () => {
+    const { xrm, requests } = xrmAnswering({ resultJson: JSON.stringify(REPORT) });
+
+    const outcome = await new XrmReportingService(xrm).runReport({ reportId: 'r-1', scope: { caseStatus: 'Not a status' } });
+
+    expect([outcome.status, (outcome as { code?: string }).code, requests.length]).toEqual(['refused', 'scope_encoding', 0]);
+  });
+
+  it('passes ids and the source system text through unchanged', () => {
+    expect(scopeToParameters({ sourceSystem: 'HL', strategy: 'none', owner: 'u-1' })).toEqual({ SourceSystem: 'HL', Strategy: 'none', Owner: 'u-1' });
   });
 });

@@ -143,3 +143,23 @@ describe('the session the workspace runs on', () => {
     expect(() => createCrmSession(null)).toThrow(/no standalone mode|client API was found/i);
   });
 });
+
+describe('the session carries the Report Engine', () => {
+  /**
+   * Same lesson as the write transport: the one place that assembles the real session is the one
+   * place a missing wire would hide, because every other test passes its own service in.
+   */
+  it('runs a report through the same client API the workspace reads with', async () => {
+    const xrm = fakeXrm();
+    const requests: unknown[] = [];
+    xrm.WebApi.execute = async (request: unknown) => {
+      requests.push(request);
+      return new Response(JSON.stringify({ resultJson: JSON.stringify({ reportId: 'r-1', columns: [], rows: [], rowCount: 0 }) }), { status: 200 });
+    };
+
+    const session = createCrmSession(xrm);
+    const outcome = await session.reporting!.runReport({ reportId: 'r-1', scope: { sourceSystem: 'BFD' } });
+
+    expect([outcome.status, (requests[0] as { parametersJson: string }).parametersJson]).toEqual(['ok', '{"SourceSystem":"BFD"}']);
+  });
+});

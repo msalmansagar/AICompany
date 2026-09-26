@@ -93,7 +93,8 @@ export const VIEWS: readonly ViewDefinition[] = [
   // ── Oversight ──────────────────────────────────────────────────────────────
   {
     id: 'dashboards', label: 'Dashboards', icon: 'chart', group: 'Oversight', phase: 5,
-    pendingSummary: 'Bounded operational counts are live. Full dashboards and drilldowns are Phase 10.',
+    pendingSummary: 'Reports and dashboards run in the QDB Report Engine as you; a row opens the Cases list in the same scope. ' +
+      'Drill-down into Work Queues, export, and Portfolio MIS transitions are not wired yet.',
   },
   {
     id: 'mis', label: 'Portfolio MIS', icon: 'trend', group: 'Oversight', roles: ['manager', 'rm'], phase: 10,
