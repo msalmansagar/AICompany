@@ -225,6 +225,24 @@ describe('the Dashboards screen is a set of Report Engine reports', () => {
     await waitFor(() => expect(grid.querySelectorAll('tbody tr').length).toBe(3));
   });
 
+  /**
+   * The large-data rule in one assertion: the dashboard reads no case rows. Every figure is an Engine
+   * aggregate; the only platform read the screen makes is the definition index. Case rows are read
+   * only by the paged list an officer drills into.
+   */
+  it('reads no case rows itself — the Engine aggregates, the list pages', async () => {
+    const { xrm } = fakeXrm();
+    const reads: string[] = [];
+    const listing = xrm.WebApi.retrieveMultipleRecords.bind(xrm.WebApi);
+    xrm.WebApi.retrieveMultipleRecords = async (logicalName: string, options?: string, maxPageSize?: number) => { reads.push(logicalName); return listing(logicalName, options, maxPageSize); };
+    install(xrm);
+    await openDashboards();
+
+    const book = await panel('DCP-RPT-015');
+    await waitFor(() => expect(book.getAttribute('data-state')).toBe('ok'));
+    expect(new Set(reads)).toEqual(new Set(['qdb_reportdefinition']));
+  });
+
   it('names a definition this organisation has not been provisioned with, instead of faking it', async () => {
     install(fakeXrm().xrm);
     await openDashboards();

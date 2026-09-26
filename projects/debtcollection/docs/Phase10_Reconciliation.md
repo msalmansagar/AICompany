@@ -77,6 +77,9 @@ Engine facts established from the runtime (not the repository) while provisionin
 | Prompt filters address the main entity only | Activity-, PTP- and exception-grain definitions do not honour `SourceSystem`; the catalogue's `dimensions` omit it and `restrictScope` drops it |
 | The case carries `qdb_facilitysourcesystem` = `HL` / `BFD`, partitioning identically to `qdb_organizationcode` (4,360 / 3) | `SourceSystem` is one text contract across case- and snapshot-grain definitions |
 | Refusals are HTTP 200 + `errorCode`; access denial is `report_failed` with a permission message | `ReportingOutcome` = ok / refused / accessDenied / unavailable / malformed / timeout |
+| A choice filter given its **label** fails the run (`unexpected_error`); the option value narrows correctly (`Bucket=100000002` → 228) | The scope carries labels; `scopeToParameters` sends codes and refuses an unknown label rather than dropping the filter |
+| `dategrouping` follows the **running user's time zone** (`qdb_snapshotdate` is DateAndTime · UserLocal): the DEMO observations stored at `2026-09-03T22:04Z` group as 3 September for the UTC service principal and 4 September for a Qatar user | The dashboard shows the same day the Intake list shows that user; the panel says dates are grouped in the viewer's time zone. Not a defect; recorded (KI-153) |
+| The Engine's text for a Money cell carries the running user's currency format (`ر.ق.‏213,300,523.69`) | DCP formats Money and Integer cells from the numeric value with its own formatters; labels use the Engine's text |
 
 Live validation figures (admin session, labelled as such): RPT-015 cases 4,363 · customers 3,780 ·
 arrears 213,300,523.69 · balance 3,419,587,487.25 — equal to Screen 01 and the smoke; RPT-002 HL 4,360 /

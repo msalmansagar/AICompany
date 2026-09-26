@@ -1,10 +1,12 @@
 /* Phase 10 — Dashboards as Report Engine compositions. */
 
-.report-audience { margin: 4px 0 12px; }
+.report-audience { grid-column: 1 / -1; margin: 4px 0 -4px; }
 .report-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: 16px; align-items: start; }
+.report-panel { min-width: 0; overflow-x: auto; }
 .report-panel.wide { grid-column: 1 / -1; }
 .report-panel .kpi-row { margin-bottom: 8px; }
 .report-table { margin-top: 4px; }
+.report-table th, .report-table td:first-child { white-space: nowrap; }
 .report-table tbody tr.drill { cursor: pointer; }
 .report-table tbody tr.drill:hover td:first-child { color: var(--primary); text-decoration: underline; }
 .report-footer { margin-top: 10px; font-size: 12px; line-height: 1.45; }

@@ -84,7 +84,7 @@ export const DCP_DASHBOARDS: readonly DcpDashboard[] = [
   {
     code: 'DCP-DB-004', title: 'Historical Delinquency', audience: 'Management',
     panels: [
-      { report: 'DCP-RPT-013', title: 'Delinquency observations by date and source system', kind: 'table', columns: [{ alias: 'year', label: 'Observed', format: 'yearMonthDay' }, { alias: 'source', label: 'CRM of record', format: 'text' }, { alias: 'facilities', label: 'Facilities observed', format: 'count' }, { alias: 'arrears', label: 'Total arrears', format: 'money' }, BALANCE, { alias: 'dpd', label: 'Average DPD', format: 'decimal' }], note: 'One row is one stored MIS observation. Nothing is interpolated between points; the ARR book has a single observation (2026-06-30) and the weekly series is DEMO data.' },
+      { report: 'DCP-RPT-013', title: 'Delinquency observations by date and source system', kind: 'table', columns: [{ alias: 'year', label: 'Observed', format: 'yearMonthDay' }, { alias: 'source', label: 'CRM of record', format: 'text' }, { alias: 'facilities', label: 'Facilities observed', format: 'count' }, { alias: 'arrears', label: 'Total arrears', format: 'money' }, BALANCE, { alias: 'dpd', label: 'Average DPD', format: 'decimal' }], note: 'Nothing is interpolated between points; the weekly series is DEMO data. Dates are grouped in your own time zone.' },
     ],
   },
 ];
