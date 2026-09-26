@@ -201,7 +201,7 @@ Not a PR. V2 not default. V1 intact. Screen 03 not started.
 | My Day V2 | My open work 7 · Overdue follow-ups 5 · Upcoming 0 · Open cases 4,363 · Promises due, 7 days 0 (with the recorded-status sentence) · Identity exceptions 3 |
 | Engine calls | Fresh V2 Dashboards load (Portfolio): **6 `qdb_RunReport` calls = 6 panels**, none repeated; all HTTP 200 |
 | Console / network | No console errors; no failed requests |
-| Observation | KI-154 (pre-existing Screen 02): the list footer states the *All* count while a bucket chip is active — recorded, not changed |
+| Observation | KI-154 (pre-existing Screen 02): the list footer stated the *All* count while a bucket chip was active — **fixed on the user's instruction** (`c61720dd`): the footer now reads **228 cases** from the dashboard's 61–90 row and **4,363 cases** once *All* is chosen, verified live on the fresh bundle. A changed `data=` cache-buster alone did **not** refresh the frame — the CRM version token stayed and the old bundle (578,061 script chars vs 578,095 on the org) kept loading; a full top-level `main.aspx` navigation issued a new token |
 | Not proven | Collection Officer role; On-Prem; narrow viewport (KI-141) |
 
 Browser left on **V1** (stored version cleared).
