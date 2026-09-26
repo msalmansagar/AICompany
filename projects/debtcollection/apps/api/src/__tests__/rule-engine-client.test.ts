@@ -44,6 +44,16 @@ describe('eligibility', () => {
     await expect(client.evaluateEligibility(eligibilityInput)).rejects.toThrow(/rulesetVersion/i);
   });
 
+  /**
+   * A version the Engine claims but leaves blank is no attribution at all. Strategy already refused
+   * this; eligibility let it through (Rule Engine audit, 2026-09-26), so a decision could be recorded
+   * on a snapshot with a version that names nothing.
+   */
+  it('refuses a decision whose ruleset version is an empty string, exactly as it refuses a missing one', async () => {
+    const { client } = build(() => ({ Outcome: 'EligibleCreateCase', RulesetVersion: '' }));
+    await expect(client.evaluateEligibility(eligibilityInput)).rejects.toThrow(/rulesetVersion/i);
+  });
+
   it('refuses an empty response rather than defaulting', async () => {
     const { client } = build(() => null);
     await expect(client.evaluateEligibility(eligibilityInput)).rejects.toThrow(RuleEngineError);
@@ -81,6 +91,12 @@ describe('contact hold', () => {
   it('refuses an unreadable answer rather than reading it as "no hold"', async () => {
     const { client } = build(() => ({ Hold: 'maybe', RulesetVersion: '3.0' }));
     await expect(client.evaluateContactHold(holdInput)).rejects.toThrow(RuleEngineError);
+  });
+
+  it('refuses a hold decision whose ruleset version is an empty string — never read as "no hold"', async () => {
+    const { client } = build(() => ({ Hold: false, RulesetVersion: '' }));
+    const result = await client.evaluateContactHold(holdInput).then(() => 'decided', (error: unknown) => (error instanceof RuleEngineError && /rulesetVersion/i.test(error.message) ? 'refused' : 'other'));
+    expect(result).toBe('refused');
   });
 
   it('sends only identity and channel — no invented deceased flag', async () => {

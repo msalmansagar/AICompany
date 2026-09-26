@@ -59,3 +59,32 @@ describe('shouldPersistSnapshot', () => {
     expect(unchangedRerun).toBe(false);
   });
 });
+
+/**
+ * Provenance is part of the decision. Strategy's schema already refuses a blank version; these two
+ * did not (Rule Engine audit, 2026-09-26), so an Engine answer carrying `RulesetVersion: ""` would have
+ * been recorded as attributed when it named nothing. The same rule, all three decisions.
+ */
+import { ContactHoldDecisionSchema, EligibilityDecisionSchema } from './eligibility.js';
+
+const EVALUATED_ON = '2026-09-26T00:00:00.000Z';
+
+describe('EligibilityDecisionSchema ruleset version', () => {
+  it('should_refuse_an_empty_ruleset_version', () => {
+    expect(EligibilityDecisionSchema.safeParse({ outcome: 'EligibleCreateCase', rulesetCode: 'HL-ELIG', rulesetVersion: '', evaluatedOn: EVALUATED_ON }).success).toBe(false);
+  });
+
+  it('should_accept_a_named_ruleset_version', () => {
+    expect(EligibilityDecisionSchema.safeParse({ outcome: 'EligibleCreateCase', rulesetCode: 'HL-ELIG', rulesetVersion: '2.1', evaluatedOn: EVALUATED_ON }).success).toBe(true);
+  });
+});
+
+describe('ContactHoldDecisionSchema ruleset version', () => {
+  it('should_refuse_an_empty_ruleset_version', () => {
+    expect(ContactHoldDecisionSchema.safeParse({ hold: false, rulesetCode: 'HL-HOLD', rulesetVersion: '', evaluatedOn: EVALUATED_ON }).success).toBe(false);
+  });
+
+  it('should_accept_a_named_ruleset_version', () => {
+    expect(ContactHoldDecisionSchema.safeParse({ hold: true, rulesetCode: 'HL-HOLD', rulesetVersion: '3.0', evaluatedOn: EVALUATED_ON }).success).toBe(true);
+  });
+});

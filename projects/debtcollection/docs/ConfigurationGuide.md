@@ -254,7 +254,7 @@ The outcome, its reason, the ruleset code and version, and the evaluation timest
 
 | Setting | Where | Purpose |
 |---|---|---|
-| `qdb_eligibilityrulesetcode` | platform configuration | which ruleset decides. Empty ⇒ every resolved record is `EligibleCreateCase`; logged loudly at startup so the permissive default is never silent |
+| `qdb_eligibilityrulesetcode` | platform configuration | which ruleset decides. **Empty ⇒ synchronisation refuses to start** (`CollectionSettingsError` naming this column, from `CollectionConfigurationService.load` and the `DelinquencySyncService` constructor); no record is evaluated and no case is created. Three conditions are kept apart and none of them yields an eligibility outcome by itself: (1) no ruleset configured → refused before any Rule Engine call; (2) Rule Engine operation unconfigured, absent or failing → refused and logged `rule_engine_unusable`; (3) a Rule Engine answer within the contract → the ruleset's own outcome, with its `RulesetVersion`. What a ruleset returns when no rule matches is the ruleset's definition, `TBD — Requires QDB Confirmation` |
 | `qdb_snapshotpolicy` | platform configuration | `AllReceived` (full history, largest volume) · `EligibleOnly` (only records that produced or updated a case) · `ChangedOnly` (only when the position moved) |
 | `qdb_contactholdrulesetcode` | platform configuration | Contact Hold / Special Handling, evaluated **server-side** before any manual or automated send |
 | Criteria inside the ruleset | Rule Engine | DPD · arrears amount · **arrears relative to instalment** · product · facility/customer status · special handling · existing case · cure/grace period · any other approved Rule Engine criterion |

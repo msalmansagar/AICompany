@@ -50,7 +50,8 @@ export const EligibilityDecisionSchema = z.object({
   /** Human-readable reason from the ruleset. Not a code DCP interprets. */
   reason: z.string().max(500).optional(),
   rulesetCode: z.string().max(100),
-  rulesetVersion: z.string().max(50),
+  // A blank version attributes the decision to nothing; strategy's provenance refuses it, and so does this.
+  rulesetVersion: z.string().min(1).max(50),
   evaluatedOn: z.string(),
 });
 export type EligibilityDecision = z.infer<typeof EligibilityDecisionSchema>;
@@ -68,7 +69,7 @@ export const ContactHoldDecisionSchema = z.object({
   hold: z.boolean(),
   reason: z.string().max(500).optional(),
   rulesetCode: z.string().max(100),
-  rulesetVersion: z.string().max(50),
+  rulesetVersion: z.string().min(1).max(50),
   evaluatedOn: z.string(),
 });
 export type ContactHoldDecision = z.infer<typeof ContactHoldDecisionSchema>;
