@@ -1,8 +1,8 @@
 {
   "code": "DCP-RPT-001",
   "name": "DCP — Open cases by MIS bucket",
-  "description": "Open collection cases grouped by the MIS arrear bucket, with current arrears and loan balance summed. Grain: CASE (one case is one delinquent facility). Source: qdb_collectioncase, MIS-derived current position. Narrowed by source system, strategy, case status and owner when supplied. DCP catalogue DCP-RPT-001.",
-  "version": 2,
+  "description": "Open collection cases grouped by the MIS arrear bucket, with current arrears and loan balance summed. Grain: CASE (one case is one delinquent facility). Source: qdb_collectioncase, MIS-derived current position. Narrowed by source system (HL/BFD), strategy, case status and owner when supplied. DCP catalogue DCP-RPT-001.",
+  "version": 3,
   "mainEntity": "qdb_collectioncase",
   "category": "Management",
   "rowLimit": 5000,
@@ -57,7 +57,7 @@
     },
     {
       "name": "Source system",
-      "field": "qdb_organizationcode",
+      "field": "qdb_facilitysourcesystem",
       "operator": "Equals",
       "value": "SourceSystem",
       "runtimePrompt": true
@@ -87,8 +87,8 @@
   "parameters": [
     {
       "name": "SourceSystem",
-      "label": "Source system (organisation code)",
-      "type": "Number",
+      "label": "Source system (HL or BFD)",
+      "type": "Text",
       "required": false
     },
     {

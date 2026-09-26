@@ -1,30 +1,105 @@
 {
   "code": "DCP-RPT-005",
   "name": "DCP — Open cases by owner",
-  "description": "Open collection cases grouped by the owning user or team, with current arrears summed. Grain: CASE. Source: qdb_collectioncase · ownerid. Narrowed by source system, bucket, strategy and case status when supplied. DCP catalogue DCP-RPT-005.",
-  "version": 1,
+  "description": "Open collection cases grouped by the owning user or team, with current arrears summed. Grain: CASE. Source: qdb_collectioncase · ownerid. Narrowed by source system (HL/BFD), bucket, strategy and case status when supplied. DCP catalogue DCP-RPT-005.",
+  "version": 2,
   "mainEntity": "qdb_collectioncase",
   "category": "Operational",
   "rowLimit": 5000,
   "grain": "CASE",
   "mode": "generated",
-  "entity": { "logicalName": "qdb_collectioncase", "alias": "t" },
+  "entity": {
+    "logicalName": "qdb_collectioncase",
+    "alias": "t"
+  },
   "columns": [
-    { "name": "Owner", "attribute": "ownerid", "alias": "owner", "dataType": "Lookup", "aggregate": "None", "groupOrder": 1, "sortOrder": 1 },
-    { "name": "Cases", "attribute": "qdb_collectioncaseid", "alias": "cases", "dataType": "Integer", "aggregate": "Count", "sortOrder": 2 },
-    { "name": "Current arrears", "attribute": "qdb_currenttotalarrears", "alias": "arrears", "dataType": "Money", "aggregate": "Sum", "sortOrder": 3 }
+    {
+      "name": "Owner",
+      "attribute": "ownerid",
+      "alias": "owner",
+      "dataType": "Lookup",
+      "aggregate": "None",
+      "groupOrder": 1,
+      "sortOrder": 1
+    },
+    {
+      "name": "Cases",
+      "attribute": "qdb_collectioncaseid",
+      "alias": "cases",
+      "dataType": "Integer",
+      "aggregate": "Count",
+      "sortOrder": 2
+    },
+    {
+      "name": "Current arrears",
+      "attribute": "qdb_currenttotalarrears",
+      "alias": "arrears",
+      "dataType": "Money",
+      "aggregate": "Sum",
+      "sortOrder": 3
+    }
   ],
   "filters": [
-    { "name": "Open cases only", "field": "statecode", "operator": "Equals", "value": "0", "valueType": "Number" },
-    { "name": "Source system", "field": "qdb_organizationcode", "operator": "Equals", "value": "SourceSystem", "runtimePrompt": true },
-    { "name": "Bucket", "field": "qdb_currentarrearbucket", "operator": "Equals", "value": "Bucket", "runtimePrompt": true },
-    { "name": "Strategy", "field": "qdb_strategyid", "operator": "Equals", "value": "Strategy", "runtimePrompt": true },
-    { "name": "Case status", "field": "statuscode", "operator": "Equals", "value": "CaseStatus", "runtimePrompt": true }
+    {
+      "name": "Open cases only",
+      "field": "statecode",
+      "operator": "Equals",
+      "value": "0",
+      "valueType": "Number"
+    },
+    {
+      "name": "Source system",
+      "field": "qdb_facilitysourcesystem",
+      "operator": "Equals",
+      "value": "SourceSystem",
+      "runtimePrompt": true
+    },
+    {
+      "name": "Bucket",
+      "field": "qdb_currentarrearbucket",
+      "operator": "Equals",
+      "value": "Bucket",
+      "runtimePrompt": true
+    },
+    {
+      "name": "Strategy",
+      "field": "qdb_strategyid",
+      "operator": "Equals",
+      "value": "Strategy",
+      "runtimePrompt": true
+    },
+    {
+      "name": "Case status",
+      "field": "statuscode",
+      "operator": "Equals",
+      "value": "CaseStatus",
+      "runtimePrompt": true
+    }
   ],
   "parameters": [
-    { "name": "SourceSystem", "label": "Source system (organisation code)", "type": "Number", "required": false },
-    { "name": "Bucket", "label": "MIS bucket (option value)", "type": "Number", "required": false },
-    { "name": "Strategy", "label": "Strategy (id)", "type": "Lookup", "required": false },
-    { "name": "CaseStatus", "label": "Case status (status code)", "type": "Number", "required": false }
+    {
+      "name": "SourceSystem",
+      "label": "Source system (HL or BFD)",
+      "type": "Text",
+      "required": false
+    },
+    {
+      "name": "Bucket",
+      "label": "MIS bucket (option value)",
+      "type": "Number",
+      "required": false
+    },
+    {
+      "name": "Strategy",
+      "label": "Strategy (id)",
+      "type": "Lookup",
+      "required": false
+    },
+    {
+      "name": "CaseStatus",
+      "label": "Case status (status code)",
+      "type": "Number",
+      "required": false
+    }
   ]
 }

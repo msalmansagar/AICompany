@@ -17,7 +17,15 @@ signed-in user (`apps/web/src/reporting/`). No Engine code changes; no schema ch
 - `mode: generated` lets the Engine build the FetchXML from the declared columns (a column with an
   aggregate makes the query an aggregate; the others become group-by). `mode: fetchxml` runs the
   authored query as written — needed for `countcolumn distinct` and `dategrouping` — with the
-  declared column aliases matching the fetch aliases.
+  declared column aliases matching the fetch aliases. `mode: multi` provisions one datasource per
+  entry in `datasets[]` and the result arrives as `datasets[]`, one per count (DCP-RPT-014): the
+  first dataset is the root and must be **Joined** or the Engine returns it without columns; the
+  rest are Standalone.
+- `SourceSystem` is filtered on `qdb_facilitysourcesystem` (text `HL` / `BFD`) in every case-grain
+  and snapshot-grain definition, so the scope's `sourceSystem` value travels unchanged. Activity-,
+  PTP- and exception-grain definitions do **not** honour `SourceSystem`: a runtime-prompt filter
+  addresses the main entity only, and the activity carries no organisation. The catalogue's
+  `dimensions` say so, and `restrictScope` drops the dimension before the call.
 - Security: `security[]` rows become `qdb_reportsecurity` (`canexecute` by principal **name**). None
   means unrestricted by the Engine; CRM security still scopes every row. Production grants are a QDB
   decision, never made by this script.

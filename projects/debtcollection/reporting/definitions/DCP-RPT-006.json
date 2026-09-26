@@ -1,26 +1,72 @@
 {
   "code": "DCP-RPT-006",
   "name": "DCP — Largest arrears by customer",
-  "description": "Current arrears summed per customer over open collection cases, largest first, bounded to the top 25. Grain: CUSTOMER (one row per customer lookup). Source: qdb_collectioncase · qdb_currenttotalarrears grouped by qdb_customerid. Narrowed by source system and bucket when supplied. DCP catalogue DCP-RPT-006.",
-  "version": 1,
+  "description": "Current arrears summed per customer over open collection cases, largest first, bounded to the top 25. Grain: CUSTOMER (one row per customer lookup). Source: qdb_collectioncase · qdb_currenttotalarrears grouped by qdb_customerid. Narrowed by source system (HL/BFD) and bucket when supplied. DCP catalogue DCP-RPT-006.",
+  "version": 2,
   "mainEntity": "qdb_collectioncase",
   "category": "Management",
   "rowLimit": 25,
   "grain": "CUSTOMER",
   "mode": "fetchxml",
   "fetchXml": "<fetch aggregate=\"true\" top=\"25\"><entity name=\"qdb_collectioncase\"><attribute name=\"qdb_customerid\" groupby=\"true\" alias=\"customer\"/><attribute name=\"qdb_currenttotalarrears\" aggregate=\"sum\" alias=\"arrears\"/><attribute name=\"qdb_collectioncaseid\" aggregate=\"count\" alias=\"cases\"/><order alias=\"arrears\" descending=\"true\"/><filter><condition attribute=\"statecode\" operator=\"eq\" value=\"0\"/></filter></entity></fetch>",
-  "entity": { "logicalName": "qdb_collectioncase", "alias": "t" },
+  "entity": {
+    "logicalName": "qdb_collectioncase",
+    "alias": "t"
+  },
   "columns": [
-    { "name": "Customer", "attribute": "qdb_customerid", "alias": "customer", "dataType": "Lookup", "aggregate": "None", "sortOrder": 1 },
-    { "name": "Current arrears", "attribute": "qdb_currenttotalarrears", "alias": "arrears", "dataType": "Money", "aggregate": "None", "sortOrder": 2 },
-    { "name": "Cases", "attribute": "qdb_collectioncaseid", "alias": "cases", "dataType": "Integer", "aggregate": "None", "sortOrder": 3 }
+    {
+      "name": "Customer",
+      "attribute": "qdb_customerid",
+      "alias": "customer",
+      "dataType": "Lookup",
+      "aggregate": "None",
+      "sortOrder": 1
+    },
+    {
+      "name": "Current arrears",
+      "attribute": "qdb_currenttotalarrears",
+      "alias": "arrears",
+      "dataType": "Money",
+      "aggregate": "None",
+      "sortOrder": 2
+    },
+    {
+      "name": "Cases",
+      "attribute": "qdb_collectioncaseid",
+      "alias": "cases",
+      "dataType": "Integer",
+      "aggregate": "None",
+      "sortOrder": 3
+    }
   ],
   "filters": [
-    { "name": "Source system", "field": "qdb_organizationcode", "operator": "Equals", "value": "SourceSystem", "runtimePrompt": true },
-    { "name": "Bucket", "field": "qdb_currentarrearbucket", "operator": "Equals", "value": "Bucket", "runtimePrompt": true }
+    {
+      "name": "Source system",
+      "field": "qdb_facilitysourcesystem",
+      "operator": "Equals",
+      "value": "SourceSystem",
+      "runtimePrompt": true
+    },
+    {
+      "name": "Bucket",
+      "field": "qdb_currentarrearbucket",
+      "operator": "Equals",
+      "value": "Bucket",
+      "runtimePrompt": true
+    }
   ],
   "parameters": [
-    { "name": "SourceSystem", "label": "Source system (organisation code)", "type": "Number", "required": false },
-    { "name": "Bucket", "label": "MIS bucket (option value)", "type": "Number", "required": false }
+    {
+      "name": "SourceSystem",
+      "label": "Source system (HL or BFD)",
+      "type": "Text",
+      "required": false
+    },
+    {
+      "name": "Bucket",
+      "label": "MIS bucket (option value)",
+      "type": "Number",
+      "required": false
+    }
   ]
 }

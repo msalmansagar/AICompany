@@ -30,6 +30,7 @@ const STATUS_PUBLISHED = 100000001;
 const CATEGORY: Record<string, number> = { Operational: 100000000, Regulatory: 100000001, Management: 100000002 };
 const SOURCE_TYPE_FETCHXML = 100000001;
 const COMPOSITION_JOINED = 100000000;
+const COMPOSITION_STANDALONE = 100000001;
 const AGGREGATE: Record<string, number> = { None: 100000000, Sum: 100000001, Count: 100000002, Avg: 100000003, Min: 100000004, Max: 100000005 };
 const DATA_TYPE: Record<string, number> = { String: 100000000, Integer: 100000001, Decimal: 100000002, DateTime: 100000003, Boolean: 100000004, Lookup: 100000005, Money: 100000006 };
 const OPERATOR: Record<string, number> = { Equals: 100000000, NotEquals: 100000001, Contains: 100000002, BeginsWith: 100000003, EndsWith: 100000004, GreaterThan: 100000005, LessThan: 100000006, Between: 100000007, In: 100000008, NotIn: 100000009, IsNull: 100000010, IsNotNull: 100000011, LastXDays: 100000012, ThisMonth: 100000013, ThisYear: 100000014 };
@@ -41,9 +42,11 @@ interface ColumnSpec { name: string; attribute: string; alias: string; dataType:
 interface FilterSpec { name: string; field: string; operator: keyof typeof OPERATOR; value?: string; valueType?: keyof typeof VALUE_TYPE; runtimePrompt?: boolean; sequence?: number }
 interface ParameterSpec { name: string; label: string; type: keyof typeof PARAM_TYPE; required?: boolean; defaultValue?: string }
 interface SecuritySpec { principalType: keyof typeof PRINCIPAL_TYPE; principal: string; canExecute: boolean }
+/** One standalone dataset of a `mode: 'multi'` definition; each becomes its own dataset in the result. */
+interface DatasetSpec { name: string; entity: { logicalName: string; alias: string }; fetchXml: string; columns: ColumnSpec[] }
 interface DefinitionSpec {
   code: string; name: string; description: string; version: number; mainEntity: string; category: keyof typeof CATEGORY; rowLimit: number; grain: string;
-  mode: 'generated' | 'fetchxml'; fetchXml?: string;
+  mode: 'generated' | 'fetchxml' | 'multi'; fetchXml?: string; datasets?: DatasetSpec[];
   entity: { logicalName: string; alias: string };
   columns: ColumnSpec[]; filters: FilterSpec[]; parameters: ParameterSpec[]; security?: SecuritySpec[]; layout?: Record<string, unknown>;
 }
@@ -120,19 +123,20 @@ async function clearChildren(dv: Dataverse, definitionId: string): Promise<void>
   }
 }
 
-async function writeChildren(dv: Dataverse, definitionId: string, spec: DefinitionSpec): Promise<void> {
-  const definitionBind = { 'Qdb_reportdefinitionid@odata.bind': bind('qdb_reportdefinitions', definitionId) };
+interface DatasourceWrite { definitionId: string; name: string; order: number; entity: { logicalName: string; alias: string }; composition: number; rowLimit: number; fetchXml?: string; columns: ColumnSpec[] }
+
+async function writeDatasource(dv: Dataverse, write: DatasourceWrite): Promise<void> {
   const sourceId = await dv.create('qdb_reportdatasources', {
-    qdb_name: spec.name, qdb_isprimary: true, qdb_executionorder: 1, qdb_sourcealias: spec.entity.alias, qdb_compositionmode: COMPOSITION_JOINED,
-    qdb_isenabled: true, qdb_rowlimit: Math.min(spec.rowLimit, 5000),
-    ...(spec.mode === 'fetchxml' ? { qdb_sourcetype: SOURCE_TYPE_FETCHXML, qdb_querypayload: spec.fetchXml } : {}),
-    ...definitionBind,
+    qdb_name: write.name, qdb_isprimary: write.order === 1, qdb_executionorder: write.order, qdb_sourcealias: write.entity.alias,
+    qdb_compositionmode: write.composition, qdb_isenabled: true, qdb_rowlimit: Math.min(write.rowLimit, 5000),
+    ...(write.fetchXml ? { qdb_sourcetype: SOURCE_TYPE_FETCHXML, qdb_querypayload: write.fetchXml } : {}),
+    'Qdb_reportdefinitionid@odata.bind': bind('qdb_reportdefinitions', write.definitionId),
   });
   const mappingId = await dv.create('qdb_reportentitymappings', {
-    qdb_name: spec.entity.logicalName, qdb_entitylogicalname: spec.entity.logicalName, qdb_entityalias: spec.entity.alias, qdb_depth: 0,
+    qdb_name: write.entity.logicalName, qdb_entitylogicalname: write.entity.logicalName, qdb_entityalias: write.entity.alias, qdb_depth: 0,
     'Qdb_reportdatasourceid@odata.bind': bind('qdb_reportdatasources', sourceId),
   });
-  for (const column of spec.columns) {
+  for (const column of write.columns) {
     await dv.create('qdb_reportcolumns', {
       qdb_name: column.name, qdb_columnlogicalname: column.attribute, qdb_outputalias: column.alias, qdb_datatype: DATA_TYPE[column.dataType],
       qdb_aggregatefunction: AGGREGATE[column.aggregate ?? 'None'], qdb_sortorder: column.sortOrder, qdb_isvisible: column.visible ?? true,
@@ -140,6 +144,29 @@ async function writeChildren(dv: Dataverse, definitionId: string, spec: Definiti
       'Qdb_reportentitymappingid@odata.bind': bind('qdb_reportentitymappings', mappingId),
     });
   }
+}
+
+/**
+ * A single-dataset definition is one Joined datasource. A `multi` definition is its first dataset as
+ * the root (the Engine reads the root's columns only when it is Joined) and every other dataset
+ * Standalone, each arriving as its own entry in `datasets[]`.
+ */
+async function writeDatasources(dv: Dataverse, definitionId: string, spec: DefinitionSpec): Promise<void> {
+  if (spec.mode !== 'multi') {
+    await writeDatasource(dv, { definitionId, name: spec.name, order: 1, entity: spec.entity, composition: COMPOSITION_JOINED, rowLimit: spec.rowLimit, columns: spec.columns, ...(spec.mode === 'fetchxml' ? { fetchXml: spec.fetchXml } : {}) });
+    return;
+  }
+  let order = 0;
+  for (const dataset of spec.datasets ?? []) {
+    order += 1;
+    const composition = order === 1 ? COMPOSITION_JOINED : COMPOSITION_STANDALONE;
+    await writeDatasource(dv, { definitionId, name: dataset.name, order, entity: dataset.entity, composition, rowLimit: spec.rowLimit, fetchXml: dataset.fetchXml, columns: dataset.columns });
+  }
+}
+
+async function writeChildren(dv: Dataverse, definitionId: string, spec: DefinitionSpec): Promise<void> {
+  const definitionBind = { 'Qdb_reportdefinitionid@odata.bind': bind('qdb_reportdefinitions', definitionId) };
+  await writeDatasources(dv, definitionId, spec);
   let sequence = 0;
   for (const filter of spec.filters) {
     sequence += 1;
@@ -170,13 +197,20 @@ async function writeChildren(dv: Dataverse, definitionId: string, spec: Definiti
   }
 }
 
+interface DatasetResult { name?: string; alias?: string; rowCount?: number; columns?: { alias: string }[]; rows?: { cells: Record<string, { value: unknown; text: string | null }> }[] }
+
+function printDataset(label: string, dataset: DatasetResult): void {
+  console.log(`  VALIDATE ${label}: rows=${dataset.rowCount} columns=${(dataset.columns ?? []).map(c => c.alias).join(',')}`);
+  for (const row of (dataset.rows ?? []).slice(0, 12)) console.log('     ', Object.entries(row.cells).map(([alias, cell]) => `${alias}=${cell.text ?? cell.value ?? '∅'}`).join(' | '));
+}
+
 async function validate(dv: Dataverse, spec: DefinitionSpec, definitionId: string): Promise<void> {
   const output = await dv.action('qdb_RunReport', { reportId: definitionId, parametersJson: '{}', format: 'RUN' });
   const errorCode = String(output['errorCode'] ?? '');
   if (errorCode) { console.log(`  VALIDATE ${spec.code}: REFUSED ${errorCode} — ${String(output['errorMessage'] ?? '')}`); return; }
-  const result = JSON.parse(String(output['resultJson'] ?? '{}')) as { rowCount?: number; columns?: { alias: string }[]; rows?: { cells: Record<string, { value: unknown; text: string | null }> }[] };
-  console.log(`  VALIDATE ${spec.code}: rows=${result.rowCount} columns=${(result.columns ?? []).map(c => c.alias).join(',')}`);
-  for (const row of (result.rows ?? []).slice(0, 12)) console.log('     ', Object.entries(row.cells).map(([alias, cell]) => `${alias}=${cell.text ?? cell.value ?? '∅'}`).join(' | '));
+  const result = JSON.parse(String(output['resultJson'] ?? '{}')) as DatasetResult & { datasets?: DatasetResult[] };
+  if (!result.datasets) { printDataset(spec.code, result); return; }
+  for (const dataset of result.datasets) printDataset(`${spec.code} · ${dataset.name ?? dataset.alias ?? '?'}`, dataset);
 }
 
 async function main(): Promise<void> {

@@ -58,6 +58,34 @@ second security model. The Engine is the right home for **authored, printable, e
 records one DCP report definition as a proof only if that needs **no Engine code change** and the org
 already carries `qdb_compositionmode`. Any Engine change affecting other QDB applications is a STOP gate.
 
+### 3a. Superseded 2026-09-26 — Option C (Hybrid), decided by the user
+
+**Report Engine owns reporting. DCP owns operational work.** Every DCP report and dashboard is an Engine
+*definition* (configuration records, versioned in `reporting/definitions/`, provisioned idempotently by
+`crm/scripts/provision-reporting-definitions.mts`); DCP consumes them through `qdb_RunReport` as the
+signed-in user behind `IReportingService` and renders natively — no iframe, no second engine. My Day stays
+DCP-native (`$count`s and one arrears sum). Drill-down stays DCP (`#cases/scope/…`) and is reconciled to
+the Engine aggregate by tests. No Engine **code** changed; a needed change is a STOP gate.
+
+Engine facts established from the runtime (not the repository) while provisioning, 2026-09-26:
+
+| Fact | Consequence |
+|---|---|
+| A runtime-prompt filter whose parameter is absent is dropped — **except `IsNull`, which always applies** | "No strategy" is a null group in RPT-004 and a DCP narrowing only; never an optional Engine filter |
+| `qdb_RunDashboard` takes no parameters, applies no filters, has no access list | DCP dashboards (DB-001…004) are compositions of *reports*, each run with the scope; Engine dashboards are not used for DCP |
+| A multi-datasource definition returns `datasets[]`; the **root** datasource yields no columns unless its composition is Joined | RPT-014's first dataset is Joined, the rest Standalone |
+| Prompt filters address the main entity only | Activity-, PTP- and exception-grain definitions do not honour `SourceSystem`; the catalogue's `dimensions` omit it and `restrictScope` drops it |
+| The case carries `qdb_facilitysourcesystem` = `HL` / `BFD`, partitioning identically to `qdb_organizationcode` (4,360 / 3) | `SourceSystem` is one text contract across case- and snapshot-grain definitions |
+| Refusals are HTTP 200 + `errorCode`; access denial is `report_failed` with a permission message | `ReportingOutcome` = ok / refused / accessDenied / unavailable / malformed / timeout |
+
+Live validation figures (admin session, labelled as such): RPT-015 cases 4,363 · customers 3,780 ·
+arrears 213,300,523.69 · balance 3,419,587,487.25 — equal to Screen 01 and the smoke; RPT-002 HL 4,360 /
+BFD 3; RPT-004 no-strategy 4,358; RPT-007 open activities 5 + 7 = 12 = RPT-009 total; RPT-010 September 14;
+RPT-011 Active 3 / Broken 1 / Kept 4 / Partially Kept 1; RPT-012 three exceptions; RPT-013 seven observation
+points (one ARR 2026-06-30 of 4,358 facilities; DEMO 3 / 10 / 17 September); RPT-014 assignment 0 ·
+escalation 0 · types without outcome 7 · actions without type 4 · cases without customer 0 · without bucket 1
+· integration exceptions 4.
+
 ## 4. Power BI decision
 
 Not adopted in Phase 10. No tenant, workspace, licence, gateway, service principal or dataset exists in

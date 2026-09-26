@@ -1,0 +1,28 @@
+{
+  "code": "DCP-RPT-008",
+  "name": "DCP — Activities by type",
+  "description": "Collection activities grouped by activity type. Grain: ACTIVITY. Source: qdb_collectionactivity · qdb_activitytypeid. Both CRMs. Narrowed by owner, open/closed state and the recorded-on window when supplied. DCP catalogue DCP-RPT-008.",
+  "version": 1,
+  "mainEntity": "qdb_collectionactivity",
+  "category": "Operational",
+  "rowLimit": 5000,
+  "grain": "ACTIVITY",
+  "mode": "generated",
+  "entity": { "logicalName": "qdb_collectionactivity", "alias": "t" },
+  "columns": [
+    { "name": "Activity type", "attribute": "qdb_activitytypeid", "alias": "type", "dataType": "Lookup", "aggregate": "None", "groupOrder": 1, "sortOrder": 1 },
+    { "name": "Activities", "attribute": "activityid", "alias": "activities", "dataType": "Integer", "aggregate": "Count", "sortOrder": 2 }
+  ],
+  "filters": [
+    { "name": "Owner", "field": "ownerid", "operator": "Equals", "value": "Owner", "runtimePrompt": true },
+    { "name": "State", "field": "statecode", "operator": "Equals", "value": "ActivityState", "runtimePrompt": true },
+    { "name": "Recorded from", "field": "createdon", "operator": "GreaterThan", "value": "DateFrom", "runtimePrompt": true },
+    { "name": "Recorded before", "field": "createdon", "operator": "LessThan", "value": "DateTo", "runtimePrompt": true }
+  ],
+  "parameters": [
+    { "name": "Owner", "label": "Owner (user id)", "type": "Lookup", "required": false },
+    { "name": "ActivityState", "label": "State (0 open, 1 closed)", "type": "Number", "required": false },
+    { "name": "DateFrom", "label": "Recorded on or after (ISO date)", "type": "Date", "required": false },
+    { "name": "DateTo", "label": "Recorded before (ISO date)", "type": "Date", "required": false }
+  ]
+}
