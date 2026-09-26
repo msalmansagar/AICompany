@@ -118,8 +118,6 @@ export interface CaseQuery {
    * at all. Absent means any. Applied by the source, so the population is the platform's answer.
    */
   strategy?: string | 'none';
-  /** Only cases owned by this user. */
-  ownerId?: string;
 }
 
 /** Builds the `$filter` the source applies. Composition only — no threshold appears here. */
@@ -141,7 +139,6 @@ export function buildCaseFilter(query: CaseQuery): string | undefined {
   if (query.customerBusinessId) {
     clauses.push(`qdb_customerbusinessid eq '${escapeOData(query.customerBusinessId)}'`);
   }
-  if (query.ownerId) clauses.push(`_ownerid_value eq ${escapeOData(query.ownerId)}`);
   if (query.search) {
     const term = escapeOData(query.search);
     const fields = query.searchFields ?? IDENTIFIER_SEARCH_FIELDS;

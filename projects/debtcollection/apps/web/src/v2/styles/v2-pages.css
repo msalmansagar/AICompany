@@ -260,3 +260,22 @@
 .dcp-v2 .v2-toolbar-end { margin-left: auto; }
 .dcp-v2 .v2-grid-summary { color: var(--v2-text-2); margin-right: auto; }
 .dcp-v2 .v2-split-list .v2-two-line-sub { min-width: 0; overflow: hidden; }
+
+/* ── Dashboards — Report Engine compositions in the V2 skin ─────────────────── */
+.dcp-v2 .v2-dashboards { display: flex; flex-direction: column; gap: var(--v2-space-3, 12px); }
+.dcp-v2 .v2-page-note { margin: 0; font-size: var(--v2-fs-sm); color: var(--v2-text-muted); }
+.dcp-v2 .v2-report-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: var(--v2-space-3, 12px); align-items: start; }
+.dcp-v2 .v2-report-audience { grid-column: 1 / -1; margin: 0; font-size: var(--v2-fs-xs); }
+.dcp-v2 .v2-report-panel { min-width: 0; }
+.dcp-v2 .v2-report-wide { grid-column: 1 / -1; }
+.dcp-v2 .v2-report-panel .v2-card-body { overflow-x: auto; }
+.dcp-v2 .v2-report-footer { margin: 8px 0 0; padding: 0 16px 12px; font-size: var(--v2-fs-xs); line-height: 1.45; }
+.dcp-v2 .v2-report-table { width: 100%; border-collapse: collapse; font-size: var(--v2-fs-sm); }
+.dcp-v2 .v2-report-table th { text-align: left; font-weight: 600; color: var(--v2-text-muted); padding: 8px 16px; border-bottom: 1px solid var(--v2-border); white-space: nowrap; }
+.dcp-v2 .v2-report-table td { padding: 8px 16px; border-bottom: 1px solid var(--v2-border); vertical-align: middle; }
+.dcp-v2 .v2-report-table td:first-child { white-space: nowrap; }
+.dcp-v2 .v2-report-table .v2-num { text-align: right; font-variant-numeric: tabular-nums; }
+.dcp-v2 .v2-report-row { transition: background .12s; }
+.dcp-v2 .v2-report-drill { cursor: pointer; }
+.dcp-v2 .v2-report-drill:hover td, .dcp-v2 .v2-report-drill:focus-visible td { background: var(--v2-accent-bg, rgba(0, 120, 212, .06)); }
+.dcp-v2 .v2-report-drill:hover td:first-child { color: var(--v2-accent-strong); text-decoration: underline; }

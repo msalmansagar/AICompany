@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
+import type { ReportingScope } from '@dcp/domain';
 import { useHashRoute } from '../shell/useHashRoute.js';
+import { FILTER_SEGMENT, caseListFiltersFromScope, encodeCaseListFilters } from './data/caseListFilterUrl.js';
 import type { ViewDefinition } from '../shell/routes.js';
 import { V2Shell } from './shell/V2Shell.js';
 import { V2_PAGES } from './pages/v2Pages.js';
@@ -27,6 +29,8 @@ export interface ViewRequest {
   recordId?: string | undefined;
   tab?: string | undefined;
   onOpenCase: (id: string) => void;
+  /** The Cases list in a reporting scope — a dashboard row's drill-down. In V2 it opens V2's own list. */
+  onOpenCases: (scope: ReportingScope) => void;
   onOpenCustomer: (customerBusinessId: string) => void;
   onOpenComms: (caseId: string) => void;
   onNavigateComms: (recordId?: string, tab?: string) => void;
@@ -41,6 +45,7 @@ export function V2Workspace({ renderView }: { renderView: ViewRenderer }) {
     ...(route.recordId !== undefined ? { recordId: route.recordId } : {}),
     ...(route.tab !== undefined ? { tab: route.tab } : {}),
     onOpenCase: id => route.go('case', id),
+    onOpenCases: scope => route.go('cases', FILTER_SEGMENT, encodeCaseListFilters(caseListFiltersFromScope(scope, 'dashboard'))),
     onOpenCustomer: customerBusinessId => route.go('customer', customerBusinessId),
     onOpenComms: id => route.go('comms', id),
     onNavigateComms: (recordId, tab) => route.go('comms', recordId, tab),

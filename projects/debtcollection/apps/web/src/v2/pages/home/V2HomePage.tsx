@@ -1,12 +1,9 @@
 import { useMemo, useState } from 'react';
 import { describeBucket, describeCount, type OperationalBucket, type WorkCount } from '@dcp/domain';
 import { useCounts, formatCountResult, type CountRequest } from '../../../data/counts.js';
-import {
-  buildFollowUpFilter, createFollowUpQuery, type FollowUpQuery, type FollowUpWindow,
-} from '../../../data/followUpQueries.js';
+import { createFollowUpQuery, type FollowUpQuery, type FollowUpWindow } from '../../../data/followUpQueries.js';
 import type { ActivityRow } from '../../../data/caseQueries.js';
-import { CASE_STATUS_LABELS, ENTITY_SETS } from '../../../data/schema.js';
-import { codeFor } from '../../../data/collectionQueries.js';
+import { myDayCountRequests } from '../../../data/myDayOversight.js';
 import { StatusPill, formatDate } from '../../../components/primitives.js';
 import { useCrmSession, useOrg } from '../../../shell/context.js';
 import type { ViewRequest } from '../../V2Workspace.js';
@@ -23,9 +20,8 @@ import { HOME_BUCKETS, useBucketCounts } from './useBucketCounts.js';
  * policy (KI-101). Each item leads to the list that holds the work.
  */
 
-/** The case statuses V1's My Day counts, found by their registered labels rather than written down. */
-const PTP_ACTIVE_STATUS = codeFor(CASE_STATUS_LABELS, 'PTP Active');
-const PTP_BROKEN_STATUS = codeFor(CASE_STATUS_LABELS, 'PTP Broken');
+/** How far ahead "promises due" looks. Stated on the tile; a window, not a policy. */
+const PROMISE_HORIZON_DAYS = 7;
 
 export function V2HomePage({ request }: { request: ViewRequest }) {
   const { go } = useV2Shell();
@@ -34,19 +30,11 @@ export function V2HomePage({ request }: { request: ViewRequest }) {
   const [now] = useState(() => new Date());
   const buckets = useBucketCounts();
 
-  const requests = useMemo<readonly CountRequest[]>(() => {
-    const and = (clause: string) => (scopeFilter ? `${scopeFilter} and ${clause}` : clause);
-    return [
-      { key: 'open', entitySet: ENTITY_SETS.collectionCase, filter: and('statecode eq 0') },
-      { key: 'ptpActive', entitySet: ENTITY_SETS.collectionCase, filter: and(`statuscode eq ${PTP_ACTIVE_STATUS}`) },
-      { key: 'ptpBroken', entitySet: ENTITY_SETS.collectionCase, filter: and(`statuscode eq ${PTP_BROKEN_STATUS}`) },
-      {
-        key: 'followUpsOverdue',
-        entitySet: ENTITY_SETS.collectionActivity,
-        filter: buildFollowUpFilter({ window: 'overdue', now, ...(scopeFilter ? { scopeFilter } : {}) }),
-      },
-    ];
-  }, [scopeFilter, now]);
+  // The same factual requests V1's My Day makes (Phase 10): activities scoped through their case,
+  // promises as PTP activities in a stated window, never a case status standing in for a promise.
+  const requests = useMemo<readonly CountRequest[]>(
+    () => myDayCountRequests({ now, promiseHorizonDays: PROMISE_HORIZON_DAYS, ...(scopeFilter ? { scopeFilter } : {}) }),
+    [scopeFilter, now]);
   const counts = useCounts(adapter, requests);
 
   const myWork = buckets.counts.MyAssigned;
@@ -54,10 +42,11 @@ export function V2HomePage({ request }: { request: ViewRequest }) {
     <div className="v2-home" data-testid="v2-home">
       <div className="v2-metrics">
         <MetricTile label="My open work" value={myWork ? describeCount(myWork) : '—'} sub="Assigned to you" onOpen={() => go('queues', 'MyAssigned')} testId="v2-metric-mywork" />
-        <MetricTile label="Overdue follow-ups" value={formatCountResult(counts['followUpsOverdue'])} sub="Past their follow-up date" tone={isPositive(counts['followUpsOverdue']?.value) ? 'danger' : undefined} testId="v2-metric-followups" />
+        <MetricTile label="Overdue follow-ups" value={formatCountResult(counts['followUpsOverdue'])} sub="Follow-up date before now" tone={isPositive(counts['followUpsOverdue']?.value) ? 'danger' : undefined} testId="v2-metric-followups" />
+        <MetricTile label="Upcoming follow-ups" value={formatCountResult(counts['followUpsUpcoming'])} sub="Follow-up date from now on" testId="v2-metric-followups-upcoming" />
         <MetricTile label="Open cases" value={formatCountResult(counts['open'])} sub="In the selected CRM scope" onOpen={() => go('cases')} testId="v2-metric-open" />
-        <MetricTile label="Active promises" value={formatCountResult(counts['ptpActive'])} sub="Cases with a promise in force" onOpen={() => go('ptp')} testId="v2-metric-ptp-active" />
-        <MetricTile label="Broken promises" value={formatCountResult(counts['ptpBroken'])} sub="Cases whose promise was broken" tone={isPositive(counts['ptpBroken']?.value) ? 'warning' : undefined} onOpen={() => go('ptp')} testId="v2-metric-ptp-broken" />
+        <MetricTile label={`Promises due, ${PROMISE_HORIZON_DAYS} days`} value={formatCountResult(counts['promisesDue'])} sub="Recorded status Active, promised for today onward; a recorded status, not a verified payment" onOpen={() => go('ptp')} testId="v2-metric-ptp-due" />
+        <MetricTile label="Identity exceptions" value={formatCountResult(counts['identityExceptions'])} sub="Open, both CRMs" onOpen={() => go('intake')} testId="v2-metric-identity" />
       </div>
 
       <div className="v2-two-col">

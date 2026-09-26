@@ -43,8 +43,12 @@ function install(options: { failingCounts?: boolean } = {}): void {
     },
   } as unknown as XrmLike;
   (window as unknown as { Xrm: XrmLike }).Xrm = xrm;
-  vi.stubGlobal('fetch', async (url: string) => countFor(String(url), options.failingCounts === true));
+  countUrls = [];
+  vi.stubGlobal('fetch', async (url: string) => { countUrls.push(decodeURIComponent(String(url))); return countFor(String(url), options.failingCounts === true); });
 }
+
+/** Every count the home page asked the transport for, decoded, so a test can read the filter it sent. */
+let countUrls: string[] = [];
 
 async function openHome(options: { failingCounts?: boolean } = {}) {
   install(options);
@@ -79,6 +83,30 @@ describe('the figures', () => {
     const home = await openHome();
 
     expect(home.textContent).not.toMatch(/SLA|rate|recovery|cure|roll|productivity|portfolio at risk/i);
+  });
+
+  /**
+   * Phase 10 made the promise tile a fact about PTP activities — recorded status Active, promised
+   * for a stated window — rather than a case status standing in for a promise. The words on the tile
+   * keep the distinction: a recorded status is not a verified payment.
+   */
+  it('counts promises due as PTP activities in a stated window, and says a recorded status is not a payment', async () => {
+    const home = await openHome();
+
+    const tile = screen.getByTestId('v2-metric-ptp-due');
+    expect(tile.textContent).toContain('Promises due, 7 days');
+    expect(tile.textContent).toMatch(/not a verified payment/);
+    expect(home.textContent).not.toMatch(/Active promises|Broken promises/);
+    await waitFor(() => expect(countUrls.some(url => url.includes('qdb_collectionactivities') && url.includes('qdb_ptpdate ne null') && url.includes('qdb_ptpstatus eq') && url.includes('qdb_ptpdate ge') && url.includes('qdb_ptpdate lt'))).toBe(true));
+  });
+
+  /** KI-147: an activity count under a single-CRM scope reaches the organisation through the case. */
+  it('scopes every activity count through the case when one CRM is chosen', async () => {
+    await openHome();
+    await userEvent.selectOptions(screen.getByTestId('v2-org-scope'), 'HL');
+
+    await waitFor(() => expect(countUrls.some(url => url.includes('qdb_collectionactivities') && url.includes('qdb_collectioncaseid_qdb_collectionactivity/qdb_organizationcode eq 100000140'))).toBe(true));
+    expect(countUrls.filter(url => url.includes('qdb_collectionactivities') && /[^/]qdb_organizationcode eq/.test(url) && !url.includes('qdb_collectioncaseid_qdb_collectionactivity/qdb_organizationcode'))).toEqual([]);
   });
 });
 

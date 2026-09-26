@@ -9,6 +9,7 @@ import { findXrm, readCrmContext, CrmContextError, type XrmLike } from './platfo
 import { XrmCrmAdapter } from './platform/XrmCrmAdapter.js';
 import { SameOriginWriteTransport } from './platform/writeTransport.js';
 import { XrmReportingService } from './reporting/XrmReportingService.js';
+import { CoordinatedReportingService } from './reporting/CoordinatedReportingService.js';
 import { AuditView, CasesView, MyDayView, PendingView, QueuesView } from './views/index.js';
 import { CaseWorkspaceView } from './views/CaseWorkspace.js';
 import { Customer360View } from './views/Customer360.js';
@@ -47,7 +48,7 @@ import { V2Workspace } from './v2/V2Workspace.js';
 export function createCrmSession(xrm: XrmLike | null = findXrm()): CrmSession {
   const context = readCrmContext(xrm);
   const transport = new SameOriginWriteTransport(context.apiBase);
-  return { context, adapter: new XrmCrmAdapter(xrm!, undefined, transport), reporting: new XrmReportingService(xrm!) };
+  return { context, adapter: new XrmCrmAdapter(xrm!, undefined, transport), reporting: new CoordinatedReportingService(new XrmReportingService(xrm!)) };
 }
 
 /**

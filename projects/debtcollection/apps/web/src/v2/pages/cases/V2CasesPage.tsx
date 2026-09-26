@@ -9,9 +9,10 @@ import { BucketDot, Card, FilterChips, type ChipOption } from '../../components/
 import { V2DataGrid, type GridSort } from '../../components/V2DataGrid.js';
 import { useDebounced } from '../../hooks/useDebounced.js';
 import {
-  FILTER_SEGMENT, decodeCaseListFilters, encodeCaseListFilters, hasCaseListFilters, recallSelectedCase,
+  FILTER_SEGMENT, caseListFiltersFromScope, decodeCaseListFilters, encodeCaseListFilters, hasCaseListFilters, recallSelectedCase,
   rememberCaseListReturn, rememberSelectedCase, type CaseListFilters,
 } from '../../data/caseListFilterUrl.js';
+import { SCOPE_SEGMENT, decodeScope } from '../../../data/caseListScopeUrl.js';
 import { readLayout, writeLayout, type ListLayout } from '../../data/layoutPreference.js';
 import { STRATEGY_NOT_ASSIGNED, STRATEGY_NOT_ASSIGNED_LABEL } from '../../data/portfolioMatrix.js';
 import { CASE_SORTS, GRID_COLUMNS, SPLIT_COLUMNS, describeSort, sortKeyOf, toSourceSort, type CaseSortKey } from './casesColumns.js';
@@ -36,13 +37,17 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
   const { adapter, context } = useCrmSession();
   const { scope, scopeFilter, setScope } = useOrg();
   const shell = useV2Shell();
-  // Filters that arrived in the URL — from Portfolio & Strategy, a bookmark or a refresh.
-  const urlFilters = useMemo<CaseListFilters>(
-    () => (request.recordId === FILTER_SEGMENT ? decodeCaseListFilters(request.tab) : {}),
-    [request.recordId, request.tab]);
+  // Filters that arrived in the URL — from Portfolio & Strategy, a dashboard row, a bookmark or a
+  // refresh. A V1 dashboard's `#cases/scope/…` link is honoured too, through the one scope mapping.
+  const urlFilters = useMemo<CaseListFilters>(() => {
+    if (request.recordId === FILTER_SEGMENT) return decodeCaseListFilters(request.tab);
+    if (request.recordId === SCOPE_SEGMENT) return caseListFiltersFromScope(decodeScope(request.tab), 'dashboard');
+    return {};
+  }, [request.recordId, request.tab]);
+  const isFilteredUrl = request.recordId === FILTER_SEGMENT || request.recordId === SCOPE_SEGMENT;
   const [search, setSearch] = useState(shell.search);
   const [bucket, setBucket] = useState(urlFilters.bucket ?? '');
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState(urlFilters.status ?? '');
   const [owner, setOwner] = useState<OwnerScope>('all');
   const [sort, setSort] = useState<GridSort>(CASE_SORTS.dpd.sort);
   const [layout, setLayout] = useState<ListLayout>(() => readLayout(LAYOUT_KEY));
@@ -63,6 +68,7 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
   // the CRM scope it names, so a cell opened for HL shows HL whatever the picker said before.
   useEffect(() => {
     setBucket(urlFilters.bucket ?? '');
+    setStatus(urlFilters.status ?? '');
     if (urlFilters.scope && urlFilters.scope !== scope) setScope(urlFilters.scope);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlFilters]);
@@ -79,13 +85,17 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
     else shell.go('cases');
   };
   const chooseBucket = (next: string) => {
-    if (request.recordId === FILTER_SEGMENT) writeUrlFilters({ ...urlFilters, bucket: next || undefined });
+    if (isFilteredUrl) writeUrlFilters({ ...urlFilters, bucket: next || undefined });
     else setBucket(next);
+  };
+  const chooseStatus = (next: string) => {
+    if (isFilteredUrl && urlFilters.status !== undefined) writeUrlFilters({ ...urlFilters, status: next || undefined });
+    else setStatus(next);
   };
   const chooseLayout = (next: ListLayout) => { setLayout(next); writeLayout(LAYOUT_KEY, next); };
   const selectCase = (row: CaseRow) => { setSelectedId(row.id); rememberSelectedCase(row.id); };
   const openCase = (id: string) => {
-    rememberCaseListReturn(request.recordId === FILTER_SEGMENT ? request.tab : undefined);
+    rememberCaseListReturn(isFilteredUrl ? encodeCaseListFilters(urlFilters) : undefined);
     request.onOpenCase(id);
   };
   const saved = (message: string) => { setDialog(null); setReloadKey(key => key + 1); setToast(message); };
@@ -97,16 +107,17 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
     ...(status ? { status } : {}),
     ...(settledSearch ? { search: settledSearch, searchFields: WIDE_SEARCH_FIELDS } : {}),
     ...(urlFilters.strategy ? { strategy: urlFilters.strategy } : {}),
-    ...(owner === 'mine' ? { ownerId: context.userId } : {}),
+    // "My cases" narrows to the signed-in officer; a dashboard row's owner narrows to that owner.
+    ...(owner === 'mine' ? { ownerId: context.userId } : urlFilters.owner ? { ownerId: urlFilters.owner } : {}),
     openOnly: true,
     sort: toSourceSort(sort),
-  }), [scopeFilter, bucket, status, settledSearch, sort, urlFilters.strategy, owner, context.userId]);
+  }), [scopeFilter, bucket, status, settledSearch, sort, urlFilters.strategy, urlFilters.owner, owner, context.userId]);
   const facets = useBucketFacets(adapter, query, reloadKey);
 
-  const activeFilters = [bucket, status, settledSearch, urlFilters.strategy, owner === 'mine' ? 'mine' : ''].filter(Boolean).length;
+  const activeFilters = [bucket, status, settledSearch, urlFilters.strategy, urlFilters.owner, owner === 'mine' ? 'mine' : ''].filter(Boolean).length;
   const clearAll = () => {
     setStatus(''); setSearch(''); setOwner('all');
-    if (request.recordId === FILTER_SEGMENT) writeUrlFilters({}); else setBucket('');
+    if (isFilteredUrl) writeUrlFilters({}); else setBucket('');
   };
   const strategyChip = urlFilters.strategy === STRATEGY_NOT_ASSIGNED
     ? STRATEGY_NOT_ASSIGNED_LABEL
@@ -139,7 +150,7 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
     <div className="v2-cases" data-testid="v2-cases" data-layout={layout}>
       <Card flush>
         <div className="v2-toolbar">
-          {request.recordId === FILTER_SEGMENT && hasCaseListFilters(urlFilters) && (
+          {isFilteredUrl && hasCaseListFilters(urlFilters) && (
             <div className="v2-filtered-by" data-testid="v2-cases-filtered-by">
               <span className="v2-chips-label">Filtered by</span>
               {urlFilters.bucket && (
@@ -154,6 +165,18 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
                   <button type="button" className="v2-filter-chip-remove" aria-label={`Remove the strategy filter ${strategyChip}`} onClick={() => writeUrlFilters({ ...urlFilters, strategy: undefined, strategyLabel: undefined })}>×</button>
                 </span>
               )}
+              {urlFilters.status && (
+                <span className="v2-filter-chip" data-testid="v2-filter-chip-status">
+                  Status: {urlFilters.status}
+                  <button type="button" className="v2-filter-chip-remove" aria-label={`Remove the status filter ${urlFilters.status}`} onClick={() => writeUrlFilters({ ...urlFilters, status: undefined })}>×</button>
+                </span>
+              )}
+              {urlFilters.owner && (
+                <span className="v2-filter-chip" data-testid="v2-filter-chip-owner">
+                  Owner: {urlFilters.ownerLabel ?? 'the selected owner'}
+                  <button type="button" className="v2-filter-chip-remove" aria-label="Remove the owner filter" onClick={() => writeUrlFilters({ ...urlFilters, owner: undefined, ownerLabel: undefined })}>×</button>
+                </span>
+              )}
               {urlFilters.scope && urlFilters.scope !== 'all' && (
                 <span className="v2-filter-chip" data-testid="v2-filter-chip-scope">
                   CRM: {urlFilters.scope === 'HL' ? 'Housing Loan' : 'BFD'}
@@ -163,6 +186,9 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
               <button type="button" className="v2-btn v2-btn-subtle" onClick={clearAll} data-testid="v2-cases-clear-url">Clear all</button>
               {urlFilters.from === 'portfolio' && (
                 <button type="button" className="v2-btn v2-btn-subtle" onClick={() => shell.go('buckets')} data-testid="v2-cases-back-portfolio">← Back to Portfolio &amp; Strategy</button>
+              )}
+              {urlFilters.from === 'dashboard' && (
+                <button type="button" className="v2-btn v2-btn-subtle" onClick={() => shell.go('dashboards')} data-testid="v2-cases-back-dashboard">← Back to Dashboards</button>
               )}
             </div>
           )}
@@ -177,7 +203,7 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
             />
             <label className="v2-picker">
               <span className="v2-picker-label">Status</span>
-              <select className="v2-select" value={status} onChange={e => setStatus(e.target.value)} data-testid="v2-cases-status">
+              <select className="v2-select" value={status} onChange={e => chooseStatus(e.target.value)} data-testid="v2-cases-status">
                 <option value="">Any</option>
                 {Object.values(CASE_STATUS_LABELS).map(label => <option key={label} value={label}>{label}</option>)}
               </select>
