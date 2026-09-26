@@ -167,3 +167,41 @@ Not a PR. V2 not default. V1 intact. Screen 03 not started.
 | Main / Phase 10 baseline | **2,179** = TS 2,010 (domain 829 · web 780 · api 355 · dv-client 32 · auth 14) + tooling 10 + C# 159 |
 | Baseline estimate | **9.75 effective hours** — rebase + three conflicts 0.75 · shared report presentation (one integration, two skins) 0.75 · V2 Dashboards page 1.5 · ReportingScope ↔ V2 case-list filter mapping and drill-down 1.0 · request coordination for `qdb_RunReport` 0.75 · My Day reconciliation 0.75 · integration tests 2.0 · deploy + browser validation 1.0 · docs / KI register 0.75. The earlier "2–3 h" covered the rebase alone; §8–§14 of this authorisation add the integration |
 | Expected completion | 2026-09-27 ~06:00 +03 at the estimate, wall-clock permitting |
+
+### Rebase result
+
+| Item | Value |
+|---|---|
+| Rebased tip | `6967501c` (39 commits: the 38 V2 commits replayed on `a997496d` + this tracker note) |
+| Conflicts | three, as predicted — `App.tsx` (import block only: both sides' imports kept), `collectionQueries.ts` (Phase 10's `ownerId`/`strategy` beside V2's — V2's superset kept, the auto-merge's **duplicate `ownerId` declaration and duplicate `_ownerid_value` clause removed after the rebase**; one `CaseQuery`, clause order strategy → owner → bucket → status → customer → search), `KnownIssues.md` (three docs commits, union each time: V2 rows then the Phase 10 section; the V2 KI-147 row updated to *Closed* on Phase 10's evidence, the Phase 10 row kept) |
+| Post-rebase type error | one — V2's `ViewRequest` lacked Phase 10's `onOpenCases`; added, routed to V2's own list |
+| Integration commit | `feat(dcp): bring Phase 10 reporting into Workspace V2 on the rebased branch` |
+| Post-rebase integrated baseline | **2,539** = TS 2,370 (domain 829 · web 1,140 · api 355 · dv-client 32 · auth 14) + tooling 10 + C# 159; 0 failed, 0 skipped; type-check clean across 10 tasks |
+| Composition of the difference | web 1,140 = V2's 982 + Phase 10's 136 web tests + 22 new (coordinated service 5 · scope ↔ filter mapping 6 · V2 Dashboards 9 · My Day 2); domain 829 and api 355 are main's counts (Phase 10 added 12 and 4); nothing lost |
+| Guards proven to bite | status dropped from the scope mapping · no run sharing in the coordinated service · activity panels dressed as scoped · V1 `#cases/scope/…` link ignored · a drill-down that forgets its way back. One planted defect (the bridged-view door in `V2Workspace`) did **not** bite because no bridged view calls it — recorded, not counted |
+
+### Timing
+
+| Item | Value |
+|---|---|
+| Start → completion report | 2026-09-26 20:21 → 21:20 +03, **0.98 h wall-clock**, uninterrupted |
+| Baseline | 9.75 h effective, **kept, not re-estimated** |
+| Variance | −8.77 h. The three conflicts were an import block, a duplicated field and appended register rows; the integration reused Phase 10's adapter, catalogue, compositions, resolver and hook wholesale, so V2 needed one page and one shared presentation module rather than a second implementation; the estimate priced a hand-built V2 reporting layer. Different units, as before: an effort estimate against measured AI-assisted session time |
+
+### Cloud + browser validation (2026-09-26 21:00–21:15 +03, same web resource `qdb_dcp_workspace.html`, System Administrator, QDB Chrome profile)
+
+| Check | Result |
+|---|---|
+| V1 default | With no stored version the resource opens **V1**: V1 Dashboards (six Engine panels ok) and V1 Collection Cases load; the V1/V2 switch is present |
+| V2 Dashboards | Native (`v2-bridged` absent). Portfolio: open cases 4,363 · customers 3,780 · arrears QAR 213,300,524 · balance QAR 3,419,587,487; six panels ok |
+| Dashboard → Cases → Case → back → Dashboards | 61–90 row **228** → `#cases/filter/bucket=61-90&from=dashboard` → chip *DPD: 61-90*, bucket chip **61-90 228** → Split preview → *Open full record* → case → *← Cases* lands on the same filtered URL → *← Back to Dashboards* returns to Portfolio Overview |
+| Reconciliation, HL scope (Engine row vs list filter) | bucket 61–90: **228 = 228** (chip) · status New: **4,358 = 4,358** (footer) · Strategy Not Assigned: **4,358 = 4,358** · owner *# DFE Backend API*: **4,360** → list opens on the owner filter with its name · source BFD **3 = 3**. Same five reconciled read-only as the service principal (Engine vs `$count`): all equal |
+| Activity-grain limitation | Supervisor under HL: RPT-007 wears *Not narrowed by CRM*; footer says the figures are for both CRMs; RPT-005 carries no such badge |
+| Portfolio & Strategy → Cases → Split/Grid → Case → back | cell 61–90 × Strategy Not Assigned (HL) **227** → `#cases/filter/bucket=61-90&strategy=none&scope=HL&from=portfolio` → chips DPD / Strategy / CRM, bucket chip **227** → Grid (20 rows loaded) → case → *← Cases* keeps Grid + filters → *← Back to Portfolio & Strategy* |
+| My Day V2 | My open work 7 · Overdue follow-ups 5 · Upcoming 0 · Open cases 4,363 · Promises due, 7 days 0 (with the recorded-status sentence) · Identity exceptions 3 |
+| Engine calls | Fresh V2 Dashboards load (Portfolio): **6 `qdb_RunReport` calls = 6 panels**, none repeated; all HTTP 200 |
+| Console / network | No console errors; no failed requests |
+| Observation | KI-154 (pre-existing Screen 02): the list footer states the *All* count while a bucket chip is active — recorded, not changed |
+| Not proven | Collection Officer role; On-Prem; narrow viewport (KI-141) |
+
+Browser left on **V1** (stored version cleared).
