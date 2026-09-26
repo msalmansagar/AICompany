@@ -2,7 +2,8 @@ import {
   satisfiesPlannedAction, type ContinuationToken, type Page,
 } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
-import { ACTIVITY_COLUMNS, ENTITY_SETS, NAVIGATION_PROPERTIES, STRATEGY_ACTION_COLUMNS } from './schema.js';
+import { ACTIVITY_COLUMNS, ENTITY_SETS, STRATEGY_ACTION_COLUMNS } from './schema.js';
+import { scopeThroughCase } from './activityScope.js';
 import { escapeOData, mapPage } from './collectionQueries.js';
 import { toStrategyActionRow, type StrategyActionRow } from './configurationQueries.js';
 import { toActivityRow, type ActivityRow } from './caseQueries.js';
@@ -45,7 +46,7 @@ export function buildFollowUpFilter(query: FollowUpQuery): string {
   const now = (query.now ?? new Date()).toISOString();
   const clauses: string[] = ['qdb_followupdate ne null'];
 
-  if (query.scopeFilter) clauses.push(throughCase(query.scopeFilter));
+  if (query.scopeFilter) clauses.push(scopeThroughCase(query.scopeFilter));
   // A completed activity's follow-up has already happened or been superseded.
   if (query.openOnly !== false) clauses.push('statecode eq 0');
 
@@ -59,16 +60,6 @@ export function buildFollowUpFilter(query: FollowUpQuery): string {
     }
   }
   return clauses.join(' and ');
-}
-
-/**
- * An organisation scope is a clause on the **case** (`qdb_organizationcode eq …`); the activity has
- * no such column, and sending the clause as-is was answered 400 (KI-147). The activity reaches its
- * case through the lookup's navigation property, so the same clause is applied there — the platform
- * still does the narrowing, and both CRMs' work stays one list when no scope is chosen.
- */
-function throughCase(caseClause: string): string {
-  return `${NAVIGATION_PROPERTIES.activityToCase}/${caseClause}`;
 }
 
 /**

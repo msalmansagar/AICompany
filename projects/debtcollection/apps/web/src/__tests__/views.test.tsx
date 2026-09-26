@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { App } from '../App.js';
 import { isPending, VIEWS, type ViewDefinition } from '../shell/routes.js';
 import type { XrmLike } from '../platform/crmContext.js';
+import { formatMoney } from '../components/primitives.js';
 
 /**
  * The views, rendered through the real application bootstrap.
@@ -43,7 +44,12 @@ function fakeXrm(rows: Record<string, Record<string, unknown>[]> = {}): XrmLike 
         if (!row) throw { status: 404 };
         return row;
       },
-      async retrieveMultipleRecords(logicalName: string) {
+      async retrieveMultipleRecords(logicalName: string, options = '') {
+        // A FetchXML aggregate is answered as the platform answers it: one grouped row, no records.
+        if (decodeURIComponent(options).startsWith('?fetchXml=')) {
+          const arrears = (rows[logicalName] ?? []).reduce((sum, row) => sum + (typeof row['qdb_currenttotalarrears'] === 'number' ? row['qdb_currenttotalarrears'] : 0), 0);
+          return { entities: [{ arrears }] };
+        }
         // No `@odata.count`: the real client API never returns one, whatever is asked for (KI-96).
         // A count therefore has to come from the transport, and the stub below answers it.
         return { entities: rows[logicalName] ?? [] };
@@ -350,13 +356,35 @@ describe('configuration screens read and never author', () => {
 // ── KPI honesty ──────────────────────────────────────────────────────────────
 
 describe('a KPI is a platform count or an em dash, never an invention', () => {
-  it('shows an em dash and a reason for a figure the platform cannot count', async () => {
+  it('sums current arrears through the platform, as one aggregate over open cases', async () => {
+    install(fakeXrm({ qdb_collectioncase: [CASE_ROW, { ...CASE_ROW, qdb_collectioncaseid: 'c-2', qdb_currenttotalarrears: 1_000 }] }));
+    installCounts({ qdb_collectioncase: [CASE_ROW] });
     await openView('myday');
-    const tiles = await screen.findAllByText('Overdue balance');
-    expect(tiles.length).toBeGreaterThan(0);
+    const tiles = await screen.findAllByText('Current arrears');
     const tile = tiles[0]!.closest('.kpi-tile')!;
-    expect(tile.textContent).toContain('—');
-    expect(tile.textContent).toContain('Phase 10');
+    await waitFor(() => expect(tile.querySelector('.kpi-value')!.textContent).toBe(formatMoney(CASE_ROW.qdb_currenttotalarrears + 1_000)));
+    expect(tile.textContent).toContain('Stored MIS position');
+  });
+
+  it('shows an em dash, never zero, when the platform refuses the sum', async () => {
+    const xrm = fakeXrm({ qdb_collectioncase: [CASE_ROW] });
+    xrm.WebApi.retrieveMultipleRecords = async (_name: string, options = '') => {
+      if (decodeURIComponent(options).startsWith('?fetchXml=')) throw { errorCode: 0x8004E023 };
+      return { entities: [CASE_ROW] };
+    };
+    install(xrm);
+    installCounts({ qdb_collectioncase: [CASE_ROW] });
+    await openView('myday');
+    const tile = (await screen.findAllByText('Current arrears'))[0]!.closest('.kpi-tile')!;
+    await waitFor(() => expect(tile.textContent).toContain('could not sum'));
+    expect(tile.querySelector('.kpi-value')!.textContent).toBe('—');
+  });
+
+  it('states what each My Day tile counts, and claims no SLA', async () => {
+    await openView('myday');
+    const labels = (await screen.findAllByText(/./, { selector: '.kpi-label' })).map(el => el.textContent);
+    expect(labels).toEqual(['Open cases', 'Current arrears', 'My open work', 'Follow-ups overdue', 'Follow-ups upcoming', 'Promises due, 7 days', 'Awaiting assignment', 'Identity exceptions']);
+    expect(document.body.textContent).not.toMatch(/SLA breached|Overdue balance/);
   });
 
   it('counts open cases through the platform', async () => {
