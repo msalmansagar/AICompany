@@ -1,4 +1,6 @@
 import type { ISopAdapter } from './ISopAdapter';
+import { DESIGNER_LAYOUT_SUBJECT } from './designerLayout';
+import { DESIGNER_STATE_SUBJECT } from './designerState';
 import { deriveProcessFromSop } from './deriveProcessFromSop';
 import type { CrmEnvironmentService } from './CrmEnvironmentService';
 import { assertGuid } from './assertGuid';
@@ -180,6 +182,70 @@ export class ODataAdapter implements ISopAdapter {
 
   async createProcess(data: Omit<WorkflowProcess, 'crmId'>): Promise<string> {
     return this.post(ENTITY_SETS.process, await this.buildProcessBodyResolved(data));
+  }
+
+  async loadDesignerLayout(processId: string): Promise<string | null> {
+    assertGuid(processId, 'processId');
+    const data = await this.get<{ value: Array<{ annotationid: string; notetext: string | null }> }>(
+      `annotations?$select=annotationid,notetext&$filter=_objectid_value eq ${processId} and subject eq '${DESIGNER_LAYOUT_SUBJECT}'&$top=1&$orderby=modifiedon desc`
+    );
+    return data.value[0]?.notetext ?? null;
+  }
+
+  async saveDesignerLayout(processId: string, layoutJson: string): Promise<void> {
+    assertGuid(processId, 'processId');
+    const existing = await this.get<{ value: Array<{ annotationid: string }> }>(
+      `annotations?$select=annotationid&$filter=_objectid_value eq ${processId} and subject eq '${DESIGNER_LAYOUT_SUBJECT}'&$top=1`
+    );
+    const found = existing.value[0];
+    if (found) {
+      await this.patch(`annotations(${found.annotationid})`, { notetext: layoutJson });
+      return;
+    }
+    await this.post('annotations', {
+      subject: DESIGNER_LAYOUT_SUBJECT,
+      notetext: layoutJson,
+      [`objectid_qdb_work_item_record_type@odata.bind`]: `/${ENTITY_SETS.process}(${processId})`,
+    });
+  }
+
+  async loadDesignerState(processId: string): Promise<string | null> {
+    assertGuid(processId, 'processId');
+    const data = await this.get<{ value: Array<{ notetext: string | null }> }>(
+      `annotations?$select=notetext&$filter=_objectid_value eq ${processId} and subject eq '${DESIGNER_STATE_SUBJECT}'&$top=1&$orderby=modifiedon desc`
+    );
+    return data.value[0]?.notetext ?? null;
+  }
+
+  async saveDesignerState(processId: string, stateJson: string): Promise<void> {
+    assertGuid(processId, 'processId');
+    const existing = await this.get<{ value: Array<{ annotationid: string }> }>(
+      `annotations?$select=annotationid&$filter=_objectid_value eq ${processId} and subject eq '${DESIGNER_STATE_SUBJECT}'&$top=1`
+    );
+    const found = existing.value[0];
+    if (found) {
+      await this.patch(`annotations(${found.annotationid})`, { notetext: stateJson });
+      return;
+    }
+    await this.post('annotations', {
+      subject: DESIGNER_STATE_SUBJECT,
+      notetext: stateJson,
+      [`objectid_qdb_work_item_record_type@odata.bind`]: `/${ENTITY_SETS.process}(${processId})`,
+    });
+  }
+
+  async loadAllDesignerStates(): Promise<Record<string, string>> {
+    const data = await this.get<{ value: Array<{ notetext: string | null; _objectid_value: string }> }>(
+      `annotations?$select=notetext,_objectid_value&$filter=subject eq '${DESIGNER_STATE_SUBJECT}'&$orderby=modifiedon desc`
+    );
+    const byProcess: Record<string, string> = {};
+    for (const note of data.value) {
+      // Ordered newest first, so the first entry per process wins.
+      if (note.notetext && !byProcess[note._objectid_value]) {
+        byProcess[note._objectid_value] = note.notetext;
+      }
+    }
+    return byProcess;
   }
 
   async updateProcess(id: string, data: Partial<Omit<WorkflowProcess, 'crmId'>>): Promise<void> {
@@ -422,6 +488,39 @@ export class ODataAdapter implements ISopAdapter {
       }
     }
     return new Map();
+  }
+
+  async getLookupValueName(
+    entityLogicalName: string,
+    attributeLogicalName: string,
+    recordId: string
+  ): Promise<string | null> {
+    try {
+      const attr = await this.get<{ Targets?: string[] }>(
+        `EntityDefinitions(LogicalName='${entityLogicalName}')/Attributes(LogicalName='${attributeLogicalName}')` +
+        '/Microsoft.Dynamics.CRM.LookupAttributeMetadata?$select=Targets'
+      );
+      const id = recordId.replace(/[{}]/g, '').toLowerCase();
+      // A lookup can point at several entities (owner-style); the record only
+      // exists in one of them, so each target is tried until one answers.
+      for (const target of attr.Targets ?? []) {
+        try {
+          const def = await this.get<{ EntitySetName: string; PrimaryNameAttribute: string }>(
+            `EntityDefinitions(LogicalName='${target}')?$select=EntitySetName,PrimaryNameAttribute`
+          );
+          const row = await this.get<Record<string, unknown>>(
+            `${def.EntitySetName}(${id})?$select=${def.PrimaryNameAttribute}`
+          );
+          const name = row[def.PrimaryNameAttribute];
+          if (typeof name === 'string' && name.trim()) return name;
+        } catch {
+          continue;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   async getUsers(search?: string): Promise<UserOption[]> {
@@ -946,6 +1045,9 @@ function buildODataHeaders(): HeadersInit {
     'OData-Version': '4.0',
     'OData-MaxVersion': '4.0',
     Accept: 'application/json',
+    // Xrm.WebApi returns formatted values by default and CRM therefore showed the
+    // assignee; this path did not ask for them, so every *Name read as null in dev.
+    Prefer: 'odata.include-annotations="*"',
   };
 }
 

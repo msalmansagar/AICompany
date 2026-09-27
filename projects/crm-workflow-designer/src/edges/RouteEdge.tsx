@@ -6,7 +6,13 @@ import {
 import type { EdgeProps } from '@xyflow/react';
 import { useState } from 'react';
 import { useWorkflowStore, selectCanvasIsReadOnly } from '@/store/workflowStore';
-import type { RouteEdgeData } from '@/store/selectors';
+export interface RouteEdgeData extends Record<string, unknown> {
+  kind: 'route';
+  crmId: string;
+  name: string;
+  hasFilter: boolean;
+  isFallback: boolean;
+}
 import { routeLabelPair } from '@/styles/surfacePairs';
 import type { RouteLabelKind } from '@/styles/surfacePairs';
 

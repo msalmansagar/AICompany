@@ -1,18 +1,16 @@
 // src/components/SopCanvas/SopCanvas.tsx
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ReactFlow,
   Background,
   BackgroundVariant,
   Controls,
-  useReactFlow,
-  type NodeChange,
   type Connection,
-  applyNodeChanges,
 } from '@xyflow/react';
 import type { Node } from '@xyflow/react';
+import { useSyncedNodes } from '@/hooks/useSyncedNodes';
 import { useSopStore } from '@/store/sopStore';
-import type { SopDesignerState, SopValidationResult } from '@/store/sopStore';
+import type { SopValidationResult } from '@/store/sopStore';
 import { selectSopNodes, selectSopEdges, SOP_SYNTHETIC_PREFIX, SOP_GATEWAY_PREFIX } from '@/store/sopSelectors';
 import { validateSopForPublish } from '@/validators/sopValidator';
 import { emptyEscalationFields } from '@/services/escalationFields';
@@ -26,44 +24,41 @@ import { CreateProcessWizardModal } from '@/components/CreateProcessWizard/Creat
 import { SopStepPanel } from './SopStepPanel';
 import { SopOutcomePanel } from './SopOutcomePanel';
 import { confirm } from '@/components/ui/ConfirmDialog';
+import { notify } from '@/components/ui/Notify';
+import { FitOnceMeasured } from '@/components/common/FitOnceMeasured';
 
 interface SopCanvasProps {
   adapter: ISopAdapter;
 }
 
 export function SopCanvas({ adapter }: SopCanvasProps) {
-  const { fitView } = useReactFlow();
-  const store = useSopStore();
   const { saveSopCanvas } = useSopSave();
 
-  // Lazy init so the first render already has nodes; edges referencing those nodes
-  // will be visible immediately instead of being silently dropped by ReactFlow.
-  const [nodes, setNodes] = useState<Node[]>(() =>
-    selectSopNodes(useSopStore.getState() as unknown as SopDesignerState)
-  );
   const [showWizard, setShowWizard] = useState(false);
   const [showSopProperties, setShowSopProperties] = useState(false);
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const [toastIsError, setToastIsError] = useState(false);
-
+  // One store subscription; the same object carries state and actions.
   const state = useSopStore();
+  const store = state;
 
-  useEffect(() => {
-    setNodes(selectSopNodes(state));
-  }, [state.steps, state.stepOrder, state.outcomes, state.nodePositions, state.selectedId, state.validationResults, state]);
+  const blueprint = useMemo(
+    () => selectSopNodes(state),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state.steps, state.stepOrder, state.outcomes, state.outcomeOrder, state.nodePositions, state.selectedId, state.validationResults]
+  );
+
+  // Keeps React Flow's measured dimensions across blueprint rebuilds, so the
+  // initial fitView frames a measured graph — the old fixed 80ms delayed fit
+  // raced measurement and is gone.
+  const { nodes, onNodesChange: handleNodesChange } = useSyncedNodes(blueprint);
 
   const edges = selectSopEdges(state);
 
   const sopSteps: SopStep[] = state.stepOrder.map((id) => state.steps[id]).filter(Boolean);
 
-  useEffect(() => {
-    setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 80);
-  }, [fitView]);
-
+  // The shared toast host replaces the bespoke banner, whose 3.5s timer
+  // hid a second toast raised within the window of the first.
   const showToast = useCallback((msg: string, isError = false) => {
-    setToastMsg(msg);
-    setToastIsError(isError);
-    setTimeout(() => setToastMsg(null), 3500);
+    notify(msg, isError ? 'error' : 'success');
   }, []);
 
   const handleAddStep = useCallback(() => {
@@ -110,10 +105,6 @@ export function SopCanvas({ adapter }: SopCanvasProps) {
   // Leaving is the sitemap's job now; SopListScreen carries the unsaved-changes
   // guard that used to live behind this screen's back button.
 
-  const handleNodesChange = useCallback((changes: NodeChange[]) => {
-    setNodes((nds) => applyNodeChanges(changes, nds));
-  }, []);
-
   const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     if (node.id.startsWith(SOP_SYNTHETIC_PREFIX)) return;
     // Gateway click selects the parent step so the step panel opens
@@ -149,10 +140,6 @@ export function SopCanvas({ adapter }: SopCanvasProps) {
 
   return (
     <div style={shellStyle}>
-      {toastMsg && (
-        <ToastBanner message={toastMsg} isError={toastIsError} onClose={() => setToastMsg(null)} />
-      )}
-
       {/* The sitemap owns navigation, so there is no back button here — the
           command bar carries only what acts on this SOP. */}
       <div className="cmdbar">
@@ -224,8 +211,9 @@ export function SopCanvas({ adapter }: SopCanvasProps) {
             minZoom={0.08}
             maxZoom={2.5}
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--canvas-grid)" />
             <Controls showInteractive={false} />
+            <FitOnceMeasured options={{ padding: 0.2, duration: 300 }} />
           </ReactFlow>
         </div>
 
@@ -323,26 +311,6 @@ function ValidationBanner({ results, onDismiss }: { results: SopValidationResult
           </li>
         ))}
       </ul>
-    </div>
-  );
-}
-
-function ToastBanner({ message, isError, onClose }: { message: string; isError: boolean; onClose(): void }) {
-  return (
-    <div style={{
-      position: 'absolute', top: 52, left: '50%', transform: 'translateX(-50%)',
-      zIndex: 8000, display: 'flex', alignItems: 'center', gap: 10,
-      background: isError ? 'var(--error-bg)' : 'var(--success-bg)',
-      border: `1px solid ${isError ? 'var(--error)' : 'var(--success)'}`,
-      borderRadius: 8, padding: '10px 16px',
-      boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-      fontSize: 13, color: isError ? 'var(--error)' : 'var(--success)',
-      maxWidth: 480, minWidth: 260,
-    }}>
-      <span style={{ flex: 1 }}>{message}</span>
-      <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'inherit', padding: 0 }}>
-        ×
-      </button>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { stepAccent } from '@/styles/stepAccents';
 import type { WorkflowData, CrmStep, CrmOutcome, CrmRoute } from '../types/ViewTypes';
 import { getAssignToLabel } from '../types/ViewTypes';
 
@@ -10,6 +11,8 @@ import {
 } from '../services/FetchXmlMetadataResolver';
 
 interface ReadOnlyPropertyPanelProps {
+  /** Pans the canvas to a step and selects it (req 12 navigation). */
+  onNavigateToStep?: (stepId: string) => void;
   data: WorkflowData | null;
   selectedId: string | null;
   adapter: ICrmAdapter;
@@ -65,7 +68,7 @@ function resolveSelected(selectedId: string | null, data: WorkflowData | null): 
   return null;
 }
 
-export function ReadOnlyPropertyPanel({ data, selectedId, adapter }: ReadOnlyPropertyPanelProps) {
+export function ReadOnlyPropertyPanel({ data, selectedId, adapter, onNavigateToStep }: ReadOnlyPropertyPanelProps) {
   const selected = resolveSelected(selectedId, data);
 
   if (!data) {
@@ -92,14 +95,23 @@ export function ReadOnlyPropertyPanel({ data, selectedId, adapter }: ReadOnlyPro
     );
   }
 
+  // The same identity colour the card wears — the panel names which step it
+  // is describing without the reader checking the canvas selection.
+  const accent = selected.type === 'step' ? stepAccent(selected.step.id) : undefined;
+
   return (
-    <div className="panel">
+    <div className="panel" style={accent ? { borderTop: `3px solid ${accent}` } : undefined}>
       <div className="panel-body">
         <ProcessInfo process={data.process} stepCount={data.steps.length} />
         {selected.type === 'step' && <StepDetails step={selected.step} />}
         {selected.type === 'outcome' && <OutcomeDetails outcome={selected.outcome} />}
         {selected.type === 'gateway' && (
-          <GatewayDetails outcome={selected.outcome} routes={selected.routes} adapter={adapter} />
+          <GatewayDetails
+            outcome={selected.outcome}
+            routes={selected.routes}
+            adapter={adapter}
+            onNavigateToStep={onNavigateToStep}
+          />
         )}
       </div>
     </div>
@@ -177,10 +189,12 @@ function GatewayDetails({
   outcome,
   routes,
   adapter,
+  onNavigateToStep,
 }: {
   outcome: CrmOutcome;
   routes: CrmRoute[];
   adapter: ICrmAdapter;
+  onNavigateToStep?: (stepId: string) => void;
 }) {
   return (
     <Section title="Filter Gateway">
@@ -190,7 +204,13 @@ function GatewayDetails({
       <SectionLabel>Routes ({routes.length})</SectionLabel>
       <div style={routeListStyle}>
         {routes.map((route, index) => (
-          <RouteEntry key={route.id} route={route} index={index} adapter={adapter} />
+          <RouteEntry
+            key={route.id}
+            route={route}
+            index={index}
+            adapter={adapter}
+            onNavigateToStep={onNavigateToStep}
+          />
         ))}
       </div>
     </Section>
@@ -203,10 +223,12 @@ function RouteEntry({
   route,
   index,
   adapter,
+  onNavigateToStep,
 }: {
   route: CrmRoute;
   index: number;
   adapter: ICrmAdapter;
+  onNavigateToStep?: (stepId: string) => void;
 }) {
   const isFallback = route.isDefault;
   const [resolveState, setResolveState] = useState<ResolveState>(isFallback ? null : 'loading');
@@ -224,7 +246,19 @@ function RouteEntry({
         <span style={buildIndexBadgeStyle(isFallback)}>{index + 1}</span>
         <div style={routeTextBlock}>
           <span style={routeNameStyle}>{route.name || '(unnamed)'}</span>
-          {isFallback && <span style={buildShortLabelStyle(true)}>else (fallback path)</span>}
+          {isFallback && <span style={buildShortLabelStyle(true)}>Default — used when no other route matches</span>}
+          {route.nextStepId && route.nextStepName ? (
+            <button
+              type="button"
+              style={routeTargetNavStyle}
+              title={`Go to "${route.nextStepName}" on the canvas`}
+              onClick={() => onNavigateToStep?.(route.nextStepId as string)}
+            >
+              → {route.nextStepName}
+            </button>
+          ) : (
+            <span style={routeTargetEndStyle}>→ Ends the process</span>
+          )}
         </div>
       </div>
 
@@ -319,6 +353,27 @@ const emptyTitle: React.CSSProperties = {
   fontWeight: 600,
   color: 'var(--text)',
   margin: '0 0 4px',
+};
+
+const routeTargetNavStyle: React.CSSProperties = {
+  background: 'transparent',
+  border: 'none',
+  padding: 0,
+  fontFamily: 'inherit',
+  fontSize: 11,
+  color: 'var(--primary)',
+  textAlign: 'left',
+  textDecoration: 'underline',
+  textUnderlineOffset: 2,
+  cursor: 'pointer',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+};
+
+const routeTargetEndStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: 'var(--error)',
 };
 
 const routeListStyle: React.CSSProperties = {

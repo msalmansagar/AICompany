@@ -1,0 +1,184 @@
+# Phase 8 — work-package tracker
+
+> ## Phase 8 — CLOSED · Production Readiness Dependencies Outstanding
+>
+> **Development closed 2026-09-22.** Final commit **`c09ee67d`** on
+> `feat/dcp-phase8-strategy-automation`, **remote protection verified** — all seven checks pass,
+> local and remote HEAD identical, 24 commits on the remote branch, history unrewritten.
+>
+> | | |
+> |---|---|
+> | Development | **Complete** |
+> | Automated regression | **1,872 passed · 0 failed · 0 skipped** |
+> | Live Cloud regression | **333/333** |
+> | Residue verification | **18/18** |
+> | Cloud | **Cloud Runtime Tested** |
+> | On-Prem | **Dynamics 365 CE 9.1 On-Prem — Compatible by Design; Phase 8 Runtime Validation Pending** |
+> | Original baseline | **36.50 effective hours** |
+> | Revised forecast | **46.00 effective hours** |
+> | Actual | **48.00 effective hours** |
+> | Production readiness | **Dependencies remain as documented in the Phase 8 closure pack** |
+> | Restructuring | **Discovery Complete — Integration Parked** |
+> | Insurance Claims | **Deferred — no applicable process identified** |
+> | Remote protection | **Verified** |
+>
+> **Closing Phase 8 development does NOT close production-readiness dependencies, and must not be
+> read as production readiness.** Every open KI keeps its number, wording, evidence and
+> classification in `KnownIssues.md` and `Phase8_KIRegister.md`. The security dependencies, the
+> QDB decisions, the parked and deferred scope, and the capability matrix stand exactly as
+> documented. **Every browser result in this phase is administrator evidence; no capability has
+> Collection Officer validation.**
+>
+> **Phase 9 is not started.**
+
+---
+
+Authoritative sequence for the remainder of Phase 8, after the QDB sequencing decision of
+2026-09-21. It supersedes the ordering in `Phase8_Discovery.md` §9 while preserving every original
+work-package number, so nothing in the history has to be re-read to follow this.
+
+---
+
+## The decision
+
+Restructuring / Workout / Facility Amendment is **parked**. It is a **sequencing decision, not a
+scope cancellation**, and the downstream integration is **not** counted as delivered.
+
+The remaining functional priority is: **Disputes & Complaints → Legal Collection-side completion →
+Deceased & Insurance Claims → operational queues/UI → validation, QA, hardening, closure.**
+
+---
+
+## Baseline and forecast — kept apart
+
+| | Hours |
+|---|---|
+| **Original Phase 8 baseline** (16 WPs, unchanged) | **36.50** |
+| Delivered against it — WP1–WP11 | 26.00 |
+| Remaining from the original baseline — WP12–WP16 | 10.50 |
+| **Revised forecast due to approved scope sequencing/additional functional modules** | **+9.50** |
+| Forecast total to Phase 8 closure | 46.00 |
+| **Actual at closure** | **48.00** |
+| Variance against the original 36.50 baseline | **+11.50** — of which **+9.50 is approved scope** and **+2.00 execution** |
+| Variance against the latest approved revised forecast | **+2.00** |
+| Blocked / waiting time | **0.00** — no open QDB decision ever blocked development |
+
+**The 36.50-hour baseline is not rewritten.** The additional forecast covers two functional modules
+the original sixteen packages did not contain — Disputes & Complaints, and Deceased & Insurance
+Claims — which the original plan carried only as Phase 9 placeholders in the navigation rail.
+
+---
+
+## CLOSED — Phase 8 development closed 2026-09-22
+
+| Revised WP | Original WP | Scope | Depends on | Status | Est. hrs |
+|---|---|---|---|---|---|
+| **WP12** | *new* | **Disputes & Complaints — discovery.** Complaint = native `incident`, 108 custom columns, established. Collection Dispute **not modelled by QDB**. No collection-control policy exists | 8 | **✅ done** — KI-118/119/120 | 2.00 |
+| **WP13** | *new* | **Disputes & Complaints — Collection-side capability + Complaint integration.** `casetypecode` resolved by label; BFD/HL both proven; `qdb_complaintcaseid` traceability | 12 | **✅ done** — KI-121/122 closed, KI-123 opened | 2.50 |
+| **WP14** | 9, 10 (completion) | **Legal hand-off — Collection-side completion.** State DERIVED from records; `ReadyForHandoff` unreachable while KI-109 is open; queue buckets carry no Legal taxonomy | 9, 10 | **✅ done** | 1.50 |
+| **WP15** | *new* | **Deceased & Insurance Claims — discovery.** No deceased process and **no credit-life insurance** found; BFD claims are guarantee/trade, not death. 724 flags remain data-only | 14 | **✅ discovery done — STOPPED at the gate** — KI-124/125/126/127/128 | 2.00 |
+| **WP16** | *new* | **Deceased Review — Collection-side only.** QCB indication read and reviewed; **no insurance module built** (KI-125). Case byte-identical before and after | 15 | **✅ done** | 2.50 |
+| **WP17** | **12** | **✅ done.** Operational queues and UI — assigned work, awaiting assignment, attention, due soon, overdue, escalated, legal, disputes, deceased, claims, restructuring **recommendation only** | 13, 14, 16 | **✅ accepted** `ebd3497c` | 3.00 → **3.50** |
+| **WP18** | **13** | **✅ done.** Full live Cloud regression — 14 scripts, **333/333**; two prior-phase smokes found broken and repaired | all | **✅ done** | 2.00 |
+| **WP19** | **14** | **✅ done.** Integrated Chrome regression on the verified QDB profile — **five product defects found**, all fixed at root cause | 17 | **✅ done** | 3.00 |
+| **WP20** | **15** | **✅ done.** Full automated regression **1,872 green, 0 skipped**; 9 closure guards proven to bite; independent residue sweep 18/18 | all | **✅ done** | 2.00 |
+| **WP21** | **16** | **✅ done.** Closure pack, consolidated KI register, security readiness review, QDB decision register | all | **✅ done** | 1.50 |
+
+---
+
+## Completed at gate — WP15 Deceased & Insurance Claims (discovery only)
+
+| | |
+|---|---|
+| **Started** | 2026-09-22 |
+| **Estimate** | **2.00 effective hours** (AI-assisted), in the separately tracked revised forecast — not the 36.50 baseline |
+| **Expected completion** | same working session; the gate is a written report, not code |
+| **Depends on** | WP14 (done). Nothing else — discovery is read-only |
+| **Scope** | Read-only semantic discovery across the Cloud organisation and the repository. **No schema, no entity, no configuration, no automation, no communication change, no lifecycle change.** |
+| **Deliverable** | Structured report, sections A–H, then **STOP** for architecture review |
+
+**Known risks, stated before starting:**
+
+1. **The environment-parity trap, for the fourth time.** Legal, Restructuring and Complaint each
+   looked absent on Cloud and were not. Every finding will be classified as *proven QDB process* /
+   *present in Cloud* / *not present in Cloud, On-Prem confirmation required* rather than collapsed
+   into "does not exist".
+2. **The naming trap.** Restructuring was modelled as *Facility Amendment* and a name sweep missed
+   it entirely. This sweep covers option-set **labels** and column names, not just entity names.
+3. **Two capabilities, easily collapsed.** Deceased handling and insurance claims are related and
+   distinct. Conflating them would produce one lifecycle where QDB may have two, or none.
+4. **The 724 MIS records invite an interpretation.** What that indicator *means* is itself a
+   discovery question; treating it as a verified death event is the most likely wrong turn.
+5. **Security gaps are likely.** KI-100, KI-111, KI-116 and KI-120 were all the same shape. Expect
+   a fifth and record it rather than working around it.
+
+---
+
+## Phase 8 closure
+
+**Development closed 2026-09-22.** The pack is four documents:
+
+| Document | What it answers |
+|---|---|
+| `Phase8_Closure.md` | Is the software complete and regression-safe? Capability matrix, evidence, what is **not** delivered, Cloud vs On-Prem, timing |
+| `Phase8_KIRegister.md` | Every open KI, classified **A** production blocker / **B** functional acceptance dependency / **C** deferred |
+| `CollectionOfficerSecurityReadiness.md` | The one security finding that arrived five times — KI-100, KI-111, KI-116, KI-120, KI-128 |
+| `QdbDecisionRegister.md` | The same dependencies in management language, grouped by capability, for a QDB workshop |
+
+**Closure evidence:** 1,872 automated tests (0 skipped) · 333/333 live Cloud checks · 18/18
+independent residue sweep, proven non-vacuous · integrated browser regression on the verified QDB
+profile · 21 guards proven to bite across WP17 and closure.
+
+**Administrator runtime is not officer runtime.** No capability has Collection Officer validation.
+
+**Restructuring: Discovery Complete — Downstream Integration Pending QDB Confirmation.** Not
+delivered, not cancelled.
+
+---
+
+## PARKED
+
+### Restructuring / Workout / Facility Amendment
+
+**Status: Discovery Complete — Parked by QDB sequencing decision; resume after the priority
+modules.** Original **WP11**. Discovery commit **`c64759cc`**; full evidence in
+`docs/WP11_RestructuringDiscovery.md`. Downstream integration is **not delivered**.
+
+Restart point and everything needed to resume without repeating discovery:
+**`docs/Restructuring_Parked_Checkpoint.md`**.
+
+**KI-114, KI-115, KI-116 and KI-117 remain OPEN and must not be closed.**
+
+Until the user says **"Resume Restructuring"**, no restructuring entity, lifecycle, lookup,
+facility mapping, security grant or code/name heuristic is created, and
+`qdb_loan_amendment` is not modified. The operational UI shows the Collection-side
+**recommendation only** — never a fabricated Facility Amendment status.
+
+---
+
+## Completed
+
+| WP | Scope | Commit |
+|---|---|---|
+| 1–2 | Discovery; KI-71 provenance provisioning | `032a47b0` |
+| 3–4 | Strategy identity contract; provenance guard | `032a47b0` |
+| 5 | Re-evaluation dispositions | `032a47b0` |
+| 6 | Assignment decision | `032a47b0` |
+| 7 | TAT and escalation | `032a47b0` |
+| 8 | Action Plan upgrade — KI-71 closed | `780a9f27` |
+| 9 | Legal hand-off | `88b9ec95` (discovery `aad2a334`) |
+| 10 | Legal visibility and traceability — KI-110 closed | `8ddad647` |
+| 11 | Restructuring discovery — **parked, see above** | `c64759cc` |
+
+---
+
+## Runtime statements — never collapsed
+
+Carried forward verbatim; **not** to be shortened to "Legal integration validated":
+
+Legal Recommendation visibility **VALIDATED** · DCP → Litigation traceability **VALIDATED** ·
+Litigation status visibility **VALIDATED under the tested administrator identity** · BFD Account
+resolution **VALIDATED** · HL → BFD resolution **NOT VALIDATED / KI-108** · Legal hand-off
+idempotency **VALIDATED** · Legal qualification policy **UNDEFINED / KI-109** · Collection Officer
+Legal read access **NOT VALIDATED / KI-111** · QDB Legal process execution **UNPROVEN on Cloud** ·
+On-Prem Legal runtime **PENDING**.

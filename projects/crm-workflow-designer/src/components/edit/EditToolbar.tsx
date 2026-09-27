@@ -1,5 +1,15 @@
+import { ToolbarButton, ToolbarOverflow } from '@/components/common/ToolbarButton';
+import { useMinWidth } from '@/components/common/useMinWidth';
+
 interface EditToolbarProps {
   processName: string;
+  /** Demo build is offered only on an empty, clean draft. */
+  canDemo?: boolean;
+  onDemo?: () => void;
+  /** Opens the standalone process summary. */
+  onOpenSummary?: () => void;
+  /** 'draft' | 'published' | 'archived' — drawn as a pill beside the name. */
+  workflowState?: string;
   isDirty: boolean;
   isSaving: boolean;
   isPublishing: boolean;
@@ -8,8 +18,14 @@ interface EditToolbarProps {
   canSimulate: boolean;
   canSimStepBack: boolean;
   validationErrorCount: number;
+  showMiniMap: boolean;
+  showEdgeLabels: boolean;
+  isFocusMode: boolean;
+  onToggleFocusMode: () => void;
   onAddStep: () => void;
   onReLayout: () => void;
+  onToggleMiniMap: () => void;
+  onToggleEdgeLabels: () => void;
   onSave: () => void;
   onPublish: () => void;
   onDiscard: () => void;
@@ -19,6 +35,8 @@ interface EditToolbarProps {
   canRedo: boolean;
   onValidate: () => void;
   onEditProperties: () => void;
+  onBulkEdit: () => void;
+  onReorderSteps: () => void;
   onSimulate: () => void;
   onAutoSimulate: () => void;
   onExitSimulation: () => void;
@@ -28,6 +46,10 @@ interface EditToolbarProps {
 
 export function EditToolbar({
   processName,
+  canDemo,
+  onDemo,
+  onOpenSummary,
+  workflowState,
   isDirty,
   isSaving,
   isPublishing,
@@ -36,8 +58,14 @@ export function EditToolbar({
   canSimulate,
   canSimStepBack,
   validationErrorCount,
+  showMiniMap,
+  showEdgeLabels,
+  isFocusMode,
+  onToggleFocusMode,
   onAddStep,
   onReLayout,
+  onToggleMiniMap,
+  onToggleEdgeLabels,
   onSave,
   onPublish,
   onDiscard,
@@ -47,6 +75,8 @@ export function EditToolbar({
   canRedo,
   onValidate,
   onEditProperties,
+  onBulkEdit,
+  onReorderSteps,
   onSimulate,
   onAutoSimulate,
   onExitSimulation,
@@ -54,6 +84,11 @@ export function EditToolbar({
   onSimReset,
 }: EditToolbarProps) {
   const displayName = isDirty ? `${processName} *` : processName;
+  // Same responsive rule as the view toolbar (agentation feedback,
+  // CWFD-018): words beside the glyphs where the width allows, glyph-only
+  // below 1280px so the bar never scrolls sideways again (#129). The
+  // occasional commands stay in the overflow at every width.
+  const isWide = useMinWidth(1280);
 
   return (
     <div className="cmdbar" role="toolbar" aria-label="Workflow editor">
@@ -72,72 +107,96 @@ export function EditToolbar({
         </>
       ) : (
         <>
-          <button type="button" className="cmd" onClick={onUndo} disabled={!canUndo} title="Undo last change">
-            Undo
-          </button>
-          <button type="button" className="cmd" onClick={onRedo} disabled={!canRedo} title="Redo last undone change">
-            Redo
-          </button>
+          {/* Editing: the two commands a maker reaches for constantly. */}
+          <ToolbarButton icon="undo" label="Undo" title="Undo last change" iconOnly={!isWide} disabled={!canUndo} onClick={onUndo} />
+          <ToolbarButton icon="redo" label="Redo" title="Redo last undone change" iconOnly={!isWide} disabled={!canRedo} onClick={onRedo} />
           <span className="cmd-sep" />
-          <button type="button" className="cmd" onClick={onAddStep} title="Add a new step to this workflow">
-            Add step
-          </button>
-          <button type="button" className="cmd" onClick={onReLayout} title="Auto-arrange all steps">
-            ⊞ Layout
-          </button>
+          <ToolbarButton icon="addStep" label="Add step" title="Add a new step to this workflow" onClick={onAddStep} />
+          <ToolbarButton icon="layout" label="Arrange" title="Auto-arrange all steps" iconOnly={!isWide} onClick={onReLayout} />
+
+          {/* Canvas toggles: labelled where the width allows, glyph-only
+              where labels would push the bar into a sideways scroll. */}
+          <ToolbarButton
+            icon="minimap"
+            label="Minimap"
+            title={showMiniMap ? 'Hide the minimap' : 'Show the minimap'}
+            iconOnly={!isWide}
+            active={showMiniMap}
+            onClick={onToggleMiniMap}
+          />
+          <ToolbarButton
+            icon="labels"
+            label="Labels"
+            title={showEdgeLabels ? 'Hide the labels on edges' : 'Show the labels on edges'}
+            iconOnly={!isWide}
+            active={!showEdgeLabels}
+            onClick={onToggleEdgeLabels}
+          />
+          <ToolbarButton
+            icon="focus"
+            label={isFocusMode ? 'Exit Focus' : 'Focus'}
+            title="Focus Mode: fade everything except the selected step and its relationships"
+            iconOnly={!isWide && !isFocusMode}
+            active={isFocusMode}
+            onClick={onToggleFocusMode}
+          />
           <span className="cmd-sep" />
-          <button
-            type="button"
-            className={validationErrorCount > 0 ? 'cmd danger' : 'cmd'}
-            onClick={onValidate}
+
+          <ToolbarButton
+            icon="validate"
+            label="Validate"
             title="Check this workflow for problems"
+            tone={validationErrorCount > 0 ? 'danger' : 'default'}
+            onClick={onValidate}
           >
-            ✓ Validate
             {validationErrorCount > 0 && <span className="pill error">{validationErrorCount}</span>}
-          </button>
-          <button
-            type="button"
-            className="cmd"
-            onClick={onEditProperties}
-            title="View or edit this process's own settings"
-          >
-            ⚙ Properties
-          </button>
+          </ToolbarButton>
+
+          {/* Committing work keeps its words: these are the consequential ones. */}
           <span className="cmd-sep" />
-          <button type="button" className="cmd" onClick={onSave} disabled={isSaving} title="Save as draft">
-            {isSaving ? 'Saving…' : 'Save draft'}
-          </button>
-          <button
-            type="button"
-            className="cmd primary"
-            onClick={onPublish}
-            disabled={!canPublish || isPublishing}
+          <ToolbarButton
+            icon="save"
+            label={isSaving ? 'Saving…' : 'Save draft'}
+            title="Save as draft"
+            disabled={isSaving}
+            onClick={onSave}
+          />
+          <ToolbarButton
+            icon="publish"
+            label={isPublishing ? 'Publishing…' : 'Publish'}
             title={canPublish ? 'Publish this workflow' : 'Save first to enable publish'}
-          >
-            {isPublishing ? 'Publishing…' : 'Publish'}
-          </button>
-          <span className="cmd-sep" />
-          <button
-            type="button"
-            className="cmd"
-            onClick={onSimulate}
-            disabled={!canSimulate}
-            title={canSimulate ? 'Run a visual step-by-step simulation' : 'Add steps to enable simulation'}
-          >
-            ▶ Simulate
-          </button>
-          <button
-            type="button"
-            className="cmd"
-            onClick={onAutoSimulate}
-            disabled={!canSimulate}
-            title={canSimulate ? 'Enumerate all possible paths automatically' : 'Add steps to enable simulation'}
-          >
-            ⏵⏵ Auto
-          </button>
-          <button type="button" className="cmd danger" onClick={onDiscard} title="Discard all unsaved changes">
-            Discard
-          </button>
+            tone="primary"
+            disabled={!canPublish || isPublishing}
+            onClick={onPublish}
+          />
+
+          {/* Everything occasional lives one click away instead of off-screen. */}
+          <ToolbarOverflow
+            items={[
+              ...(onOpenSummary
+                ? [{ icon: 'summary' as const, label: 'Process summary', onClick: onOpenSummary }]
+                : []),
+              { icon: 'settings' as const, label: 'Process properties', onClick: onEditProperties },
+              { icon: 'summary' as const, label: 'Edit all steps', onClick: onBulkEdit },
+              { icon: 'layout' as const, label: 'Reorder steps', onClick: onReorderSteps },
+              ...(canDemo && onDemo
+                ? [{ icon: 'demo' as const, label: 'Demo build', onClick: onDemo }]
+                : []),
+              {
+                icon: 'simulate' as const,
+                label: 'Simulate',
+                onClick: onSimulate,
+                disabled: !canSimulate,
+              },
+              {
+                icon: 'auto' as const,
+                label: 'Enumerate all paths',
+                onClick: onAutoSimulate,
+                disabled: !canSimulate,
+              },
+              { icon: 'discard' as const, label: 'Discard changes', onClick: onDiscard, tone: 'danger' as const },
+            ]}
+          />
         </>
       )}
 
@@ -145,6 +204,11 @@ export function EditToolbar({
       <span style={processNameStyle} title={processName}>
         {isSimulating ? `Simulating: ${processName}` : displayName}
       </span>
+      {!isSimulating && workflowState && (
+        <span className={workflowState === 'published' ? 'pill published' : 'pill draft'}>
+          {workflowState === 'published' ? 'Published' : workflowState === 'archived' ? 'Archived' : 'Draft'}
+        </span>
+      )}
     </div>
   );
 }

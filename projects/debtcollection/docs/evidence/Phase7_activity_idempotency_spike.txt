@@ -1,0 +1,32 @@
+=== Phase 7 WP3 — upsert-by-id on native activity entities ===
+
+  Organisation: org5869857f.crm4.dynamics.com
+  NOTE: QDB's dispatcher is not installed here, so no fax row can send (KI-83).
+
+
+  ── faxes ──
+  PASS  faxes: a record can be created at a client-chosen id
+  PASS  faxes: it reads back at that exact id — 90db4068-7461-4bf7-97bf-879c7dd667d1
+  PASS  faxes: the values were stored, not merely accepted
+  PASS  faxes: a repeat at the same id is refused, not duplicated
+  PASS  faxes: the refused repeat did NOT overwrite the original — SMOKE-P7IDEM-FAXES-20260920053606
+  PASS  faxes: an unguarded PATCH to a fresh id creates a row (so the guard is what stops it) — HTTP 201
+  PASS  faxes: exactly one row exists for the duplicated submission — 1 rows
+
+  ── emails ──
+  PASS  emails: a record can be created at a client-chosen id
+  PASS  emails: it reads back at that exact id — 9a2a90c9-d30d-4ad2-a8d1-a55116259fdb
+  PASS  emails: the values were stored, not merely accepted
+  PASS  emails: a repeat at the same id is refused, not duplicated
+  PASS  emails: the refused repeat did NOT overwrite the original — SMOKE-P7IDEM-EMAILS-20260920053606
+  PASS  emails: an unguarded PATCH to a fresh id creates a row (so the guard is what stops it) — HTTP 201
+  PASS  emails: exactly one row exists for the duplicated submission — 1 rows
+
+  ── Cleanup ──
+  PASS  every record this spike created was removed — 4 removed, 0 refused
+  PASS  zero SMOKE-P7IDEM residue in faxes — 0 rows
+  PASS  zero SMOKE-P7IDEM residue in emails — 0 rows
+
+  17/17 checks passed.
+
+  CONCLUSION: deterministic per-recipient ids are a sound basis for bulk idempotency.

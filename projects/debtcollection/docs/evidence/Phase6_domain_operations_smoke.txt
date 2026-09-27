@@ -1,0 +1,140 @@
+=== Phase 6 — domain operations and query modules against the real platform ===
+
+  Organisation: org5869857f.crm4.dynamics.com
+
+  PASS  seeded both customer contexts — HL contact and BFD account
+
+  Activity — create, complete, outcome-driven behaviour
+  PASS  an activity is created through the service
+  PASS  the case and type bindings are stored, read back from Dataverse
+  PASS  the server assigned the opening status, not the client
+  PASS  completion is refused when the configured outcome requires notes
+  PASS  completion succeeds once the notes are supplied
+  PASS  the notes are stored on the activity base column, not a qdb_ column
+  PASS  the outcome is bound through its navigation property
+  PASS  the follow-up is scheduled the CONFIGURED number of days out — 2026-09-22T10:00:00Z
+  PASS  the activity is closed
+  PASS  a completed activity cannot be reopened
+
+  Promise to pay — the same entity, carrying promise columns
+  PASS  a promise is created through the service
+  PASS  the promise lives on qdb_collectionactivity — no second entity exists
+  PASS  the promise opens Active
+  PASS  a documented promise transition is accepted
+  PASS  the reported amount is stored
+  PASS  a transition the matrix forbids is refused before any request is made
+  PASS  no verification flag is written by a promise outcome
+
+  Concurrency — a stale write, and two legitimate saves in a row
+  PASS  the first save succeeds
+  PASS  a second consecutive save by the same user also succeeds
+  PASS  a stale write is reported as a conflict, not a generic failure
+  PASS  the conflict message carries no HTTP or ETag vocabulary
+  PASS  the refused stale payload did NOT overwrite the stored value — 2026-10-08T00:00:00Z
+
+  Duplicate submission — the same id, sent twice
+  PASS  the first submission created the activity
+  PASS  the retry reports saved, not an error
+  PASS  the retry did NOT create a second record
+  PASS  exactly one row exists for the duplicated submission — 1 rows
+
+  Query modules — server-side paging, filtering and the Action Plan
+  PASS  paging returned more than one page — 2 pages
+  PASS  no row appeared twice across pages
+  PASS  both seeded cases were seen — 2 rows
+  PASS  a query without a continuation restarts at the first page
+  PASS  the follow-up query returns rows and every one has a follow-up date — 8 rows
+  PASS  the Action Plan lists the strategy's planned actions — 1 rows
+  PASS  the planned call is correlated with the calls that were made, and one is completed — 3 matched
+  PASS  an activity of a different type is NOT correlated with the planned call
+  PASS  an account-backed BFD case is readable by the same query module
+  PASS  the PTP query returns the seeded promise — 1 rows
+
+  Configuration — what the Phase 6 forms will offer
+  PASS  the activity-type catalogue is not empty — 11 types
+  PASS  every offered type is active — a retired one is never selectable for a new record
+  PASS  types arrive in configuration's own order, not alphabetical
+  PASS  a call type is configured — Call (P6-synthetic)
+  PASS  the call type offers outcomes — 7 outcomes
+  PASS  every outcome offered belongs to the chosen type
+  PASS  the catalogue varies across the behaviours the form drives from it — 3 need notes, 4 need follow-up
+  PASS  a different activity type offers different outcomes — 2 visit outcomes, 0 shared with call
+  PASS  a promise activity type is configured, so a promise can be captured — Promise to Pay (P6-synthetic)
+
+  Configured follow-up — derived, written, and read back
+  PASS  a deployed outcome schedules a follow-up — P6-CALL-CONTACTED → 3 days
+  PASS  an activity was logged against the deployed call type
+  PASS  it starts with no follow-up, so the one that appears can only be derived — null
+  PASS  it completes without the officer supplying a follow-up date
+  PASS  a follow-up date was persisted by Dataverse — 2026-09-22T17:08:46Z
+  PASS  the persisted date is the one configuration derives, to the day — expected 2026-09-22, stored 2026-09-22
+  PASS  the stored follow-up is the same calendar day in Asia/Qatar as in UTC — UTC 2026-09-22, Qatar 2026-09-22
+  PASS  completing the activity closed it
+
+  HTTP: 22 reads, 12 writes through the production classes.
+
+  Cleanup
+
+─── Records identified ───
+  collection activity              a9e16adf-d158-41ca-9b8c-2710c24684cb  SMOKE-P6OPS-FOLLOWUP-20260919170834
+  collection activity              49892e13-8b58-4b32-aad7-28b818e8f8c0  SMOKE-P6OPS-PTP-1-20260919170834
+  collection activity              1ebcfe36-3edc-4518-9bc2-34f26cf0f97b  SMOKE-P6OPS-CONFLICT-20260919170834
+  collection activity              ab077c22-bd83-4dc4-856a-c9f8781baa56  SMOKE-P6OPS-DUPLICATE-20260919170834
+  collection activity              1268540f-0a6c-4378-9a5c-ce31b1e082f0  SMOKE-P6OPS-CALL-1-20260919170834
+  collection case                  5154c0be-4cb4-f111-aaac-000d3abcf32d  SMOKE-P6OPS-BFD-20260919170834
+  collection case                  6ea2dabf-4cb4-f111-aaac-70a8a55bc6a5  SMOKE-P6OPS-HL-20260919170834
+  strategy action                  0cb8bac0-4cb4-f111-aaac-000d3abd8313  SMOKE-P6OPS-PLANNED-CALL-20260919170834
+  collection strategy              09b8bac0-4cb4-f111-aaac-000d3abd8313  SMOKE-P6OPS-STRATEGY-20260919170834
+  activity type (reference data)   4854c0be-4cb4-f111-aaac-000d3abcf32d  SMOKE-P6OPS-CALL-20260919170834
+  activity type (reference data)   0ab8bac0-4cb4-f111-aaac-000d3abd8313  SMOKE-P6OPS-PTP-20260919170834
+  activity outcome (reference data) 5354c0be-4cb4-f111-aaac-000d3abcf32d  SMOKE-P6OPS-CONTACTED-20260919170834
+  contact (smoke customer)         69a2dabf-4cb4-f111-aaac-70a8a55bc6a5  SMOKE-P6OPS-QID-20260919170834
+  account (smoke BFD customer)     03b8bac0-4cb4-f111-aaac-000d3abd8313  SMOKE-P6OPS-BFD-CUSTOMER-20260919170834
+  14 record(s) — every one matched on the "SMOKE-" marker.
+
+─── Checking for anything else that references them ───
+  Nothing outside the smoke set references them.
+
+─── Temporarily disabling the three qdb_ Delete guards ───
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation)
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation)
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation)
+
+─── Deleting guarded rows ───
+  [DELETED] collection activity SMOKE-P6OPS-FOLLOWUP-20260919170834 (a9e16adf-d158-41ca-9b8c-2710c24684cb)
+  [DELETED] collection activity SMOKE-P6OPS-PTP-1-20260919170834 (49892e13-8b58-4b32-aad7-28b818e8f8c0)
+  [DELETED] collection activity SMOKE-P6OPS-CONFLICT-20260919170834 (1ebcfe36-3edc-4518-9bc2-34f26cf0f97b)
+  [DELETED] collection activity SMOKE-P6OPS-DUPLICATE-20260919170834 (ab077c22-bd83-4dc4-856a-c9f8781baa56)
+  [DELETED] collection activity SMOKE-P6OPS-CALL-1-20260919170834 (1268540f-0a6c-4378-9a5c-ce31b1e082f0)
+  [DELETED] collection case SMOKE-P6OPS-BFD-20260919170834 (5154c0be-4cb4-f111-aaac-000d3abcf32d)
+  [DELETED] collection case SMOKE-P6OPS-HL-20260919170834 (6ea2dabf-4cb4-f111-aaac-70a8a55bc6a5)
+
+─── Restoring the guards ───
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation)
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation)
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation)
+
+─── Verifying the restored registration ───
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation) — enabled=true filter=(none) images=(none)
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation) — enabled=true filter=(none) images=PreImage(statecode)
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation) — enabled=true filter=(none) images=(none)
+
+─── Deleting reference data (no guard involved) ───
+  [DELETED] strategy action SMOKE-P6OPS-PLANNED-CALL-20260919170834 (0cb8bac0-4cb4-f111-aaac-000d3abd8313)
+  [DELETED] collection strategy SMOKE-P6OPS-STRATEGY-20260919170834 (09b8bac0-4cb4-f111-aaac-000d3abd8313)
+  [DELETED] activity type (reference data) SMOKE-P6OPS-CALL-20260919170834 (4854c0be-4cb4-f111-aaac-000d3abcf32d)
+  [DELETED] activity type (reference data) SMOKE-P6OPS-PTP-20260919170834 (0ab8bac0-4cb4-f111-aaac-000d3abd8313)
+  [DELETED] activity outcome (reference data) SMOKE-P6OPS-CONTACTED-20260919170834 (5354c0be-4cb4-f111-aaac-000d3abcf32d)
+  [DELETED] contact (smoke customer) SMOKE-P6OPS-QID-20260919170834 (69a2dabf-4cb4-f111-aaac-70a8a55bc6a5)
+  [DELETED] account (smoke BFD customer) SMOKE-P6OPS-BFD-CUSTOMER-20260919170834 (03b8bac0-4cb4-f111-aaac-000d3abd8313)
+
+─── Confirming no residue remains ───
+  PASS  0 smoke record(s) remain
+
+Cleanup complete. The guards are registered and enabled exactly as before.
+  PASS  zero SMOKE- activity residue remains — 0 rows
+  PASS  zero SMOKE- case residue remains — 0 rows
+  PASS  DEMO- scenario data is untouched — 5 cases
+  PASS  P6- configuration is untouched — 30 outcomes
+
+  58/58 checks passed.

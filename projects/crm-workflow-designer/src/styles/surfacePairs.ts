@@ -74,6 +74,72 @@ export function routeLabelPair(kind: RouteLabelKind): SurfacePair {
   return ROUTE_LABEL_PAIRS[kind];
 }
 
+
+/** Which direction a Technical (New) outcome pill points. */
+export type TechOutcomePillKind = 'forward' | 'return' | 'terminal';
+
+/**
+ * Outcome pills on the Technical (New) canvas. They were drawn with the
+ * accent as both the fill and the text — rgb(40,153,245) on itself — so the
+ * outcome name was invisible in every theme. Same neutral raised ground the
+ * route labels settled on, with the accent carrying meaning as text + border.
+ */
+const TECH_OUTCOME_PILLS: Readonly<Record<TechOutcomePillKind, SurfacePair>> = {
+  forward: {
+    background: 'var(--surface-raised)',
+    foreground: 'var(--primary)',
+    border: 'var(--primary)',
+  },
+  return: {
+    background: 'var(--surface-raised)',
+    foreground: 'var(--accent-branch)',
+    border: 'var(--accent-branch)',
+  },
+  terminal: {
+    background: 'var(--surface-raised)',
+    foreground: 'var(--error)',
+    border: 'var(--error)',
+  },
+};
+
+/**
+ * The colours for a Technical (New) outcome pill.
+ * @param kind forward transition, return to an earlier step, or terminal
+ * @returns the background, foreground and border to draw it with
+ */
+export function techOutcomePillPair(kind: TechOutcomePillKind): SurfacePair {
+  return TECH_OUTCOME_PILLS[kind];
+}
+
+/**
+ * The step-to-step label on the executive canvas. It was `--text-secondary`
+ * on a `--text` fill — text on text, unreadable in both light and dark.
+ */
+export const EXEC_EDGE_LABEL: SurfacePair = {
+  background: 'var(--surface-raised)',
+  foreground: 'var(--text-secondary)',
+  border: 'var(--border-strong)',
+};
+
+/**
+ * The entity chip on a SOP step ("CRM"). `--primary-pressed` on
+ * `--primary-tint` measured 2.4:1 in the dark theme.
+ */
+export const ENTITY_CHIP: SurfacePair = {
+  background: 'var(--primary-tint)',
+  foreground: 'var(--text)',
+  border: 'var(--primary)',
+};
+
+/**
+ * The badge on a card whose outcome ends the process ('Terminating').
+ */
+export const TERMINATING_BADGE_REGISTRATION: SurfacePair = {
+  background: 'var(--error-bg)',
+  foreground: 'var(--error)',
+  border: 'var(--error)',
+};
+
 /**
  * Every pairing the contrast guard checks. A new pair must be registered here,
  * which is what stops the next one from going unmeasured.
@@ -84,4 +150,10 @@ export const ALL_SURFACE_PAIRS: Readonly<Record<string, SurfacePair>> = {
   'route label · plain': ROUTE_LABEL_PAIRS.plain,
   'node chip · neutral': NODE_NEUTRAL_CHIP,
   'branch edge label': BRANCH_EDGE_LABEL,
+  'tech outcome pill · forward': TECH_OUTCOME_PILLS.forward,
+  'tech outcome pill · return': TECH_OUTCOME_PILLS.return,
+  'tech outcome pill · terminal': TECH_OUTCOME_PILLS.terminal,
+  'executive edge label': EXEC_EDGE_LABEL,
+  'node chip · entity': ENTITY_CHIP,
+  'terminating badge': TERMINATING_BADGE_REGISTRATION,
 };

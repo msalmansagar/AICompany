@@ -1,0 +1,26 @@
+=== Debt Collection app — PROVISION ===
+
+  Organisation: org5869857f.crm4.dynamics.com
+  Scope: one app module and one sitemap. No table, column, choice or relationship.
+
+  PASS  The workspace web resource exists to point at — 0bd4fee5-97b3-f111-aaac-000d3abd8313
+  PASS  Sitemap updated — 6f9c8e56-12b4-f111-aaac-000d3abd8313
+  PASS  App icon already present — 92d84587-12b4-f111-aaac-000d3abd8313
+  PASS  App module already present — d3d594e6-13b4-f111-aaac-70a8a55bc6a5
+  PASS  Sitemap added to the app — 6f9c8e56-12b4-f111-aaac-000d3abd8313
+     (no entity component: the app is one sitemap over one web resource, by design)
+     Warning: null
+     Warning: App does not reference at least one entity
+  PASS  The app validates with no errors — 2 warning(s)
+  PASS  Published — app, sitemap and web resource — PublishXml accepted
+  PASS  The app reads back from the organisation — Debt Collection (qdb_CollectionWorkspace)
+  PASS  It is a Unified Interface app — clienttype=4
+
+  Open it at:
+    https://org5869857f.crm4.dynamics.com/main.aspx?appid=d3d594e6-13b4-f111-aaac-70a8a55bc6a5
+
+  NOT proven by this script: that the app renders the workspace full-page without the
+  "Choose an app" banner. That needs a browser with a CRM session, like every other
+  runtime claim in this phase.
+
+=== 9/9 checks passed ===

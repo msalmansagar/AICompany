@@ -1,0 +1,59 @@
+=== Phase 6 spike — an idempotent create, without inventing schema ===
+
+  Organisation: org5869857f.crm4.dynamics.com
+  PASS  Reference data is present — a7371669-17b4-f111-aaac-70a8a55bc6a5
+
+─── 1. The first submission ───
+  PASS  A PATCH to a client-chosen id with If-None-Match: * creates the record — HTTP 204
+  PASS  …at exactly the id the client chose — 182c0043-e58c-4f96-a509-f35a70193fbf
+
+─── 2. Do the Create plugins still run on an upsert? ───
+  PASS  DefaultStatusAssigner set the opening status — statuscode=100000640
+  PASS  ActivitySubjectComposer left a composed subject — SMOKE-P6 idempotent
+
+─── 3. The double-click: the SAME request again ───
+  PASS  The repeat is REFUSED rather than creating a second record — HTTP 412
+  PASS  …and the refusal is recognisable — A record with matching key values already exists.
+  PASS  Exactly ONE record exists, not two — 1 row(s)
+
+─── 4. Is the guard doing the work, or would any PATCH be safe? ───
+  PASS  A PATCH to a fresh id WITHOUT If-None-Match also creates — so the guard is what refuses — HTTP 204
+     (upsert-by-id is the platform default; If-None-Match: * is what turns it into
+      create-only, and is therefore not optional)
+  PASS  The unguarded PATCH created a SECOND row — which is the failure being prevented — 2 row(s)
+
+─── Cleanup ───
+
+─── Records identified ───
+  collection activity              00d77919-d146-4d0f-81b5-b060746c2f5d  SMOKE-P6-IDEM
+  collection activity              182c0043-e58c-4f96-a509-f35a70193fbf  SMOKE-P6-IDEM
+  2 record(s) — every one matched on the "SMOKE-" marker.
+
+─── Checking for anything else that references them ───
+  Nothing outside the smoke set references them.
+
+─── Temporarily disabling the three qdb_ Delete guards ───
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation)
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation)
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation)
+
+─── Deleting guarded rows ───
+  [DELETED] collection activity SMOKE-P6-IDEM (00d77919-d146-4d0f-81b5-b060746c2f5d)
+  [DELETED] collection activity SMOKE-P6-IDEM (182c0043-e58c-4f96-a509-f35a70193fbf)
+
+─── Restoring the guards ───
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation)
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation)
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation)
+
+─── Verifying the restored registration ───
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation) — enabled=true filter=(none) images=(none)
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation) — enabled=true filter=(none) images=PreImage(statecode)
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation) — enabled=true filter=(none) images=(none)
+
+─── Confirming no residue remains ───
+  PASS  0 smoke record(s) remain
+
+Cleanup complete. The guards are registered and enabled exactly as before.
+
+=== 10/10 checks passed ===

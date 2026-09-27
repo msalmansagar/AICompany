@@ -1,4 +1,5 @@
 import { Handle, Position } from '@xyflow/react';
+import { AssignIcon } from './assignIcons';
 import type { NodeProps } from '@xyflow/react';
 import type { AssignToType } from '@/types/WorkflowTypes';
 import { ASSIGN_TO_ACCENTS, ASSIGN_TO_LABELS as ASSIGN_LABELS } from '@/services/taskAssignment';
@@ -24,8 +25,8 @@ export function SimStepNode({ data }: NodeProps) {
       {d.simStatus === 'active' && (
         <style>{`
           @keyframes simPulse {
-            0%, 100% { box-shadow: 0 0 0 3px rgba(37,99,235,0.4); }
-            50% { box-shadow: 0 0 0 8px rgba(37,99,235,0.08); }
+            0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 40%, transparent); }
+            50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--primary) 8%, transparent); }
           }
         `}</style>
       )}
@@ -42,7 +43,14 @@ export function SimStepNode({ data }: NodeProps) {
       </div>
 
       <div style={bodyStyle}>
-        <span style={buildChipStyle(d.assignTo, mono)}>{ASSIGN_LABELS[d.assignTo]}</span>
+        <span
+          style={{ ...buildChipStyle(d.assignTo, mono), display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 18 }}
+          title={ASSIGN_LABELS[d.assignTo]}
+          aria-label={ASSIGN_LABELS[d.assignTo]}
+          role="img"
+        >
+          <AssignIcon type={d.assignTo} />
+        </span>
         {d.assigneeName && <span style={assigneeStyle}>{d.assigneeName}</span>}
       </div>
 
@@ -100,7 +108,7 @@ const seqBadgeStyle: React.CSSProperties = {
   minWidth: 20,
   height: 20,
   borderRadius: 4,
-  background: 'rgba(255,255,255,0.15)',
+  background: 'var(--neutral-chip)',
   color: 'var(--text-disabled)',
   fontSize: 10,
   fontWeight: 700,

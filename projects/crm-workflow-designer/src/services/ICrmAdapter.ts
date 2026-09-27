@@ -50,6 +50,17 @@ export interface ICrmAdapter {
   getAttributes(entityLogicalName: string): Promise<AttributeOption[]>;
   getAttributesMeta(entityLogicalName: string): Promise<AttributeMeta[]>;
   getOptionSetLabels(entityLogicalName: string, attributeLogicalName: string): Promise<Map<number, string>>;
+  /**
+   * The display name of the record a lookup condition points at — the name
+   * behind "{6F1275D7-…}". Resolves the lookup's target entity from metadata,
+   * then reads that record's primary name. Null when anything along the way
+   * is missing; the caller falls back to showing the raw value.
+   */
+  getLookupValueName(
+    entityLogicalName: string,
+    attributeLogicalName: string,
+    recordId: string
+  ): Promise<string | null>;
   getUsers(search?: string): Promise<UserOption[]>;
   getTeams(): Promise<TeamOption[]>;
   getRoundRobinTeams(): Promise<TeamOption[]>;
@@ -68,6 +79,24 @@ export interface ICrmAdapter {
 
   // Audit
   logAuditEntry(entry: AuditLogEntry): Promise<void>;
+
+  /**
+   * The designer layout for a process, stored as an annotation on the
+   * process record (subject 'cwfd:designer-layout') — the entity has notes
+   * enabled, so no schema was added for this.
+   */
+  loadDesignerLayout(processId: string): Promise<string | null>;
+  saveDesignerLayout(processId: string, layoutJson: string): Promise<void>;
+
+  /**
+   * The designer's own state for a process — published/draft, version, and
+   * the comparison snapshot. Same annotation home as the layout, for the
+   * same reason: the entity carries no column for any of it.
+   */
+  loadDesignerState(processId: string): Promise<string | null>;
+  saveDesignerState(processId: string, stateJson: string): Promise<void>;
+  /** Every process id that has stored state, for the list screen. */
+  loadAllDesignerStates(): Promise<Record<string, string>>;
 }
 
 export interface AuditLogEntry {

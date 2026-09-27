@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { WorkflowHooksSection } from './WorkflowHooksSection';
 import { RouteConfigDialog } from './RouteConfigDialog';
+import { useReactFlow } from '@xyflow/react';
+import { centerOnNode } from '@/components/common/canvasNavigation';
 import { useFetchXmlEntityContext } from '@/hooks/useFetchXmlEntityContext';
 import type { RouteDraft } from '@/services/routeDraftValidation';
 import { hasRealCondition } from '@/services/routeFilter';
@@ -43,6 +45,13 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
   }));
 
   const [addingRoute, setAddingRoute] = useState(false);
+  const reactFlow = useReactFlow();
+
+  // Req 12: a route's target is a door — click it and the canvas goes there.
+  const navigateToStep = (stepId: string) => {
+    selectNode(`step_${stepId}`);
+    centerOnNode(reactFlow, `step_${stepId}`);
+  };
   const fetchXmlContext = useFetchXmlEntityContext(adapter);
   /** Deleting a route removes a Dataverse record, so it goes through the same
    * confirmation the decision delete uses rather than a bespoke pattern. */
@@ -67,7 +76,6 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
   }
 
   const title = outcome.applyFilter ? 'Decision Properties' : 'Transition Properties';
-  const targetStep = outcome.nextStepId ? steps[outcome.nextStepId] : null;
 
   const outcomeRoutes: WorkflowRoute[] = (routeOrder[outcome.crmId] ?? [])
     .map((id) => routes[id])
@@ -190,13 +198,34 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
         </div>
 
         {/* Where this decision leads. With conditional routing on, each route carries its
-            own target and this one is not consulted, so showing it would be misleading. */}
+            own target and this one is not consulted, so showing it would be misleading.
+            CWFD-016 B4: this used to be a read-only chip — re-pointing a transition
+            meant deleting the decision and drawing it again. */}
         {!outcome.applyFilter && (
           <div style={fieldGroupStyle}>
             <label className="lbl">Next Step</label>
-            <div style={targetChipStyle}>
-              {targetStep ? `${targetStep.sequenceNo}. ${targetStep.name}` : '— End of workflow —'}
-            </div>
+            <select
+              className="fluent-select"
+              value={outcome.nextStepId ?? '__end__'}
+              onChange={(e) =>
+                setOutcome({
+                  ...outcome,
+                  nextStepId: e.target.value === '__end__' ? null : e.target.value,
+                })
+              }
+              aria-label="Where this decision leads"
+            >
+              <option value="__end__">— End of workflow —</option>
+              {stepOrder
+                .filter((id) => id !== outcome.stepId)
+                .map((id) => steps[id])
+                .filter(Boolean)
+                .map((candidate) => (
+                  <option key={candidate.crmId} value={candidate.crmId}>
+                    {candidate.sequenceNo}. {candidate.name}
+                  </option>
+                ))}
+            </select>
           </div>
         )}
 
@@ -223,9 +252,21 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
                     <div style={routeInfoStyle}>
                       <span style={routeNameStyle}>{route.name || '(unnamed)'}</span>
                       <span style={routeCondStyle}>{describeRouteCondition(route)}</span>
-                      <span style={routeNextStyle}>
-                        → {nextStep ? `${nextStep.sequenceNo}. ${nextStep.name}` : 'End'}
-                      </span>
+                      {nextStep ? (
+                        <button
+                          type="button"
+                          style={routeNavStyle}
+                          title={`Go to "${nextStep.name}" on the canvas`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            navigateToStep(nextStep.crmId);
+                          }}
+                        >
+                          → {nextStep.sequenceNo}. {nextStep.name}
+                        </button>
+                      ) : (
+                        <span style={routeNextStyle}>→ End</span>
+                      )}
                     </div>
                     <span style={routeArrowStyle}>›</span>
                   </button>
@@ -315,15 +356,6 @@ const fieldGroupStyle: React.CSSProperties = {
   gap: 4,
 };
 
-const targetChipStyle: React.CSSProperties = {
-  padding: '4px 8px',
-  background: 'var(--surface)',
-  border: '1px solid var(--border)',
-  borderRadius: 4,
-  color: 'var(--text-disabled)',
-  fontSize: 12,
-};
-
 const toggleStyle: React.CSSProperties = {
   width: '100%',
   height: 30,
@@ -363,7 +395,7 @@ const countBadgeStyle: React.CSSProperties = {
 
 /** What the row says about a route: the fallback, a real condition, or neither. */
 function describeRouteCondition(route: WorkflowRoute): string {
-  if (route.isDefault) return 'else (fallback)';
+  if (route.isDefault) return 'Default — used when no other route matches';
   if (!hasRealCondition(route.filter)) return '⚠ No condition set';
   return '✎ Has condition — click to edit';
 }
@@ -449,6 +481,23 @@ const routeNameStyle: React.CSSProperties = {
 const routeCondStyle: React.CSSProperties = {
   fontSize: 10,
   color: 'var(--text-secondary)',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+};
+
+// The clickable form of the target line — same size, link affordance.
+const routeNavStyle: React.CSSProperties = {
+  background: 'transparent',
+  border: 'none',
+  padding: 0,
+  fontFamily: 'inherit',
+  fontSize: 10.5,
+  color: 'var(--primary)',
+  textAlign: 'left',
+  textDecoration: 'underline',
+  textUnderlineOffset: 2,
+  cursor: 'pointer',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
