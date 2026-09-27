@@ -60,15 +60,30 @@ function renderMyWork(onOpenCase?: (id: string) => void) {
   );
 }
 
-afterEach(cleanup);
+const LAYOUT_KEY = 'dcp.v1.queueLayout';
+
+afterEach(() => {
+  cleanup();
+  window.localStorage.removeItem(LAYOUT_KEY);
+});
 
 describe('selecting a piece of work', () => {
-  it('opens the case the work belongs to, not the work record', async () => {
+  it('previews the case in the Split layout, and opens it from the preview — never the work record', async () => {
     const opened = vi.fn();
     renderMyWork(opened);
 
-    const row = await screen.findByText('Promise to pay', {}, { timeout: WAIT });
-    await userEvent.click(row);
+    await userEvent.click(await screen.findByText('Promise to pay', {}, { timeout: WAIT }));
+    await userEvent.click(await screen.findByTestId('mywork-case-preview-open', {}, { timeout: WAIT }));
+
+    await waitFor(() => expect(opened).toHaveBeenCalledWith(CASE_ID), { timeout: WAIT });
+  });
+
+  it('opens the case straight from the row in the Grid layout', async () => {
+    window.localStorage.setItem(LAYOUT_KEY, 'grid');
+    const opened = vi.fn();
+    renderMyWork(opened);
+
+    await userEvent.click(await screen.findByText('Promise to pay', {}, { timeout: WAIT }));
 
     await waitFor(() => expect(opened).toHaveBeenCalledWith(CASE_ID), { timeout: WAIT });
   });
@@ -103,6 +118,7 @@ describe('the handler survives the journey through Work Queues', () => {
    * the hop is precisely what was missing, so it gets its own test rather than being assumed.
    */
   it('opens the case from a row rendered by the Work Queues screen', async () => {
+    window.localStorage.setItem(LAYOUT_KEY, 'grid');
     const opened = vi.fn();
     const adapter = new XrmCrmAdapter(platformReturningOneRow());
     const session = { adapter, context: { userId: USER_ID } };

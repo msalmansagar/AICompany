@@ -1,5 +1,5 @@
-import { ActivityDialog } from '../../../views/ActivityDialog.js';
-import { PromiseDialog } from '../../../views/PromiseDialog.js';
+import { ActivityDialog } from './ActivityDialog.js';
+import { PromiseDialog } from './PromiseDialog.js';
 
 /**
  * The two writes a list can start on its chosen case — V1's own dialogs, which carry the business

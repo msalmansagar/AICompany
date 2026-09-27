@@ -9,10 +9,11 @@ import { loadActionPlan, type ActionPlan } from '../data/followUpQueries.js';
 import {
   toPlanItem, toUnattributedItem, type CaseContext, type UnattributedItem,
 } from '../data/actionPlanRows.js';
-import { describeOriginLabel, type ActionPlanItem } from '@dcp/domain';
+import { describeOriginLabel, type ActionPlanItem, type ReportingScope } from '@dcp/domain';
 import {
-  Card, EmptyState, Icon, InfoBanner, KpiRow, PartialCapabilityNotice, formatCount, formatMoney, formatDate,
+  Card, EmptyState, FieldList, Icon, InfoBanner, KpiRow, PartialCapabilityNotice, formatCount, formatMoney, formatDate,
 } from '../components/primitives.js';
+import { Dialog } from '../components/forms.js';
 import { useCrmSession } from '../shell/context.js';
 import type { ViewDefinition } from '../shell/routes.js';
 
@@ -370,10 +371,20 @@ function UnattributedActivities({ items }: { items: readonly UnattributedItem[] 
   );
 }
 
-export function ActionPlanView({ view }: { view: ViewDefinition }) {
+/**
+ * A row opens the action's full definition in a side pane (user instruction, 2026-09-27) — every
+ * column the organisation holds for it, not the seven the grid has room for — and from there the
+ * Cases list narrowed to the strategy it belongs to. Nothing is accepted or executed: that is Phase 8.
+ */
+export function ActionPlanView({ view, onOpenCases }: {
+  view: ViewDefinition;
+  /** The Cases list in a reporting scope — here, the cases on the chosen action's strategy. */
+  onOpenCases?: ((scope: ReportingScope) => void) | undefined;
+}) {
   const { adapter } = useCrmSession();
   const fetchPage = useMemo(() => createStrategyActionQuery(adapter), [adapter]);
   const query = useMemo<StrategyActionQuery>(() => ({ activeOnly: true }), []);
+  const [selected, setSelected] = useState<StrategyActionRow | undefined>(undefined);
 
   return (
     <div data-testid="view-actionplan">
@@ -386,16 +397,67 @@ export function ActionPlanView({ view }: { view: ViewDefinition }) {
       ]} />
       <Card
         title="Active plan actions"
-        subtitle="Every action an active strategy can resolve to. Accepting and executing one is Phase 8."
+        subtitle="Every action an active strategy can resolve to. Open one to read its full definition. Accepting and executing one is Phase 8."
       >
         <DataGrid<StrategyActionRow, StrategyActionQuery>
           columns={PLAN_COLUMNS} fetchPage={fetchPage} query={query}
           rowKey={row => row.id} pageSize={50}
+          selectedKey={selected?.id} onRowClick={setSelected}
           emptyMessage="No active strategy action is configured."
           data-testid="actionplan-grid"
         />
       </Card>
+      {selected && (
+        <StrategyActionPane
+          action={selected} onClose={() => setSelected(undefined)}
+          {...(onOpenCases ? { onOpenCases } : {})}
+        />
+      )}
     </div>
+  );
+}
+
+/** The action as the organisation holds it. Every value is read; the pane decides nothing. */
+function StrategyActionPane({ action, onClose, onOpenCases }: {
+  action: StrategyActionRow;
+  onClose: () => void;
+  onOpenCases?: ((scope: ReportingScope) => void) | undefined;
+}) {
+  const yesOrDash = (value: boolean | undefined) => (value ? 'Yes' : '—');
+  return (
+    <Dialog
+      title={action.name} subtitle={action.strategyName ? `Resolved from ${action.strategyName}` : 'Strategy not recorded'}
+      onClose={onClose} testId="actionplan-action"
+      footer={(
+        <>
+          {onOpenCases && action.strategyId && (
+            <button type="button" className="btn primary" onClick={() => onOpenCases({ strategy: action.strategyId })} data-testid="actionplan-action-cases">
+              Show cases on this strategy
+            </button>
+          )}
+          <button type="button" className="btn" onClick={onClose} data-testid="actionplan-action-close">Close</button>
+        </>
+      )}
+    >
+      <FieldList testId="actionplan-action-fields" fields={[
+        { label: 'Sequence', value: formatCount(action.sequence) },
+        { label: 'Strategy', value: action.strategyName ?? '—' },
+        { label: 'Trigger', value: action.triggerEvent ?? '—' },
+        { label: 'Day offset', value: formatCount(action.dayOffset) },
+        { label: 'Channel', value: action.channel ?? '—' },
+        { label: 'Activity type', value: action.activityType ?? '—' },
+        { label: 'Queue', value: action.queueName ?? '—' },
+        { label: 'Process', value: action.processCode ?? '—' },
+        { label: 'Gated on rule', value: action.ruleCode ?? '—' },
+        { label: 'Mandatory', value: yesOrDash(action.isMandatory) },
+        { label: 'Requires approval', value: yesOrDash(action.requiresApproval) },
+        { label: 'Stops on payment', value: yesOrDash(action.stopOnPayment) },
+        { label: 'Stops on promise', value: yesOrDash(action.stopOnPtp) },
+        { label: 'Escalates if not completed', value: yesOrDash(action.escalateIfNotCompleted) },
+        { label: 'Escalate after', value: action.escalationHours === undefined ? '—' : `${action.escalationHours} h` },
+        { label: 'State', value: action.isActive ? 'Active' : 'Inactive' },
+      ]} />
+    </Dialog>
   );
 }
 

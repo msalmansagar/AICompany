@@ -1,12 +1,12 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState } from 'react';
 import { loadCustomerAggregate, type CustomerAggregate } from '../../../data/customerAggregate.js';
 import { OrgBadge, StatusPill, formatCount, formatMoney } from '../../../components/primitives.js';
 import { describeFailure } from '../../../platform/errors.js';
 import { useCrmSession } from '../../../shell/context.js';
 import type { ViewRequest } from '../../V2Workspace.js';
-import { useV2Shell } from '../../shell/V2Shell.js';
 import { BucketBadge, BucketBar, Card, EmptyState, ErrorState, KeyValueList, LoadingSkeleton } from '../../components/primitives.js';
 import { initialsOf } from '../case/CaseHeader.js';
+import { V2CustomersList } from './V2CustomersList.js';
 
 /**
  * Customer 360 V2 — one customer across both CRMs.
@@ -14,7 +14,8 @@ import { initialsOf } from '../case/CaseHeader.js';
  * An aggregation read, never a customer master: the customer's cases are read by their canonical
  * business id (a bounded read), and totals are derived from them. When the customer holds more cases
  * than one read returns, every total is marked **partial**. HL customers are CRM contacts and BFD
- * customers are accounts; there is no `qdb_customer`.
+ * customers are accounts; there is no `qdb_customer`. Without a customer in the URL the page lists
+ * every customer with an open case — the same aggregate V1 lists — in Split or Grid.
  */
 type State =
   | { status: 'loading' }
@@ -23,26 +24,10 @@ type State =
 
 export function V2CustomerPage({ request }: { request: ViewRequest }) {
   const customerId = request.recordId;
-  if (!customerId) return <ChooseCustomer />;
+  if (!customerId) return <V2CustomersList onOpenCustomer={request.onOpenCustomer} onOpenCase={request.onOpenCase} />;
   return <CustomerView customerId={customerId} onOpenCase={request.onOpenCase} />;
 }
 
-function ChooseCustomer() {
-  const { go } = useV2Shell();
-  const [value, setValue] = useState('');
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    if (value.trim()) go('customer', value.trim());
-  };
-  return (
-    <Card title="Open a customer" subtitle="Customer 360 is reached from a case, or by the customer's business id.">
-      <form className="v2-toolbar-row" onSubmit={submit}>
-        <input className="v2-input" value={value} onChange={e => setValue(e.target.value)} placeholder="Customer business id" aria-label="Customer business id" data-testid="v2-customer-id" />
-        <button type="submit" className="v2-btn v2-btn-primary">Open</button>
-      </form>
-    </Card>
-  );
-}
 
 function CustomerView({ customerId, onOpenCase }: { customerId: string; onOpenCase: (id: string) => void }) {
   const { adapter } = useCrmSession();

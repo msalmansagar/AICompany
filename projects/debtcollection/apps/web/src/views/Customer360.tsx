@@ -7,7 +7,7 @@ import {
   formatCount, formatDate, formatMoney,
 } from '../components/primitives.js';
 import { useCrmSession } from '../shell/context.js';
-import { CasesView } from './index.js';
+import { CustomersView } from './CustomersView.js';
 
 /**
  * Customer & Loan 360 — everything known about one customer, gathered rather than stored.
@@ -24,9 +24,10 @@ import { CasesView } from './index.js';
 
 const NOT_SOURCED = 'not yet sourced';
 
-export function Customer360View({ customerBusinessId, onOpenCase }: {
+export function Customer360View({ customerBusinessId, onOpenCase, onOpenCustomer }: {
   customerBusinessId?: string | undefined;
   onOpenCase?: (caseId: string) => void;
+  onOpenCustomer?: (customerBusinessId: string) => void;
 }) {
   const { adapter } = useCrmSession();
   const [state, setState] = useState<{
@@ -47,7 +48,9 @@ export function Customer360View({ customerBusinessId, onOpenCase }: {
     return () => { cancelled = true; };
   }, [adapter, customerBusinessId]);
 
-  if (!customerBusinessId) return <CustomerPicker {...(onOpenCase ? { onOpenCase } : {})} />;
+  if (!customerBusinessId) {
+    return <CustomersView onOpenCustomer={id => onOpenCustomer?.(id)} onOpenCase={id => onOpenCase?.(id)} />;
+  }
   if (state.status === 'loading') {
     return <div className="empty-state" data-testid="customer-loading">Loading customer…</div>;
   }
@@ -70,27 +73,6 @@ export function Customer360View({ customerBusinessId, onOpenCase }: {
   }
 
   return <CustomerAggregateView aggregate={state.aggregate} {...(onOpenCase ? { onOpenCase } : {})} />;
-}
-
-/**
- * How a customer is chosen.
- *
- * There is no customer list to browse, because there is no frontend customer master to browse. A
- * customer is reached through a case, which is also how an officer actually works.
- */
-function CustomerPicker({ onOpenCase }: { onOpenCase?: (caseId: string) => void }) {
-  return (
-    <>
-      <InfoBanner icon="users">
-        A customer is reached through one of their cases. This workspace keeps <b>no customer master of
-        its own</b> — the record lives in the CRM that owns it, as a contact for Housing Loan and an
-        account for BFD.
-      </InfoBanner>
-      <Card title="Open a case to see its customer">
-        <CasesView {...(onOpenCase ? { onOpenCase } : {})} />
-      </Card>
-    </>
-  );
 }
 
 function CustomerAggregateView({ aggregate, onOpenCase }: {

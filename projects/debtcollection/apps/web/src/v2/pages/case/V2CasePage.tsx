@@ -10,7 +10,7 @@ import { Card, EmptyState, ErrorState, LoadingSkeleton, Tabs, type TabItem } fro
 import { CaseHeader } from './CaseHeader.js';
 import { CaseOverview } from './CaseOverview.js';
 import { ActivitiesTab, AuditTab, HistoryTab, PromisesTab } from './caseTabs.js';
-import { useCaseRecord } from './useCaseRecord.js';
+import { useCaseRecord } from '../../../data/useCaseRecord.js';
 import { FILTER_SEGMENT, recallCaseListReturn } from '../../data/caseListFilterUrl.js';
 
 /**

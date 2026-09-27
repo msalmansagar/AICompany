@@ -13,11 +13,11 @@ import {
   rememberCaseListReturn, rememberSelectedCase, type CaseListFilters,
 } from '../../data/caseListFilterUrl.js';
 import { SCOPE_SEGMENT, decodeScope } from '../../../data/caseListScopeUrl.js';
-import { readLayout, writeLayout, type ListLayout } from '../../data/layoutPreference.js';
+import { readLayout, writeLayout, type ListLayout } from '../../../data/layoutPreference.js';
 import { STRATEGY_NOT_ASSIGNED, STRATEGY_NOT_ASSIGNED_LABEL } from '../../data/portfolioMatrix.js';
 import { CASE_SORTS, GRID_COLUMNS, SPLIT_COLUMNS, describeSort, sortKeyOf, toSourceSort, type CaseSortKey } from './casesColumns.js';
 import { CasePreview } from './CasePreview.js';
-import { CaseCommandDialogs, type CaseCommandDialog } from './CaseCommandDialogs.js';
+import { CaseCommandDialogs, type CaseCommandDialog } from '../../../views/CaseCommandDialogs.js';
 import { useBucketFacets } from './useBucketFacets.js';
 
 /**

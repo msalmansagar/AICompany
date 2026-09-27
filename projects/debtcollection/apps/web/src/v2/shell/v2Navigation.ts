@@ -26,7 +26,7 @@ export interface V2NavGroup {
  * V2's. Pending routes are listed too, so the filter below — not an omission here — keeps them out.
  */
 const LAYOUT: readonly { label: string; items: readonly (readonly [string, string])[] }[] = [
-  { label: 'Work', items: [['myday', 'My Day'], ['queues', 'Work Queues'], ['cases', 'Collection Cases']] },
+  { label: 'Work', items: [['myday', 'My Day'], ['queues', 'Work Queues'], ['cases', 'Collection Cases'], ['dashboards', 'Dashboards']] },
   {
     label: 'Customer',
     items: [['customer', 'Customer 360'], ['ptp', 'Promise to Pay'], ['comms', 'Communications'], ['templates', 'Templates']],
@@ -39,7 +39,7 @@ const LAYOUT: readonly { label: string; items: readonly (readonly [string, strin
   {
     label: 'Control',
     items: [
-      ['dashboards', 'Dashboards'], ['mis', 'Portfolio MIS'], ['approvals', 'Approvals'], ['audit', 'Audit Trail'],
+      ['mis', 'Portfolio MIS'], ['approvals', 'Approvals'], ['audit', 'Audit Trail'],
       ['intake', 'Delinquency Intake'], ['admin', 'Configuration'],
     ],
   },

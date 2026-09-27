@@ -9,7 +9,9 @@ import {
   type TypeIds, type WorkQueueRequest,
 } from '../data/operationalQueue.js';
 import { Card, EmptyState, Icon, InfoBanner } from '../components/primitives.js';
+import { ListToolbar, SplitLayout, useListLayout } from '../components/listLayout.js';
 import { useCrmSession } from '../shell/context.js';
+import { CasePreview, PreviewHeading, PreviewPrompt } from './previews.js';
 
 /**
  * My Work — one place to answer "what needs my attention now?".
@@ -73,6 +75,21 @@ const COLUMNS: readonly DataGridColumn<WorkItem>[] = [
   { key: 'state', header: 'State', width: '180px', render: item => item.domainState ?? '—' },
 ];
 
+/** The Split list: the work on two lines, and when it was recorded. */
+const SPLIT_COLUMNS: readonly DataGridColumn<WorkItem>[] = [
+  {
+    key: 'work', header: 'Work', render: item => (
+      <span className="two-line">
+        <span className="two-line-main">{item.title}</span>
+        <span className="two-line-sub">{item.caseNumber ?? '—'} · {describeWorkType(item.type)}</span>
+      </span>
+    ),
+  },
+  { key: 'recorded', header: 'Recorded', width: '130px', render: item => (item.createdOn ? item.createdOn.slice(0, 16).replace('T', ' ') : '—') },
+];
+
+const LAYOUT_KEY = 'dcp.v1.queueLayout';
+
 export function MyWorkView({ onOpenCase, initialBucket = 'MyAssigned' }: {
   onOpenCase?: (id: string) => void;
   /** The bucket to open on — a Workout view opens straight onto its own process. */
@@ -83,7 +100,11 @@ export function MyWorkView({ onOpenCase, initialBucket = 'MyAssigned' }: {
   const userId = context.userId;
   const [bucket, setBucket] = useState<OperationalBucket>(initialBucket);
   const [search, setSearch] = useState('');
+  const [layout, chooseLayout] = useListLayout(LAYOUT_KEY);
+  const [selected, setSelected] = useState<WorkItem | undefined>(undefined);
   const [typeIds, setTypeIds] = useState<TypeIds | null>(null);
+
+  useEffect(() => { setSelected(undefined); }, [bucket, search]);
   const [counts, setCounts] = useState<Partial<Record<OperationalBucket, WorkCount>>>({});
 
   useEffect(() => {
@@ -156,39 +177,76 @@ export function MyWorkView({ onOpenCase, initialBucket = 'MyAssigned' }: {
           A piece of work can appear under more than one heading — work of yours that is also a
           legal recommendation is one job, counted in both. The numbers are not meant to be added up.
         </InfoBanner>
-        <input
-          className="fluent-input"
-          placeholder="Search this list"
-          value={search}
-          data-testid="mywork-search"
-          onChange={event => setSearch(event.target.value)}
-        />
+        <ListToolbar layout={layout} onChangeLayout={chooseLayout} testId="mywork-toolbar">
+          <input
+            className="fluent-input"
+            placeholder="Search this list"
+            value={search}
+            data-testid="mywork-search"
+            onChange={event => setSearch(event.target.value)}
+          />
+        </ListToolbar>
       </Card>
 
       <Card title={describeBucket(bucket)}>
-        {!available
-          ? (
-            <EmptyState
-              icon="info"
-              message={UNAVAILABLE_REASON[bucket]
-                ?? 'This list cannot be shown until the signed-in user is known.'}
-            />
-          )
-          : fetchPage && (
-            <DataGrid<WorkItem, Omit<WorkQueueRequest, 'pageSize' | 'continuation'>>
-              columns={COLUMNS}
-              fetchPage={fetchPage as never}
-              query={query}
-              rowKey={item => item.id}
-              pageSize={50}
-              emptyMessage="Nothing in this list right now."
-              data-testid="mywork-grid"
-              {...(onOpenCase
-                ? { onRowClick: (item: WorkItem) => onOpenCase(item.caseId) }
-                : {})}
-            />
-          )}
+        {!available && (
+          <EmptyState
+            icon="info"
+            message={UNAVAILABLE_REASON[bucket]
+              ?? 'This list cannot be shown until the signed-in user is known.'}
+          />
+        )}
+        {available && fetchPage && layout === 'grid' && (
+          <DataGrid<WorkItem, Omit<WorkQueueRequest, 'pageSize' | 'continuation'>>
+            columns={COLUMNS}
+            fetchPage={fetchPage as never}
+            query={query}
+            rowKey={item => item.id}
+            pageSize={50}
+            emptyMessage="Nothing in this list right now."
+            data-testid="mywork-grid"
+            {...(onOpenCase
+              ? { onRowClick: (item: WorkItem) => onOpenCase(item.caseId) }
+              : {})}
+          />
+        )}
+        {available && fetchPage && layout === 'split' && (
+          <SplitLayout
+            testId="mywork-split"
+            list={(
+              <DataGrid<WorkItem, Omit<WorkQueueRequest, 'pageSize' | 'continuation'>>
+                columns={SPLIT_COLUMNS}
+                fetchPage={fetchPage as never}
+                query={query}
+                rowKey={item => item.id}
+                pageSize={50}
+                rowHeight={58}
+                height={560}
+                selectedKey={selected?.id}
+                onRowClick={setSelected}
+                emptyMessage="Nothing in this list right now."
+                data-testid="mywork-list"
+              />
+            )}
+            preview={<WorkItemPreview item={selected} {...(onOpenCase ? { onOpenCase } : {})} />}
+          />
+        )}
       </Card>
+    </div>
+  );
+}
+
+/** The chosen work, in its own words, above the case it belongs to. */
+function WorkItemPreview({ item, onOpenCase }: { item: WorkItem | undefined; onOpenCase?: (id: string) => void }) {
+  if (!item) return <PreviewPrompt message="Choose a row to preview its case." testId="mywork-preview-empty" />;
+  return (
+    <div data-testid="mywork-preview" data-work-id={item.id}>
+      <div className="preview">
+        <PreviewHeading eyebrow={describeWorkType(item.type)} title={item.title}>
+          <p className="preview-sub">With {item.ownerName ?? 'nobody yet'} · {item.domainState ?? '—'}</p>
+        </PreviewHeading>
+      </div>
+      <CasePreview caseId={item.caseId} onOpen={id => onOpenCase?.(id)} testId="mywork-case-preview" />
     </div>
   );
 }

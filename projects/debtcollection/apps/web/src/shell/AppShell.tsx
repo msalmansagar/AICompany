@@ -1,8 +1,19 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Icon } from '../components/primitives.js';
 import { ROLE_LABELS, useCrmSession, useOrg, useRole } from './context.js';
 import { GROUP_ORDER, isPending, viewsForRole, type ViewDefinition } from './routes.js';
 import { useHashRoute } from './useHashRoute.js';
+
+/** The rail's collapsed state, remembered in this browser — a convenience, never state that matters. */
+export const NAV_COLLAPSED_KEY = 'dcp.v1.navCollapsed';
+
+function readCollapsed(): boolean {
+  try { return window.localStorage.getItem(NAV_COLLAPSED_KEY) === 'true'; } catch { return false; }
+}
+
+function writeCollapsed(value: boolean): void {
+  try { window.localStorage.setItem(NAV_COLLAPSED_KEY, String(value)); } catch { /* tolerated: the default returns next time */ }
+}
 
 /**
  * The workspace chrome, as the approved prototype arranges it.
@@ -30,10 +41,22 @@ export function AppShell({ commands, children }: AppShellProps) {
   const { scope, setScope } = useOrg();
   const route = useHashRoute();
   const visible = viewsForRole(role);
+  const [isCollapsed, setCollapsed] = useState(readCollapsed);
+  const toggleCollapsed = () => setCollapsed(previous => { writeCollapsed(!previous); return !previous; });
 
   return (
     <div className="app">
       <header className="app-header">
+        {/* The navigation toggle, where Power Platform puts it: collapses the sitemap to icons and back. */}
+        <button
+          type="button" className="icon-btn nav-toggle" onClick={toggleCollapsed}
+          aria-label={isCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+          title={isCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+          aria-pressed={isCollapsed}
+          data-testid="nav-toggle"
+        >
+          <Icon name="menu" />
+        </button>
         <div className="app-title">
           <span className="env">MSS Collections</span>
           <span className="name">Debt Collection</span>
@@ -92,7 +115,7 @@ export function AppShell({ commands, children }: AppShellProps) {
       </header>
 
       <div className="body">
-        <NavRail views={visible} activeId={route.view.id} onNavigate={route.go} />
+        <NavRail views={visible} activeId={route.view.id} onNavigate={route.go} isCollapsed={isCollapsed} />
         <main className="content">
           {commands && <div className="cmdbar" role="toolbar" aria-label="Commands">{commands}</div>}
           <div className="scroll">
@@ -128,13 +151,15 @@ function initialsOf(name: string): string {
  * still appears, marked, because the approved information architecture is part of what was approved —
  * quietly dropping the Workout group until Phase 9 would change the shape of the product.
  */
-export function NavRail({ views, activeId, onNavigate }: {
+export function NavRail({ views, activeId, onNavigate, isCollapsed = false }: {
   views: readonly ViewDefinition[];
   activeId: string;
   onNavigate: (viewId: string) => void;
+  /** Icons only; every entry keeps its name as a tooltip so nothing becomes unreachable by name. */
+  isCollapsed?: boolean;
 }) {
   return (
-    <nav className="nav" aria-label="Workspace navigation" data-testid="nav-rail">
+    <nav className={isCollapsed ? 'nav collapsed' : 'nav'} aria-label="Workspace navigation" data-testid="nav-rail" data-collapsed={String(isCollapsed)}>
       <div className="nav-scroll">
         {GROUP_ORDER.map(group => {
           const inGroup = views.filter(v => v.group === group);
@@ -150,6 +175,7 @@ export function NavRail({ views, activeId, onNavigate }: {
                   data-testid={`nav-${view.id}`}
                   data-pending={isPending(view) ? String(view.phase) : undefined}
                   aria-current={view.id === activeId ? 'page' : undefined}
+                  title={view.label}
                   onClick={() => onNavigate(view.id)}
                 >
                   <Icon name={view.icon} />

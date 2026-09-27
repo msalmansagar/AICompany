@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { retrieveCase, retrieveCustomer, type CaseDetail, type CustomerProfile } from '../../../data/caseQueries.js';
-import { toError } from '../../../platform/errors.js';
-import { useCrmSession } from '../../../shell/context.js';
+import { retrieveCase, retrieveCustomer, type CaseDetail, type CustomerProfile } from './caseQueries.js';
+import { toError } from '../platform/errors.js';
+import { useCrmSession } from '../shell/context.js';
 
 /**
  * One case and its customer, read the way V1 reads them.

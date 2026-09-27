@@ -66,9 +66,9 @@ export function V2Shell({ route, children }: { route: Route & { go: Go }; childr
           type="button" className="v2-scrim" aria-label="Close navigation" tabIndex={-1}
           onClick={() => setDrawerOpen(false)}
         />
-        <V2Nav activeId={activeNavId(route.view.id)} onNavigate={navigate} onToggle={toggleCollapsed} isCollapsed={isCollapsed} />
+        <V2Nav activeId={activeNavId(route.view.id)} onNavigate={navigate} />
         <div className="v2-main">
-          <V2Header route={route} onOpenDrawer={() => setDrawerOpen(true)} />
+          <V2Header route={route} onOpenDrawer={() => setDrawerOpen(true)} onToggleCollapsed={toggleCollapsed} isCollapsed={isCollapsed} />
           <main ref={main} tabIndex={-1} className="v2-page" data-testid="v2-content" data-view={route.view.id}>{children}</main>
         </div>
       </div>
@@ -76,9 +76,7 @@ export function V2Shell({ route, children }: { route: Route & { go: Go }; childr
   );
 }
 
-function V2Nav({ activeId, onNavigate, onToggle, isCollapsed }: {
-  activeId: string; onNavigate: Go; onToggle: () => void; isCollapsed: boolean;
-}) {
+function V2Nav({ activeId, onNavigate }: { activeId: string; onNavigate: Go }) {
   const { role } = useRole();
   const { scope } = useOrg();
   const { context } = useCrmSession();
@@ -117,16 +115,6 @@ function V2Nav({ activeId, onNavigate, onToggle, isCollapsed }: {
         ))}
       </div>
 
-      <button
-        type="button" className="v2-nav-toggle" onClick={onToggle}
-        aria-label={isCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-        title={isCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-        data-testid="v2-nav-toggle"
-      >
-        <Icon name={isCollapsed ? 'forward' : 'back'} className="v2-nav-icon" />
-        <span className="v2-nav-label">Collapse</span>
-      </button>
-
       <div className="v2-nav-user" title={context.userName}>
         <span className="v2-nav-avatar" aria-hidden="true">{initialsOf(context.userName)}</span>
         <span className="v2-nav-usermeta">
@@ -138,7 +126,14 @@ function V2Nav({ activeId, onNavigate, onToggle, isCollapsed }: {
   );
 }
 
-function V2Header({ route, onOpenDrawer }: { route: Route; onOpenDrawer: () => void }) {
+/**
+ * The header. Its first control is the navigation toggle — the hamburger that collapses the rail to
+ * icons and expands it again, where Power Platform puts it (user instruction, 2026-09-27). On a
+ * narrow window the rail is a drawer instead, and the same spot opens it.
+ */
+function V2Header({ route, onOpenDrawer, onToggleCollapsed, isCollapsed }: {
+  route: Route; onOpenDrawer: () => void; onToggleCollapsed: () => void; isCollapsed: boolean;
+}) {
   const { setSearch, go } = useV2Shell();
   const { role, setRole } = useRole();
   const { scope, setScope } = useOrg();
@@ -154,8 +149,17 @@ function V2Header({ route, onOpenDrawer }: { route: Route; onOpenDrawer: () => v
 
   return (
     <header className="v2-header">
+      <button
+        type="button" className="v2-nav-toggle" onClick={onToggleCollapsed}
+        aria-label={isCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+        title={isCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+        aria-pressed={isCollapsed}
+        data-testid="v2-nav-toggle"
+      >
+        <Icon name="menu" className="v2-nav-icon" />
+      </button>
       <button type="button" className="v2-burger" aria-label="Open navigation" onClick={onOpenDrawer}>
-        <Icon name="grid" className="v2-nav-icon" />
+        <Icon name="menu" className="v2-nav-icon" />
       </button>
       <div className="v2-header-title">
         <div className="v2-crumb">{v2GroupFor(route.view)}</div>

@@ -10,7 +10,8 @@ import { V2DataGrid, type V2Column } from '../../components/V2DataGrid.js';
 import { useDebounced } from '../../hooks/useDebounced.js';
 import { formatRecordedAt } from '../../format.js';
 import { useBucketCounts } from '../home/useBucketCounts.js';
-import { useCaseRecord } from '../case/useCaseRecord.js';
+import { useCaseRecord } from '../../../data/useCaseRecord.js';
+import { readLayout, writeLayout, type ListLayout } from '../../../data/layoutPreference.js';
 
 /**
  * Work Queues V2 — the operational lists, one bucket at a time.
@@ -35,7 +36,6 @@ const UNAVAILABLE_REASON: Readonly<Partial<Record<OperationalBucket, string>>> =
   AssignmentRequiresAttention: 'Assignment problems are not recorded on the work itself yet, so they cannot be listed here.',
 };
 
-type Layout = 'split' | 'grid';
 const LAYOUT_KEY = 'dcp.v2.queueLayout';
 
 export function V2QueuePage({ request, fixedBucket, intro }: {
@@ -50,7 +50,7 @@ export function V2QueuePage({ request, fixedBucket, intro }: {
   const bucket = fixedBucket ?? pickBucket(request.recordId);
   const [search, setSearch] = useState('');
   const query = useDebounced(search.trim(), 300);
-  const [layout, setLayout] = useState<Layout>(() => readLayout());
+  const [layout, setLayout] = useState<ListLayout>(() => readLayout(LAYOUT_KEY));
   const [selected, setSelected] = useState<WorkItem | undefined>(undefined);
   const [typeIds, setTypeIds] = useState<TypeIds | null>(null);
 
@@ -71,7 +71,7 @@ export function V2QueuePage({ request, fixedBucket, intro }: {
     ...(query ? { search: query } : {}),
   }), [bucket, context.userId, query]);
 
-  const chooseLayout = (next: Layout) => { setLayout(next); writeLayout(next); };
+  const chooseLayout = (next: ListLayout) => { setLayout(next); writeLayout(LAYOUT_KEY, next); };
   const reason = UNAVAILABLE_REASON[bucket];
 
   return (
@@ -196,10 +196,3 @@ function QueuePreview({ item, onOpen }: { item?: WorkItem | undefined; onOpen: (
   );
 }
 
-function readLayout(): Layout {
-  try { return window.localStorage.getItem(LAYOUT_KEY) === 'grid' ? 'grid' : 'split'; } catch { return 'split'; }
-}
-
-function writeLayout(layout: Layout): void {
-  try { window.localStorage.setItem(LAYOUT_KEY, layout); } catch { /* a per-browser convenience; the default returns */ }
-}

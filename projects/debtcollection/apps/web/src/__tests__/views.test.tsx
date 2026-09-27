@@ -312,9 +312,10 @@ describe('Customer & Loan 360 aggregates and admits what it cannot source', () =
     expect(table.querySelectorAll('.not-sourced').length).toBe(3);
   });
 
-  it('offers a case list rather than a customer master when no customer is named', async () => {
+  it('lists the customers with arrears rather than a customer master when no customer is named', async () => {
     await openView('customer');
-    await waitFor(() => expect(screen.getByText(/no customer master of its own/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('view-customers')).toBeTruthy());
+    expect(screen.getByText(/no customer master of its own/i)).toBeTruthy();
   });
 });
 

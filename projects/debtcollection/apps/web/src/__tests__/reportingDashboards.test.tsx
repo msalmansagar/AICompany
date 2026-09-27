@@ -166,6 +166,10 @@ afterEach(() => {
 });
 
 describe('the Dashboards screen is a set of Report Engine reports', () => {
+  // The drill-down counts rows in the Cases list's Grid layout; Split (the default) previews instead.
+  beforeEach(() => { window.localStorage.setItem('dcp.v1.casesLayout', 'grid'); });
+  afterEach(() => { window.localStorage.removeItem('dcp.v1.casesLayout'); });
+
   it('offers the four DCP dashboards and runs each Portfolio panel as its own report', async () => {
     const { xrm, runs } = fakeXrm();
     install(xrm);

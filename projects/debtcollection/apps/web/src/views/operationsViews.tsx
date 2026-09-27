@@ -10,6 +10,9 @@ import {
 } from '../components/primitives.js';
 import { useCrmSession } from '../shell/context.js';
 import type { ViewDefinition } from '../shell/routes.js';
+import { ListToolbar, SplitLayout, useListLayout } from '../components/listLayout.js';
+import { CasePreview, PreviewHeading, PreviewPrompt } from './previews.js';
+import { CaseCommandDialogs, type CaseCommandDialog } from './CaseCommandDialogs.js';
 
 /**
  * Delinquency Intake, Promise to Pay and Dashboards.
@@ -121,6 +124,24 @@ const PTP_LIST_COLUMNS: readonly DataGridColumn<PtpRow>[] = [
   { key: 'owner', header: 'Captured by', width: '160px', render: r => r.ownerName ?? '—' },
 ];
 
+/** The Split list: who promised what on two lines, and the amount. */
+const PTP_SPLIT_COLUMNS: readonly DataGridColumn<PtpRow>[] = [
+  {
+    key: 'promise', header: 'Promise', render: r => (
+      <span className="row-lead">
+        <BucketBar bucket={r.caseBucket} />
+        <span className="two-line">
+          <span className="two-line-main">{r.caseCustomerName ?? r.caseNumber ?? '—'}</span>
+          <span className="two-line-sub">{r.caseNumber ?? '—'} · promised for {formatDate(r.ptpDate)} · {r.ptpStatus ?? '—'}</span>
+        </span>
+      </span>
+    ),
+  },
+  { key: 'amount', header: 'Amount', width: '120px', numeric: true, render: r => formatMoney(r.promisedAmount) },
+];
+
+const PTP_LAYOUT_KEY = 'dcp.v1.promisesLayout';
+
 export function PromiseToPayView({ view, onOpenCase }: {
   view: ViewDefinition;
   onOpenCase?: (id: string) => void;
@@ -129,6 +150,10 @@ export function PromiseToPayView({ view, onOpenCase }: {
   const fetchPage = useMemo(() => createPtpQuery(adapter), [adapter]);
   const counts = useCounts(adapter, PTP_COUNTS);
   const query = useMemo<ActivityQuery>(() => ({}), []);
+  const [layout, chooseLayout] = useListLayout(PTP_LAYOUT_KEY);
+  const [selected, setSelected] = useState<PtpRow | undefined>(undefined);
+  const [dialog, setDialog] = useState<CaseCommandDialog>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   return (
     <div data-testid="view-ptp">
@@ -153,14 +178,67 @@ export function PromiseToPayView({ view, onOpenCase }: {
         title="Promises"
         subtitle="Every promise recorded across both organisations. Open one to work it on its case."
       >
-        <DataGrid<PtpRow, ActivityQuery>
-          columns={PTP_LIST_COLUMNS} fetchPage={fetchPage} query={query}
-          rowKey={row => row.id} pageSize={50}
-          {...(onOpenCase ? { onRowClick: (row: PtpRow) => { if (row.caseId) onOpenCase(row.caseId); } } : {})}
-          emptyMessage="No promise to pay has been recorded."
-          data-testid="ptp-grid"
-        />
+        <ListToolbar layout={layout} onChangeLayout={chooseLayout} testId="ptp-toolbar" />
+        {layout === 'grid' && (
+          <DataGrid<PtpRow, ActivityQuery>
+            columns={PTP_LIST_COLUMNS} fetchPage={fetchPage} query={query}
+            rowKey={row => row.id} pageSize={50}
+            {...(onOpenCase ? { onRowClick: (row: PtpRow) => { if (row.caseId) onOpenCase(row.caseId); } } : {})}
+            emptyMessage="No promise to pay has been recorded."
+            data-testid="ptp-grid"
+          />
+        )}
+        {layout === 'split' && (
+          <SplitLayout
+            testId="ptp-split"
+            list={(
+              <DataGrid<PtpRow, ActivityQuery>
+                columns={PTP_SPLIT_COLUMNS} fetchPage={fetchPage} query={query}
+                rowKey={row => row.id} pageSize={50} rowHeight={58} height={600}
+                selectedKey={selected?.id} onRowClick={setSelected}
+                emptyMessage="No promise to pay has been recorded."
+                data-testid="ptp-list"
+              />
+            )}
+            preview={(
+              <PromisePreview
+                promise={selected} reloadKey={reloadKey}
+                onOpenCase={id => onOpenCase?.(id)}
+                onLogAction={() => setDialog('activity')}
+                onCapturePromise={() => setDialog('promise')}
+              />
+            )}
+          />
+        )}
       </Card>
+      <CaseCommandDialogs
+        caseId={selected?.caseId} dialog={dialog} onClose={() => setDialog(null)}
+        onSaved={() => { setDialog(null); setReloadKey(key => key + 1); }}
+      />
+    </div>
+  );
+}
+
+/** The promise as the officer recorded it, above the case it was made on. */
+function PromisePreview({ promise, reloadKey, onOpenCase, onLogAction, onCapturePromise }: {
+  promise: PtpRow | undefined;
+  reloadKey: number;
+  onOpenCase: (id: string) => void;
+  onLogAction: () => void;
+  onCapturePromise: () => void;
+}) {
+  if (!promise) return <PreviewPrompt message="Choose a promise to preview its case." testId="ptp-preview-empty" />;
+  return (
+    <div data-testid="ptp-preview" data-promise-id={promise.id}>
+      <div className="preview">
+        <PreviewHeading eyebrow="Promise to pay" title={`${formatMoney(promise.promisedAmount)} promised for ${formatDate(promise.ptpDate)}`}>
+          <p className="row-actions"><PromiseOutcome status={promise.ptpStatus} /><span className="preview-sub">recorded by {promise.ownerName ?? '—'}</span></p>
+        </PreviewHeading>
+      </div>
+      <CasePreview
+        caseId={promise.caseId} reloadKey={reloadKey} onOpen={onOpenCase}
+        onLogAction={onLogAction} onCapturePromise={onCapturePromise} testId="ptp-case-preview"
+      />
     </div>
   );
 }

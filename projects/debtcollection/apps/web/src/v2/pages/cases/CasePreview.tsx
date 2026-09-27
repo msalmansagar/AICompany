@@ -9,7 +9,7 @@ import { useCrmSession } from '../../../shell/context.js';
 import { formatRecordedAt } from '../../format.js';
 import { BucketBadge, CommandBar, CommandButton, EmptyState, ErrorState, KeyValueList, LoadingSkeleton } from '../../components/primitives.js';
 import { initialsOf } from '../case/CaseHeader.js';
-import { useCaseRecord } from '../case/useCaseRecord.js';
+import { useCaseRecord } from '../../../data/useCaseRecord.js';
 import { StrategyName } from './casesColumns.js';
 
 /**

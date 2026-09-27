@@ -49,8 +49,8 @@ const itemIds = (role: RoleKey) => navigationFor(role).flatMap(group => group.it
 describe('navigation', () => {
   it('offers an officer only built or parked routes they may see', () => {
     expect(itemIds('officer')).toEqual([
-      'myday', 'queues', 'cases', 'customer', 'ptp', 'comms',
-      'disputes', 'legal', 'claims', 'restructure', 'actionplan', 'buckets', 'dashboards', 'audit',
+      'myday', 'queues', 'cases', 'dashboards', 'customer', 'ptp', 'comms',
+      'disputes', 'legal', 'claims', 'restructure', 'actionplan', 'buckets', 'audit',
     ]);
   });
 
@@ -117,6 +117,13 @@ describe('the header', () => {
 });
 
 describe('the rail', () => {
+  it('is collapsed from the header, not from an entry at the bottom of the rail', () => {
+    renderV2();
+
+    const nav = screen.getByRole('navigation', { name: 'Workspace' });
+    expect([within(nav).queryByText('Collapse'), screen.getByTestId('v2-nav-toggle').closest('header') !== null]).toEqual([null, true]);
+  });
+
   it('collapses and remembers it', async () => {
     renderV2();
 

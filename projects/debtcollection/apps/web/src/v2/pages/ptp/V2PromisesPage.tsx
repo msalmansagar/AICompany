@@ -9,10 +9,10 @@ import type { ViewRequest } from '../../V2Workspace.js';
 import { useV2Shell } from '../../shell/V2Shell.js';
 import { BucketBadge, BucketBar, Card, FilterChips } from '../../components/primitives.js';
 import { V2DataGrid, type V2Column } from '../../components/V2DataGrid.js';
-import { readLayout, writeLayout, type ListLayout } from '../../data/layoutPreference.js';
+import { readLayout, writeLayout, type ListLayout } from '../../../data/layoutPreference.js';
 import { rememberCaseListReturn } from '../../data/caseListFilterUrl.js';
 import { CasePreview } from '../cases/CasePreview.js';
-import { CaseCommandDialogs, type CaseCommandDialog } from '../cases/CaseCommandDialogs.js';
+import { CaseCommandDialogs, type CaseCommandDialog } from '../../../views/CaseCommandDialogs.js';
 
 /**
  * Promise to Pay V2 — every promise, narrowed by its recorded status, in the same two layouts as

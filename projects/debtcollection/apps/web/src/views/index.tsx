@@ -18,13 +18,18 @@ import {
 } from '../components/primitives.js';
 import { useCrmSession, useOrg } from '../shell/context.js';
 import type { ViewDefinition } from '../shell/routes.js';
+import { ListToolbar, SplitLayout, useListLayout } from '../components/listLayout.js';
+import { AuditEntryPreview, CasePreview } from './previews.js';
+import { CaseCommandDialogs, type CaseCommandDialog } from './CaseCommandDialogs.js';
+import { Dialog } from '../components/forms.js';
 
 /**
  * The workspace's views.
  *
  * Every list here is the same `DataGrid`, which is the point: paging, virtualization, duplicate
  * suppression and stale-response handling are solved once. A view decides what its columns are and
- * what its filters mean, and nothing else.
+ * what its filters mean, and nothing else. Each list offers the two layouts Workspace V2 offers —
+ * **Split**, rows beside a preview of the chosen one, and **Grid**, where a row opens its record.
  */
 
 // ── Collection Cases — the flagship list ─────────────────────────────────────
@@ -40,6 +45,24 @@ const CASE_COLUMNS: readonly DataGridColumn<CaseRow>[] = [
   { key: 'status', header: 'Status', width: '150px', render: r => <StatusPill status={r.status} /> },
 ];
 
+/** The Split list: who and which case on two lines, and the amount at stake. */
+const CASE_SPLIT_COLUMNS: readonly DataGridColumn<CaseRow>[] = [
+  {
+    key: 'case', header: 'Case', render: r => (
+      <span className="row-lead">
+        <BucketBar bucket={r.bucket} />
+        <span className="two-line">
+          <span className="two-line-main">{r.customerName ?? r.customerBusinessId}</span>
+          <span className="two-line-sub">{r.caseNumber} · {r.organization} · {formatCount(r.dpd)} DPD</span>
+        </span>
+      </span>
+    ),
+  },
+  { key: 'arrears', header: 'Overdue', width: '120px', numeric: true, render: r => formatMoney(r.totalArrears) },
+];
+
+const CASES_LAYOUT_KEY = 'dcp.v1.casesLayout';
+
 /**
  * A reporting scope that arrived in the URL — from a dashboard card — becomes the list's own
  * filters: the CRM scope, the bucket and the status land in the pickers the officer can see and
@@ -51,6 +74,10 @@ export function CasesView({ onOpenCase, scope = {} }: { onOpenCase?: (id: string
   const [bucket, setBucket] = useState(scope.bucket ?? '');
   const [status, setStatus] = useState(scope.caseStatus ?? '');
   const [search, setSearch] = useState('');
+  const [layout, chooseLayout] = useListLayout(CASES_LAYOUT_KEY);
+  const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
+  const [dialog, setDialog] = useState<CaseCommandDialog>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const scopeId = encodeScope(scope);
 
   useEffect(() => {
@@ -94,7 +121,7 @@ export function CasesView({ onOpenCase, scope = {} }: { onOpenCase?: (id: string
         </div>
       )}
 
-      <div className="action-row" data-testid="case-filters">
+      <ListToolbar layout={layout} onChangeLayout={chooseLayout} testId="case-filters">
         <label>
           Bucket
           <select className="fluent-select" value={bucket} onChange={e => setBucket(e.target.value)} data-testid="filter-bucket">
@@ -116,17 +143,51 @@ export function CasesView({ onOpenCase, scope = {} }: { onOpenCase?: (id: string
             data-testid="filter-search" onChange={e => setSearch(e.target.value)}
           />
         </label>
-      </div>
+      </ListToolbar>
 
-      <DataGrid<CaseRow, CaseQuery>
-        columns={CASE_COLUMNS}
-        fetchPage={fetchPage}
-        query={query}
-        rowKey={row => row.id}
-        pageSize={50}
-        emptyMessage="No open cases match these filters."
-        {...(onOpenCase ? { onRowClick: (row: CaseRow) => onOpenCase(row.id) } : {})}
-        data-testid="cases-grid"
+      {layout === 'grid' && (
+        <DataGrid<CaseRow, CaseQuery>
+          columns={CASE_COLUMNS}
+          fetchPage={fetchPage}
+          query={query}
+          rowKey={row => row.id}
+          pageSize={50}
+          emptyMessage="No open cases match these filters."
+          {...(onOpenCase ? { onRowClick: (row: CaseRow) => onOpenCase(row.id) } : {})}
+          data-testid="cases-grid"
+        />
+      )}
+      {layout === 'split' && (
+        <SplitLayout
+          testId="cases-split"
+          list={(
+            <DataGrid<CaseRow, CaseQuery>
+              columns={CASE_SPLIT_COLUMNS}
+              fetchPage={fetchPage}
+              query={query}
+              rowKey={row => row.id}
+              pageSize={50}
+              rowHeight={58}
+              height={600}
+              selectedKey={selectedId}
+              onRowClick={row => setSelectedId(row.id)}
+              emptyMessage="No open cases match these filters."
+              data-testid="cases-list"
+            />
+          )}
+          preview={(
+            <CasePreview
+              caseId={selectedId} reloadKey={reloadKey}
+              onOpen={id => onOpenCase?.(id)}
+              onLogAction={() => setDialog('activity')}
+              onCapturePromise={() => setDialog('promise')}
+            />
+          )}
+        />
+      )}
+      <CaseCommandDialogs
+        caseId={selectedId} dialog={dialog} onClose={() => setDialog(null)}
+        onSaved={() => { setDialog(null); setReloadKey(key => key + 1); }}
       />
     </>
   );
@@ -147,9 +208,26 @@ const AUDIT_COLUMNS: readonly DataGridColumn<AuditRow>[] = [
   { key: 'exception', header: '', width: '40px', render: r => (r.isException ? '!' : '') },
 ];
 
+/** The Split list: the entry on two lines, and when it was written. */
+const AUDIT_SPLIT_COLUMNS: readonly DataGridColumn<AuditRow>[] = [
+  {
+    key: 'entry', header: 'Entry', render: r => (
+      <span className="two-line">
+        <span className="two-line-main">{r.isException ? '! ' : ''}{r.subject ?? '—'}</span>
+        <span className="two-line-sub">{r.source ?? '—'}</span>
+      </span>
+    ),
+  },
+  { key: 'when', header: 'When', width: '110px', render: r => formatDate(r.createdOn) },
+];
+
+const AUDIT_LAYOUT_KEY = 'dcp.v1.auditLayout';
+
 export function AuditView() {
   const { adapter } = useCrmSession();
   const [search, setSearch] = useState('');
+  const [layout, chooseLayout] = useListLayout(AUDIT_LAYOUT_KEY);
+  const [selected, setSelected] = useState<AuditRow | undefined>(undefined);
   const fetchPage = useMemo(() => createAuditQuery(adapter), [adapter]);
   const query = useMemo<AuditQuery>(() => (search ? { search } : {}), [search]);
 
@@ -158,7 +236,7 @@ export function AuditView() {
       title="Audit trail"
       subtitle="Append-only technical and integration evidence. The largest table in the organisation, and never loaded whole."
     >
-      <div className="action-row">
+      <ListToolbar layout={layout} onChangeLayout={chooseLayout} testId="audit-filters">
         <label>
           Source
           <input
@@ -166,16 +244,48 @@ export function AuditView() {
             data-testid="audit-search" onChange={e => setSearch(e.target.value)}
           />
         </label>
-      </div>
-      <DataGrid<AuditRow, AuditQuery>
-        columns={AUDIT_COLUMNS}
-        fetchPage={fetchPage}
-        query={query}
-        rowKey={row => row.id}
-        pageSize={100}
-        emptyMessage="No log entries match."
-        data-testid="audit-grid"
-      />
+      </ListToolbar>
+      {layout === 'grid' && (
+        <DataGrid<AuditRow, AuditQuery>
+          columns={AUDIT_COLUMNS}
+          fetchPage={fetchPage}
+          query={query}
+          rowKey={row => row.id}
+          pageSize={100}
+          selectedKey={selected?.id}
+          onRowClick={setSelected}
+          emptyMessage="No log entries match."
+          data-testid="audit-grid"
+        />
+      )}
+      {layout === 'split' && (
+        <SplitLayout
+          testId="audit-split"
+          list={(
+            <DataGrid<AuditRow, AuditQuery>
+              columns={AUDIT_SPLIT_COLUMNS}
+              fetchPage={fetchPage}
+              query={query}
+              rowKey={row => row.id}
+              pageSize={100}
+              rowHeight={58}
+              height={600}
+              selectedKey={selected?.id}
+              onRowClick={setSelected}
+              emptyMessage="No log entries match."
+              data-testid="audit-list"
+            />
+          )}
+          preview={<AuditEntryPreview entry={selected} />}
+        />
+      )}
+      {layout === 'grid' && selected && (
+        <Dialog title={selected.subject ?? 'Log entry'} onClose={() => setSelected(undefined)} testId="audit-entry" footer={
+          <button type="button" className="btn" onClick={() => setSelected(undefined)}>Close</button>
+        }>
+          <AuditEntryPreview entry={selected} testId="audit-entry-detail" />
+        </Dialog>
+      )}
     </Card>
   );
 }

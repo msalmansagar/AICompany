@@ -72,6 +72,8 @@ export const ICON_PATHS: Readonly<Record<string, string>> = {
   bookmark: '<path d="M4 2.5h8v11l-4-3-4 3z" fill="none" stroke="currentColor" stroke-width="1.2"/>',
   autopost: '<circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3.2l2.2 1.3" fill="none" stroke="currentColor" stroke-width="1.2"/>',
   grid: '<rect x="2.5" y="2.5" width="11" height="11" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2.5 6.2h11M2.5 9.9h11M6.2 2.5v11" stroke="currentColor" stroke-width="1.1"/>',
+  /* The one addition to the baseline: the header's navigation toggle (2026-09-27). */
+  menu: '<path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
 };
 
 export type IconName = keyof typeof ICON_PATHS;

@@ -42,6 +42,13 @@ export const VIEWS: readonly ViewDefinition[] = [
   { id: 'myday', label: 'My Day', icon: 'home', group: 'Workspace', phase: 5 },
   { id: 'queues', label: 'Work Queues', icon: 'queue', group: 'Workspace', badge: 'openQueues', phase: 5 },
   { id: 'cases', label: 'Collection Cases', icon: 'case', group: 'Workspace', badge: 'openCases', phase: 5 },
+  // Dashboards sit with the officer's daily work rather than under Oversight (user instruction,
+  // 2026-09-27) — the one departure from the prototype's grouping, made in both workspaces alike.
+  {
+    id: 'dashboards', label: 'Dashboards', icon: 'chart', group: 'Workspace', phase: 5,
+    pendingSummary: 'Reports and dashboards run in the QDB Report Engine as you; a row opens the Cases list in the same scope. ' +
+      'Drill-down into Work Queues, export, and Portfolio MIS transitions are not wired yet.',
+  },
 
   // ── Customer ───────────────────────────────────────────────────────────────
   { id: 'customer', label: 'Customer & Loan 360', icon: 'users', group: 'Customer', phase: 5 },
@@ -91,11 +98,6 @@ export const VIEWS: readonly ViewDefinition[] = [
   { id: 'claims', label: 'Deceased & Claims', icon: 'shield', group: 'Workout', phase: 9 },
 
   // ── Oversight ──────────────────────────────────────────────────────────────
-  {
-    id: 'dashboards', label: 'Dashboards', icon: 'chart', group: 'Oversight', phase: 5,
-    pendingSummary: 'Reports and dashboards run in the QDB Report Engine as you; a row opens the Cases list in the same scope. ' +
-      'Drill-down into Work Queues, export, and Portfolio MIS transitions are not wired yet.',
-  },
   {
     id: 'mis', label: 'Portfolio MIS', icon: 'trend', group: 'Oversight', roles: ['manager', 'rm'], phase: 10,
     pendingSummary: 'Portfolio MIS needs the QDB MIS transport contract, which does not yet exist (KI-53). ' +

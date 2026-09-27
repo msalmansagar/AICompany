@@ -39,10 +39,18 @@ export interface DataGridProps<T, Q extends object> {
   rowHeight?: number;
   height?: number;
   onRowClick?: (item: T) => void;
+  /** The row a Split layout is previewing, marked as selected. */
+  selectedKey?: string | undefined;
   /** Shown when the query matched nothing. The approved empty states are per-screen wording. */
   emptyMessage?: string;
   enabled?: boolean;
   'data-testid'?: string;
+}
+
+/** The approved row classes: `.link-cell` for a row that opens, `.selected` for the previewed one. */
+function rowClassName(isSelected: boolean, opens: boolean): string | undefined {
+  if (isSelected) return opens ? 'link-cell selected' : 'selected';
+  return opens ? 'link-cell' : undefined;
 }
 
 export function DataGrid<T, Q extends object>({
@@ -55,6 +63,7 @@ export function DataGrid<T, Q extends object>({
   rowHeight = 44,
   height = 520,
   onRowClick,
+  selectedKey,
   emptyMessage = 'Nothing matches the current filters.',
   enabled = true,
   'data-testid': testId = 'data-grid',
@@ -108,7 +117,8 @@ export function DataGrid<T, Q extends object>({
         data-testid={`${testId}-viewport`}
         renderRow={item => (
           <tr
-            className={onRowClick ? 'link-cell' : undefined}
+            className={rowClassName(selectedKey !== undefined && rowKey(item) === selectedKey, onRowClick !== undefined)}
+            aria-selected={selectedKey === undefined ? undefined : rowKey(item) === selectedKey}
             onClick={onRowClick ? () => onRowClick(item) : undefined}
           >
             {columns.map(column => (

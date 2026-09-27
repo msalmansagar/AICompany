@@ -23,6 +23,15 @@ const BFD_CASE = {
 };
 const CONTACT = { contactid: 'cust-1', fullname: 'Aisha Al-Mansouri', mobilephone: '+97400000000', donotphone: true, statecode: 0 };
 
+/** Grouped rows, as the aggregate returns them: one per customer and organisation. */
+function customerGroups(cases: Record<string, unknown>[]): Record<string, unknown>[] {
+  return cases.map(c => ({
+    cases: 1, arrears: c['qdb_currenttotalarrears'], exposure: c['qdb_loanbalance'], dpd: c['qdb_currentdpd'],
+    customer: c['qdb_customerbusinessid'], customerref: c['_qdb_customerid_value'], 'customerref@OData.Community.Display.V1.FormattedValue': CONTACT.fullname,
+    org: c['qdb_organizationcode'],
+  }));
+}
+
 function install(options: { cases?: Record<string, unknown>[]; hasMore?: boolean } = {}): void {
   const xrm = {
     Utility: {
@@ -38,8 +47,10 @@ function install(options: { cases?: Record<string, unknown>[]; hasMore?: boolean
         if (logicalName === 'contact') return CONTACT;
         throw { errorCode: 2147746327 };
       },
-      async retrieveMultipleRecords(logicalName: string) {
+      async retrieveMultipleRecords(logicalName: string, query = '') {
         if (logicalName !== 'qdb_collectioncase') return { entities: [] };
+        // The customer list is one aggregate over the cases, answered as the platform answers it.
+        if (decodeURIComponent(query).startsWith('?fetchXml=')) return { entities: customerGroups(options.cases ?? [HL_CASE, BFD_CASE]) };
         return {
           entities: options.cases ?? [HL_CASE, BFD_CASE],
           ...(options.hasMore ? { nextLink: 'https://org5869857f.crm4.dynamics.com/api/data/v9.2/qdb_collectioncases?$skiptoken=x' } : {}),
@@ -121,10 +132,31 @@ describe('honesty', () => {
 });
 
 describe('without a customer', () => {
-  it('asks for one', async () => {
+  it('lists every customer with an open case, once, across both CRMs', async () => {
     await openCustomer('#customer');
 
-    expect(await screen.findByTestId('v2-customer-id', {}, { timeout: 5000 })).toBeTruthy();
+    const list = await screen.findByTestId('v2-customers', {}, { timeout: 5000 });
+    const row = await screen.findByRole('row', { name: 'Preview customer Aisha Al-Mansouri' }, { timeout: 5000 });
+    expect([list.dataset['layout'], row.textContent?.includes('2 cases')]).toEqual(['split', true]);
+  });
+
+  it('previews the chosen customer and opens their Customer 360', async () => {
+    await openCustomer('#customer');
+
+    await userEvent.click(await screen.findByRole('row', { name: 'Preview customer Aisha Al-Mansouri' }, { timeout: 5000 }));
+    await userEvent.click(await screen.findByTestId('v2-customer-preview-open', {}, { timeout: 5000 }));
+
+    expect(window.location.hash).toBe('#customer/28912345678');
+  });
+
+  it('opens the Customer 360 straight from a Grid row', async () => {
+    window.localStorage.setItem('dcp.v2.customersLayout', 'grid');
+    await openCustomer('#customer');
+
+    await userEvent.click(await screen.findByRole('row', { name: 'Open customer Aisha Al-Mansouri' }, { timeout: 5000 }));
+
+    window.localStorage.removeItem('dcp.v2.customersLayout');
+    expect(window.location.hash).toBe('#customer/28912345678');
   });
 
   it('says so when the customer has no case', async () => {
