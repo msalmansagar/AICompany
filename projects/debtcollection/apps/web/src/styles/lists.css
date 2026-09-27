@@ -60,4 +60,8 @@
    The hamburger at the left of the header collapses the sitemap to an icon rail and back.
    The rail's collapsed rules live in tokens.css (`.nav.collapsed`); this only draws the button. */
 .nav-toggle { margin-right: 2px; }
+/* The rail is a grid item in an `auto` track: without this its nowrap content sets a minimum the
+   48px collapsed width can never go below, and the toggle changes nothing visible. */
+.nav { min-width: 0; }
+.nav.collapsed { min-width: 48px; max-width: 48px; }
 .nav.collapsed .nav-item { padding: 0 16px; }
