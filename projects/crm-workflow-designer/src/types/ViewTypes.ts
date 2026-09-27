@@ -7,6 +7,8 @@ export interface CrmProcess {
   regardingFieldName: string | null;
   parentEntityId: string | null;
   parentEntityName: string | null;
+  /** Filled from the designer-state annotation; absent until it loads. */
+  workflowState?: 'draft' | 'published' | 'archived';
 }
 
 export interface CrmStep {

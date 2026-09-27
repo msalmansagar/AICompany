@@ -1,0 +1,28 @@
+{
+  "code": "DCP-RPT-011",
+  "name": "DCP — Promises by recorded status",
+  "description": "Collection activities carrying a promise-to-pay date, grouped by their recorded PTP status, with the promised amount summed. Each status is what an officer recorded, never a verified payment. Grain: PTP (one promise activity). Source: qdb_collectionactivity · qdb_ptpdate, qdb_ptpstatus, qdb_promisedamount. Both CRMs. Narrowed by owner and the promised-for window when supplied. DCP catalogue DCP-RPT-011.",
+  "version": 1,
+  "mainEntity": "qdb_collectionactivity",
+  "category": "Operational",
+  "rowLimit": 5000,
+  "grain": "PTP",
+  "mode": "generated",
+  "entity": { "logicalName": "qdb_collectionactivity", "alias": "t" },
+  "columns": [
+    { "name": "Recorded status", "attribute": "qdb_ptpstatus", "alias": "status", "dataType": "Integer", "aggregate": "None", "groupOrder": 1, "sortOrder": 1 },
+    { "name": "Promises", "attribute": "activityid", "alias": "promises", "dataType": "Integer", "aggregate": "Count", "sortOrder": 2 },
+    { "name": "Promised amount", "attribute": "qdb_promisedamount", "alias": "promised", "dataType": "Money", "aggregate": "Sum", "sortOrder": 3 }
+  ],
+  "filters": [
+    { "name": "Promises only", "field": "qdb_ptpdate", "operator": "IsNotNull" },
+    { "name": "Owner", "field": "ownerid", "operator": "Equals", "value": "Owner", "runtimePrompt": true },
+    { "name": "Promised for on or after", "field": "qdb_ptpdate", "operator": "GreaterThan", "value": "DateFrom", "runtimePrompt": true },
+    { "name": "Promised for before", "field": "qdb_ptpdate", "operator": "LessThan", "value": "DateTo", "runtimePrompt": true }
+  ],
+  "parameters": [
+    { "name": "Owner", "label": "Owner (user id)", "type": "Lookup", "required": false },
+    { "name": "DateFrom", "label": "Promised for on or after (ISO date)", "type": "Date", "required": false },
+    { "name": "DateTo", "label": "Promised for before (ISO date)", "type": "Date", "required": false }
+  ]
+}

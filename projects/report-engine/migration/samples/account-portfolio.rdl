@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A representative Dynamics FetchXML-based SSRS report, in the shape the CRM Report Wizard and
+  Visual Studio produce: one FetchXML dataset, a report parameter, a Tablix grouped on one column
+  with a total, and Format expressions on the numeric cells.
+
+  Used to exercise the RDL analyser. It is deliberately ordinary — the point is what a typical
+  report needs, not what an exotic one can do.
+-->
+<Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2008/01/reportdefinition"
+        xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner">
+  <DataSources>
+    <DataSource Name="CRM">
+      <ConnectionProperties>
+        <DataProvider>MSCRMFETCH</DataProvider>
+        <ConnectString>Data Source=org5869857f.crm4.dynamics.com</ConnectString>
+      </ConnectionProperties>
+    </DataSource>
+  </DataSources>
+
+  <DataSets>
+    <DataSet Name="DSAccounts">
+      <Query>
+        <DataSourceName>CRM</DataSourceName>
+        <CommandText>&lt;fetch version="1.0" mapping="logical"&gt;
+  &lt;entity name="account"&gt;
+    &lt;attribute name="name" /&gt;
+    &lt;attribute name="accountnumber" /&gt;
+    &lt;attribute name="telephone1" /&gt;
+    &lt;attribute name="statecode" /&gt;
+    &lt;attribute name="revenue" /&gt;
+    &lt;order attribute="name" descending="false" /&gt;
+    &lt;filter type="and"&gt;
+      &lt;condition attribute="statecode" operator="eq" value="0" /&gt;
+      &lt;condition attribute="name" operator="like" value="@NamePrefix" /&gt;
+    &lt;/filter&gt;
+    &lt;link-entity name="contact" from="contactid" to="primarycontactid" link-type="outer" alias="pc"&gt;
+      &lt;attribute name="emailaddress1" /&gt;
+    &lt;/link-entity&gt;
+  &lt;/entity&gt;
+&lt;/fetch&gt;</CommandText>
+      </Query>
+      <Fields>
+        <Field Name="name"><DataField>name</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="accountnumber"><DataField>accountnumber</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="telephone1"><DataField>telephone1</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="statecode"><DataField>statecode</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="revenue"><DataField>revenue</DataField><rd:TypeName>System.Decimal</rd:TypeName></Field>
+        <Field Name="pc_emailaddress1"><DataField>pc.emailaddress1</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+      </Fields>
+    </DataSet>
+  </DataSets>
+
+  <ReportParameters>
+    <ReportParameter Name="NamePrefix">
+      <DataType>String</DataType>
+      <Prompt>Account name begins with</Prompt>
+      <Nullable>true</Nullable>
+    </ReportParameter>
+    <ReportParameter Name="AsOfDate">
+      <DataType>DateTime</DataType>
+      <Prompt>As of date</Prompt>
+    </ReportParameter>
+  </ReportParameters>
+
+  <Body>
+    <ReportItems>
+      <Tablix Name="TablixAccounts">
+        <TablixBody>
+          <TablixColumns>
+            <TablixColumn><Width>2.5in</Width></TablixColumn>
+            <TablixColumn><Width>1.5in</Width></TablixColumn>
+            <TablixColumn><Width>1.5in</Width></TablixColumn>
+            <TablixColumn><Width>1.2in</Width></TablixColumn>
+            <TablixColumn><Width>2in</Width></TablixColumn>
+          </TablixColumns>
+          <TablixRows>
+            <TablixRow>
+              <TablixCells>
+                <TablixCell><CellContents><Textbox Name="hName"><Value>Account Name</Value></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="hNumber"><Value>Account No.</Value></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="hPhone"><Value>Main Phone</Value></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="hRevenue"><Value>Annual Revenue</Value></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="hEmail"><Value>Primary Contact Email</Value></Textbox></CellContents></TablixCell>
+              </TablixCells>
+            </TablixRow>
+            <TablixRow>
+              <TablixCells>
+                <TablixCell><CellContents><Textbox Name="dName"><Value>=Fields!name.Value</Value></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="dNumber"><Value>=Fields!accountnumber.Value</Value></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="dPhone"><Value>=Fields!telephone1.Value</Value></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="dRevenue"><Value>=Fields!revenue.Value</Value><Style><Format>C2</Format></Style></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="dEmail"><Value>=Fields!pc_emailaddress1.Value</Value></Textbox></CellContents></TablixCell>
+              </TablixCells>
+            </TablixRow>
+            <TablixRow>
+              <TablixCells>
+                <TablixCell><CellContents><Textbox Name="tLabel"><Value>Total</Value></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="tBlank1"><Value /></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="tBlank2"><Value /></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="tRevenue"><Value>=Sum(Fields!revenue.Value)</Value><Style><Format>C2</Format></Style></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="tBlank3"><Value /></Textbox></CellContents></TablixCell>
+              </TablixCells>
+            </TablixRow>
+          </TablixRows>
+        </TablixBody>
+        <TablixRowHierarchy>
+          <TablixMembers>
+            <TablixMember><KeepWithGroup>After</KeepWithGroup></TablixMember>
+            <TablixMember>
+              <Group Name="GroupByState">
+                <GroupExpressions><GroupExpression>=Fields!statecode.Value</GroupExpression></GroupExpressions>
+              </Group>
+              <SortExpressions><SortExpression><Value>=Fields!name.Value</Value></SortExpression></SortExpressions>
+            </TablixMember>
+          </TablixMembers>
+        </TablixRowHierarchy>
+        <DataSetName>DSAccounts</DataSetName>
+      </Tablix>
+    </ReportItems>
+  </Body>
+
+  <PageHeader>
+    <ReportItems>
+      <Textbox Name="Title"><Value>Account Portfolio</Value></Textbox>
+      <Textbox Name="PageNo"><Value>="Page " &amp; Globals!PageNumber &amp; " of " &amp; Globals!TotalPages</Value></Textbox>
+    </ReportItems>
+  </PageHeader>
+</Report>

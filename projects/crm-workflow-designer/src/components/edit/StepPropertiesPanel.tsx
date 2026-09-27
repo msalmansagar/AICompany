@@ -1,10 +1,11 @@
 import { emptyWorkflowHooks, OUTCOME_HOOKS, STEP_HOOKS } from '@/services/workflowHooks';
+import { stepAccent } from '@/styles/stepAccents';
 import { useEffect, useState, useCallback } from 'react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import type { AssignToType, TeamOption, UserOption, WorkflowOutcome } from '@/types/WorkflowTypes';
 import { SearchableDropdown } from '@/components/common/SearchableDropdown';
-import { confirm } from '@/components/ui/ConfirmDialog';
+import { LookupField } from '@/components/common/LookupDialog';
 import { EscalationSection } from './EscalationSection';
 import { WorkflowHooksSection } from './WorkflowHooksSection';
 import { BranchSection } from './BranchSection';
@@ -12,6 +13,8 @@ import { ParentAssignmentSection } from './ParentAssignmentSection';
 import { ASSIGN_TO_LABELS, ASSIGN_TO_TYPES, emptyAssignmentFields } from '@/services/taskAssignment';
 import { branchChildrenOf, emptyOutcomeConcurrency } from '@/services/branchFields';
 import { FetchXmlBuilderDialog } from '@/components/FetchXmlBuilder/FetchXmlBuilderDialog';
+import { StepOverviewTab } from './StepOverviewTab';
+import { onStepPanelTabRequest } from './stepPanelBus';
 import { useFetchXmlEntityContext } from '@/hooks/useFetchXmlEntityContext';
 
 interface StepPropertiesPanelProps {
@@ -27,25 +30,23 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
     stepOrder,
     outcomes,
     outcomeOrder,
+    process,
     setStep,
     addOutcome,
-    deleteStep,
     moveStepUp,
     moveStepDown,
     selectNode,
-    clearSelection,
   } = useWorkflowStore((s) => ({
     steps: s.steps,
     stepOrder: s.stepOrder,
     outcomes: s.outcomes,
     outcomeOrder: s.outcomeOrder,
+    process: s.process,
     setStep: s.setStep,
     addOutcome: s.addOutcome,
-    deleteStep: s.deleteStep,
     moveStepUp: s.moveStepUp,
     moveStepDown: s.moveStepDown,
     selectNode: s.selectNode,
-    clearSelection: s.clearSelection,
   }));
 
   const step = stepId ? steps[stepId] : null;
@@ -58,6 +59,16 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
   const [showBranchFilterBuilder, setShowBranchFilterBuilder] = useState(false);
   const fetchXmlContext = useFetchXmlEntityContext(adapter);
   const [addingDecision, setAddingDecision] = useState(false);
+
+  // Which tab of the panel is open. Survives step switches on purpose —
+
+  // comparing the same facet across steps is the common flow.
+
+  const [activeTab, setActiveTab] = useState<PanelTab>('overview');
+
+  // The floating step toolbar steers the panel onto a tab (CWFD-018) —
+  // including a request made in the same click that mounted this panel.
+  useEffect(() => onStepPanelTabRequest(setActiveTab), []);
   const [newDecisionName, setNewDecisionName] = useState('');
   const [newDecisionTarget, setNewDecisionTarget] = useState<string>('__end__');
 
@@ -169,22 +180,27 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
     setNewDecisionTarget('__end__');
   };
 
-  const handleDeleteStep = () => {
-    void confirm({
-      title: 'Delete step',
-      message: 'Delete this step? All connected decisions will also be deleted.',
-      tone: 'danger',
-    }).then((confirmed) => {
-      if (!confirmed) return;
-      deleteStep(step.crmId);
-      clearSelection();
-    });
-  };
-
   return (
-    <div className="panel">
+    <div className="panel" style={{ borderTop: `3px solid ${stepAccent(step.crmId)}` }}>
       <div style={panelHeaderStyle}>Step Properties</div>
+      <div style={tabRowStyle} role="tablist" aria-label="Step property groups">
+        {PANEL_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            className={activeTab === tab.id ? 'pivot-tab active' : 'pivot-tab'}
+            style={tabBtnStyle}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
       <div style={panelBodyStyle}>
+        {activeTab === 'overview' && <StepOverviewTab step={step} />}
+        {activeTab === 'general' && (<>
 
         <div style={fieldGroupStyle}>
           <label className="lbl">Name</label>
@@ -197,10 +213,37 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
           />
         </div>
 
+        {/* CWFD-016 B1: the Loan process shipped 35 "missing task subject"
+            warnings the editor could point at but not fix — the wizard could
+            set these fields, the editor could not. */}
+        <div style={fieldGroupStyle}>
+          <label className="lbl">Task Subject</label>
+          <input
+            type="text"
+            value={step.taskSubject}
+            onChange={(e) => setStep({ ...step, taskSubject: e.target.value })}
+            className="fluent-input"
+            placeholder={step.name || 'What the assignee sees on their task'}
+          />
+          <span className="hint-inline">The title of the task the engine creates for this step.</span>
+        </div>
+
+        <div style={fieldGroupStyle}>
+          <label className="lbl">Task Description</label>
+          <textarea
+            value={step.taskDescription}
+            onChange={(e) => setStep({ ...step, taskDescription: e.target.value })}
+            className="fluent-input"
+            rows={3}
+            placeholder="Instructions for whoever works the task"
+            style={taskDescriptionStyle}
+          />
+        </div>
+
         <div style={fieldGroupStyle}>
           <label className="lbl">Order</label>
           <div style={orderRowStyle}>
-            <span style={seqChipStyle}>#{stepIndex + 1}</span>
+            <span style={seqChipStyle}>#{step.sequenceNo}</span>
             <button
               type="button"
               style={buildMoveBtn(canMoveUp)}
@@ -222,7 +265,9 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
           </div>
         </div>
 
-        <div style={dividerStyle} />
+        </>)}
+
+        {activeTab === 'assignment' && (<>
 
         <div style={fieldGroupStyle}>
           <label className="lbl">Assign To</label>
@@ -248,6 +293,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
             value={step}
             onChange={(patch) => setStep({ ...step, ...patch })}
             adapter={adapter}
+            taskEntityId={process?.recordEntity ?? null}
           />
         ) : isLoadingAssignees ? (
           <div style={spinnerRowStyle}>
@@ -277,7 +323,9 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
           task&rsquo;s decision onto each.
         </span>
 
-        <div style={dividerStyle} />
+        </>)}
+
+        {activeTab === 'general' && (<>
 
         <div className="panel-section">
           Decisions
@@ -294,6 +342,9 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
               onClick={() => selectNode(`outcome_${o.crmId}`)}
               title="Click to edit"
             >
+              <span style={decisionAvatarStyle(stepAccent(o.crmId))} aria-hidden>
+                {initialsOf(o.name)}
+              </span>
               <div style={decisionInfoStyle}>
                 <span style={decisionNameStyle}>{o.name || '(unnamed)'}</span>
                 <span style={decisionTargetStyle}>
@@ -318,26 +369,26 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
               className="fluent-input"
               autoFocus
             />
-            <label className="lbl">Goes to</label>
-            <select
-              value={newDecisionTarget}
-              onChange={(e) => setNewDecisionTarget(e.target.value)}
-              className="fluent-select"
-            >
-              <option value="__end__">— End —</option>
-              {otherSteps.map((s) => (
-                <option key={s!.crmId} value={s!.crmId}>
-                  {s!.sequenceNo}. {s!.name}
-                </option>
-              ))}
-            </select>
+            <LookupField
+              label="Goes to"
+              placeholder="— End —"
+              dialogTitle="Where does this decision go?"
+              clearLabel="— End — (the process finishes here)"
+              options={otherSteps.map((s) => ({
+                id: s!.crmId,
+                name: s!.name,
+                hint: `Step ${s!.sequenceNo}`,
+              }))}
+              value={newDecisionTarget === '__end__' ? null : newDecisionTarget}
+              onChange={(id) => setNewDecisionTarget(id || '__end__')}
+            />
             <div style={addFormActionsStyle}>
-              <button type="button" style={addConfirmBtnStyle} onClick={handleAddDecision}>
+              <button type="button" className="btn sm primary" style={{ flex: 1 }} onClick={handleAddDecision}>
                 Add
               </button>
               <button
                 type="button"
-                style={cancelBtnStyle}
+                className="btn sm"
                 onClick={() => setAddingDecision(false)}
               >
                 Cancel
@@ -347,7 +398,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
         ) : (
           <button
             type="button"
-            style={addDecisionBtnStyle}
+            className="btn sm block"
             onClick={() => setAddingDecision(true)}
           >
             + Add Decision
@@ -364,8 +415,9 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
           onEditCondition={() => setShowBranchFilterBuilder(true)}
         />
 
-        <div style={dividerStyle} />
+        </>)}
 
+        {activeTab === 'automation' && (
         <WorkflowHooksSection
           value={step.workflowHooks}
           onChange={(workflowHooks) => setStep({ ...step, workflowHooks })}
@@ -373,20 +425,16 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
           adapter={adapter}
           scopeNote="Runs for every task this step creates. The engine also runs any workflow set on the outcome and on the process, so more than one can fire."
         />
+        )}
 
-        <div style={dividerStyle} />
-
+        {activeTab === 'sla' && (
         <EscalationSection
           value={step}
           onChange={(patch) => setStep({ ...step, ...patch })}
           adapter={adapter}
           />
+        )}
 
-        <div style={dividerStyle} />
-
-        <button type="button" style={deleteBtnStyle} onClick={handleDeleteStep}>
-          Delete Step
-        </button>
       </div>
 
       {showBranchFilterBuilder && (
@@ -407,6 +455,56 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
   );
 }
 
+type PanelTab = 'overview' | 'general' | 'assignment' | 'sla' | 'automation';
+
+const PANEL_TABS: Array<{ id: PanelTab; label: string }> = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'general', label: 'General' },
+  { id: 'assignment', label: 'Assignment' },
+  { id: 'sla', label: 'SLA' },
+  { id: 'automation', label: 'Automation' },
+];
+
+const tabRowStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: 0,
+  padding: '0 4px',
+  borderBottom: '1px solid var(--border)',
+  flexShrink: 0,
+};
+
+/** First letter of the first and last words — "Assign To EPD PM" → "AP". */
+function initialsOf(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '·';
+  const first = words[0][0] ?? '';
+  const last = words.length > 1 ? (words[words.length - 1][0] ?? '') : (words[0][1] ?? '');
+  return (first + last).toUpperCase();
+}
+
+function decisionAvatarStyle(accent: string): React.CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 24,
+    height: 24,
+    borderRadius: '50%',
+    flexShrink: 0,
+    fontSize: 9.5,
+    fontWeight: 700,
+    color: accent,
+    background: `color-mix(in srgb, ${accent} 16%, var(--surface))`,
+    border: `1px solid color-mix(in srgb, ${accent} 45%, transparent)`,
+  };
+}
+
+const tabBtnStyle: React.CSSProperties = {
+  fontSize: 10.5,
+  padding: '7px 5px',
+  whiteSpace: 'nowrap',
+};
+
 const ASSIGN_TO_OPTIONS: Array<{ value: AssignToType; label: string }> = ASSIGN_TO_TYPES.map(
   (value) => ({ value, label: ASSIGN_TO_LABELS[value] })
 );
@@ -417,6 +515,12 @@ const bulkApprovalRowStyle: React.CSSProperties = {
 const bulkApprovalLabelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text)' };
 const bulkApprovalHintStyle: React.CSSProperties = {
   fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.4, paddingTop: 2,
+};
+
+const taskDescriptionStyle: React.CSSProperties = {
+  resize: 'vertical',
+  minHeight: 64,
+  fontFamily: 'inherit',
 };
 
 const panelHeaderStyle: React.CSSProperties = {
@@ -600,58 +704,6 @@ const addFormStyle: React.CSSProperties = {
 const addFormActionsStyle: React.CSSProperties = {
   display: 'flex',
   gap: 6,
-};
-
-const addConfirmBtnStyle: React.CSSProperties = {
-  flex: 1,
-  height: 28,
-  fontSize: 11,
-  fontWeight: 600,
-  borderRadius: 4,
-  border: 'none',
-  background: 'var(--primary-pressed)',
-  color: 'var(--text-on-primary)',
-  cursor: 'pointer',
-};
-
-const cancelBtnStyle: React.CSSProperties = {
-  height: 28,
-  padding: '0 12px',
-  fontSize: 11,
-  fontWeight: 500,
-  borderRadius: 4,
-  border: '1px solid var(--border)',
-  background: 'transparent',
-  color: 'var(--text-disabled)',
-  cursor: 'pointer',
-};
-
-const addDecisionBtnStyle: React.CSSProperties = {
-  height: 28,
-  width: '100%',
-  fontSize: 11,
-  fontWeight: 600,
-  borderRadius: 4,
-  border: '1px dashed var(--border)',
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-};
-
-const deleteBtnStyle: React.CSSProperties = {
-  height: 30,
-  width: '100%',
-  fontSize: 11,
-  fontWeight: 600,
-  borderRadius: 4,
-  border: '1px solid var(--error)',
-  background: 'transparent',
-  color: 'var(--error)',
-  cursor: 'pointer',
-  marginTop: 4,
 };
 
 const emptyStyle: React.CSSProperties = {

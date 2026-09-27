@@ -1,0 +1,32 @@
+{
+  "name": "@dcp/auth-adapters",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@dcp/types": "*",
+    "jose": "^5.9.6",
+    "openid-client": "^6.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@vitest/coverage-v8": "^2.1.0",
+    "fastify": "^5.2.0",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.0"
+  }
+}

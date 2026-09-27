@@ -64,6 +64,14 @@ public static class ReportDefinitionAssembler
             IsPrimary = RowReader.Bool(row, "qdb_isprimary"),
             SourceAlias = RowReader.String(row, "qdb_sourcealias"),
             QueryPayload = RowReader.String(row, "qdb_querypayload"),
+            // Read as a coded value like every other choice column. An absent column leaves the
+            // historical joined behaviour, so a report saved before this feature is unchanged.
+            Composition = RowReader.Coded(row, "qdb_compositionmode")?.Label ?? DatasetComposition.Joined,
+            JoinFromKey = RowReader.String(row, "qdb_joinfromkey"),
+            JoinToKey = RowReader.String(row, "qdb_jointokey"),
+            // Absent means enabled — see RowReader.BoolOrDefault.
+            IsEnabled = RowReader.BoolOrDefault(row, "qdb_isenabled", true),
+            RowLimit = RowReader.Int(row, "qdb_rowlimit"),
             EntityMappings = mappingsByDataSource.TryGetValue(id, out var mappings) ? mappings : []
         };
     }
@@ -108,7 +116,8 @@ public static class ReportDefinitionAssembler
         Sequence = RowReader.IntOrZero(row, "qdb_sequence"),
         GroupOperator = RowReader.Coded(row, "qdb_groupoperator"),
         GroupId = RowReader.String(row, "qdb_groupid"),
-        IsRuntimePrompt = RowReader.Bool(row, "qdb_isruntimeprompt")
+        IsRuntimePrompt = RowReader.Bool(row, "qdb_isruntimeprompt"),
+        DataSourceId = RowReader.Guid(row, "qdb_reportdatasourceid")
     };
 
     private static ReportParameter MapParameter(IReadOnlyDictionary<string, object?> row) => new()

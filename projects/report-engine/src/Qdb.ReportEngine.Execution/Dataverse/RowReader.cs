@@ -23,6 +23,14 @@ internal static class RowReader
             _ => false
         };
 
+    /// <summary>
+    /// A flag whose ABSENCE is meaningful. <see cref="Bool"/> answers false for a column the row does
+    /// not carry, which for an "is enabled" flag would disable every record stored before the column
+    /// existed — the whole organisation, on the day the feature ships.
+    /// </summary>
+    public static bool BoolOrDefault(IReadOnlyDictionary<string, object?> row, string key, bool fallback) =>
+        TryResolve(row, key, out var value) && value is not null ? Bool(row, key) : fallback;
+
     public static int? Int(IReadOnlyDictionary<string, object?> row, string key)
     {
         if (!TryResolve(row, key, out var value) || value is null)

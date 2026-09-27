@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The other kind of SSRS report: an on-premise one built on filtered views, with custom VB, a
+  subreport and a lookup across datasets. Present so the analyser is shown discriminating rather
+  than approving everything — this one cannot be converted and should be estimated as a new build.
+-->
+<Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2008/01/reportdefinition"
+        xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner">
+  <CodeModules>
+    <CodeModule>QDB.Reporting.Ageing, Version=1.0.0.0, Culture=neutral</CodeModule>
+  </CodeModules>
+  <Code>
+    Public Function Bucket(ByVal days As Integer) As String
+      If days &gt; 2000 Then Return "2000+"
+      Return "Current"
+    End Function
+  </Code>
+
+  <DataSources>
+    <DataSource Name="CRM">
+      <ConnectionProperties><DataProvider>SQL</DataProvider>
+      <ConnectString>Data Source=CRMSQL;Initial Catalog=QDB_MSCRM</ConnectString></ConnectionProperties>
+    </DataSource>
+  </DataSources>
+
+  <DataSets>
+    <DataSet Name="DSAgeing">
+      <Query>
+        <DataSourceName>CRM</DataSourceName>
+        <CommandText>SELECT a.name, f.qdb_outstanding, DATEDIFF(day, f.qdb_duedate, GETDATE()) AS dpd
+                     FROM FilteredAccount a INNER JOIN Filteredqdb_facility f ON f.qdb_accountid = a.accountid
+                     WHERE f.statecode = 0</CommandText>
+      </Query>
+      <Fields>
+        <Field Name="name"><DataField>name</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+        <Field Name="qdb_outstanding"><DataField>qdb_outstanding</DataField><rd:TypeName>System.Decimal</rd:TypeName></Field>
+        <Field Name="dpd"><DataField>dpd</DataField><rd:TypeName>System.Int32</rd:TypeName></Field>
+      </Fields>
+    </DataSet>
+    <DataSet Name="DSRates">
+      <Query>
+        <DataSourceName>CRM</DataSourceName>
+        <CommandText>SELECT code, rate FROM FilteredRateTable</CommandText>
+      </Query>
+      <Fields><Field Name="rate"><DataField>rate</DataField><rd:TypeName>System.Decimal</rd:TypeName></Field></Fields>
+    </DataSet>
+  </DataSets>
+
+  <Body>
+    <ReportItems>
+      <Tablix Name="TablixAgeing">
+        <TablixBody>
+          <TablixRows>
+            <TablixRow>
+              <TablixCells>
+                <TablixCell><CellContents><Textbox Name="hName"><Value>Customer</Value></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="hBucket"><Value>Bucket</Value></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="hRate"><Value>Rate</Value></Textbox></CellContents></TablixCell>
+              </TablixCells>
+            </TablixRow>
+            <TablixRow>
+              <TablixCells>
+                <TablixCell><CellContents><Textbox Name="dName"><Value>=Fields!name.Value</Value></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="dBucket"><Value>=Code.Bucket(Fields!dpd.Value)</Value></Textbox></CellContents></TablixCell>
+                <TablixCell><CellContents><Textbox Name="dRate"><Value>=Lookup(Fields!name.Value, Fields!code.Value, Fields!rate.Value, "DSRates")</Value></Textbox></CellContents></TablixCell>
+              </TablixCells>
+            </TablixRow>
+          </TablixRows>
+        </TablixBody>
+        <DataSetName>DSAgeing</DataSetName>
+      </Tablix>
+      <Subreport Name="FacilityDetail">
+        <ReportName>FacilityDetail</ReportName>
+      </Subreport>
+      <Chart Name="AgeingChart"><DataSetName>DSAgeing</DataSetName></Chart>
+    </ReportItems>
+  </Body>
+</Report>

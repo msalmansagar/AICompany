@@ -1,4 +1,5 @@
 import { Handle, Position } from '@xyflow/react';
+import { AssignIcon, assignTypeFromLabel } from './assignIcons';
 import type { NodeProps } from '@xyflow/react';
 import { getAssignToLabel } from '../types/ViewTypes';
 import type { TechNewStepData } from '../services/TechNewGraphBuilder';
@@ -38,7 +39,14 @@ export function TechNewStepNode({ data, selected }: NodeProps) {
       <div style={schemaRow}>{techId}</div>
 
       <div style={chipsRow}>
-        <span style={chip(assignColor.bg, assignColor.text)}>{assignLabel}</span>
+        <span
+          style={{ ...chip(assignColor.bg, assignColor.text), display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 18, padding: 0 }}
+          title={assignLabel}
+          aria-label={assignLabel}
+          role="img"
+        >
+          <AssignIcon type={assignTypeFromLabel(assignLabel)} />
+        </span>
         {assigneeName && (
           <span style={chip(NODE_NEUTRAL_CHIP.background, NODE_NEUTRAL_CHIP.foreground)} title={assigneeName}>{assigneeName}</span>
         )}

@@ -1,4 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, lazy, Suspense } from 'react';
+import { ProcessSummaryScreen } from '@/components/ProcessSummaryScreen';
+import { clearUndoHistorySoon } from '@/services/undoHistory';
+import { parseDesignerLayout } from '@/services/designerLayout';
+import { parseDesignerState, withDesignerState } from '@/services/designerState';
 import { ReactFlowProvider } from '@xyflow/react';
 import { CrmEnvironmentService } from './services/CrmEnvironmentService';
 import { WorkflowDataService } from './services/WorkflowDataService';
@@ -24,7 +28,16 @@ import type { ICrmAdapter } from './services/ICrmAdapter';
 import type { ISopAdapter } from './services/ISopAdapter';
 import type { WorkflowProcess, WorkflowStep, WorkflowOutcome, WorkflowRoute } from './types/WorkflowTypes';
 
-type AppMode = 'list' | 'view' | 'edit' | 'sop-list' | 'roles';
+// Dev-only visual feedback tool (CWFD-012): click elements in the running
+// designer, add notes, and paste the structured selector markdown into an AI
+// coding agent. Gated on import.meta.env.DEV through a dynamic import, so the
+// production CRM web resource provably never carries it. License note:
+// PolyForm Shield 1.0.0 — internal tooling use only, see dependencies.md.
+const AgentationDevTool = import.meta.env.DEV
+  ? lazy(() => import('agentation').then((m) => ({ default: m.Agentation })))
+  : null;
+
+type AppMode = 'list' | 'view' | 'edit' | 'summary' | 'sop-list' | 'roles';
 
 /** Environment identity for the app bar, resolved once at start-up. */
 interface HostContext {
@@ -78,6 +91,11 @@ export function App() {
           <DesignerRoot service={service} adapter={adapter} isDevMode={isDevMode} host={host} />
         </SopAdapterContext.Provider>
       </CrmAdapterProvider>
+      {AgentationDevTool && (
+        <Suspense fallback={null}>
+          <AgentationDevTool />
+        </Suspense>
+      )}
     </ReactFlowProvider>
   );
 }
@@ -144,7 +162,7 @@ function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) 
   const [destination, setDestination] = useState<NavDestination>('processes-all');
   const [search, setSearch] = useState('');
   const [sopResetToken, setSopResetToken] = useState(0);
-  const view = useWorkflowView(service);
+  const view = useWorkflowView(service, adapter);
   const loadWorkflow = useWorkflowStore((s) => s.loadWorkflow);
 
   // The sitemap owns which screen is showing, and stays visible everywhere —
@@ -171,6 +189,14 @@ function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) 
 
   const handleNewProcess = () => setShowWizard(true);
 
+  // The summary is its own screen: it loads what is stored, so it reads the
+  // same from the viewer and the editor.
+  const [summaryProcessId, setSummaryProcessId] = useState<string | null>(null);
+  const openSummary = useCallback((processId: string) => {
+    setSummaryProcessId(processId);
+    setAppMode('summary');
+  }, []);
+
   // Wizard "Blank" / template path: build the process graph in memory and open
   // it in the editor. Nothing is persisted until the user clicks Save Draft.
   const handleCreateInMemory = useCallback((
@@ -180,6 +206,7 @@ function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) 
     routes: WorkflowRoute[],
   ) => {
     loadWorkflow(process, steps, outcomes, routes, {});
+    clearUndoHistorySoon();
     setShowWizard(false);
     setPreviousMode('list');
     setAppMode('edit');
@@ -200,9 +227,11 @@ function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) 
   const handleEditProcess = useCallback(async (processId: string) => {
     setLoadingMessage('Loading process for editing…');
     try {
-      const [process, steps] = await Promise.all([
+      const [process, steps, layoutJson, stateJson] = await Promise.all([
         adapter.getProcess(processId),
         adapter.getSteps(processId),
+        adapter.loadDesignerLayout(processId).catch(() => null),
+        adapter.loadDesignerState(processId).catch(() => null),
       ]);
       const outcomeArrays = await Promise.all(steps.map((s) => adapter.getOutcomes(s.crmId)));
       const allOutcomes: WorkflowOutcome[] = outcomeArrays.flat();
@@ -211,7 +240,16 @@ function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) 
       const routeArrays = await Promise.all(conditionalOutcomes.map((o) => adapter.getRoutes(o.crmId)));
       const allRoutes: WorkflowRoute[] = routeArrays.flat();
 
-      loadWorkflow(process as WorkflowProcess, steps as WorkflowStep[], allOutcomes, allRoutes, {});
+      const layout = parseDesignerLayout(layoutJson);
+      loadWorkflow(
+        withDesignerState(process as WorkflowProcess, parseDesignerState(stateJson)),
+        steps as WorkflowStep[],
+        allOutcomes,
+        allRoutes,
+        layout?.nodePositions ?? {}
+      );
+      if (layout) useWorkflowStore.getState().applyDesignerLayout(layout);
+      clearUndoHistorySoon();
       setPreviousMode(appMode === 'view' ? 'view' : 'list');
       setAppMode('edit');
     } catch (err) {
@@ -277,14 +315,29 @@ function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) 
       {/* A column, so a screen can stack a command bar, its page and a status
           strip as siblings the way the design system expects. */}
       <div style={{ flex: 1, minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
-        {appMode === 'edit' ? (
-          <EditCanvas adapter={adapter} onExitEdit={handleExitEdit} />
+        {appMode === 'summary' && summaryProcessId ? (
+          <ProcessSummaryScreen
+            processId={summaryProcessId}
+            service={service}
+            adapter={adapter}
+            onBack={() => setAppMode(previousMode === 'view' ? 'view' : 'list')}
+          />
+        ) : appMode === 'edit' ? (
+          <EditCanvas
+            adapter={adapter}
+            onExitEdit={handleExitEdit}
+            onOpenSummary={() => {
+              const current = useWorkflowStore.getState().process;
+              if (current) openSummary(current.crmId);
+            }}
+          />
         ) : appMode === 'view' ? (
           <WorkflowCanvas
             view={view}
             adapter={adapter}
             onNewProcess={handleNewProcess}
-            onEditProcess={view.data ? handleEditCurrentProcess : undefined}
+            onEditProcess={view.data ? handleEditCurrentProcess : undefined}
+            onOpenSummary={view.data ? () => openSummary(view.data!.process.id) : undefined}
           />
         ) : appMode === 'sop-list' && sopAdapter ? (
           <SopListScreen

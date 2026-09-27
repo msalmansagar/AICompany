@@ -298,6 +298,12 @@ textarea.fluent-input { height: auto; padding: 6px 8px; resize: vertical; min-he
 .btn.primary.danger-fill { background: var(--error); border-color: var(--error); color: #fff; }
 .btn.primary.danger-fill:hover { filter: brightness(1.08); }
 .btn.sm { height: 28px; padding: 0 10px; font-size: 13px; }
+.btn.block { width: 100%; }
+/* A control must never be compressed below its control height: as a flex item in a
+   column that overflows, the default flex-shrink:1 crushed these to ~19px. */
+.btn { flex-shrink: 0; }
+/* Fluent requires a visible focus indicator on every command; inline styles cannot express one. */
+.btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
@@ -392,6 +398,13 @@ tr.selected .row-check .box { border-color: var(--primary); background: var(--pr
   width: 300px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0;
   background: var(--surface); border-left: 1px solid var(--border);
 }
+
+/* The editor stacks its panels in a column, where .panel's flex-shrink:0 - right for a
+   300px column in a row - stops them shrinking to the space available. They grew past
+   the sidebar instead, so the body never had a reason to scroll and the overflow was
+   clipped with no way to reach it. */
+.editor-sidebar { min-height: 0; }
+.editor-sidebar > .panel { flex: 1 1 auto; min-height: 0; }
 .panel-head, .dialog-head {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding: 14px 16px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0;
@@ -612,3 +625,22 @@ tr.selected .row-check .box { border-color: var(--primary); background: var(--pr
 
 .spin { animation: pe-spin .8s linear infinite; }
 @keyframes pe-spin { to { transform: rotate(360deg); } }
+
+/* ─── Edge-label visibility toggle (view toolbar) ─────────────────────── */
+/* Hides both SVG edge labels (built-in) and HTML label chips rendered
+   through EdgeLabelRenderer, without rebuilding the graph. */
+.edge-labels-hidden .react-flow__edge-text,
+.edge-labels-hidden .react-flow__edge-textbg { display: none; }
+.edge-labels-hidden .react-flow__edgelabel-renderer { display: none; }
+
+/* ─── Edge emphasis ────────────────────────────────────────────────────── */
+/* Inline styles carry each edge's colour, so width needs !important here. */
+.react-flow__edge:hover .react-flow__edge-path { stroke-width: 2.5px !important; }
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke-width: 2.5px !important;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--primary) 55%, transparent));
+}
+
+/* ─── Node hover lift ──────────────────────────────────────────────────── */
+.react-flow__node:hover { filter: drop-shadow(0 4px 10px color-mix(in srgb, var(--text) 18%, transparent)); }
+.react-flow__node.dragging, .react-flow__node:active { filter: none; }

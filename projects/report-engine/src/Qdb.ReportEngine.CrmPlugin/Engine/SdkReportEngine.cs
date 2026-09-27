@@ -88,10 +88,22 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
 
         public ReportResult Execute(ReportDefinition definition, ReportExecutionRequest request)
         {
+            /* The root's own query time (MDS-FR-027). Without it the root block reported 0 ms beside
+               standalone blocks reporting real figures, which reads as an instant query rather than
+               as a number nobody set. The browser's elapsedMs is the round trip, which is a different
+               measurement and belongs to the request, not to the dataset. */
+            var started = DateTime.UtcNow;
             var source = ReportSourcePlan.Primary(definition);
             if (ReportSourcePlan.IsStaticDataset(source))
             {
-                return StaticResult(definition, source);
+                // A static root still carries its report's other blocks; returning early here would
+                // drop every one of them silently.
+                var staticResult = StaticResult(definition, source);
+                return staticResult with
+                {
+                    Duration = DateTime.UtcNow - started,
+                    StandaloneDatasets = ExecuteStandaloneDatasets(definition, request, staticResult.Rows)
+                };
             }
 
             var query = ReportQueryBuilder.Build(definition, request);
@@ -101,20 +113,225 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
             // The report's own filters are carried across rather than discarded with the query that
             // held them — otherwise the Filters tab and every runtime prompt would change nothing.
             var supplied = ReportSourcePlan.OverrideFetchXml(source, name => ResolveViewFetchXml(name, query.RootEntity));
+            // @Parameter tokens in an authored query resolve exactly as a runtime-prompt filter
+            // would: supplied value first, then the parameter's default. Blocks pass through here
+            // too (a block re-enters Execute as its own primary), so one line serves every dataset.
+            if (supplied is not null)
+            {
+                try
+                {
+                    supplied = ParameterSubstitution.ApplyTo(supplied, definition, request.ParameterValues);
+                }
+                catch (InvalidOperationException error)
+                {
+                    // The message carries the fix ("add the parameter…"). Left unwrapped, Classify
+                    // files an InvalidOperationException under unexpected_error and the user reads
+                    // a generic line instead — while the same fault on a block, whose catch keeps
+                    // Message verbatim, would explain itself. Wrapping keeps the two paths agreeing.
+                    throw new InvalidPluginExecutionException(error.Message);
+                }
+            }
+
             var fetchXml = supplied is null ? query.FetchXml : Combine(supplied, query);
             var rows = Retrieve(fetchXml);
+
+            var shaped = ReportRowShaper.Shape(query.Columns, rows);
 
             return new ReportResult
             {
                 ReportId = definition.Id,
                 ReportName = definition.Name,
                 Columns = query.Columns,
-                Rows = ReportRowShaper.Shape(query.Columns, rows),
+                Rows = shaped,
                 RowCount = rows.Count,
                 // An aggregate fetch returns one row per group, so the row limit says nothing about it.
-                Truncated = !query.IsAggregate && rows.Count >= query.RowLimit
+                Truncated = !query.IsAggregate && rows.Count >= query.RowLimit,
+                Duration = DateTime.UtcNow - started,
+                StandaloneDatasets = ExecuteStandaloneDatasets(definition, request, shaped)
             };
         }
+
+        /// <summary>
+        /// Runs each standalone dataset after the root, in execution order (MDS-FR-004, MDS-FR-006).
+        ///
+        /// Sequential rather than concurrent, per ADR-RPT-012 §4: in-CRM execution is already
+        /// per-user, which is what the retired fan-out controls existed to achieve, and adding
+        /// parallelism inside one execution would reintroduce that problem inside a two-minute
+        /// ceiling.
+        /// </summary>
+        private IReadOnlyList<ReportDataset> ExecuteStandaloneDatasets(
+            ReportDefinition definition, ReportExecutionRequest request, IReadOnlyList<ReportResultRow> rootRows)
+        {
+            var datasets = new List<ReportDataset>();
+            foreach (var source in ReportSourcePlan.Standalone(definition))
+            {
+                datasets.Add(ExecuteStandaloneDataset(definition, source, new DatasetContext(request, rootRows)));
+            }
+
+            return datasets;
+        }
+
+        /// <summary>What a standalone dataset needs beyond its own definition: the run's inputs, and the
+        /// root's rows, which is where a parent-scoped block reads its parent key from.</summary>
+        private sealed class DatasetContext
+        {
+            public DatasetContext(ReportExecutionRequest request, IReadOnlyList<ReportResultRow> rootRows)
+            {
+                Request = request;
+                RootRows = rootRows;
+            }
+
+            public ReportExecutionRequest Request { get; }
+
+            public IReadOnlyList<ReportResultRow> RootRows { get; }
+        }
+
+        /// <summary>
+        /// Runs one standalone dataset, reporting a failure as a named block rather than letting it
+        /// end the report (MDS-FR-016, MDS-FR-028).
+        ///
+        /// The catch is deliberately broad and is not swallowing: the reason is carried into the
+        /// result and rendered. One misconfigured block must not cost the author every other dataset
+        /// on the report, and an empty table in its place would be indistinguishable from a query
+        /// that legitimately matched nothing.
+        /// </summary>
+        private ReportDataset ExecuteStandaloneDataset(
+            ReportDefinition definition, ReportDataSource source, DatasetContext context)
+        {
+            var started = DateTime.UtcNow;
+            try
+            {
+                var result = Execute(ScopedToParentRow(definition, source, context.RootRows), context.Request);
+                return new ReportDataset
+                {
+                    Id = source.Id.ToString(),
+                    Alias = source.SourceAlias,
+                    Name = DatasetName(source),
+                    Role = DatasetRole.Standalone,
+                    Columns = result.Columns,
+                    Rows = result.Rows,
+                    RowCount = result.RowCount,
+                    Truncated = result.Truncated,
+                    ElapsedMs = Elapsed(started)
+                };
+            }
+            catch (Exception error)
+            {
+                return new ReportDataset
+                {
+                    Id = source.Id.ToString(),
+                    Alias = source.SourceAlias,
+                    Name = DatasetName(source),
+                    Role = DatasetRole.Standalone,
+                    ElapsedMs = Elapsed(started),
+                    Status = DatasetStatus.Failed,
+                    Error = error.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// A standalone block scoped to the parent the report is about (MDS-FR-003).
+        ///
+        /// This is the master-detail case: one Termsheet with its Requested Facilities and its
+        /// Termsheet Conditions. Each block queries its own table and must be filtered to the parent,
+        /// or it returns every row in that table — which looks like data and is the wrong data.
+        ///
+        /// A block that declares no join key is independent and runs unscoped; that is a legitimate
+        /// configuration rather than an omission.
+        ///
+        /// The parent value comes from the root's FIRST row. This design assumes the root resolves to
+        /// one record, which is what a term-sheet document is. A root returning several rows still
+        /// scopes to the first — repeating the blocks per parent is a different report shape and is
+        /// not built.
+        /// </summary>
+        private static ReportDefinition ScopedToParentRow(
+            ReportDefinition definition, ReportDataSource source, IReadOnlyList<ReportResultRow> rootRows)
+        {
+            var scoped = ScopedToSource(definition, source);
+            if (string.IsNullOrEmpty(source.JoinFromKey)) return scoped;
+
+            if (string.IsNullOrEmpty(source.JoinToKey))
+            {
+                throw new InvalidPluginExecutionException(
+                    $"This dataset is scoped by \"{source.JoinFromKey}\" but does not say which column on the "
+                    + "main report identifies the parent.");
+            }
+
+            // No parent row means no children. Returning the whole table here would be the defect this
+            // scoping exists to prevent.
+            if (rootRows.Count == 0) return ScopeToNothing(scoped, source.JoinFromKey);
+
+            var parentKey = ParentKeyOf(rootRows[0], source.JoinToKey);
+            if (string.IsNullOrEmpty(parentKey))
+            {
+                throw new InvalidPluginExecutionException(
+                    $"The main report does not return \"{source.JoinToKey}\", so this dataset cannot be scoped "
+                    + "to it. Add that column to the report, or clear the dataset's join keys to run it unscoped.");
+            }
+
+            return SubReportPlanner.ScopeToParent(scoped, source.JoinFromKey, parentKey);
+        }
+
+        /// <summary>Reads the parent's identifying value, preferring the stored value over its display
+        /// text. Empty — never null — when the root does not carry the column; the caller refuses an
+        /// empty key with its own guidance.</summary>
+        private static string ParentKeyOf(ReportResultRow row, string alias)
+        {
+            if (!row.Cells.TryGetValue(alias, out var cell)) return string.Empty;
+            if (cell.Value != null) return Convert.ToString(cell.Value, CultureInfo.InvariantCulture);
+            return cell.Text ?? string.Empty;
+        }
+
+        /// <summary>
+        /// A filter that matches nothing, for a block whose parent did not come back. An empty block is
+        /// the truth here; the whole table would not be.
+        /// </summary>
+        private static ReportDefinition ScopeToNothing(ReportDefinition scoped, string childKey) =>
+            SubReportPlanner.ScopeToParent(scoped, childKey, Guid.Empty.ToString());
+
+        /// <summary>
+        /// The report as this one source sees it: the source becomes the only source, and its own
+        /// entity becomes the root.
+        ///
+        /// The composition is flipped to joined so the query builder includes the source's mappings —
+        /// it excludes standalone ones precisely so they do not leak into the parent's query.
+        ///
+        /// Relationships are dropped rather than carried across — drilldown belongs to the root
+        /// (MDS-FR-025).
+        /// </summary>
+        private static ReportDefinition ScopedToSource(ReportDefinition definition, ReportDataSource source) =>
+            definition with
+            {
+                MainEntityLogicalName = FirstMappedEntity(source) ?? definition.MainEntityLogicalName,
+                DataSources = new[] { source with { Composition = DatasetComposition.Joined } },
+                // The report's own filters name root-entity attributes and would fail this query;
+                // the block KEEPS the filters bound to it, which name its own table's (D2).
+                Filters = definition.Filters.Where(f => f.DataSourceId == source.Id).ToList(),
+                Relationships = new List<ReportRelationship>(),
+                // The block's own cap where it has one (MDS-FR-008); the report's otherwise. A child
+                // list usually wants a different bound from the report it hangs off.
+                RowLimit = source.RowLimit ?? definition.RowLimit
+            };
+
+        private static string FirstMappedEntity(ReportDataSource source)
+        {
+            foreach (var mapping in source.EntityMappings)
+            {
+                if (!string.IsNullOrEmpty(mapping.EntityLogicalName)) return mapping.EntityLogicalName;
+            }
+
+            return null;
+        }
+
+        /// <summary>A block is headed by its source's name, falling back to its alias then its id.</summary>
+        private static string DatasetName(ReportDataSource source) =>
+            !string.IsNullOrEmpty(source.Name) ? source.Name
+            : !string.IsNullOrEmpty(source.SourceAlias) ? source.SourceAlias
+            : source.Id.ToString();
+
+        private static int Elapsed(DateTime started) =>
+            (int)(DateTime.UtcNow - started).TotalMilliseconds;
 
         /// <summary>
         /// Puts the report's own query terms onto the query that supplies the rows.

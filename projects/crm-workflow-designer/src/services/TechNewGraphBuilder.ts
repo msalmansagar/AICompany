@@ -1,9 +1,26 @@
 import { MarkerType } from '@xyflow/react';
+import { BRANCH_EDGE_LABEL } from '../styles/surfacePairs';
 import type { Node, Edge } from '@xyflow/react';
 import type { CrmStep, CrmOutcome, CrmRoute } from '../types/ViewTypes';
 import type { LayoutDir, StepOutcomeRow } from './WorkflowGraphBuilder';
-import { conditionLabel } from './WorkflowGraphBuilder';
-import { computeTechStepHeight } from './TechnicalGraphBuilder';
+import { routeCanvasLabel } from './routeDisplay';
+import { routeLabelPair } from '../styles/surfacePairs';
+
+// Card height, inherited from the technical canvas this view replaced.
+const TECH_BASE_H = 90;
+const TECH_TASK_ROW_H = 18;
+const TECH_ENTITY_ROW_H = 18;
+const TECH_OUTCOME_ROW_H = 18;
+const TECH_DIVIDER_H = 10;
+const TECH_ALWAYS_H = 22;
+
+export function computeTechStepHeight(step: CrmStep, outcomeCount: number): number {
+  let h = TECH_BASE_H + TECH_ALWAYS_H;
+  if (step.taskSubject) h += TECH_TASK_ROW_H;
+  if (step.recordEntityName) h += TECH_ENTITY_ROW_H;
+  if (outcomeCount > 0) h += TECH_DIVIDER_H + outcomeCount * TECH_OUTCOME_ROW_H;
+  return h + 8;
+}
 
 // TB layout: steps in a vertical column, outcome pills branch to the right
 const STEP_W = 280;
@@ -250,7 +267,7 @@ function buildEdges(
       target: `tn_step_${sorted[0].id}`,
       sourceHandle: 'out',
       targetHandle: 'in',
-      type: 'smoothstep',
+      type: 'default',
       style: { stroke: 'var(--success)', strokeWidth: 2 },
       markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--success)' },
       selectable: false,
@@ -265,7 +282,7 @@ function buildEdges(
         target: `tn_outcome_${o.id}`,
         sourceHandle: 'out',
         targetHandle: 'in',
-        type: 'smoothstep',
+        type: 'default',
         style: { stroke: 'var(--text-secondary)', strokeWidth: 1.5 },
         selectable: false,
       });
@@ -282,9 +299,7 @@ function buildEdges(
         const targetId = route.nextStepId ? `tn_step_${route.nextStepId}` : TN_END_ID;
         const isFallback = route.isDefault;
         const stroke = isFallback ? 'var(--success)' : 'var(--warning)';
-        const cond = conditionLabel(route.filter);
-        const rawLabel = route.name && cond !== 'else' ? `${route.name}: ${cond}` : cond;
-        const label = rawLabel.length > 28 ? `${rawLabel.slice(0, 28)}…` : rawLabel;
+        const label = routeCanvasLabel(route);
 
         edges.push({
           id: `tn_e_route_${route.id}`,
@@ -292,11 +307,13 @@ function buildEdges(
           target: targetId,
           sourceHandle: 'out',
           targetHandle: 'in',
-          type: 'smoothstep',
+          type: 'default',
           animated: !isFallback,
           label,
-          labelStyle: { fontSize: 9, fontWeight: 600, fill: isFallback ? 'var(--success)' : 'var(--warning)' },
-          labelBgStyle: { fill: isFallback ? 'var(--success)' : 'var(--warning)', fillOpacity: 1 },
+          // success-on-success / warning-on-warning was the invisible-label
+          // pairing again; the registered route pairs sit text on neutral.
+          labelStyle: { fontSize: 9, fontWeight: 600, fill: routeLabelPair(isFallback ? 'fallback' : 'conditional').foreground },
+          labelBgStyle: { fill: routeLabelPair(isFallback ? 'fallback' : 'conditional').background, fillOpacity: 1 },
           style: { stroke, strokeWidth: 1.5, strokeDasharray: isFallback ? '4 4' : undefined },
           markerEnd: { type: MarkerType.ArrowClosed, color: stroke },
           selectable: false,
@@ -309,7 +326,7 @@ function buildEdges(
         target: TN_END_ID,
         sourceHandle: 'term',
         targetHandle: 'in',
-        type: 'smoothstep',
+        type: 'default',
         style: { stroke: 'var(--text-secondary)', strokeWidth: 1.5, strokeDasharray: '4 3' },
         markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--text-secondary)' },
         selectable: false,
@@ -321,10 +338,12 @@ function buildEdges(
         target: `tn_step_${o.nextStepId}`,
         sourceHandle: 'out',
         targetHandle: 'in',
-        type: 'bezier',
+        type: 'default',
         label: `↩ ${o.name}`,
-        labelStyle: { fontSize: 10, fill: 'var(--accent-branch)', fontWeight: 600 },
-        labelBgStyle: { fill: 'var(--accent-branch)', fillOpacity: 0.95, rx: 4 },
+        // was accent-on-accent — the same invisible-text pairing the contrast
+        // guard now protects against; BRANCH_EDGE_LABEL is registered there.
+        labelStyle: { fontSize: 10, fill: BRANCH_EDGE_LABEL.foreground, fontWeight: 600 },
+        labelBgStyle: { fill: BRANCH_EDGE_LABEL.background, fillOpacity: 1, rx: 4 },
         labelBgPadding: [8, 4] as [number, number],
         style: { stroke: 'var(--accent-branch)', strokeWidth: 2, strokeDasharray: '6 3' },
         markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--accent-branch)' },
@@ -337,7 +356,7 @@ function buildEdges(
         target: `tn_step_${o.nextStepId}`,
         sourceHandle: 'out',
         targetHandle: 'in',
-        type: 'smoothstep',
+        type: 'default',
         style: { stroke: 'var(--primary)', strokeWidth: 2 },
         markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--primary)' },
         selectable: true,

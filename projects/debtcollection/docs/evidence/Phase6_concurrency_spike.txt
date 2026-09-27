@@ -1,0 +1,47 @@
+=== Phase 6 spike — optimistic concurrency against the real platform ===
+
+  Organisation: org5869857f.crm4.dynamics.com
+
+─── Setup ───
+  PASS  A row exists to experiment on — 5724e5a9-17b4-f111-aaac-000d3abd8313
+
+─── 1. Does a read give us a concurrency token? ───
+  PASS  A retrieve returns an ETag header — W/"210004981"
+  PASS  It also carries @odata.etag in the body, which is what a client keeps — W/"210004981"
+  PASS  Both forms agree — W/"210004981" / W/"210004981"
+
+─── 2. A write carrying the current token ───
+  PASS  A PATCH with the current ETag succeeds — HTTP 204
+  PASS  The write landed — sequence=2
+  PASS  The ETag changed, so it is a real version token — /"210004981" -> /"210004983"
+
+─── 3. A write carrying a stale token — the whole point ───
+  PASS  A PATCH with a stale ETag is refused with 412 Precondition Failed — HTTP 412
+  PASS  The refusal names the version mismatch rather than failing obscurely — The version of the existing record doesn't match the RowVersion property provided.
+  PASS  The refused write did NOT land — no partial update — sequence=2
+
+─── 4. If-Match: * ───
+  PASS  If-Match: * updates an existing row — HTTP 204
+     (so `*` means "it must exist", NOT "it must be unchanged" — it is an upsert
+      guard, not a concurrency guard, and must not be used as one)
+
+─── 5. No If-Match at all — today's behaviour ───
+  PASS  A PATCH with no If-Match succeeds regardless of intervening changes — HTTP 204
+     (this is last-write-wins, and it is what every Phase 6 write would do
+      through Xrm.WebApi, which cannot send the header)
+
+─── 6. Two officers, one record ───
+  PASS  The first officer's write succeeds — HTTP 204
+  PASS  The second officer's write is refused rather than silently overwriting — HTTP 412
+  PASS  The first officer's value survived — sequence=10
+
+─── Cleanup ───
+  PASS  The spike row is removed — HTTP 204
+
+=== 16/16 checks passed ===
+
+What this proves: Dataverse gives real optimistic concurrency — an ETag per version,
+412 on a stale write, and no partial update when it refuses. What it does NOT prove is
+that the BROWSER can use it: this ran from node with a bearer token and full control of
+the headers. Xrm.WebApi has no parameter for one, which is the finding that decides the
+write architecture.

@@ -1,0 +1,424 @@
+{
+  "capturedOn": "2026-09-17T20:05:02.585Z",
+  "assembly": {
+    "@odata.etag": "W/\"208253336\"",
+    "pluginassemblyid": "7cbb8c5f-32b1-f111-aaac-000d3abd8313",
+    "name": "Msst.DebtCollection.Plugins"
+  },
+  "steps": [
+    {
+      "id": "8a931e09-33b1-f111-aaac-000d3abd8313",
+      "name": "ActivitySubjectComposerPlugin: Create of msst_dcpcollectionaction (PreOperation)",
+      "stage": 20,
+      "mode": 0,
+      "rank": 1,
+      "filteringattributes": "msst_actiontype",
+      "statecode": 0,
+      "statuscode": 1,
+      "images": []
+    },
+    {
+      "id": "8d931e09-33b1-f111-aaac-000d3abd8313",
+      "name": "ActivitySubjectComposerPlugin: Create of msst_dcpcommunication (PreOperation)",
+      "stage": 20,
+      "mode": 0,
+      "rank": 1,
+      "filteringattributes": "msst_channel",
+      "statecode": 0,
+      "statuscode": 1,
+      "images": []
+    },
+    {
+      "id": "5daf01d4-32b1-f111-aaac-70a8a55bc6a5",
+      "name": "AuditLogWriterPlugin: Create of msst_dcpcollectionaction (PostOperation)",
+      "stage": 40,
+      "mode": 1,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": []
+    },
+    {
+      "id": "e5c7a8b4-32b1-f111-aaac-70a8a55bc6a5",
+      "name": "AuditLogWriterPlugin: Create of msst_dcpcollectioncase (PostOperation)",
+      "stage": 40,
+      "mode": 1,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": []
+    },
+    {
+      "id": "dba40ada-32b1-f111-aaac-70a8a55bc6a5",
+      "name": "AuditLogWriterPlugin: Create of msst_dcpcommunication (PostOperation)",
+      "stage": 40,
+      "mode": 1,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": []
+    },
+    {
+      "id": "be7d63d6-32b1-f111-aaac-000d3abd8313",
+      "name": "AuditLogWriterPlugin: Create of msst_dcpcustomer (PostOperation)",
+      "stage": 40,
+      "mode": 1,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": []
+    },
+    {
+      "id": "967d63d6-32b1-f111-aaac-000d3abd8313",
+      "name": "AuditLogWriterPlugin: Create of msst_dcploanfacility (PostOperation)",
+      "stage": 40,
+      "mode": 1,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": []
+    },
+    {
+      "id": "59af01d4-32b1-f111-aaac-70a8a55bc6a5",
+      "name": "AuditLogWriterPlugin: Create of msst_dcpptprecord (PostOperation)",
+      "stage": 40,
+      "mode": 1,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": []
+    },
+    {
+      "id": "e2a40ada-32b1-f111-aaac-70a8a55bc6a5",
+      "name": "AuditLogWriterPlugin: Create of msst_dcpstrategyconfig (PostOperation)",
+      "stage": 40,
+      "mode": 1,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": []
+    },
+    {
+      "id": "ab7d63d6-32b1-f111-aaac-000d3abd8313",
+      "name": "AuditLogWriterPlugin: Update of msst_dcpcollectionaction (PostOperation)",
+      "stage": 40,
+      "mode": 1,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": [
+        {
+          "alias": "PreImage",
+          "attributes": null,
+          "type": 0
+        }
+      ]
+    },
+    {
+      "id": "2e1cc7b5-32b1-f111-aaac-000d3abd8313",
+      "name": "AuditLogWriterPlugin: Update of msst_dcpcollectioncase (PostOperation)",
+      "stage": 40,
+      "mode": 1,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": [
+        {
+          "alias": "PreImage",
+          "attributes": null,
+          "type": 0
+        }
+      ]
+    },
+    {
+      "id": "dea40ada-32b1-f111-aaac-70a8a55bc6a5",
+      "name": "AuditLogWriterPlugin: Update of msst_dcpcommunication (PostOperation)",
+      "stage": 40,
+      "mode": 1,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": [
+        {
+          "alias": "PreImage",
+          "attributes": null,
+          "type": 0
+        }
+      ]
+    },
+    {
+      "id": "c17d63d6-32b1-f111-aaac-000d3abd8313",
+      "name": "AuditLogWriterPlugin: Update of msst_dcpcustomer (PostOperation)",
+      "stage": 40,
+      "mode": 1,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": [
+        {
+          "alias": "PreImage",
+          "attributes": null,
+          "type": 0
+        }
+      ]
+    },
+    {
+      "id": "9d7d63d6-32b1-f111-aaac-000d3abd8313",
+      "name": "AuditLogWriterPlugin: Update of msst_dcploanfacility (PostOperation)",
+      "stage": 40,
+      "mode": 1,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": [
+        {
+          "alias": "PreImage",
+          "attributes": null,
+          "type": 0
+        }
+      ]
+    },
+    {
+      "id": "a47d63d6-32b1-f111-aaac-000d3abd8313",
+      "name": "AuditLogWriterPlugin: Update of msst_dcpptprecord (PostOperation)",
+      "stage": 40,
+      "mode": 1,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": [
+        {
+          "alias": "PreImage",
+          "attributes": null,
+          "type": 0
+        }
+      ]
+    },
+    {
+      "id": "e5a40ada-32b1-f111-aaac-70a8a55bc6a5",
+      "name": "AuditLogWriterPlugin: Update of msst_dcpstrategyconfig (PostOperation)",
+      "stage": 40,
+      "mode": 1,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": [
+        {
+          "alias": "PreImage",
+          "attributes": null,
+          "type": 0
+        }
+      ]
+    },
+    {
+      "id": "55c51103-91b1-f111-aaac-000d3abd8313",
+      "name": "DefaultStatusAssignerPlugin: Create of msst_dcpcollectioncase (PreOperation)",
+      "stage": 20,
+      "mode": 0,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": []
+    },
+    {
+      "id": "68df3f03-91b1-f111-aaac-000d3abcf32d",
+      "name": "DefaultStatusAssignerPlugin: Create of msst_dcpptprecord (PreOperation)",
+      "stage": 20,
+      "mode": 0,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": []
+    },
+    {
+      "id": "f1a40ada-32b1-f111-aaac-70a8a55bc6a5",
+      "name": "ImmutabilityGuardPlugin: Delete of msst_dcpauditlog (PreValidation)",
+      "stage": 10,
+      "mode": 0,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": []
+    },
+    {
+      "id": "ada6e1dc-32b1-f111-aaac-000d3abd8313",
+      "name": "ImmutabilityGuardPlugin: Delete of msst_dcpcollectionaction (PreValidation)",
+      "stage": 10,
+      "mode": 0,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": [
+        {
+          "alias": "PreImage",
+          "attributes": "statecode",
+          "type": 0
+        }
+      ]
+    },
+    {
+      "id": "e9ba830b-33b1-f111-aaac-70a8a55bc6a5",
+      "name": "ImmutabilityGuardPlugin: Delete of msst_dcpcollectioncase (PreValidation)",
+      "stage": 10,
+      "mode": 0,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": []
+    },
+    {
+      "id": "85931e09-33b1-f111-aaac-000d3abd8313",
+      "name": "ImmutabilityGuardPlugin: Delete of msst_dcpcommunication (PreValidation)",
+      "stage": 10,
+      "mode": 0,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": [
+        {
+          "alias": "PreImage",
+          "attributes": "statecode",
+          "type": 0
+        }
+      ]
+    },
+    {
+      "id": "9ea6e1dc-32b1-f111-aaac-000d3abd8313",
+      "name": "ImmutabilityGuardPlugin: Delete of msst_dcpdelinquencysnapshot (PreValidation)",
+      "stage": 10,
+      "mode": 0,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": []
+    },
+    {
+      "id": "a2a6e1dc-32b1-f111-aaac-000d3abd8313",
+      "name": "ImmutabilityGuardPlugin: Update of msst_dcpauditlog (PreValidation)",
+      "stage": 10,
+      "mode": 0,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": []
+    },
+    {
+      "id": "a9a6e1dc-32b1-f111-aaac-000d3abd8313",
+      "name": "ImmutabilityGuardPlugin: Update of msst_dcpcollectionaction (PreValidation)",
+      "stage": 10,
+      "mode": 0,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": [
+        {
+          "alias": "PreImage",
+          "attributes": "statecode",
+          "type": 0
+        }
+      ]
+    },
+    {
+      "id": "e5ba830b-33b1-f111-aaac-70a8a55bc6a5",
+      "name": "ImmutabilityGuardPlugin: Update of msst_dcpcommunication (PreValidation)",
+      "stage": 10,
+      "mode": 0,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": [
+        {
+          "alias": "PreImage",
+          "attributes": "statecode",
+          "type": 0
+        }
+      ]
+    },
+    {
+      "id": "9ba6e1dc-32b1-f111-aaac-000d3abd8313",
+      "name": "ImmutabilityGuardPlugin: Update of msst_dcpdelinquencysnapshot (PreValidation)",
+      "stage": 10,
+      "mode": 0,
+      "rank": 1,
+      "filteringattributes": null,
+      "statecode": 0,
+      "statuscode": 1,
+      "images": []
+    },
+    {
+      "id": "e9a40ada-32b1-f111-aaac-70a8a55bc6a5",
+      "name": "StatusTransitionValidatorPlugin: Update of msst_dcpcollectioncase (PreOperation)",
+      "stage": 20,
+      "mode": 0,
+      "rank": 1,
+      "filteringattributes": "statuscode",
+      "statecode": 0,
+      "statuscode": 1,
+      "images": [
+        {
+          "alias": "PreImage",
+          "attributes": "statuscode,msst_customerid",
+          "type": 0
+        }
+      ]
+    },
+    {
+      "id": "eda40ada-32b1-f111-aaac-70a8a55bc6a5",
+      "name": "StatusTransitionValidatorPlugin: Update of msst_dcpptprecord (PreOperation)",
+      "stage": 20,
+      "mode": 0,
+      "rank": 1,
+      "filteringattributes": "statuscode",
+      "statecode": 0,
+      "statuscode": 1,
+      "images": [
+        {
+          "alias": "PreImage",
+          "attributes": "statuscode",
+          "type": 0
+        }
+      ]
+    },
+    {
+      "id": "edba830b-33b1-f111-aaac-70a8a55bc6a5",
+      "name": "StopContactQueueMoverPlugin: Update of msst_dcpcustomer (PostOperation)",
+      "stage": 40,
+      "mode": 1,
+      "rank": 1,
+      "filteringattributes": "msst_stopcontact",
+      "statecode": 0,
+      "statuscode": 1,
+      "images": [
+        {
+          "alias": "PreImage",
+          "attributes": "msst_stopcontact",
+          "type": 0
+        }
+      ]
+    }
+  ]
+}

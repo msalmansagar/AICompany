@@ -1,0 +1,56 @@
+=== Dataverse paging — what the platform actually does ===
+
+  Organisation: org5869857f.crm4.dynamics.com
+
+─── Page size ───
+  ANSWERED  Prefer: odata.maxpagesize caps the page
+            status=200 rows=5
+  ANSWERED  Without the header the platform applies its own default page size
+            rows=1295 (the platform default, not something to hard-code)
+
+─── The continuation link ───
+  ANSWERED  A full page carries @odata.nextLink
+            https://org5869857f.crm4.dynamics.com/api/data/v9.2/qdb_crmlogses?$select=activityid,qdb_source,createdon&$ski…
+  ANSWERED  The link is absolute, not a fragment to be assembled
+            origin=https://org5869857f.crm4.dynamics.com  path=/api/data/v9.2/qdb_crmlogses
+  ANSWERED  It carries an opaque $skiptoken rather than a row offset
+            params=[$select, $skiptoken]  skiptoken=<cookie pagenumber="2" pagingcookie="%3ccookie%20page%3d%221…
+  ANSWERED  It preserves the original $select, so the caller need not re-send it
+            $select=activityid,qdb_source,createdon
+
+─── Following the link ───
+  ANSWERED  Following the link verbatim returns the next page
+            status=200 rows=5
+  ANSWERED  The second page overlaps the first in no row
+            page1=5 page2=5 overlap=0
+  ANSWERED  The page size is a per-request header, NOT carried by the link
+            following the same link without the header returned 1290 rows
+
+─── Walking a bounded set to its end ───
+  ANSWERED  A walk across several pages yields no duplicate row
+            pages=6 rows=300 distinct=300 duplicates=0
+  NO       The walk terminates on its own — the final page carries no nextLink
+            stopped at the 6-page safety cap with more still available (not a failure — the table is larger than the cap)
+
+─── Filter and sort across pages ───
+  ANSWERED  The link preserves $orderby
+            $orderby=createdon desc
+  ANSWERED  Sort order holds ACROSS the page boundary
+            last of page 1 = 2026-08-24T22:05:31Z
+            first of page 2 = 2026-08-24T22:05:31Z
+
+─── A continuation token that is not valid ───
+  ANSWERED  An invalid continuation token is REFUSED, not silently restarted from page 1
+            status=400
+            Malformed XML
+
+─── Total count ───
+  ANSWERED  $count returns a total independent of the page size
+            @odata.count=1295 while the page held 5 rows
+
+─── $top ───
+  ANSWERED  $top bounds the whole result set, and suppresses continuation
+            rows=3 nextLink=absent — $top is a limit, not a page size
+
+=== 15/16 questions answered by the organisation ===
+Unanswered questions are design inputs, not failures — they say what the contract must not assume.

@@ -34,6 +34,21 @@
     <AssemblyOriginatorKeyFile>Qdb.ReportEngine.CrmPlugin.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
 
+  <!--
+    The on-premise entry point is a Custom Workflow Activity, not a plugin on a message: 9.1 has no
+    Custom API, so the message has to be a Process Action and the work inside it an activity. Same
+    pattern as Qdb.FormEngine.Workflows. It lives in THIS assembly rather than a sibling because a
+    Dataverse plugin assembly cannot resolve sibling assemblies from the sandbox (ADR-RPT-011), and
+    the shared engine sources are already compiled in here.
+  -->
+  <ItemGroup>
+    <Reference Include="System.Activities" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CrmSdk.Workflow" Version="9.0.2.56" PrivateAssets="all" />
+  </ItemGroup>
+
   <!-- System.Net.Http ships with the framework but is not auto-referenced by the SDK for net462. -->
   <ItemGroup>
     <Reference Include="System.Net.Http" />
@@ -57,8 +72,10 @@
     <Compile Include="..\Qdb.ReportEngine.Core\Common\DomainError.cs" LinkBase="Shared\Common" />
     <Compile Include="..\Qdb.ReportEngine.Core\Models\ReportDefinition.cs" LinkBase="Shared\Models" />
     <Compile Include="..\Qdb.ReportEngine.Core\Models\ReportResult.cs" LinkBase="Shared\Models" />
+    <Compile Include="..\Qdb.ReportEngine.Core\Models\ReportDataset.cs" LinkBase="Shared\Models" />
     <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\ReportQueryBuilder.cs" LinkBase="Shared\Engine" />
     <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\FetchXmlFilters.cs" LinkBase="Shared\Engine" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\ParameterSubstitution.cs" LinkBase="Shared\Engine" />
     <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\FetchXmlAggregates.cs" LinkBase="Shared\Engine" />
     <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\ReportRowShaper.cs" LinkBase="Shared\Engine" />
     <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\ReportDefinitionFetch.cs" LinkBase="Shared\Engine" />
