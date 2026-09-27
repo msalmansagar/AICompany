@@ -698,6 +698,19 @@ h1, h2, h3 { text-wrap: balance; }
 .cb-group { align-self: stretch; border: 1px solid var(--n-stroke2); border-left: 3px solid var(--brand); border-radius: var(--radius); background: var(--n-bg1); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 .cb-group.neg { border-left-color: var(--danger); }
 .cb-group .cb-group { background: var(--n-bg2); }
+
+/* Quantifier — "for each element of <collection>, ALL/SOME/NONE satisfy ...".
+   Marked with its own accent so an author can see at a glance that the conditions inside it
+   are scoped to a DIFFERENT record than the ones outside. */
+.cb-quant { align-self: stretch; border: 1px solid var(--n-stroke2); border-left: 3px solid var(--warn, #b7791f); border-radius: var(--radius); background: var(--n-bg2); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.cb-quant-h { display: flex; align-items: center; gap: 8px; }
+.cb-quant-h .spacer { flex: 1; }
+.cb-quant-kind { font-weight: 700; }
+.cb-quant-coll { flex: 0 1 220px; }
+.cb-quant-sat { font-size: 12px; color: var(--n-fg2); }
+.cb-quant > .cb-group { border-left-color: var(--warn, #b7791f); }
+.cb-quant-hint { margin: 0; font-size: 11px; line-height: 1.4; }
+
 .cb-group-h { display: flex; align-items: center; gap: 12px; }
 .cb-group-h .spacer { flex: 1; }
 .cb-op { display: inline-flex; border: 1px solid var(--n-stroke2); border-radius: var(--radius); overflow: hidden; }

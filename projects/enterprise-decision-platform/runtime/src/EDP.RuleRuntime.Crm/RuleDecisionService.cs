@@ -7,6 +7,8 @@ using Microsoft.Xrm.Sdk.Query;
 using EDP.RuleRuntime;
 using EDP.RuleRuntime.Crm.Sinks;
 using EDP.RuleRuntime.Execution;
+using EDP.RuleRuntime.Snapshots;
+using EDP.RuleRuntime.Crm.Retrieval;
 using EDP.RuleRuntime.Metadata;
 using EDP.RuleRuntime.Operators;
 using EDP.RuleRuntime.Pcrm;
@@ -61,7 +63,17 @@ namespace EDP.RuleRuntime.Crm
         /// the decision is produced; it never affects the returned result.
         /// </summary>
         public DecisionOutcome Evaluate(string pcrmJson, Entity target, Guid? ruleVersionId, Guid actorId, DateTime nowUtc)
-            => EvaluateInputs(pcrmJson, BuildInputs(pcrmJson, target), ruleVersionId, actorId, nowUtc);
+            => EvaluateInputs(pcrmJson, BuildInputs(pcrmJson, target, nowUtc), ruleVersionId, actorId, nowUtc);
+
+        /// <summary>
+        /// Assemble the fact set a rule will see, and capture it (FR-F30).
+        ///
+        /// The snapshot is what keeps the evaluator a pure function now that fact assembly can
+        /// reach live data: the decision is made against these facts, and replaying it against the
+        /// same snapshot reproduces the verdict (FR-F31) even after the population has moved on.
+        /// </summary>
+        public FactSnapshot CaptureFacts(string pcrmJson, Entity target, DateTime nowUtc)
+            => FactSnapshot.Capture(BuildInputs(pcrmJson, target, nowUtc), nowUtc);
 
         /// <summary>
         /// Evaluate against a pre-built input dictionary (e.g. from a Custom API
@@ -203,7 +215,7 @@ namespace EDP.RuleRuntime.Crm
             }
         }
 
-        private IDictionary<string, object?> BuildInputs(string pcrmJson, Entity target)
+        private IDictionary<string, object?> BuildInputs(string pcrmJson, Entity target, DateTime nowUtc)
         {
             var doc = JsonSerializer.Deserialize<PcrmDocument>(pcrmJson, JsonOptions)
                       ?? throw new InvalidOperationException("PCRM payload could not be parsed.");
@@ -219,7 +231,26 @@ namespace EDP.RuleRuntime.Crm
                 var crmValue = source != null && source.Contains(binding) ? source[binding] : null;
                 inputs[input.Name] = CrmValueConverter.ToRuntime(crmValue);
             }
+
+            AddRetrievedPopulations(doc, inputs, nowUtc);
             return inputs;
+        }
+
+        /// <summary>
+        /// Run declared retrievals and expose each as a named collection (F2).
+        ///
+        /// Retrievals run AFTER the anchor inputs are bound, because their filters reference those
+        /// inputs by name — that is what FR-F10's "filtered by runtime values" means in practice.
+        /// </summary>
+        private void AddRetrievedPopulations(PcrmDocument doc, IDictionary<string, object?> inputs, DateTime nowUtc)
+        {
+            if (doc.Retrievals.Count == 0) return;
+
+            var retriever = new PopulationRetriever(_service);
+            var context = new RuleExecutionContext(inputs, nowUtc);
+
+            foreach (var retrieval in doc.Retrievals)
+                inputs[retrieval.Name] = retriever.Retrieve(retrieval, context);
         }
 
         /// <summary>
