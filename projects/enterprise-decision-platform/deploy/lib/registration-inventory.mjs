@@ -49,9 +49,12 @@ async function readSteps(client, typeIds) {
   return attachImageCounts(client, steps);
 }
 
+// Only entity steps can carry images; a Custom API's stage-30 implementation step never does,
+// so querying for them would only lengthen the filter.
 async function attachImageCounts(client, steps) {
-  if (steps.length === 0) return steps;
-  const filter = steps.map((s) => `_sdkmessageprocessingstepid_value eq ${s.id}`).join(' or ');
+  const entitySteps = steps.filter((s) => s.stage !== 30);
+  if (entitySteps.length === 0) return steps;
+  const filter = entitySteps.map((s) => `_sdkmessageprocessingstepid_value eq ${s.id}`).join(' or ');
   const images = await getAll(client, `sdkmessageprocessingstepimages?$select=sdkmessageprocessingstepimageid,_sdkmessageprocessingstepid_value&$filter=${filter}`);
   return steps.map((s) => ({ ...s, imageCount: images.filter((i) => i._sdkmessageprocessingstepid_value === s.id).length }));
 }

@@ -34,9 +34,12 @@ export async function applyMigration({ client, contract, prepared, changeLog, sl
 export async function prepareRollback(client, contract, snapshot) {
   const inventory = await takeInventory(client, contract);
   const { items, problems } = classifyRegistrations(inventory, contract);
-  const moves = problems.length === 0 ? planRollback(items, snapshot) : [];
-  const unknown = moves.filter((m) => m.action === 'not-in-snapshot').map((m) => `${m.key} is not in the snapshot`);
-  return { inventory, items, problems: [...problems, ...unknown], metadata: { creates: [], incompatibilities: [] }, moves };
+  // Report items the snapshot does not know about even when other problems already block the
+  // rollback: a snapshot that does not match the org is itself a finding the operator needs.
+  const candidateMoves = planRollback(items, snapshot);
+  const unknown = candidateMoves.filter((m) => m.action === 'not-in-snapshot').map((m) => `${m.key} is not in the snapshot`);
+  const allProblems = [...problems, ...unknown];
+  return { inventory, items, problems: allProblems, metadata: { creates: [], incompatibilities: [] }, moves: allProblems.length === 0 ? candidateMoves : [] };
 }
 
 export async function applyRollback({ client, contract, prepared, changeLog, sleep, waitSeconds = DEFAULT_PROPAGATION_WAIT_SECONDS }) {

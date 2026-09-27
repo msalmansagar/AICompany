@@ -167,6 +167,18 @@ test('prepareRollback_ItemMissingFromSnapshot_IsRefused', async () => {
   assert.ok(prepared.problems.some((p) => p.includes('qdb_edp_TestRule') && p.includes('not in the snapshot')));
 });
 
+test('prepareRollback_OtherProblemsPresent_StillReportsItemsMissingFromTheSnapshot', async () => {
+  const state = preA7Org();
+  const { client } = await run(state);
+  const before = await prepareMigration(client, contract);
+  state.steps.find((s) => s.sdkmessageprocessingstepid === 's-entity-0').statecode = 1;
+  const trimmed = { ...before.inventory, customApis: before.inventory.customApis.filter((a) => a.uniqueName !== 'qdb_edp_TestRule') };
+  const prepared = await prepareRollback(client, contract, trimmed);
+  assert.ok(prepared.problems.some((p) => p.includes('disabled')));
+  assert.ok(prepared.problems.some((p) => p.includes('qdb_edp_TestRule') && p.includes('not in the snapshot')));
+  assert.deepEqual(prepared.moves, []);
+});
+
 // ---- refusals: each unsafe state must block --apply ----
 
 const refusalCases = [
