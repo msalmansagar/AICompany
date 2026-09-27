@@ -172,6 +172,7 @@ export function CasesView({ onOpenCase, scope = {} }: { onOpenCase?: (id: string
               rowHeight={58}
               height={600}
               selectedKey={selectedId}
+              activation="row"
               onRowClick={row => setSelectedId(row.id)}
               onSelectFirst={row => setSelectedId(row.id)}
               emptyMessage="No open cases match these filters."
@@ -207,7 +208,7 @@ function scopeFilterFor(sourceSystem: ReportingScope['sourceSystem'], pickerFilt
 const AUDIT_COLUMNS: readonly DataGridColumn<AuditRow>[] = [
   { key: 'when', header: 'When', width: '170px', render: r => formatDate(r.createdOn) },
   { key: 'source', header: 'Source', width: '220px', render: r => r.source ?? '—' },
-  { key: 'subject', header: 'Entry', render: r => r.subject ?? '—' },
+  { key: 'subject', header: 'Entry', isLink: true, render: r => r.subject ?? '—' },
   { key: 'exception', header: '', width: '40px', render: r => (r.isException ? '!' : '') },
 ];
 
@@ -274,6 +275,7 @@ export function AuditView() {
               rowHeight={58}
               height={600}
               selectedKey={selected?.id}
+              activation="row"
               onRowClick={setSelected}
               onSelectFirst={setSelected}
               emptyMessage="No log entries match."
@@ -343,7 +345,7 @@ export function MyDayView({ onOpenCase }: { onOpenCase?: (id: string) => void })
 
 const FOLLOW_UP_COLUMNS: readonly DataGridColumn<ActivityRow>[] = [
   { key: 'due', header: 'Follow-up', width: '110px', render: r => formatDate(r.followUpDate) },
-  { key: 'case', header: 'Case', width: '160px', render: r => r.caseNumber ?? '—' },
+  { key: 'case', header: 'Case', width: '160px', isLink: true, render: r => r.caseNumber ?? '—' },
   { key: 'type', header: 'Type', width: '140px', render: r => r.activityType ?? '—' },
   { key: 'subject', header: 'Subject', render: r => r.subject },
   { key: 'owner', header: 'Owner', width: '150px', render: r => r.ownerName ?? '—' },

@@ -357,7 +357,7 @@ function PopulationChooser({
         pageSize={50}
         height={280}
         emptyMessage="No open case matches this filter."
-        {...(mode === 'SelectedRecords' ? { onRowClick: toggle } : {})}
+        {...(mode === 'SelectedRecords' ? { activation: 'row' as const, onRowClick: toggle } : {})}
         data-testid="bulk-population-grid"
       />
     </>

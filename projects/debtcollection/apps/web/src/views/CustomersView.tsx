@@ -103,7 +103,7 @@ export function CustomersView({ onOpenCustomer, onOpenCase }: {
               <DataGrid<CustomerListRow, CustomerListQuery>
                 columns={SPLIT_COLUMNS} fetchPage={fetchPage} query={query}
                 rowKey={row => row.customerBusinessId} pageSize={50} rowHeight={58} height={600}
-                selectedKey={selectedId} onRowClick={row => setSelectedId(row.customerBusinessId)}
+                selectedKey={selectedId} activation="row" onRowClick={row => setSelectedId(row.customerBusinessId)}
                 onSelectFirst={row => setSelectedId(row.customerBusinessId)}
                 emptyMessage="No customer has an open collection case in this CRM scope."
                 data-testid="customers-list"

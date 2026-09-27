@@ -116,7 +116,7 @@ const INTAKE_COUNTS: readonly CountRequest[] = [
 
 const PTP_LIST_COLUMNS: readonly DataGridColumn<PtpRow>[] = [
   { key: 'promised', header: 'Promised for', width: '130px', render: r => <span className="row-lead"><BucketBar bucket={r.caseBucket} />{formatDate(r.ptpDate)}</span> },
-  { key: 'case', header: 'Case', width: '160px', render: r => r.caseNumber ?? '—' },
+  { key: 'case', header: 'Case', width: '160px', isLink: true, render: r => r.caseNumber ?? '—' },
   { key: 'amount', header: 'Amount', width: '130px', render: r => formatMoney(r.promisedAmount) },
   { key: 'type', header: 'Type', width: '90px', render: r => r.promiseType ?? '—' },
   { key: 'status', header: 'Status', width: '170px', render: r => <PromiseOutcome status={r.ptpStatus} /> },
@@ -195,7 +195,7 @@ export function PromiseToPayView({ view, onOpenCase }: {
               <DataGrid<PtpRow, ActivityQuery>
                 columns={PTP_SPLIT_COLUMNS} fetchPage={fetchPage} query={query}
                 rowKey={row => row.id} pageSize={50} rowHeight={58} height={600}
-                selectedKey={selected?.id} onRowClick={setSelected} onSelectFirst={setSelected}
+                selectedKey={selected?.id} activation="row" onRowClick={setSelected} onSelectFirst={setSelected}
                 emptyMessage="No promise to pay has been recorded."
                 data-testid="ptp-list"
               />

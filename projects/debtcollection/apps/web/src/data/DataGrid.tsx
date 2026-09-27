@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, type KeyboardEvent, type ReactNode } from 'react';
 import type { ContinuationToken, Page } from '@dcp/domain';
 import { usePagedQuery } from './usePagedQuery.js';
 import { VirtualizedRows } from './VirtualizedRows.js';
@@ -28,7 +28,16 @@ export interface DataGridColumn<T> {
   width?: string;
   /** Right-aligns and tabular-aligns the column, as the prototype's `.num` does. */
   numeric?: boolean;
+  /** The column that opens the record, drawn as a link. Absent means the first column. */
+  isLink?: boolean;
 }
+
+/**
+ * What a click on a row does. `lead`: the one link column opens the record and nothing else in the
+ * row is drawn or behaves as a link (user instruction, 2026-09-27). `row`: the whole row is the
+ * control — a Split list choosing what to preview, a selection being toggled — and no cell is a link.
+ */
+export type RowActivation = 'lead' | 'row';
 
 export interface DataGridProps<T, Q extends object> {
   columns: readonly DataGridColumn<T>[];
@@ -39,6 +48,7 @@ export interface DataGridProps<T, Q extends object> {
   rowHeight?: number;
   height?: number;
   onRowClick?: (item: T) => void;
+  activation?: RowActivation;
   /** The row a Split layout is previewing, marked as selected. */
   selectedKey?: string | undefined;
   /**
@@ -53,10 +63,22 @@ export interface DataGridProps<T, Q extends object> {
   'data-testid'?: string;
 }
 
-/** The approved row classes: `.link-cell` for a row that opens, `.selected` for the previewed one. */
-function rowClassName(isSelected: boolean, opens: boolean): string | undefined {
-  if (isSelected) return opens ? 'link-cell selected' : 'selected';
-  return opens ? 'link-cell' : undefined;
+/** `.selected` for the previewed row; `.link-row` when the whole row is the control. */
+function rowClassName(isSelected: boolean, isWholeRowControl: boolean): string | undefined {
+  if (isSelected) return isWholeRowControl ? 'link-row selected' : 'selected';
+  return isWholeRowControl ? 'link-row' : undefined;
+}
+
+/** `.link-cell` only on the one column that opens the record; `.num` as the column asks. */
+function cellClassName(isNumeric: boolean | undefined, isLink: boolean): string | undefined {
+  if (isLink) return isNumeric ? 'num link-cell' : 'link-cell';
+  return isNumeric ? 'num' : undefined;
+}
+
+function activateOnKey(activate: () => void) {
+  return (event: KeyboardEvent<HTMLTableCellElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(); }
+  };
 }
 
 export function DataGrid<T, Q extends object>({
@@ -69,6 +91,7 @@ export function DataGrid<T, Q extends object>({
   rowHeight = 44,
   height = 520,
   onRowClick,
+  activation = 'lead',
   selectedKey,
   onSelectFirst,
   emptyMessage = 'Nothing matches the current filters.',
@@ -77,6 +100,8 @@ export function DataGrid<T, Q extends object>({
 }: DataGridProps<T, Q>) {
   const paged = usePagedQuery<T, Q>({ fetchPage, query, pageSize, rowKey, enabled });
   useSelectFirst(paged.items, selectedKey, onSelectFirst);
+  const isWholeRowControl = activation === 'row' && onRowClick !== undefined;
+  const linkKey = activation === 'lead' && onRowClick !== undefined ? (columns.find(column => column.isLink) ?? columns[0])?.key : undefined;
 
   if (paged.status === 'loadingFirst') {
     return <div className="empty-state" data-testid={`${testId}-loading-first`}>Loading…</div>;
@@ -125,15 +150,25 @@ export function DataGrid<T, Q extends object>({
         data-testid={`${testId}-viewport`}
         renderRow={item => (
           <tr
-            className={rowClassName(selectedKey !== undefined && rowKey(item) === selectedKey, onRowClick !== undefined)}
+            className={rowClassName(selectedKey !== undefined && rowKey(item) === selectedKey, isWholeRowControl)}
             aria-selected={selectedKey === undefined ? undefined : rowKey(item) === selectedKey}
-            onClick={onRowClick ? () => onRowClick(item) : undefined}
+            onClick={isWholeRowControl ? () => onRowClick!(item) : undefined}
           >
-            {columns.map(column => (
-              <td key={column.key} className={column.numeric ? 'num' : undefined}>
-                {column.render(item)}
-              </td>
-            ))}
+            {columns.map(column => {
+              const isLink = column.key === linkKey;
+              return (
+                <td
+                  key={column.key}
+                  className={cellClassName(column.numeric, isLink)}
+                  tabIndex={isLink ? 0 : undefined}
+                  data-link={isLink ? 'true' : undefined}
+                  onClick={isLink ? () => onRowClick!(item) : undefined}
+                  onKeyDown={isLink ? activateOnKey(() => onRowClick!(item)) : undefined}
+                >
+                  {column.render(item)}
+                </td>
+              );
+            })}
           </tr>
         )}
         footer={

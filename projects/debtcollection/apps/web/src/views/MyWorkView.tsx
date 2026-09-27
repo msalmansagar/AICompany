@@ -222,6 +222,7 @@ export function MyWorkView({ onOpenCase, initialBucket = 'MyAssigned' }: {
                 rowHeight={58}
                 height={560}
                 selectedKey={selected?.id}
+                activation="row"
                 onRowClick={setSelected}
                 onSelectFirst={setSelected}
                 emptyMessage="Nothing in this list right now."

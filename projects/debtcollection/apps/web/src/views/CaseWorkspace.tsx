@@ -246,7 +246,7 @@ function SnapshotHistory({ caseId }: { caseId: string }) {
 const ACTIVITY_COLUMNS: readonly DataGridColumn<ActivityRow>[] = [
   { key: 'date', header: 'When', width: '110px', render: r => formatDate(r.activityDate ?? r.createdOn) },
   { key: 'type', header: 'Type', width: '150px', render: r => r.activityType ?? '—' },
-  { key: 'subject', header: 'Subject', render: r => r.subject },
+  { key: 'subject', header: 'Subject', isLink: true, render: r => r.subject },
   { key: 'owner', header: 'Owner', width: '160px', render: r => r.ownerName ?? '—' },
   { key: 'followup', header: 'Follow-up', width: '110px', render: r => formatDate(r.followUpDate) },
   { key: 'status', header: 'Status', width: '120px', render: r => <StatusPill status={r.status} /> },

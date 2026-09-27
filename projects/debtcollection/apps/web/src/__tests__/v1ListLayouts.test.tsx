@@ -109,6 +109,20 @@ describe('Collection Cases', () => {
     expect([layout, window.location.hash]).toEqual(['split-layout', '#case/c-1']);
   });
 
+  it('draws only the Case column as a link in Grid, and opens the case from that column alone', async () => {
+    window.localStorage.setItem('dcp.v1.casesLayout', 'grid');
+    await open('#cases');
+    const row = (await within(await screen.findByTestId('cases-grid', {}, { timeout: WAIT })).findByText('COL-HL-000123')).closest('tr')!;
+    const cells = [...row.querySelectorAll('td')];
+
+    await userEvent.click(within(row).getByText('New'));
+    const afterStatusClick = window.location.hash;
+    await userEvent.click(cells[0]!);
+
+    expect([cells.filter(cell => cell.classList.contains('link-cell')).length, cells[0]!.classList.contains('link-cell'), row.classList.contains('link-cell'), afterStatusClick, window.location.hash])
+      .toEqual([1, true, false, '#cases', '#case/c-1']);
+  });
+
   it('opens the case straight from a Grid row, and remembers the layout', async () => {
     await open('#cases');
     await userEvent.click(screen.getByTestId('case-filters-layout-grid'));

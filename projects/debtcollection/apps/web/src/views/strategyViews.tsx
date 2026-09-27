@@ -129,7 +129,7 @@ export function StrategyRulesView({ view }: { view: ViewDefinition }) {
         <DataGrid<StrategyRow, StrategyQuery>
           columns={STRATEGY_COLUMNS} fetchPage={fetchStrategies} query={strategyQuery}
           rowKey={row => row.id} pageSize={50} height={320}
-          onRowClick={row => setSelected(row)}
+          activation="row" onRowClick={row => setSelected(row)}
           emptyMessage="No collection strategy is configured in this organisation."
           data-testid="rules-grid"
         />
@@ -188,7 +188,7 @@ function RuleBuilderPlaceholder() {
 
 const PLAN_COLUMNS: readonly DataGridColumn<StrategyActionRow>[] = [
   { key: 'sequence', header: 'Seq', width: '60px', render: r => formatCount(r.sequence) },
-  { key: 'name', header: 'Recommended action', render: r => r.name },
+  { key: 'name', header: 'Recommended action', isLink: true, render: r => r.name },
   { key: 'strategy', header: 'Strategy', width: '180px', render: r => r.strategyName ?? '—' },
   { key: 'trigger', header: 'Trigger', width: '140px', render: r => r.triggerEvent ?? '—' },
   { key: 'channel', header: 'Channel', width: '120px', render: r => r.channel ?? '—' },
