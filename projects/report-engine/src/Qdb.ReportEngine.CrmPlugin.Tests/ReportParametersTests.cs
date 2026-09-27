@@ -19,6 +19,16 @@ namespace Qdb.ReportEngine.CrmPlugin.Tests
         }
 
         [Fact]
+        public void Parse_MatchesKeysCaseInsensitively()
+        {
+            // A caller sending {"loanid": …} against a declared "LoanId" is supplying the
+            // parameter; declared names are matched case-insensitively everywhere else.
+            var values = ReportParameters.Parse("{\"loanid\":\"LN-1\"}");
+
+            Assert.Equal("LN-1", values["LoanId"]);
+        }
+
+        [Fact]
         public void Parse_ReadsNumbersAndBooleansAsText()
         {
             var values = ReportParameters.Parse("{\"Limit\":250,\"IncludeClosed\":true}");

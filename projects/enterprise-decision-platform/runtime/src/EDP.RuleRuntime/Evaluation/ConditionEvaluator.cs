@@ -116,8 +116,12 @@ namespace EDP.RuleRuntime.Evaluation
             return outcome;
         }
 
-        /// <summary>Right operand is a referenced field (resolved from the context) or a literal.</summary>
-        internal static object? ResolveOperand(string? field, JsonElement literal, RuleExecutionContext context)
+        /// <summary>
+        /// Right operand is a referenced field (resolved from the context) or a literal.
+        /// Public because the retrieval filter translator resolves operands the same way when
+        /// pushing a filter to the server — one resolution rule, not two that can drift apart.
+        /// </summary>
+        public static object? ResolveOperand(string? field, JsonElement literal, RuleExecutionContext context)
         {
             if (!string.IsNullOrEmpty(field)) { context.TryResolve(field!, out var value); return value; }
             return literal.ValueKind == JsonValueKind.Undefined ? null : RuntimeValue.FromJson(literal);

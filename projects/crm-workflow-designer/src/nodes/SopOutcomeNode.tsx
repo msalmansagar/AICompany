@@ -30,10 +30,10 @@ export function SopOutcomeNode({ data, selected }: NodeProps) {
   const borderColor = d.hasError ? 'var(--error)' : selected ? ACCENT : ACCENT;
   const bg          = d.hasError ? 'var(--error)' : selected ? 'var(--accent-route)' : 'var(--success)';
   const shadow      = d.hasError
-    ? '0 0 0 3px rgba(239,68,68,0.2)'
+    ? '0 0 0 3px color-mix(in srgb, var(--error) 20%, transparent)'
     : selected
-    ? `0 0 0 3px ${ACCENT}30`
-    : '0 2px 8px rgba(15,118,110,0.15)';
+    ? `0 0 0 3px color-mix(in srgb, ${ACCENT} 19%, transparent)`
+    : '0 2px 8px color-mix(in srgb, var(--success) 15%, transparent)';
 
   return (
     <div

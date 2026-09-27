@@ -59,6 +59,8 @@
 
   --canvas-bg: #f8fafc;
   --canvas-grid: #e2e8f0;
+  --lane-bg: rgba(248, 250, 252, .6);
+  --minimap-mask: rgba(248, 250, 252, .75);
   --node-bg: #ffffff;
   --node-border: #e1dfdd;
   --node-selected: #0078d4;
@@ -132,6 +134,8 @@
 
     --canvas-bg: #161514;
     --canvas-grid: #302f2e;
+    --lane-bg: rgba(255, 255, 255, .04);
+    --minimap-mask: rgba(22, 21, 20, .75);
     --node-bg: #292827;
     --node-border: #484644;
     --node-selected: #2899f5;
@@ -197,6 +201,8 @@
 
   --canvas-bg: #f8fafc;
   --canvas-grid: #e2e8f0;
+  --lane-bg: rgba(248, 250, 252, .6);
+  --minimap-mask: rgba(248, 250, 252, .75);
   --node-bg: #ffffff;
   --node-border: #e1dfdd;
   --node-selected: #0078d4;
@@ -267,6 +273,8 @@
 
   --canvas-bg: #161514;
   --canvas-grid: #302f2e;
+  --lane-bg: rgba(255, 255, 255, .04);
+  --minimap-mask: rgba(22, 21, 20, .75);
   --node-bg: #292827;
   --node-border: #484644;
   --node-selected: #2899f5;
@@ -338,6 +346,8 @@
 
   --canvas-bg: rgba(255, 255, 255, .18);
   --canvas-grid: rgba(120, 120, 170, .22);
+  --lane-bg: rgba(255, 255, 255, .10);
+  --minimap-mask: rgba(30, 30, 64, .55);
   --node-bg: rgba(255, 255, 255, .72);
   --node-border: rgba(255, 255, 255, .8);
   --node-selected: #5b5bd6;
@@ -409,6 +419,8 @@
 
   --canvas-bg: #faf8ff;
   --canvas-grid: #ede9fe;
+  --lane-bg: rgba(237, 233, 254, .5);
+  --minimap-mask: rgba(250, 248, 255, .75);
   --node-bg: #ffffff;
   --node-border: rgba(124, 58, 237, .22);
   --node-selected: #7c3aed;

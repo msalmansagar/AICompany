@@ -90,6 +90,210 @@ projects:
       DEFECT-003 (VersionService zero coverage), DEFECT-004 (publish pipeline partial failure).
       All must be resolved before UAT. Awaiting Phase 6 Audit.
 
+  - name: debtcollection
+    type: integration   # React workspace + Fastify router over two D365 CE orgs
+    phase: build
+    build_phase: "Phase 7 — CLOSED (accepted 2026-09-21)"
+    started: 2026-07-30
+    last_updated: 2026-09-21
+    last_agent: ceo (phase-7-closure)
+    ceo_approved_phases: [phase-1, brd, architecture, build-0, build-1, build-2, build-3, build-4, build-5, build-6, build-7]
+    output_dir: projects/debtcollection/
+    status: approved_with_conditions
+    brd_gate_decision: APPROVED WITH CONDITIONS
+    brd_gate_date: 2026-09-13
+    conditions:
+      - id: COND-DCP-001
+        description: >
+          Re-cut P1 into a genuinely shippable minimum. 120 P1 / 12 P2 / 0 P3
+          against a 2-person team is not a prioritisation. BA + Product Owner
+          must produce a revised priority cut; CEO must countersign before
+          Phase 3 (Architecture) opens.
+        gates: Architecture
+        owner: BA + Product Owner
+        status: closed
+        closed_date: 2026-09-14
+        resolution: >
+          Re-cut to 73 P1 / 59 P2 / 4 P3 (phase-2-ba-priority-recut.md), PO
+          countersigned T1/T2/T3, CEO signed off with notes. Priorities applied
+          to phase-2-ba.md and the traceability matrix.
+      - id: COND-DCP-002
+        description: >
+          Q-14 (on-premise 2019 vs Dataverse cloud) answered in writing by the
+          client or Technical Lead. Blocks router hosting and MSAL flavour
+          decisions in the architecture.
+        gates: Architecture
+        owner: Client / Technical Lead
+        status: closed
+        closed_date: 2026-09-14
+        resolution: >
+          User: both orgs on-premise 9.x now, both migrate to Dataverse cloud in
+          ~18 months. NFR-020 restated as a portability constraint (pluggable
+          auth adapter, both-platform features only, containerised router).
+      - id: COND-DCP-003
+        description: >
+          Specify the PDPPL consent model as requirements. FRs 056, 067, 074
+          consume "PDPPL consent" but no FR defines where consent is stored or
+          what happens when it is unknown. Unknown consent must fail closed.
+        gates: Architecture
+        owner: BA + Compliance
+        status: closed
+        closed_date: 2026-09-14
+        resolution: >
+          FR-133 (consent record per channel), FR-134 (router fail-closed on
+          unknown/missing), FR-135 (withdrawal immediate + audit-logged), and
+          FR-136 (WhatsApp inherits SMS gate pending Q-12) added to Module 7.
+      - id: COND-DCP-004
+        description: >
+          Seed the >2000 DPD bucket as "no automated contact" ON by default
+          in the strategy config table. This inverts Q-09 and protects against
+          automated contact on a 5.5+ year delinquent population (conduct risk).
+        gates: Build + Go-live
+        owner: Compliance
+        status: open
+      - id: COND-DCP-005
+        description: >
+          Remove or restate "high-exposure cases" in FR-039. It contradicts
+          C-05 (exposure must not be used as segmentation criterion) and FR-034.
+          Replace with a DPD-or-arrears threshold.
+        gates: Architecture
+        owner: BA
+        status: closed
+        closed_date: 2026-09-14
+        resolution: >
+          FR-039 restated. Approval trigger is now arrears/DPD threshold read
+          from the admin approval-limit table at runtime. Word "exposure" removed.
+          Source column references C-05 and FR-034.
+      - id: COND-DCP-006
+        description: >
+          Confirm the DWH counterparty exists at QDB, or demote FR-125 (nightly
+          DWH extract) and FR-128 (Portfolio Dashboard from DWH) to P2. If no
+          DWH is in place, the portfolio dashboard has no data source.
+        gates: Architecture
+        owner: Product Owner + Integration Lead
+        status: closed
+        closed_date: 2026-09-14
+        resolution: >
+          User: a DWH exists and is called MIS; exposed through the Middleware
+          API in buckets. FR-125/FR-128 stay P1 against the Middleware API.
+          Q-06 closed with it.
+      - id: COND-DCP-007
+        description: >
+          Map SC-01..SC-06 (CEO success criteria) to FR IDs in the traceability
+          matrix. SC-01 and SC-03 are currently untraced; architecture cannot
+          prove coverage without the mapping.
+        gates: Architecture
+        owner: BA
+        status: closed
+        closed_date: 2026-09-14
+        resolution: >
+          SC-01..SC-06 mapping table added to phase-2-ba-traceability.md.
+          SC-01 mapped to FR-001/002/003/045/046/055. SC-03 mapped to
+          FR-067/068/096/120. All six SCs map to at least one P1 FR.
+      - id: COND-DCP-008
+        description: >
+          Prove AdfsAdapter against a real AD FS 2019 endpoint before any
+          component depends on it. If AD FS is WS-Fed-only or needs a
+          certificate S2S flow the generic OIDC path does not model, stop and
+          escalate to CEO. (Skeptic CH1 / AR-01)
+        gates: Build step 1 (Foundation)
+        owner: DevOps + backend
+        status: open
+      - id: COND-DCP-009
+        description: >
+          Add MIS batch-integrity validation to the ingest — row-count range
+          and schema/field sanity on the batch itself. A 200 response carrying
+          a truncated or malformed batch must not upsert or append snapshots;
+          it must reject-and-alert. (Skeptic CH2)
+        gates: Build step 2 (Ingest)
+        owner: architect + backend
+        status: open
+      - id: COND-DCP-010
+        description: >
+          Enforce the stop-contact + consent gate structurally, not by
+          convention. No channel adapter (ISmsGateway / nodemailer) may be
+          reachable outside the gated module; QA must prove no send path
+          bypasses the gate. (Skeptic CH4 / R-04)
+        gates: Build step 4 (Router + stop-contact + consent)
+        owner: architect + QA
+        status: open
+      - id: COND-DCP-011
+        description: >
+          Provide tamper-evidence beyond plugin enforcement — a periodic
+          external attestation / integrity check of qdb_auditlog and the
+          append-only snapshot tables, so a disable-plugin-then-delete is
+          detectable by a regulator. (Skeptic CH6 / SO-02)
+        gates: Go-live
+        owner: security-engineer + auditor
+        status: open
+      - id: COND-DCP-012
+        description: >
+          Guard the highest-leverage native-form config: validation on the
+          "no automated contact" and SLA rules in qdb_strategyconfig, plus a
+          change-review alert on strategy-rule edits (FR-118 logs them; someone
+          must be notified and review). Ties to COND-DCP-004. (Skeptic CH7)
+        gates: Build step 8 (Strategy + queues)
+        owner: Compliance + backend
+        status: open
+      - id: COND-DCP-013
+        description: >
+          QA must test the near-promised-date payment case and instrument the
+          false-Broken rate in early operation; if false escalations exceed the
+          agreed threshold, revisit the one-cycle grace window before the
+          population scales. (Skeptic CH3 / AR-02)
+        gates: Build step 6 (PTP) + early operation
+        owner: QA + Product Owner
+        status: open
+      - id: COND-DCP-014
+        description: >
+          Fix the gate tooling — .claude/scripts/gate-analyze.sh SKIPs because
+          it expects a *-brd.md filename; teach it the phase-2-ba.md convention
+          so the semantic gate actually runs on future phases. Tooling defect,
+          not a pass/fail on this architecture.
+        gates: Next gate run
+        owner: DevOps
+        status: open
+      - id: COND-DCP-015
+        description: >
+          Start the standalone-portal security review / AAD app registration /
+          hosting request early, parallel to build, not at the end — it is the
+          slowest path to prod. (Skeptic CH5 / AR-08)
+        gates: Go-live
+        owner: DevOps + Client
+        status: open
+    notes: >
+      DCP-001 Debt Collection Platform. Phase 1 (CEO) APPROVED 2026-09-13.
+      BRD (phase-2-ba.md) produced: 132 FRs + 20 NFRs, 17 sections, 626 lines.
+      CEO BRD gate: APPROVED WITH CONDITIONS 2026-09-13 (7 conditions).
+      Q-01 RESOLVED (broad reading: 6 modules in Phase 1).
+      Q-02..Q-14 carried as open items with owners and defaults.
+      ADR-DCP-01/02/03 drafted and standing.
+
+      BUILD PHASES 0-7 COMPLETE. Delivery tracker:
+      projects/debtcollection/DebtCollection_Project_Tracker.xlsx (Phases sheet).
+
+      PHASE 7 (Communication Centre) CLOSED — formally accepted by QDB 2026-09-21.
+      Accepted: single SMS / WhatsApp / Email and Bulk SMS / Bulk Email, all officer-usable and
+      runtime validated on org5869857f. Out of scope: Bulk WhatsApp, Warning Letters.
+      Closure baseline actually executed: TypeScript 1,261 (domain 454, web 436, api 325,
+      dataverse-client 32, auth-adapters 14), tooling 10, C# 147; 0 failed, 0 skipped.
+      Report: docs/phases/Phase_7_Completion_Report.md. ADR-DCP-20 recorded.
+
+      RUNTIME STATUS, not to be upgraded without runtime evidence:
+      Cloud SMS/WhatsApp — Native Record Creation Proven, External Delivery Unproven (KI-83);
+      Dynamics 365 CE 9.1 On-Prem — Compatible by Design, Phase 7 Runtime Validation Pending.
+
+      OPEN AND UNRESOLVED BY CLOSURE: KI-79 (no authoritative Contact Hold source; production
+      sends fail closed), KI-83, KI-76, KI-95 (UX wording debt), KI-96 (cross-phase: an unknown
+      count is null, never 0), KI-97 (UX/routing debt), plus every other previously open KI under
+      its existing status. The COND-DCP-* conditions above are unaffected by Phase 7 closure.
+
+      PHASE 8 NOT AUTHORISED — no branch, no discovery, no implementation. The prerequisite review
+      must be explicitly authorised first, KI-71 above all: there is no schema link from a
+      Collection Activity to the Strategy Action that produced it, so Phase 8 cannot report what a
+      strategy did, cannot avoid re-materialising an action, and cannot be audited. It is a schema
+      change and needs QDB approval BEFORE Phase 8 design.
+
 # Example entry:
 # projects:
 #   - name: insurance-calc-engine

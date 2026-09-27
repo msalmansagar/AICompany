@@ -13,5 +13,7 @@
 | ADR-RPT-009 | PDF export library: PDFsharp/MigraDoc (supersedes QuestPDF) | Accepted | 2026-07-21 | Architect + QDB |
 | ADR-RPT-010 | Middle-tier authentication: dual scheme, caller from validated credentials (closes B1) | Superseded by 011 | 2026-07-26 | Architect + user |
 | ADR-RPT-011 | Execute in CRM: web resource + plugin, no hosted middle tier (supersedes 002; dissolves B1/B6) | Accepted | 2026-07-26 | User + Architect |
+| ADR-RPT-012 | Multi-dataset result contract: dataset collection, single-dataset shape preserved verbatim (ADD-002 Phase A; reopens C-6) | Accepted | 2026-08-25 | Architect |
+| ADR-RPT-013 | External dataset execution: registered endpoints, shared time budget, security declared per dataset (ADD-002 Phase B) | **Proposed** | 2026-08-25 | Architect |
 
 Status values: Proposed | Accepted | Deprecated | Superseded

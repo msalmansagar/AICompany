@@ -77,7 +77,9 @@ namespace EDP.RuleRuntime.Operators
         }
 
         public static bool IsNullOrEmpty(object? v)
-            => v == null || (v is string s && s.Length == 0);
+            => v == null
+               || (v is string s && s.Length == 0)
+               || (IsCollection(v) && !System.Linq.Enumerable.Any(AsCollection(v)));
 
         public static decimal? AsDecimal(object? v)
         {

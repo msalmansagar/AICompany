@@ -1,0 +1,136 @@
+=== Phase 5 live smoke — the workspace's own reads against the organisation ===
+
+  Organisation: org5869857f.crm4.dynamics.com
+  Marker: SMOKE-MU7KX1PK
+
+─── Seeding ───
+  Seeded 14 rows: 2 cases, 2 snapshots, 1 promise, 1 strategy + 2 actions, 1 exception, 1 configuration + 1 mapping, 1 contact, 1 activity type
+
+─── The case list, as Collection Cases reads it ───
+  PASS  The seeded cases come back through the view's own query — 2 of 2 rows
+  PASS  The page is bounded and the source applied the sort — first row dpd=88
+  PASS  A choice arrives as its label, not as an option number — status=New
+  PASS  The bucket is the one MIS reported — bucket=61-90
+  PASS  The organisation badge resolves from the choice — org=HL
+  PASS  The polymorphic customer lookup names its table — table=contact
+  PASS  The customer lookup returns an id, which the storage column would not — 80d50a2b-b7b3-f111-aaac-000d3abd8313
+  PASS  A bucket filter is applied by the source and still matches both rows — 2 rows
+  PASS  A bucket the rows do not have returns an empty page, not an error — 0 rows
+
+─── The Case Workspace summary ───
+  PASS  The case reads back by id — SMOKE-MU7KX1PK-CASE-FACA
+  PASS  The strategy lookup resolves to a name, by its _value form — SMOKE-MU7KX1PK-STRATEGY
+  PASS  The owner lookup resolves to a name — # DFE Backend API
+  PASS  The stored MIS as-of date is present, and is what was recorded — 2026-09-17T00:00:00Z
+  PASS  The case is open — isOpen=true
+  PASS  The CRM customer is read from the table the annotation named — contact: SMOKE P5 MU7KX1PK
+
+─── MIS history ───
+  PASS  Both snapshots for the case come back — 2 rows
+  PASS  The source sorted them newest first — 74 then 67
+  PASS  The eligibility outcome arrives as its label — Existing episode — update
+  PASS  Snapshots are also reachable by customer, as Customer 360 reads them — 2 rows
+
+─── Promises to pay ───
+  PASS  The promise comes back through the PTP query — 1 rows
+  PASS  Its status is a label from the proven option table — Active
+  PASS  Its type is a label — Partial
+  PASS  The promised amount is the amount seeded — 5000
+  PASS  Its case lookup resolves back to the case number — SMOKE-MU7KX1PK-CASE-FACA
+
+─── Configuration, as the Strategy and Admin screens read it ───
+  PASS  The seeded strategy is among the active ones — 3 active strategies
+  PASS  Its DPD band is read as configuration, not derived — 61–90
+  PASS  Its money bands come back as numbers — 1000–100000
+  PASS  Both actions for the strategy come back, by the lookup _value form — 2 rows
+  PASS  The source ordered them by sequence — 1 then 2
+  PASS  The trigger and channel arrive as labels — Day offset / SMS
+  PASS  Each action names the strategy that owns it — SMOKE-MU7KX1PK-STRATEGY
+  PASS  The identity exception is readable by Delinquency Intake — 4 open exceptions
+  PASS  Its reason and status arrive as labels — Customer not found / Open
+  PASS  The platform configuration row is readable by the Configuration screen — 3 configuration rows
+  PASS  It states the platform and the customer table the deployment uses — Cloud / contact
+  PASS  Its field mappings are reachable from it by the lookup _value form — 1 mapping(s), crmField=governmentid
+
+─── Bounded counts, as the KPI tiles read them ───
+  PASS  A KPI count is answered by the platform without reading the rows — count=2
+  PASS  The count is reported as exact, not as a floor — atLeast=false
+
+─── Customer & Loan 360 ───
+  PASS  It gathers both of the customer's cases — 2 cases
+  PASS  It lists one row per facility — FACB, FACA
+  PASS  It totals the exposure of the cases it read — exposure=1100000
+  PASS  It totals the overdue amount — overdue=53250
+  PASS  It reports the worst DPD across the facilities — worstDpd=88
+  PASS  It resolves the CRM customer from the case lookup — SMOKE P5 MU7KX1PK
+  PASS  It states that the totals are complete rather than partial — isComplete=true
+
+  HTTP requests issued by the workspace's query modules: 16
+
+─── Cleanup ───
+
+─── Records identified ───
+  collection activity              ee6a5b2e-b7b3-f111-aaac-70a8a55bc6a5  SMOKE-MU7KX1PK-ACT-1
+  delinquency snapshot             2df81331-b7b3-f111-aaac-000d3abd8313  SMOKE-MU7KX1PK-FACA
+  delinquency snapshot             e66a5b2e-b7b3-f111-aaac-70a8a55bc6a5  SMOKE-MU7KX1PK-FACA
+  identity exception               e9a59134-b7b3-f111-aaac-70a8a55bc6a5  SMOKE-MU7KX1PK-FACX
+  collection case                  e502112d-b7b3-f111-aaac-000d3abcf32d  SMOKE-MU7KX1PK-FACB
+  collection case                  15f81331-b7b3-f111-aaac-000d3abd8313  SMOKE-MU7KX1PK-FACA
+  strategy action                  13f81331-b7b3-f111-aaac-000d3abd8313  SMOKE-MU7KX1PK-ACTION-1
+  strategy action                  14f81331-b7b3-f111-aaac-000d3abd8313  SMOKE-MU7KX1PK-ACTION-2
+  collection strategy              12f81331-b7b3-f111-aaac-000d3abd8313  SMOKE-MU7KX1PK-STRATEGY
+  activity type (reference data)   33f81331-b7b3-f111-aaac-000d3abd8313  SMOKE-MU7KX1PK-PTP
+  platform mapping (smoke)         f0a59134-b7b3-f111-aaac-70a8a55bc6a5  SMOKE-MU7KX1PK-MAPPING
+  platform configuration (smoke)   9df81331-b7b3-f111-aaac-000d3abd8313  SMOKE-MU7KX1PK-ENV
+  contact (smoke customer)         80d50a2b-b7b3-f111-aaac-000d3abd8313  SMOKE-MU7KX1PK-QID
+  13 record(s) — every one matched on the "SMOKE-" marker.
+
+─── Checking for anything else that references them ───
+  Nothing outside the smoke set references them.
+
+─── Temporarily disabling the three qdb_ Delete guards ───
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation)
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation)
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation)
+
+─── Deleting guarded rows ───
+  [DELETED] collection activity SMOKE-MU7KX1PK-ACT-1 (ee6a5b2e-b7b3-f111-aaac-70a8a55bc6a5)
+  [DELETED] delinquency snapshot SMOKE-MU7KX1PK-FACA (2df81331-b7b3-f111-aaac-000d3abd8313)
+  [DELETED] delinquency snapshot SMOKE-MU7KX1PK-FACA (e66a5b2e-b7b3-f111-aaac-70a8a55bc6a5)
+  [DELETED] collection case SMOKE-MU7KX1PK-FACB (e502112d-b7b3-f111-aaac-000d3abcf32d)
+  [DELETED] collection case SMOKE-MU7KX1PK-FACA (15f81331-b7b3-f111-aaac-000d3abd8313)
+
+─── Restoring the guards ───
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation)
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation)
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation)
+
+─── Verifying the restored registration ───
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation) — enabled=true filter=(none) images=(none)
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation) — enabled=true filter=(none) images=PreImage(statecode)
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation) — enabled=true filter=(none) images=(none)
+
+─── Deleting reference data (no guard involved) ───
+  [DELETED] identity exception SMOKE-MU7KX1PK-FACX (e9a59134-b7b3-f111-aaac-70a8a55bc6a5)
+  [DELETED] strategy action SMOKE-MU7KX1PK-ACTION-1 (13f81331-b7b3-f111-aaac-000d3abd8313)
+  [DELETED] strategy action SMOKE-MU7KX1PK-ACTION-2 (14f81331-b7b3-f111-aaac-000d3abd8313)
+  [DELETED] collection strategy SMOKE-MU7KX1PK-STRATEGY (12f81331-b7b3-f111-aaac-000d3abd8313)
+  [DELETED] activity type (reference data) SMOKE-MU7KX1PK-PTP (33f81331-b7b3-f111-aaac-000d3abd8313)
+  [DELETED] platform mapping (smoke) SMOKE-MU7KX1PK-MAPPING (f0a59134-b7b3-f111-aaac-70a8a55bc6a5)
+  [DELETED] platform configuration (smoke) SMOKE-MU7KX1PK-ENV (9df81331-b7b3-f111-aaac-000d3abd8313)
+  [DELETED] contact (smoke customer) SMOKE-MU7KX1PK-QID (80d50a2b-b7b3-f111-aaac-000d3abd8313)
+
+─── Confirming no residue remains ───
+  PASS  0 smoke record(s) remain
+
+Cleanup complete. The guards are registered and enabled exactly as before.
+
+=== 45/45 checks passed ===
+
+Proven here: the query modules the React views call return, from the real
+organisation, the values those views render — lookups by their _value form,
+choices as labels, and every narrowing applied by the source.
+
+NOT proven here: that the workspace loads inside Dynamics, that getGlobalContext
+answers, or that these reads succeed as a signed-in user rather than as the
+service principal. Those need a browser with a CRM session.

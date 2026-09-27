@@ -1,10 +1,10 @@
 import { fileURLToPath } from 'node:url';
-const VIEWER = fileURLToPath(new URL('../prototype/report-runtime.html', import.meta.url));
-// Extracts the formula evaluator out of report-runtime.html and exercises it, including the cases
+const ENGINE = fileURLToPath(new URL('../prototype/report-engine-core.js', import.meta.url));
+// Extracts the formula evaluator out of report-engine-core.js and exercises it, including the cases
 // that matter most: that it computes correctly, and that it cannot be made to execute code.
 import { readFileSync } from 'node:fs';
 
-const html = readFileSync(VIEWER, 'utf8');
+const html = readFileSync(ENGINE, 'utf8');
 const start = html.indexOf('const FORMULA_FUNCTIONS');
 const end = html.indexOf('/* ---------------- self-check');
 if (start < 0 || end < 0) throw new Error('formula section not found');

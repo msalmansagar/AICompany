@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { parseDesignerState, withDesignerState } from '@/services/designerState';
 import type { ICrmAdapter } from '../services/ICrmAdapter';
 import type { WorkflowProcess } from '../types/WorkflowTypes';
 
@@ -59,16 +60,19 @@ export function ProcessListScreen({
     setIsLoading(true);
     setError(null);
     try {
-      const [list, entityOptions] = await Promise.all([
+      const [list, entityOptions, designerStates] = await Promise.all([
         adapter.getProcessList(),
         adapter.getAutoNumberEntities(),
+        // One request for every stored state — the status column, its filters
+        // and the draft/published counts all read from this.
+        adapter.loadAllDesignerStates().catch((): Record<string, string> => ({})),
       ]);
       const nameMap = new Map(
         entityOptions.map((e) => [e.id.replace(/^\{|\}$/g, '').toLowerCase(), e.name])
       );
       setRows(
         list.map((p) => ({
-          ...p,
+          ...withDesignerState(p, parseDesignerState(designerStates[p.crmId])),
           resolvedTaskEntity: resolveEntityName(p.recordEntity, p.recordEntityName, nameMap),
           resolvedParentEntity: resolveEntityName(p.parentEntity, p.parentEntityName, nameMap),
         }))

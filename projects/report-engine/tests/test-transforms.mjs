@@ -1,11 +1,11 @@
 import { fileURLToPath } from 'node:url';
-const VIEWER = fileURLToPath(new URL('../prototype/report-runtime.html', import.meta.url));
+const ENGINE = fileURLToPath(new URL('../prototype/report-engine-core.js', import.meta.url));
 // Exercises the transformation pipeline against the config shapes the C# version documented.
 // Slices from the formula section, not the transformations one: ConditionalValue and Formula reuse the
 // expression evaluator, which sits above them in the viewer and must be in scope here too.
 import { readFileSync } from 'node:fs';
 
-const html = readFileSync(VIEWER, 'utf8');
+const html = readFileSync(ENGINE, 'utf8');
 const source = html.slice(html.indexOf('const FORMULA_FUNCTIONS'), html.indexOf('/* ---------------- self-check'));
 const { applyTransformations } = new Function(`${source}; return { applyTransformations };`)();
 

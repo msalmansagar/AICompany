@@ -1,0 +1,18 @@
+=== qdb_ smoke-data cleanup (dry run — pass --confirm to delete) ===
+
+  Organisation: org5869857f.crm4.dynamics.com
+
+─── Records identified ───
+  collection activity    88c37169-b3b2-f111-aaac-000d3abd8313  SMOKE-ACT-MU5QHVAA  [completed]
+  collection activity    4fcab51d-bab2-f111-aaac-70a8a55bc6a5  SMOKE-ACT-MU5S78HU  [completed]
+  delinquency snapshot   cf9d786f-b3b2-f111-aaac-000d3abd8313  SMOKE-SNAP-MU5QHVAA
+  delinquency snapshot   dd6a1e24-bab2-f111-aaac-70a8a55bc6a5  SMOKE-SNAP-MU5S78HU
+  collection case        f7776665-b1b2-f111-aaac-70a8a55bc6a5  SMOKE-CASE-MU5PZ5JO
+  collection case        598c836e-b3b2-f111-aaac-70a8a55bc6a5  SMOKE-CASE-MU5QHVAA
+  collection case        d6578b17-bab2-f111-aaac-70a8a55bc6a5  SMOKE-CASE-MU5S78HU
+  7 record(s) — every one matched on the "SMOKE-" prefix.
+
+─── Checking for anything else that references them ───
+  Nothing outside the smoke set references them.
+
+Dry run. Re-run with --confirm to delete these records.

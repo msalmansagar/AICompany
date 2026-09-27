@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DecisionGraph, JdmConfigProvider, type DecisionGraphType } from '@gorules/jdm-editor';
-import { toPcrm } from './translator/toPcrm';
+import { toPcrm, translate } from './translator/toPcrm';
 import {
   saveRule, loadLatestVersion, getVersionState, validateRule, setEffectiveWindow, type ValidationResult,
 } from './dataverse/client';
 import { evaluate, type EvaluateResult } from './runtime/testClient';
+import { inputsFromRecord } from './runtime/recordInputs';
+import { RecordPicker } from './table/RecordPicker';
 import { performAction, type GovernanceAction } from './governance/governanceClient';
 import { searchEntities, type EntityMeta } from './metadata/metadataService';
 import { EntityCombobox } from './metadata/EntityCombobox';
@@ -14,6 +16,7 @@ import { emptyTable, tableToPcrm, type TableModel } from './table/tableModel';
 import { ConditionBuilder } from './conditions/ConditionBuilder';
 import { emptyConditions, conditionsToPcrm, type ConditionModel } from './conditions/conditionModel';
 import { installGoRulesDocRedirect, type DocGuide } from './gorules/docRedirect';
+import { buildEntitySchema, withEntitySchema } from './gorules/entitySchema';
 import { DocsSidePane } from './gorules/DocsSidePane';
 import { ExecutionLogViewer } from './logs/ExecutionLogViewer';
 import { AnalyticsDashboard } from './analytics/AnalyticsDashboard';
@@ -81,6 +84,7 @@ export function App() {
   const [conditions, setConditions] = useState<ConditionModel>(emptyConditions());
 
   const [showTest, setShowTest] = useState(false);
+  const [testRecordName, setTestRecordName] = useState('');
   const [testInputs, setTestInputs] = useState('{}');
   const [testResult, setTestResult] = useState<EvaluateResult | null>(null);
   const [testError, setTestError] = useState('');
@@ -114,6 +118,17 @@ export function App() {
     if (authorMode !== 'canvas') return;
     return installGoRulesDocRedirect(setDocsGuide);
   }, [authorMode]);
+
+  // Canvas ↔ Dataverse bridge: pin the target entity's field schema on the Input
+  // node so the JDM table and expressions autocomplete real fields with real types.
+  useEffect(() => {
+    if (view !== 'editor' || authorMode !== 'canvas' || !targetEntity) return;
+    let cancelled = false;
+    buildEntitySchema(targetEntity)
+      .then((schema) => { if (!cancelled) setGraph((g) => withEntitySchema(g, schema)); })
+      .catch(() => { /* the schema is a convenience — the canvas still works without it */ });
+    return () => { cancelled = true; };
+  }, [view, authorMode, targetEntity]);
 
   const conditionHasClauses = (g: ConditionModel['when']): boolean => g.clauses.some((c) => c.field) || g.groups.some(conditionHasClauses);
   const hasContent = authorMode === 'table' ? table.inputs.length > 0
@@ -183,9 +198,13 @@ export function App() {
     setBusy(true); setStatus('Translating + saving to Dataverse…');
     try {
       const pcrm = currentPcrm();
-      const res = await saveRule({ name: ruleName, jdmGraph: currentSource(), pcrm });
-      setRuleId(res.ruleId); setVersionId(res.versionId); setVersionNumber(1); setLifecycle('Draft'); setSavedLabel('Saved just now');
-      setStatus(`Saved ✓  rule ${res.ruleId.slice(0, 8)}… · version ${res.versionId.slice(0, 8)}…`);
+      const res = await saveRule({ ruleId, name: ruleName, jdmGraph: currentSource(), pcrm });
+      setRuleId(res.ruleId); setVersionId(res.versionId); setVersionNumber(res.versionNumber); setLifecycle(res.lifecycle);
+      setSavedLabel(res.updatedInPlace ? 'Draft updated just now' : 'Saved just now');
+      if (!res.updatedInPlace) { setEffFrom(''); setEffTo(''); } // a new version starts with no effective window
+      setStatus(res.updatedInPlace
+        ? `Saved ✓  draft version ${res.versionNumber} updated`
+        : `Saved ✓  version ${res.versionNumber} created`);
       void runValidation(pcrm);
     } catch (e: any) { setStatus(`Save failed: ${e.message}`); } finally { setBusy(false); }
   }
@@ -234,7 +253,20 @@ export function App() {
     const seed: Record<string, unknown> = {};
     for (const i of pcrm.inputs ?? []) seed[i.name] = '';
     setTestInputs(JSON.stringify(seed, null, 2));
-    setTestResult(null); setTestError(''); setShowTest(true);
+    setTestResult(null); setTestError(''); setTestRecordName(''); setShowTest(true);
+  }
+
+  // Resolve every input of the current rule from a real record: anchor fields from
+  // the row, via fields from the parent, aggregates computed over the children.
+  async function fillFromRecord(recordId: string, recordName: string) {
+    setTestError(''); setTestRecordName(recordName);
+    try {
+      const inputs = await inputsFromRecord(currentPcrm(), recordId);
+      setTestInputs(JSON.stringify(inputs, null, 2));
+      setStatus(`Test inputs filled from “${recordName}”.`);
+    } catch (e: any) {
+      setTestError(`Could not read the record: ${e.message}`);
+    }
   }
 
   async function runTest() {
@@ -247,7 +279,13 @@ export function App() {
     setDrawerTab('test'); setDrawerOpen(true);
   }
 
-  const drawerHasContent = !!(testResult || testError || validation) || drawerTab === 'scenarios';
+  // What would be lost or broken if the canvas saved right now — shown before any save.
+  const translationWarnings = useMemo(
+    () => (authorMode === 'canvas' ? translate(graph, { name: ruleName, targetEntity }).warnings : []),
+    [authorMode, graph, ruleName, targetEntity]
+  );
+
+  const drawerHasContent = !!(testResult || testError || validation) || translationWarnings.length > 0 || drawerTab === 'scenarios';
   function openScenarios() { setDrawerTab('scenarios'); setDrawerOpen(true); }
   const verdict = (r: EvaluateResult) => (!r.success ? '✗ Did not execute' : r.matched ? '✓ Matched' : '— No branch matched');
 
@@ -479,6 +517,13 @@ export function App() {
                       <strong>Test rule</strong><span className="tp-sub">via C# runtime</span>
                       <span className="spacer" /><button className="tp-close" onClick={() => setShowTest(false)}>✕</button>
                     </div>
+                    {targetEntity && (
+                      <label className="tp-record">
+                        Fill from a {entityLabel || targetEntity} record
+                        <RecordPicker entity={targetEntity} valueLabel={testRecordName}
+                          onPick={(r) => void fillFromRecord(r.id, r.name)} />
+                      </label>
+                    )}
                     <label>Input values (JSON)</label>
                     <textarea value={testInputs} onChange={(e) => setTestInputs(e.target.value)} spellCheck={false} />
                     <button className="tb test" onClick={runTest}>▶ Run test</button>
@@ -494,6 +539,7 @@ export function App() {
                     <button className={`dt-tab ${drawerTab === 'test' ? 'on' : ''}`} onClick={() => setDrawerTab('test')}>▶ Test result</button>
                     <button className={`dt-tab ${drawerTab === 'validation' ? 'on' : ''}`} onClick={() => setDrawerTab('validation')}>
                       Validation{validation && <span className={`b ${validation.isValid ? 'okb' : 'warnb'}`}>{validation.isValid ? '0' : validation.errorCount}</span>}
+                      {translationWarnings.length > 0 && <span className="b warnb">⚠ {translationWarnings.length}</span>}
                     </button>
                     <button className={`dt-tab ${drawerTab === 'scenarios' ? 'on' : ''}`} onClick={() => setDrawerTab('scenarios')}>⚑ Scenarios</button>
                     <span className="spacer" />
@@ -535,6 +581,14 @@ export function App() {
                           )}
                         </>
                       ) : <p className="tp-sub">Run a test to see the decision and its trace here.</p>
+                    )}
+                    {drawerTab === 'validation' && translationWarnings.length > 0 && (
+                      <div className="res-block">
+                        <span className="res-label">Canvas translation warnings</span>
+                        {translationWarnings.map((w, i) => (
+                          <div key={i} className="diag warning"><span className="diag-sev">warning</span><span className="diag-msg">{w}</span></div>
+                        ))}
+                      </div>
                     )}
                     {drawerTab === 'validation' && (
                       validation ? (

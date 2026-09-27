@@ -1,0 +1,70 @@
+=== Qdb.DebtCollection.Plugins — Dataverse Plugin Registration ===
+
+1. Loading DLL...
+  DLL path : D:\AI Projects\AICompany\.claude\worktrees\dcp-phase2\projects\debtcollection\crm\plugins\Qdb.DebtCollection.Plugins\bin\Release\net471\Qdb.DebtCollection.Plugins.dll
+  DLL size : 33,792 bytes
+  DLL hash : sha256:09a68c4bdc0f44e8...
+
+2. Authenticating...
+
+3. Ensuring assembly...
+  Assembly content changed — patching...
+   Assembly ID: cda8d141-b0b2-f111-aaac-000d3abd8313 (updated)
+
+4. Ensuring plugin types...
+  Plugin type exists: Qdb.DebtCollection.Plugins.Plugins.DefaultStatusAssignerPlugin (d2795ad6-b0b2-f111-aaac-70a8a55bc6a5)
+  Plugin type exists: Qdb.DebtCollection.Plugins.Plugins.StatusTransitionValidatorPlugin (d3795ad6-b0b2-f111-aaac-70a8a55bc6a5)
+  Plugin type exists: Qdb.DebtCollection.Plugins.Plugins.ImmutabilityGuardPlugin (d4795ad6-b0b2-f111-aaac-70a8a55bc6a5)
+  Plugin type exists: Qdb.DebtCollection.Plugins.Plugins.ActiveCaseGuardPlugin (7c653b02-ecb2-f111-aaac-70a8a55bc6a5)
+  Plugin type exists: Qdb.DebtCollection.Plugins.Plugins.ActivitySubjectComposerPlugin (d5795ad6-b0b2-f111-aaac-70a8a55bc6a5)
+
+5. Resolving SDK messages...
+   Resolved: Create, Update, Delete
+
+6. Resolving SDK message filters...
+   Resolved 8 unique entity+message filters
+
+7. Ensuring processing steps and images...
+  Step exists: DefaultStatusAssignerPlugin: Create of qdb_collectioncase (PreOperation) (617fdbd8-b0b2-f111-aaac-000d3abd8313)
+  Step exists: DefaultStatusAssignerPlugin: Create of qdb_collectionactivity (PreOperation) (d7795ad6-b0b2-f111-aaac-70a8a55bc6a5)
+  Step exists: StatusTransitionValidatorPlugin: Update of qdb_collectioncase (PreOperation) (717fdbd8-b0b2-f111-aaac-000d3abd8313)
+    Image exists: PreImage (49c1addc-b0b2-f111-aaac-70a8a55bc6a5)
+  Step exists: StatusTransitionValidatorPlugin: Update of qdb_collectionactivity (PreOperation) (4ac1addc-b0b2-f111-aaac-70a8a55bc6a5)
+    Step filter differs — setting: qdb_ptpstatus,statuscode
+    Step refreshed (4ac1addc-b0b2-f111-aaac-70a8a55bc6a5) — disabled and re-enabled so the change takes effect
+    Image attributes differ — recreating: PreImage -> qdb_ptpstatus,statuscode
+    Image missing — creating: PreImage
+    Step refreshed (4ac1addc-b0b2-f111-aaac-70a8a55bc6a5) — disabled and re-enabled so the change takes effect
+  Step exists: ImmutabilityGuardPlugin: Update of qdb_delinquencysnapshot (PreValidation) (51c1addc-b0b2-f111-aaac-70a8a55bc6a5)
+  Step exists: ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation) (887fdbd8-b0b2-f111-aaac-000d3abd8313)
+  Step exists: ImmutabilityGuardPlugin: Update of qdb_collectionactivity (PreValidation) (54c1addc-b0b2-f111-aaac-70a8a55bc6a5)
+    Image exists: PreImage (57c1addc-b0b2-f111-aaac-70a8a55bc6a5)
+  Step exists: ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation) (4872d6de-b0b2-f111-aaac-000d3abd8313)
+    Image exists: PreImage (58c1addc-b0b2-f111-aaac-70a8a55bc6a5)
+  Step exists: ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation) (59c1addc-b0b2-f111-aaac-70a8a55bc6a5)
+  Step exists: ActiveCaseGuardPlugin: Create of qdb_collectioncase (PreOperation) (8b3a3008-ecb2-f111-aaac-000d3abd8313)
+  Step exists: ActiveCaseGuardPlugin: Update of qdb_collectioncase (PreOperation) (35c6eb08-ecb2-f111-aaac-70a8a55bc6a5)
+    Image exists: PreImage (39c6eb08-ecb2-f111-aaac-70a8a55bc6a5)
+  Step exists: ActivitySubjectComposerPlugin: Create of qdb_collectionactivity (PreOperation) (5cc1addc-b0b2-f111-aaac-70a8a55bc6a5)
+
+=== Summary ===
+  Assembly   : updated
+  Types      : 0 created, 5 skipped
+  Steps      : 0 created, 12 skipped
+  Images     : 1 created, 4 skipped
+
+8. Reading back registered steps...
+
+Registered steps for assembly (12):
+  [PreOperation/Sync] ActiveCaseGuardPlugin: Create of qdb_collectioncase (PreOperation)
+  [PreOperation/Sync] ActiveCaseGuardPlugin: Update of qdb_collectioncase (PreOperation)
+  [PreOperation/Sync] ActivitySubjectComposerPlugin: Create of qdb_collectionactivity (PreOperation)
+  [PreOperation/Sync] DefaultStatusAssignerPlugin: Create of qdb_collectionactivity (PreOperation)
+  [PreOperation/Sync] DefaultStatusAssignerPlugin: Create of qdb_collectioncase (PreOperation)
+  [PreValidation/Sync] ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation)
+  [PreValidation/Sync] ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation)
+  [PreValidation/Sync] ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation)
+  [PreValidation/Sync] ImmutabilityGuardPlugin: Update of qdb_collectionactivity (PreValidation)
+  [PreValidation/Sync] ImmutabilityGuardPlugin: Update of qdb_delinquencysnapshot (PreValidation)
+  [PreOperation/Sync] StatusTransitionValidatorPlugin: Update of qdb_collectionactivity (PreOperation)
+  [PreOperation/Sync] StatusTransitionValidatorPlugin: Update of qdb_collectioncase (PreOperation)

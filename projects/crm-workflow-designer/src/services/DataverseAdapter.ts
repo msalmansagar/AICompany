@@ -1,4 +1,6 @@
 import type { ISopAdapter } from './ISopAdapter';
+import { DESIGNER_LAYOUT_SUBJECT } from './designerLayout';
+import { DESIGNER_STATE_SUBJECT } from './designerState';
 import { deriveProcessFromSop } from './deriveProcessFromSop';
 import { escapeODataLiteral } from './odataEscape';
 import { buildUserLookupFilter } from './userLookupFilter';
@@ -158,6 +160,74 @@ export class DataverseAdapter implements ISopAdapter {
     const body = await this.buildProcessBodyResolved(data);
     const result = await withRetry(() => this.xrm.WebApi.createRecord(LOGICAL.process, body));
     return result.id;
+  }
+
+  async loadDesignerLayout(processId: string): Promise<string | null> {
+    assertGuid(processId, 'processId');
+    const result = await this.xrm.WebApi.retrieveMultipleRecords(
+      'annotation',
+      `?$select=annotationid,notetext&$filter=_objectid_value eq ${processId} and subject eq '${DESIGNER_LAYOUT_SUBJECT}'&$top=1&$orderby=modifiedon desc`
+    );
+    return (result.entities[0]?.notetext as string | undefined) ?? null;
+  }
+
+  async saveDesignerLayout(processId: string, layoutJson: string): Promise<void> {
+    assertGuid(processId, 'processId');
+    const existing = await this.xrm.WebApi.retrieveMultipleRecords(
+      'annotation',
+      `?$select=annotationid&$filter=_objectid_value eq ${processId} and subject eq '${DESIGNER_LAYOUT_SUBJECT}'&$top=1`
+    );
+    const found = existing.entities[0];
+    if (found) {
+      await this.xrm.WebApi.updateRecord('annotation', found.annotationid as string, { notetext: layoutJson });
+      return;
+    }
+    await this.xrm.WebApi.createRecord('annotation', {
+      subject: DESIGNER_LAYOUT_SUBJECT,
+      notetext: layoutJson,
+      [`objectid_qdb_work_item_record_type@odata.bind`]: `/qdb_work_item_record_types(${processId})`,
+    });
+  }
+
+  async loadDesignerState(processId: string): Promise<string | null> {
+    assertGuid(processId, 'processId');
+    const result = await this.xrm.WebApi.retrieveMultipleRecords(
+      'annotation',
+      `?$select=notetext&$filter=_objectid_value eq ${processId} and subject eq '${DESIGNER_STATE_SUBJECT}'&$top=1&$orderby=modifiedon desc`
+    );
+    return (result.entities[0]?.notetext as string | undefined) ?? null;
+  }
+
+  async saveDesignerState(processId: string, stateJson: string): Promise<void> {
+    assertGuid(processId, 'processId');
+    const existing = await this.xrm.WebApi.retrieveMultipleRecords(
+      'annotation',
+      `?$select=annotationid&$filter=_objectid_value eq ${processId} and subject eq '${DESIGNER_STATE_SUBJECT}'&$top=1`
+    );
+    const found = existing.entities[0];
+    if (found) {
+      await this.xrm.WebApi.updateRecord('annotation', found.annotationid as string, { notetext: stateJson });
+      return;
+    }
+    await this.xrm.WebApi.createRecord('annotation', {
+      subject: DESIGNER_STATE_SUBJECT,
+      notetext: stateJson,
+      [`objectid_qdb_work_item_record_type@odata.bind`]: `/qdb_work_item_record_types(${processId})`,
+    });
+  }
+
+  async loadAllDesignerStates(): Promise<Record<string, string>> {
+    const result = await this.xrm.WebApi.retrieveMultipleRecords(
+      'annotation',
+      `?$select=notetext,_objectid_value&$filter=subject eq '${DESIGNER_STATE_SUBJECT}'&$orderby=modifiedon desc`
+    );
+    const byProcess: Record<string, string> = {};
+    for (const note of result.entities) {
+      const id = note._objectid_value as string | undefined;
+      const text = note.notetext as string | undefined;
+      if (id && text && !byProcess[id]) byProcess[id] = text;
+    }
+    return byProcess;
   }
 
   async updateProcess(id: string, data: Partial<Omit<WorkflowProcess, 'crmId'>>): Promise<void> {
@@ -446,6 +516,45 @@ export class DataverseAdapter implements ISopAdapter {
       }
     }
     return new Map();
+  }
+
+  async getLookupValueName(
+    entityLogicalName: string,
+    attributeLogicalName: string,
+    recordId: string
+  ): Promise<string | null> {
+    const base = `${this.env.getClientUrl()}/api/data/${this.env.getApiVersion()}`;
+    const getJson = async <T>(url: string): Promise<T> => {
+      const r = await fetch(url, { credentials: 'include', headers: buildODataHeaders() });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json() as Promise<T>;
+    };
+    try {
+      const attr = await getJson<{ Targets?: string[] }>(
+        `${base}/EntityDefinitions(LogicalName='${entityLogicalName}')/Attributes(LogicalName='${attributeLogicalName}')` +
+        '/Microsoft.Dynamics.CRM.LookupAttributeMetadata?$select=Targets'
+      );
+      const id = recordId.replace(/[{}]/g, '').toLowerCase();
+      // A lookup can point at several entities (owner-style); the record only
+      // exists in one of them, so each target is tried until one answers.
+      for (const target of attr.Targets ?? []) {
+        try {
+          const def = await getJson<{ EntitySetName: string; PrimaryNameAttribute: string }>(
+            `${base}/EntityDefinitions(LogicalName='${target}')?$select=EntitySetName,PrimaryNameAttribute`
+          );
+          const row = await getJson<Record<string, unknown>>(
+            `${base}/${def.EntitySetName}(${id})?$select=${def.PrimaryNameAttribute}`
+          );
+          const name = row[def.PrimaryNameAttribute];
+          if (typeof name === 'string' && name.trim()) return name;
+        } catch {
+          continue;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   async getUsers(search?: string): Promise<UserOption[]> {

@@ -1,0 +1,71 @@
+============================================================
+ DCP — PHASE 4 START
+ MIS Integration, Synchronization, Strategy Execution
+ & Server-Side Paging
+============================================================
+
+Start Time        : Fri, 18 Sep 2026, 15:23:35  (Asia/Qatar, UTC+03:00)
+Estimated Effort  : 19.0 hours
+Expected End Time : Sat, 19 Sep 2026, 10:23:35  (Asia/Qatar, UTC+03:00)
+
+Branch            : feat/dcp-phase4-mis-integration
+Baseline          : 77ed073e  (approved Phase 3)
+Organisation      : org5869857f  (Cloud sandbox — the only one authorised)
+
+Effort Breakdown
+------------------------------------------------------------
+MIS Contract / Normalization           1.5
+MIS Service / Adapter                  2.0
+Background Synchronization             2.0
+Server-Side Paging                     2.5
+Filtering / Sorting                    1.0
+Strategy Execution Integration         1.0
+Failure / Retry / Idempotency          1.5
+Automated Testing                      3.0
+Cloud Runtime Validation               1.5
+Regression                             1.0
+Documentation / Gate Evidence          2.0
+------------------------------------------------------------
+TOTAL                                 19.0
+
+Dependencies:
+  1. Actual MIS API contract — endpoints, auth, paging mechanism,
+     change feed, page-size limits, error/retry contract.  OWNER: QDB/MIS
+     => interface + normalization + adapter boundary + mock are built;
+        the API provider is a skeleton marked
+        TBD — Actual MIS Contract Required.
+        Mock data will NOT be reported as live MIS runtime validation.
+  2. Rule Engine operations (KI-48).                       OWNER: QDB
+     => orchestration boundary built; fails closed; no hard-coded
+        eligibility substituted.
+  3. Smart Assignment contract (KI-09).                    OWNER: QDB
+     => not expanded beyond the approved Phase 4 scope.
+  4. Contact Hold authoritative source (KI-44).            OWNER: QDB
+     => does not block MIS processing this phase.
+  5. Snapshot idempotency composition.                     OWNER: QDB/MIS
+     => stays configuration; production composition NOT frozen.
+  6. On-premises organisation (KI-08 / KI-22).             OWNER: project
+     => On-Prem Compatible by Design — Runtime Test Pending.
+  7. MIS source workbooks are not in this repository.      OWNER: project
+     => mock seeded from the documented field contract.
+
+Risks / TBDs:
+  - Extending ICrmAdapter can break its six existing repository callers.
+    Mitigation: add a paged method BESIDE retrieveMultiple; full
+    Phase 1-3 regression before the gate.
+  - Paging built on a BELIEF about @odata.nextLink rather than the
+    platform. This is exactly KI-52. Mitigation: treat the link as an
+    OPAQUE token, never reconstruct it, and prove it live on the sandbox.
+  - MIS paging designed around a mechanism MIS does not offer.
+    Mitigation: abstraction neutral across continuation token / cursor /
+    paging cookie; no hard-coded maximum dataset size.
+  - A checkpoint advancing past unprocessed data, silently losing
+    Collection events. Mitigation: checkpoint only after a page is
+    persisted; restart and replay tests before the gate.
+
+Reporting posture (unchanged):
+  Cloud Runtime Tested
+  On-Prem Compatible by Design — Runtime Test Pending
+
+Status: IN PROGRESS
+============================================================

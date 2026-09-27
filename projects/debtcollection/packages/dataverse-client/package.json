@@ -1,0 +1,30 @@
+{
+  "name": "@dcp/dataverse-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@dcp/types": "*",
+    "@dcp/domain": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@vitest/coverage-v8": "^2.1.0",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.0"
+  }
+}

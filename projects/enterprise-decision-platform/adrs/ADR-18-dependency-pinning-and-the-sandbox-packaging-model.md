@@ -1,6 +1,8 @@
 # ADR-18: Dependency Pinning is a Symptom — the Packaging Model is the Cause
 
-**Status:** **P0 PASSED 2026-08-19 — ready for sponsor acceptance.** Both claims are now observed, not reasoned: a plug-in package binds the version it ships, and an unsigned assembly loads in sandbox isolation. Evidence: `spikes/adr-18-p0-packaging-probe.md`. Held at Proposed only until the sponsor accepts.
+**Status:** **ACCEPTED 2026-09-27 by the sponsor**, after both proofs were re-verified against the Rule Engine 1.1.0 development baseline (`main` @ `581d0592`, see "Re-verification" below). P0 proved the mechanism with a throwaway probe; P1 proved it with EDP’s own assembly, registered unsigned and serving a live Custom API. W0-1 is superseded for the cloud line. Evidence: `spikes/adr-18-p0-packaging-probe.md`, `spikes/adr-18-p1-real-assembly.md`.
+
+**Acceptance is of the decision, not of its execution.** It does not authorise re-pointing the remaining Custom APIs and SDK steps, deploying a package, or removing the signed 1.0.23 assembly — each of those remains a separate, explicitly authorised live step. P2 (NCalc unpin) and P3 (net48 retarget) are unchanged and still open.
 **Date:** 2026-08-18
 **Decided by:** Solution Architect. Answers OQ-A2, left open by ADR-16 and carried out of `architecture-edp-fact-bind-joint.md`.
 **Touches:** ADR-SEC-NCALC · ADR-16 · W0-1 (`wave-0-snk-rotation-scope.md`) · `dependencies.md` F1 addendum
@@ -184,10 +186,22 @@ two.
 | ILMerge is unsupported; dependent assemblies supersede it | Same source | **Quoted directly** |
 | Signing is not required for assemblies in a plug-in package | Same source | **Quoted directly** |
 | .NET Framework 4.8 sandbox support; 4.6.2 support ends 2027-01-12 | Microsoft Learn, corroborated by search | **Quoted — but the exact end-of-support date should be re-confirmed against the supported-versions page before it is put in a plan** |
-| **A plug-in package actually binds the STJ version it ships, in a real sandbox** | **NOT TESTED** | 🔴 **This is P0 and the entire ADR rests on it** |
-| Whether dropping signing is viable given EDP's dependency set | **NOT TESTED** | Part of P0 |
-| NCalc 6.x binding cleanly under the packaged model | **NOT TESTED** | P2 |
+| **A plug-in package actually binds the STJ version it ships, in a real sandbox** | P0 probe, org5869857f, 2026-08-19 | **Passed** — `spikes/adr-18-p0-packaging-probe.md` |
+| Whether dropping signing is viable given EDP's dependency set | P1: EDP's own assembly registered unsigned, one Custom API re-pointed, 2026-08-19 | **Passed** — `spikes/adr-18-p1-real-assembly.md` |
+| NCalc 6.x binding cleanly under the packaged model | **NOT TESTED** | P2 — still open |
 
-**Nothing in this ADR should change a deployment plan until P0 has run.** The correction to the
-net462 claim stands on its own evidence; everything built on the packaging model is reasoned
-from Microsoft's documentation and has not yet been observed in an org.
+### Re-verification against the 1.1.0 development baseline (2026-09-27)
+
+Both proofs were re-checked after F2a (#105) and F2b (#107) merged, because the decision now
+has to hold for the code that will actually ship, not the code that was probed.
+
+| Check | Method | Result |
+|---|---|---|
+| The unsigned package still executes EDP's code in the sandbox (P1) | Read-only live call: `qdb_edp_ValidateRule` with an inline rule quantifying over an undeclared collection. Only the packaged 1.0.24 code knows quantifiers | **Passed** — HTTP 200, `EDP041`. Nothing stored |
+| Registration state unchanged | Live GET of `pluginassemblies`, `pluginpackages`, `customapis` | Signed `EDP.RuleRuntime.Crm.Signed` 1.0.23.0 (token 06949b1887fabe5d) serves 21 Custom APIs; unsigned `EDP.RuleRuntime.Crm` 1.0.24.0 (token null, isolation 2, source 4, package `qdb_EdpRuleRuntime`) serves `qdb_edp_ValidateRule` |
+| The baseline still packages under this model | Local build of `581d0592` + the #102 packaging change, `-p:PackForDataverse=true` | **Passed** — 0 warnings; `lib/net462` ships `System.Text.Json`, NCalc and their BCL dependencies; **no** `Microsoft.Xrm.*` / `Microsoft.Crm.*` assembly in the package |
+| F2 introduced no dependency that changes the model | Diff of `*.csproj` 28b36d44..581d0592 | No project or package reference changed |
+
+The packaging decision therefore applies unchanged. The P0 mechanism (binding shipped versions)
+is platform behaviour and was not re-probed; P1's live execution of STJ-dependent EDP code under
+the package is the standing evidence for it.

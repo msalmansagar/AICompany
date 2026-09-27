@@ -366,3 +366,60 @@ shipped mirrored Arabic.
 separate PDFs. They are assigned per document, so any cross-document comparison is
 meaningless — it "confirmed" that jsPDF never reorders, which is false. Decode through the
 document's own **ToUnicode** map instead; that also proves the text is real selectable text.
+
+---
+
+## Area 12 — Multi-dataset composition and in-memory join (ADD-002 Phase A)
+
+Requirement: MDS-FR-002/017 — compose several datasets in one report, joining a `joined` dataset to
+the root on a declared key. Executed **inside the plugin sandbox**.
+
+**Decision: BUILD — no dependency is admissible, and none is warranted.**
+
+The constraint decides this before the star count does. ADR-RPT-011 states the plugin
+*"carries **no NuGet dependencies** beyond the CRM SDK"*: a Dataverse plugin assembly must be
+self-contained, cannot reference sibling custom assemblies, and plugin packages — which would allow
+it — **are not available on on-premise 9.x, a V1 target**. Adopting any library here means an
+ILRepack step and merged-assembly strong-naming complications, which ADR-RPT-011 explicitly avoided.
+
+Even without that constraint there is nothing to adopt: a keyed join over two in-memory row sets is
+`System.Linq`'s `GroupJoin`/`ToLookup`, already in the framework. A library would add risk and
+surface, not capability.
+
+⚠️ The join is the easy half. The **cardinality** decision is the design work: whether an unmatched
+root row is dropped or kept with empty external columns must be an authored choice, mirroring the
+inner/outer semantics `ReportQueryBuilder` already honours for CRM link-entities. Consistency between
+the two join paths matters more here than any implementation detail.
+
+---
+
+## Area 13 — Outbound HTTP from the plugin sandbox (ADD-002 Phase B)
+
+Requirement: MDS-FR-011/015 — call a registered REST endpoint from the plugin, with a per-call
+timeout and a total budget, inside the two-minute ceiling.
+
+| Library | Repo | Stars | License | Verdict |
+|---|---|---|---|---|
+| Polly (resilience/retry) | App-vNext/Polly | 13k+ | BSD-3 | **REJECT — constraint, not quality** |
+| RestSharp / Flurl / Refit | various | 9k / 4k / 8k | Apache-2.0 / MIT | **REJECT — same constraint** |
+| `System.Net.Http.HttpClient` | .NET framework | — | — | **ADOPT (built-in)** |
+
+**Decision: BUILD on the built-in `HttpClient`.**
+
+Same ADR-RPT-011 constraint as Area 12: no NuGet dependency may enter the plugin assembly. All three
+HTTP libraries are excluded on that basis alone, not on merit.
+
+`HttpClient` supplies what MDS-FR-015 actually asks for — `Timeout` plus a `CancellationToken` — and
+the requirement is a **budget, not resilience**. Polly's value is retry and circuit-breaking, and
+🔴 **retry is actively wrong here**: a retry inside a two-minute ceiling spends the budget the whole
+report shares, turning one slow endpoint into a terminated report rather than a named failure block
+(MDS-FR-016). Fail fast, name the failure, keep the other datasets.
+
+**JSON:** the plugin already parses JSON with its own `SimpleJson` (`Engine/SimpleJson.cs`,
+`ReadObjectArray`), used today for static datasets. External responses reuse it. Newtonsoft.Json is
+deliberately not introduced — its availability in the sandbox varies with the SDK version, which is
+precisely the kind of implicit dependency ADR-RPT-011 was written to exclude.
+
+⚠️ **Unresolved and not a library question:** whether the on-premise sandbox's outbound allowlist
+permits the call at all (MDS-R-05). No amount of dependency selection settles it — it needs the ADR
+and an on-premise org, and it may make Phase B cloud-only.
