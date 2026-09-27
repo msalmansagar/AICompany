@@ -50,8 +50,34 @@ var QdbReportEngine = window.QdbReportEngine || {};
     return JSON.parse(request.responseText);
   }
 
+  /* ---------- Which Web API version this org serves ----------
+     This named v9.2. Dataverse online serves that; the last on-premises release is 9.1 and answers
+     a v9.2 path with 404 — so the flyout would find no placements and offer an empty menu, which
+     reads as "no reports are configured here" rather than as a wrong URL.
+
+     Deliberately duplicated in report-engine-core.js and report-designer.html. The three are
+     separately loaded web resources with no shared scope, and this one is loaded by the ribbon
+     framework with no engine present. Change one, change all three. */
+  var FALLBACK_WEB_API_VERSION = "9.1";   // served by every 9.x org, cloud and on-premises alike
+  var webApiVersionCache = "";
+
+  /** The major.minor the org reports, e.g. "9.1" from "9.1.0.4967". */
+  function webApiVersion() {
+    if (webApiVersionCache) { return webApiVersionCache; }
+    var reported = "";
+    try { reported = globalContext().getVersion() || ""; } catch (error) { reported = ""; }
+    var majorMinor = /^(\d+\.\d+)/.exec(reported);
+    webApiVersionCache = majorMinor ? majorMinor[1] : FALLBACK_WEB_API_VERSION;
+    return webApiVersionCache;
+  }
+
+  /** A Web API path on this org, at the version this org actually serves. */
+  function webApiPath(path) {
+    return "/api/data/v" + webApiVersion() + "/" + path;
+  }
+
   function placementQuery(entityLogicalName, placementType) {
-    return "/api/data/v9.2/qdb_reportribbonplacements"
+    return webApiPath("qdb_reportribbonplacements")
       + "?$select=qdb_name,_qdb_reportdefinitionid_value"
       + "&$filter=qdb_entitylogicalname eq '" + encodeURIComponent(entityLogicalName) + "'"
       + " and qdb_isenabled eq true"

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Report xmlns="http://schemas.microsoft.com/sqlserver/reporting/2008/01/reportdefinition"
+        xmlns:rd="http://schemas.microsoft.com/SQLServer/reporting/reportdesigner">
+  <DataSets>
+    <DataSet Name="DSAccounts">
+      <Query><DataSourceName>CRM</DataSourceName>
+        <CommandText>SELECT a.name, a.accountnumber, a.telephone1, c.emailaddress1
+                     FROM FilteredAccount a
+                     LEFT OUTER JOIN FilteredContact c ON c.contactid = a.primarycontactid
+                     WHERE a.statecode = 0
+                     ORDER BY a.name</CommandText>
+      </Query>
+      <Fields>
+        <Field Name="name"><DataField>name</DataField><rd:TypeName>System.String</rd:TypeName></Field>
+      </Fields>
+    </DataSet>
+  </DataSets>
+  <Body><ReportItems><Tablix Name="T">
+    <TablixBody><TablixRows>
+      <TablixRow><TablixCells>
+        <TablixCell><CellContents><Textbox Name="h1"><Value>Account Name</Value></Textbox></CellContents></TablixCell>
+        <TablixCell><CellContents><Textbox Name="h2"><Value>Account No.</Value></Textbox></CellContents></TablixCell>
+        <TablixCell><CellContents><Textbox Name="h3"><Value>Email</Value></Textbox></CellContents></TablixCell>
+      </TablixCells></TablixRow>
+      <TablixRow><TablixCells>
+        <TablixCell><CellContents><Textbox Name="d1"><Value>=Fields!name.Value</Value></Textbox></CellContents></TablixCell>
+        <TablixCell><CellContents><Textbox Name="d2"><Value>=Fields!accountnumber.Value</Value></Textbox></CellContents></TablixCell>
+        <TablixCell><CellContents><Textbox Name="d3"><Value>=Fields!emailaddress1.Value</Value></Textbox></CellContents></TablixCell>
+      </TablixCells></TablixRow>
+    </TablixRows></TablixBody>
+    <DataSetName>DSAccounts</DataSetName>
+  </Tablix></ReportItems></Body>
+</Report>

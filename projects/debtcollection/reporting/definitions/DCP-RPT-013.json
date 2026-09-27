@@ -1,0 +1,33 @@
+{
+  "code": "DCP-RPT-013",
+  "name": "DCP — Delinquency observations by date and source system",
+  "description": "Stored MIS observations grouped by observation date and source system: facilities observed, total arrears and loan balance summed, DPD averaged. One row is one observation date; nothing is interpolated between points, and the ARR book has a single observation (2026-06-30). Grain: SNAPSHOT (facility × observation date). Source: qdb_delinquencysnapshot. Narrowed by source system (text HL/BFD) and the observation-date window when supplied. DCP catalogue DCP-RPT-013.",
+  "version": 1,
+  "mainEntity": "qdb_delinquencysnapshot",
+  "category": "Management",
+  "rowLimit": 5000,
+  "grain": "SNAPSHOT",
+  "mode": "fetchxml",
+  "fetchXml": "<fetch aggregate=\"true\"><entity name=\"qdb_delinquencysnapshot\"><attribute name=\"qdb_snapshotdate\" groupby=\"true\" dategrouping=\"year\" alias=\"year\"/><attribute name=\"qdb_snapshotdate\" groupby=\"true\" dategrouping=\"month\" alias=\"month\"/><attribute name=\"qdb_snapshotdate\" groupby=\"true\" dategrouping=\"day\" alias=\"day\"/><attribute name=\"qdb_facilitysourcesystem\" groupby=\"true\" alias=\"source\"/><attribute name=\"qdb_delinquencysnapshotid\" aggregate=\"count\" alias=\"facilities\"/><attribute name=\"qdb_totalarrears\" aggregate=\"sum\" alias=\"arrears\"/><attribute name=\"qdb_loanbalance\" aggregate=\"sum\" alias=\"balance\"/><attribute name=\"qdb_dpd\" aggregate=\"avg\" alias=\"dpd\"/><order alias=\"year\"/><order alias=\"month\"/><order alias=\"day\"/></entity></fetch>",
+  "entity": { "logicalName": "qdb_delinquencysnapshot", "alias": "t" },
+  "columns": [
+    { "name": "Year", "attribute": "qdb_snapshotdate", "alias": "year", "dataType": "Integer", "aggregate": "None", "sortOrder": 1 },
+    { "name": "Month", "attribute": "qdb_snapshotdate", "alias": "month", "dataType": "Integer", "aggregate": "None", "sortOrder": 2 },
+    { "name": "Day", "attribute": "qdb_snapshotdate", "alias": "day", "dataType": "Integer", "aggregate": "None", "sortOrder": 3 },
+    { "name": "Source system", "attribute": "qdb_facilitysourcesystem", "alias": "source", "dataType": "String", "aggregate": "None", "sortOrder": 4 },
+    { "name": "Facilities observed", "attribute": "qdb_delinquencysnapshotid", "alias": "facilities", "dataType": "Integer", "aggregate": "None", "sortOrder": 5 },
+    { "name": "Total arrears", "attribute": "qdb_totalarrears", "alias": "arrears", "dataType": "Money", "aggregate": "None", "sortOrder": 6 },
+    { "name": "Loan balance", "attribute": "qdb_loanbalance", "alias": "balance", "dataType": "Money", "aggregate": "None", "sortOrder": 7 },
+    { "name": "Average DPD", "attribute": "qdb_dpd", "alias": "dpd", "dataType": "Decimal", "aggregate": "None", "sortOrder": 8 }
+  ],
+  "filters": [
+    { "name": "Source system", "field": "qdb_facilitysourcesystem", "operator": "Equals", "value": "SourceSystem", "runtimePrompt": true },
+    { "name": "Observed on or after", "field": "qdb_snapshotdate", "operator": "GreaterThan", "value": "DateFrom", "runtimePrompt": true },
+    { "name": "Observed before", "field": "qdb_snapshotdate", "operator": "LessThan", "value": "DateTo", "runtimePrompt": true }
+  ],
+  "parameters": [
+    { "name": "SourceSystem", "label": "Source system (HL or BFD)", "type": "Text", "required": false },
+    { "name": "DateFrom", "label": "Observed on or after (ISO date)", "type": "Date", "required": false },
+    { "name": "DateTo", "label": "Observed before (ISO date)", "type": "Date", "required": false }
+  ]
+}

@@ -1,14 +1,26 @@
 import { fileURLToPath } from 'node:url';
-const VIEWER = fileURLToPath(new URL('../prototype/report-runtime.html', import.meta.url));
+const ENGINE = fileURLToPath(new URL('../prototype/report-engine-core.js', import.meta.url));
 // Drives the ported layout renderer with a realistic result and checks each type produces markup
 // rather than throwing or returning nothing.
-import { readFileSync } from 'node:fs';
+import { loadEngine } from './engine-harness.mjs';
 
-const html = readFileSync(VIEWER, 'utf8');
-const source = html.slice(html.indexOf('/* ---------------- layout rendering'), html.indexOf('/* ---------------- self-check'));
 // esc is a viewer global the renderer relies on; supply the same implementation.
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const api = new Function('esc', `${source}; return { renderLayout, toRenderModel, inferColumnType, buildPreviewBody };`)(esc);
+// Helpers the renderer needs are lifted REAL rather than stubbed, and discovered rather than
+// listed: a stub answers for code the browser never runs, and a hand-kept list is exactly how this
+// suite rotted. renderLayout catches everything and returns "" so a broken layout falls back to the
+// grid instead of costing the user their data — right in production, blinding in a test — so an
+// empty return is treated here as failure, never as "nothing to draw". It was: buildPreviewBody
+// read a free variable `layout` and every one of the 27 layouts silently became a grid.
+const { api } = loadEngine({
+  enginePath: ENGINE,
+  section: ['/* ---------------- layout rendering', '/* ---------------- self-check'],
+  exports: ['renderLayout', 'toRenderModel', 'inferColumnType', 'buildPreviewBody'],
+  seed: ['NUMERIC'],
+  globals: { esc },
+  smoke: built => built.buildPreviewBody('Grouped Report',
+    [{ key: 'k', name: 'K', label: 'K', type: 'Text' }], [{ k: 'a' }], { grandTotal: true })
+});
 
 let passed = 0, failed = 0;
 const check = (name, ok, detail = '') => {
@@ -70,6 +82,19 @@ console.log('\ngrouping and totals');
 const grouped = api.renderLayout(result, { type: 'Grouped Report', groupBy: 'branch', grandTotal: true });
 check('groups by the category column', grouped.includes('Doha Main') && grouped.includes('Al Wakrah'));
 check('emits a grand total row', /grand-total/.test(grouped));
+
+console.log('\nbadges reach the designed layouts (L4)');
+const badged = api.renderLayout(result, { type: 'Grouped Report', groupBy: 'branch', badges: ['customer'] });
+check('the marked column wears the pill', badged.includes('cell-badge'), badged.slice(0, 200));
+check('and only that column', (badged.match(/cell-badge/g) || []).length === result.rows.length);
+const unbadged = api.renderLayout(result, { type: 'Grouped Report', groupBy: 'branch' });
+check('no badges authored, no pills drawn', !unbadged.includes('cell-badge'));
+// The drill-down layout builds its expanded rows itself rather than through trow — it must still
+// route each cell through cellOf, or badge columns silently lose their pills in this one layout.
+const drillBadged = api.renderLayout(result, { type: 'Drill-down Report', badges: ['customer'] });
+check('drill-down expanded rows wear the pill too', drillBadged.includes('cell-badge'), drillBadged.slice(0, 200));
+const drillPlain = api.renderLayout(result, { type: 'Drill-down Report' });
+check('drill-down draws no pills unauthored', !drillPlain.includes('cell-badge'));
 
 console.log('\nsafety');
 check('no rows renders nothing (grid takes over)', api.renderLayout({ ...result, rows: [], rowCount: 0 }, { type: 'Tabular Report' }) === '');

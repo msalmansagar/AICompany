@@ -21,11 +21,14 @@ const OPERATOR_MAP: Record<string, string> = {
 
 const OPTIONSET_TYPES = new Set(['Picklist', 'Status', 'State', 'MultiSelectPicklist', 'Virtual']);
 const NUMERIC_TYPES = new Set(['Integer', 'BigInt', 'Decimal', 'Double', 'Money']);
+const LOOKUP_TYPES = new Set(['Lookup', 'Owner', 'Customer']);
 const NULL_OPERATORS = new Set(['null', 'not-null']);
+const GUID_PATTERN = /^\{?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}?$/i;
 
 // Session-scoped promise caches — deduplicate in-flight requests and persist results
 const attrsByEntityCache = new Map<string, Promise<AttributeMeta[]>>();
 const optionsByAttrCache = new Map<string, Promise<Map<number, string>>>();
+const lookupNameCache = new Map<string, Promise<string | null>>();
 
 export interface ResolvedCondition {
   fieldLabel: string;
@@ -54,13 +57,22 @@ export async function resolveRouteFilter(
     if (condEls.length === 0) return null;
 
     const conditions = await Promise.all(
-      condEls.map((c) => resolveCondition(c, entityLogicalName, adapter))
+      // A condition inside a <link-entity> belongs to THAT entity, not the
+      // fetch root — resolving qdb_approval_authority against qdb_task found
+      // no metadata, so the panel showed "751090002" instead of "CEO".
+      condEls.map((c) => resolveCondition(c, owningEntityOf(c, entityLogicalName), adapter))
     );
 
     return { conditions };
   } catch {
     return null;
   }
+}
+
+/** The entity a condition actually filters: its nearest link-entity, else the root. */
+function owningEntityOf(conditionEl: Element, rootEntity: string): string {
+  const holder = conditionEl.closest('link-entity, entity');
+  return holder?.getAttribute('name') || rootEntity;
 }
 
 function fetchEntityAttrs(entityLogicalName: string, adapter: ICrmAdapter): Promise<AttributeMeta[]> {
@@ -120,7 +132,31 @@ async function resolveCondition(
   } else if (NUMERIC_TYPES.has(attrType)) {
     const num = parseFloat(rawValue);
     if (!isNaN(num)) valueLabel = num.toLocaleString();
+  } else if (LOOKUP_TYPES.has(attrType) && GUID_PATTERN.test(rawValue)) {
+    // A GUID names nothing to a reader. Designer-authored filters carry the
+    // record's name in uiname; API-authored ones don't, so the name is read
+    // from the record itself, with the raw GUID as the honest fallback.
+    const uiname = el.getAttribute('uiname');
+    valueLabel = uiname?.trim()
+      ? uiname
+      : (await fetchLookupName(entityLogicalName, attrLogicalName, rawValue, adapter)) ?? rawValue;
   }
 
   return { fieldLabel, operatorLabel, valueLabel };
+}
+
+function fetchLookupName(
+  entityLogicalName: string,
+  attributeLogicalName: string,
+  recordId: string,
+  adapter: ICrmAdapter
+): Promise<string | null> {
+  const key = `${entityLogicalName}:${attributeLogicalName}:${recordId.replace(/[{}]/g, '').toLowerCase()}`;
+  if (!lookupNameCache.has(key)) {
+    lookupNameCache.set(
+      key,
+      adapter.getLookupValueName(entityLogicalName, attributeLogicalName, recordId).catch(() => null)
+    );
+  }
+  return lookupNameCache.get(key)!;
 }

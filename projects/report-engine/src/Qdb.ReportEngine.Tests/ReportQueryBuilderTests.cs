@@ -126,6 +126,81 @@ public sealed class ReportQueryBuilderTests
         IsVisible = true
     };
 
+    /// <summary>
+    /// A report whose second source is standalone. Its mapping names a different entity, so if the
+    /// builder still flattened it the root query would gain a link-entity and the block would also
+    /// render on its own — the same rows twice, in two places.
+    /// </summary>
+    private static ReportDefinition ReportWithSecondSource(string composition) => new()
+    {
+        Id = Guid.NewGuid(),
+        Name = "Two sources",
+        MainEntityLogicalName = "qdb_loan_application",
+        DataSources =
+        [
+            new ReportDataSource
+            {
+                Id = Guid.NewGuid(),
+                IsPrimary = true,
+                EntityMappings =
+                [
+                    new ReportEntityMapping
+                    {
+                        Id = Guid.NewGuid(),
+                        EntityLogicalName = "qdb_loan_application",
+                        Columns = [Column("qdb_name", 1)]
+                    }
+                ]
+            },
+            new ReportDataSource
+            {
+                Id = Guid.NewGuid(),
+                Composition = composition,
+                EntityMappings =
+                [
+                    new ReportEntityMapping
+                    {
+                        Id = Guid.NewGuid(),
+                        EntityLogicalName = "contact",
+                        JoinExpressionJson = "{\"from\":\"contactid\",\"to\":\"qdb_contactid\"}",
+                        Columns = [Column("fullname", 1)]
+                    }
+                ]
+            }
+        ]
+    };
+
+    [Fact]
+    public void Build_JoinsASecondSourceIntoTheRootQuery_WhenItIsJoined()
+    {
+        // The historical behaviour, and the default for every source saved before MDS-FR-002.
+        var query = ReportQueryBuilder.Build(ReportWithSecondSource(DatasetComposition.Joined),
+            new ReportExecutionRequest());
+
+        Assert.Contains("<link-entity name=\"contact\"", query.FetchXml);
+    }
+
+    [Fact]
+    public void Build_LeavesAStandaloneSourceOutOfTheRootQuery()
+    {
+        // MDS-FR-004: a standalone dataset runs its own query. Flattening it here as well would put
+        // its rows in the root table AND in its own block.
+        var query = ReportQueryBuilder.Build(ReportWithSecondSource(DatasetComposition.Standalone),
+            new ReportExecutionRequest());
+
+        Assert.DoesNotContain("<link-entity name=\"contact\"", query.FetchXml);
+    }
+
+    [Fact]
+    public void Build_KeepsTheRootColumnsWhenASourceIsStandalone()
+    {
+        var query = ReportQueryBuilder.Build(ReportWithSecondSource(DatasetComposition.Standalone),
+            new ReportExecutionRequest());
+
+        Assert.Contains("<attribute name=\"qdb_name\"", query.FetchXml);
+        Assert.DoesNotContain("fullname", query.FetchXml);
+    }
+
     private static ReportDefinition Report(
         IReadOnlyList<ReportColumn> columns, IReadOnlyList<ReportFilter>? filters = null, int? rowLimit = null) => new()
     {

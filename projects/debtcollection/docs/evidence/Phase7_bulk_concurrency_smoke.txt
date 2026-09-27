@@ -1,0 +1,79 @@
+=== Phase 7 — two workers, one run, real Dataverse ===
+
+  Organisation: org5869857f.crm4.dynamics.com
+  NOTE: the QDB dispatcher is absent here, so no Fax row can send (KI-83).
+
+  PASS  the frozen-population capacity was read from live metadata — 1048576
+  Seeded 6 contacts and one case.
+
+  PASS  a real communication run was created — b0a15b3f-9172-4143-b916-c5e826284577
+
+  ── The race ──
+  PASS  both workers begin from the same version — W/"210692311"
+  PASS  the run starts at cursor 0
+  PASS  exactly one worker claimed the run — takenOver / progressed
+  PASS  the other received the platform's concurrency refusal
+  PASS  the losing worker attempted ZERO native creates — 0 attempts
+  PASS  the winning worker processed the bounded batch — 3 attempts
+  PASS  the cursor advanced exactly once — cursor = 3
+  PASS  the run is still runnable — Running
+
+  ── Resume after contention ──
+  PASS  a later worker claimed the new version and continued — complete
+  PASS  every recipient was processed — cursor = 6
+  PASS  the run is Completed — Completed
+  PASS  the run reconciles against the platform's own record count — 6 sent + 0 refused + 0 failed = 6; platform holds 6
+  PASS  exactly one native record exists per recipient — 6 faxes
+
+  ── Cleanup ──
+  PASS  every fax and run this test created was removed by id — 7 removed, 0 refused
+
+─── Records identified ───
+  collection case                  35c4bff0-c3b4-f111-aaac-000d3abd8313  SMOKE-P7RACE-F-20260920072151
+  contact (smoke customer)         7feb99f1-c3b4-f111-aaac-000d3abcf32d  SMOKE-P7RACE-C0-20260920072151
+  contact (smoke customer)         8eeb99f1-c3b4-f111-aaac-000d3abcf32d  SMOKE-P7RACE-C1-20260920072151
+  contact (smoke customer)         29c4bff0-c3b4-f111-aaac-000d3abd8313  SMOKE-P7RACE-C3-20260920072151
+  contact (smoke customer)         30c4bff0-c3b4-f111-aaac-000d3abd8313  SMOKE-P7RACE-C5-20260920072151
+  contact (smoke customer)         44c9c7ee-c3b4-f111-aaac-70a8a55bc6a5  SMOKE-P7RACE-C2-20260920072151
+  contact (smoke customer)         eff3c9f4-c3b4-f111-aaac-70a8a55bc6a5  SMOKE-P7RACE-C4-20260920072151
+  7 record(s) — every one matched on the "SMOKE-" marker.
+
+─── Checking for anything else that references them ───
+  Nothing outside the smoke set references them.
+
+─── Temporarily disabling the three qdb_ Delete guards ───
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation)
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation)
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation)
+
+─── Deleting guarded rows ───
+  [DELETED] collection case SMOKE-P7RACE-F-20260920072151 (35c4bff0-c3b4-f111-aaac-000d3abd8313)
+
+─── Restoring the guards ───
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation)
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation)
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation)
+
+─── Verifying the restored registration ───
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation) — enabled=true filter=(none) images=(none)
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation) — enabled=true filter=(none) images=PreImage(statecode)
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation) — enabled=true filter=(none) images=(none)
+
+─── Deleting reference data (no guard involved) ───
+  [DELETED] contact (smoke customer) SMOKE-P7RACE-C0-20260920072151 (7feb99f1-c3b4-f111-aaac-000d3abcf32d)
+  [DELETED] contact (smoke customer) SMOKE-P7RACE-C1-20260920072151 (8eeb99f1-c3b4-f111-aaac-000d3abcf32d)
+  [DELETED] contact (smoke customer) SMOKE-P7RACE-C3-20260920072151 (29c4bff0-c3b4-f111-aaac-000d3abd8313)
+  [DELETED] contact (smoke customer) SMOKE-P7RACE-C5-20260920072151 (30c4bff0-c3b4-f111-aaac-000d3abd8313)
+  [DELETED] contact (smoke customer) SMOKE-P7RACE-C2-20260920072151 (44c9c7ee-c3b4-f111-aaac-70a8a55bc6a5)
+  [DELETED] contact (smoke customer) SMOKE-P7RACE-C4-20260920072151 (eff3c9f4-c3b4-f111-aaac-70a8a55bc6a5)
+
+─── Confirming no residue remains ───
+  PASS  0 smoke record(s) remain
+
+Cleanup complete. The guards are registered and enabled exactly as before.
+  PASS  zero SMOKE-P7RACE residue in faxes — 0 rows
+  PASS  zero SMOKE-P7RACE residue in qdb_communicationruns — 0 rows
+  PASS  zero SMOKE-P7RACE residue in qdb_collectioncases — 0 rows
+  PASS  zero SMOKE-P7RACE residue in contacts — 0 rows
+
+  20/20 checks passed.

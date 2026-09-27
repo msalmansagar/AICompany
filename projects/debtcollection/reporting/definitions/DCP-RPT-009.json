@@ -1,0 +1,80 @@
+{
+  "code": "DCP-RPT-009",
+  "name": "DCP — Open activities by week recorded and escalation",
+  "description": "Open collection activities grouped by the ISO week they were recorded in and by the platform supervisor-escalation flag. Age since recording is a fact; overdue is not, because no TAT start policy exists (KI-101), and the flag is reported, not derived — no escalation policy is configured (KI-104). Grain: ACTIVITY. Source: qdb_collectionactivity · createdon, qdb_supervisorescalated, statecode. Both CRMs. Narrowed by owner and activity type when supplied. DCP catalogue DCP-RPT-009.",
+  "version": 1,
+  "mainEntity": "qdb_collectionactivity",
+  "category": "Operational",
+  "rowLimit": 5000,
+  "grain": "ACTIVITY",
+  "mode": "fetchxml",
+  "fetchXml": "<fetch aggregate=\"true\"><entity name=\"qdb_collectionactivity\"><attribute name=\"createdon\" groupby=\"true\" dategrouping=\"year\" alias=\"year\"/><attribute name=\"createdon\" groupby=\"true\" dategrouping=\"week\" alias=\"week\"/><attribute name=\"qdb_supervisorescalated\" groupby=\"true\" alias=\"escalated\"/><attribute name=\"activityid\" aggregate=\"count\" alias=\"activities\"/><order alias=\"year\"/><order alias=\"week\"/><filter><condition attribute=\"statecode\" operator=\"eq\" value=\"0\"/></filter></entity></fetch>",
+  "entity": {
+    "logicalName": "qdb_collectionactivity",
+    "alias": "t"
+  },
+  "columns": [
+    {
+      "name": "Year",
+      "attribute": "createdon",
+      "alias": "year",
+      "dataType": "Integer",
+      "aggregate": "None",
+      "sortOrder": 1
+    },
+    {
+      "name": "Week",
+      "attribute": "createdon",
+      "alias": "week",
+      "dataType": "Integer",
+      "aggregate": "None",
+      "sortOrder": 2
+    },
+    {
+      "name": "Escalated",
+      "attribute": "qdb_supervisorescalated",
+      "alias": "escalated",
+      "dataType": "Boolean",
+      "aggregate": "None",
+      "sortOrder": 3
+    },
+    {
+      "name": "Open activities",
+      "attribute": "activityid",
+      "alias": "activities",
+      "dataType": "Integer",
+      "aggregate": "None",
+      "sortOrder": 4
+    }
+  ],
+  "filters": [
+    {
+      "name": "Owner",
+      "field": "ownerid",
+      "operator": "Equals",
+      "value": "Owner",
+      "runtimePrompt": true
+    },
+    {
+      "name": "Activity type",
+      "field": "qdb_activitytypeid",
+      "operator": "Equals",
+      "value": "ActivityType",
+      "runtimePrompt": true
+    }
+  ],
+  "parameters": [
+    {
+      "name": "Owner",
+      "label": "Owner (user id)",
+      "type": "Lookup",
+      "required": false
+    },
+    {
+      "name": "ActivityType",
+      "label": "Activity type (id)",
+      "type": "Lookup",
+      "required": false
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
@@ -16,7 +17,9 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
     {
         public static IReadOnlyDictionary<string, string> Parse(string json)
         {
-            var values = new Dictionary<string, string>();
+            // Case-insensitive to match how parameters are declared and resolved everywhere else —
+            // a caller sending {"loanid": …} against a declared "LoanId" is supplying the parameter.
+            var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             if (string.IsNullOrWhiteSpace(json))
             {
                 return values;

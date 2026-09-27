@@ -1,0 +1,116 @@
+=== qdb_ Phase 2 smoke — Core Collection model on the live organisation ===
+
+  Organisation: org5869857f.crm4.dynamics.com
+
+─── Reference data ───
+  contact 083c8ea5-4eb3-f111-aaac-70a8a55bc6a5, activity type SMOKE-PTP-MU6U6RKR, configuration seeded
+
+─── Platform configuration ───
+  PASS  Platform configuration read from qdb_platformconfiguration — customerEntity=contacts policy=AllReceived
+  PASS  Feature flags parsed from qdb_featureflags — {"snapshotKeyComposition":["sourceSystem","facilityNumber","snapshotDate"]}
+
+─── New delinquency → Collection Case ───
+  PASS  Case created for the MIS facility identity — CaseCreated 
+  PASS  Customer bound through the Customer lookup to the contact — _qdb_customerid_value=083c8ea5-4eb3-f111-aaac-70a8a55bc6a5
+  PASS  Facility identity carried on the case, no facility record involved — HL/SMOKE-MU6U6RKR-A
+  PASS  Case opened at New by DefaultStatusAssigner — statuscode=100000600
+  PASS  Cached MIS position written — qdb_currentdpd=45
+  PASS  Snapshot written and linked to the case — {"key":"HL|SMOKE-MU6U6RKR-A|2026-06-30","written":true}
+
+─── Replay and movement ───
+  PASS  Same observation replayed: case updated, no second snapshot (alternate key) — CaseUpdated {"key":"HL|SMOKE-MU6U6RKR-A|2026-06-30","written":false}
+  PASS  Bucket movement: case updated, new snapshot — CaseUpdated {"key":"HL|SMOKE-MU6U6RKR-A|2026-07-31","written":true}
+
+─── One active case per facility (ActiveCaseGuard) ───
+  PASS  A second active case for the facility is refused by the plugin — Facility HL/SMOKE-MU6U6RKR-A already has an active Collection Case (HL-SMOKE-MU6U6RKR-A-E1). One active case p
+  PASS  A different facility for the same customer gets its own case — CaseCreated
+
+─── Promise to pay as a Collection Activity ───
+  PASS  Activity type resolved by code — 3776f7a7-4eb3-f111-aaac-000d3abd8313
+  PASS  Promise opened: activity Open, promise Active, subject composed — statuscode=100000640 ptp=100000080 subject="SMOKE Promise to Pay – 2026-09-18"
+  PASS  Promise kept and completed; completed activity is immutable — Completed activities cannot be modified or deleted.
+
+─── Cure → Settled (the Phase 2 matrix amendment) ───
+  PASS  Cure recorded from a working state: Settled, cure date, resolution Cured — CureRecorded statuscode=100000613 resolution=100000340 
+
+─── Closure and re-delinquency → new episode ───
+  PASS  Re-delinquency after closure opens episode 2 — CaseCreated episode=2 
+
+─── Exceptions ───
+  PASS  Unknown customer → identity exception row, no case — IdentityException CustomerNotFound: no customer master record carries the supplied national id
+  PASS  Malformed MIS facility identity → facility exception, no case — FacilityException MalformedFacilityNumber: facility number contains whitespace or control characters
+
+─── GraceMonitor: observation kept without a case ───
+  PASS  GraceMonitor produces a snapshot and no case — GraceMonitored {"key":"HL|SMOKE-MU6U6RKR-G|2026-06-30","written":true}
+
+─── Cleanup ───
+
+─── Records identified ───
+  collection activity              0df2b9a1-4eb3-f111-aaac-000d3abd8313  SMOKE-ACT-MU6U6L2H
+  collection activity              191d8eab-4eb3-f111-aaac-70a8a55bc6a5  SMOKE-MU6U6RKR-A1
+  delinquency snapshot             3976f7a7-4eb3-f111-aaac-000d3abd8313  SMOKE-MU6U6RKR-A
+  delinquency snapshot             3a76f7a7-4eb3-f111-aaac-000d3abd8313  SMOKE-MU6U6RKR-B
+  delinquency snapshot             ebde40ae-4eb3-f111-aaac-000d3abd8313  SMOKE-MU6U6RKR-A
+  delinquency snapshot             f0de40ae-4eb3-f111-aaac-000d3abd8313  SMOKE-MU6U6RKR-A
+  delinquency snapshot             f1de40ae-4eb3-f111-aaac-000d3abd8313  SMOKE-MU6U6RKR-X
+  delinquency snapshot             f5de40ae-4eb3-f111-aaac-000d3abd8313  SMOKE-MU6U6RKR-G
+  delinquency snapshot             3690829f-4eb3-f111-aaac-70a8a55bc6a5  SMOKE-FACILITY
+  delinquency snapshot             163c8ea5-4eb3-f111-aaac-70a8a55bc6a5  SMOKE-MU6U6RKR-A
+  identity exception               f2de40ae-4eb3-f111-aaac-000d3abd8313  SMOKE-MU6U6RKR BAD
+  identity exception               201d8eab-4eb3-f111-aaac-70a8a55bc6a5  SMOKE-MU6U6RKR-X
+  collection case                  3876f7a7-4eb3-f111-aaac-000d3abd8313  SMOKE-MU6U6RKR-A
+  collection case                  2990829f-4eb3-f111-aaac-70a8a55bc6a5  SMOKE-FACILITY
+  collection case                  1f3c8ea5-4eb3-f111-aaac-70a8a55bc6a5  SMOKE-MU6U6RKR-B
+  collection case                  1f1d8eab-4eb3-f111-aaac-70a8a55bc6a5  SMOKE-MU6U6RKR-A
+  activity type (reference data)   3776f7a7-4eb3-f111-aaac-000d3abd8313  SMOKE-PTP-MU6U6RKR
+  platform configuration (smoke)   123c8ea5-4eb3-f111-aaac-70a8a55bc6a5  SMOKE-MU6U6RKR
+  contact (smoke customer)         083c8ea5-4eb3-f111-aaac-70a8a55bc6a5  SMOKE-QID-MU6U6RKR
+  19 record(s) — every one matched on the "SMOKE-" marker.
+
+─── Checking for anything else that references them ───
+  Nothing outside the smoke set references them.
+
+─── Temporarily disabling the three qdb_ Delete guards ───
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation)
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation)
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation)
+
+─── Deleting guarded rows ───
+  [DELETED] collection activity SMOKE-ACT-MU6U6L2H (0df2b9a1-4eb3-f111-aaac-000d3abd8313)
+  [DELETED] collection activity SMOKE-MU6U6RKR-A1 (191d8eab-4eb3-f111-aaac-70a8a55bc6a5)
+  [DELETED] delinquency snapshot SMOKE-MU6U6RKR-A (3976f7a7-4eb3-f111-aaac-000d3abd8313)
+  [DELETED] delinquency snapshot SMOKE-MU6U6RKR-B (3a76f7a7-4eb3-f111-aaac-000d3abd8313)
+  [DELETED] delinquency snapshot SMOKE-MU6U6RKR-A (ebde40ae-4eb3-f111-aaac-000d3abd8313)
+  [DELETED] delinquency snapshot SMOKE-MU6U6RKR-A (f0de40ae-4eb3-f111-aaac-000d3abd8313)
+  [DELETED] delinquency snapshot SMOKE-MU6U6RKR-X (f1de40ae-4eb3-f111-aaac-000d3abd8313)
+  [DELETED] delinquency snapshot SMOKE-MU6U6RKR-G (f5de40ae-4eb3-f111-aaac-000d3abd8313)
+  [DELETED] delinquency snapshot SMOKE-FACILITY (3690829f-4eb3-f111-aaac-70a8a55bc6a5)
+  [DELETED] delinquency snapshot SMOKE-MU6U6RKR-A (163c8ea5-4eb3-f111-aaac-70a8a55bc6a5)
+  [DELETED] collection case SMOKE-MU6U6RKR-A (3876f7a7-4eb3-f111-aaac-000d3abd8313)
+  [DELETED] collection case SMOKE-FACILITY (2990829f-4eb3-f111-aaac-70a8a55bc6a5)
+  [DELETED] collection case SMOKE-MU6U6RKR-B (1f3c8ea5-4eb3-f111-aaac-70a8a55bc6a5)
+  [DELETED] collection case SMOKE-MU6U6RKR-A (1f1d8eab-4eb3-f111-aaac-70a8a55bc6a5)
+
+─── Restoring the guards ───
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation)
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation)
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation)
+
+─── Verifying the restored registration ───
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation) — enabled=true filter=(none) images=(none)
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation) — enabled=true filter=(none) images=PreImage(statecode)
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation) — enabled=true filter=(none) images=(none)
+
+─── Deleting reference data (no guard involved) ───
+  [DELETED] identity exception SMOKE-MU6U6RKR BAD (f2de40ae-4eb3-f111-aaac-000d3abd8313)
+  [DELETED] identity exception SMOKE-MU6U6RKR-X (201d8eab-4eb3-f111-aaac-70a8a55bc6a5)
+  [DELETED] activity type (reference data) SMOKE-PTP-MU6U6RKR (3776f7a7-4eb3-f111-aaac-000d3abd8313)
+  [DELETED] platform configuration (smoke) SMOKE-MU6U6RKR (123c8ea5-4eb3-f111-aaac-70a8a55bc6a5)
+  [DELETED] contact (smoke customer) SMOKE-QID-MU6U6RKR (083c8ea5-4eb3-f111-aaac-70a8a55bc6a5)
+
+─── Confirming no residue remains ───
+  PASS  0 smoke record(s) remain
+
+Cleanup complete. The guards are registered and enabled exactly as before.
+
+=== 20/20 checks passed ===

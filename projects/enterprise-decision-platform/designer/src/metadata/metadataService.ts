@@ -1,13 +1,7 @@
 // Reads CRM entity/attribute/option-set metadata via the Web API. Dual-mode:
 // CRM (Xrm or *.dynamics.com same-origin) or the local /dataverse dev proxy.
 
-function apiBase(): string {
-  const w = window as any;
-  const ctx = w.Xrm?.Utility?.getGlobalContext?.() ?? w.parent?.Xrm?.Utility?.getGlobalContext?.();
-  if (ctx?.getClientUrl) return ctx.getClientUrl() + '/api/data/v9.2';
-  if (location.hostname.endsWith('.dynamics.com')) return '/api/data/v9.2';
-  return '/dataverse';
-}
+import { apiBase } from '../dataverse/apiBase';
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${apiBase()}${path}`, {
@@ -45,14 +39,34 @@ export async function searchEntities(term: string): Promise<EntityMeta[]> {
   return entityCache.filter((e) => e.logicalName.toLowerCase().includes(t) || e.displayName.toLowerCase().includes(t));
 }
 
-/** Non-virtual attributes of an entity, sorted by display name. */
-export async function listAttributes(entity: string): Promise<AttributeMeta[]> {
+// Attribute metadata is immutable within a session and requested by several surfaces
+// (table editor, canvas schema, aggregates) — cache the in-flight promise per entity.
+const attributeCache = new Map<string, Promise<AttributeMeta[]>>();
+
+/** Non-virtual attributes of an entity, sorted by display name. Cached per entity. */
+export function listAttributes(entity: string): Promise<AttributeMeta[]> {
+  const cached = attributeCache.get(entity);
+  if (cached) return cached;
+  const pending = fetchAttributes(entity).catch((e) => { attributeCache.delete(entity); throw e; });
+  attributeCache.set(entity, pending);
+  return pending;
+}
+
+// Multi-select picklists report AttributeType 'Virtual'; only AttributeTypeName tells them
+// apart from genuinely virtual columns, so they need a type of their own here.
+const isMultiSelect = (a: any) => a.AttributeTypeName?.Value === 'MultiSelectPicklistType';
+
+async function fetchAttributes(entity: string): Promise<AttributeMeta[]> {
   const d = await get<{ value: any[] }>(
-    `/EntityDefinitions(LogicalName='${entity}')/Attributes?$select=LogicalName,DisplayName,AttributeType`
+    `/EntityDefinitions(LogicalName='${entity}')/Attributes?$select=LogicalName,DisplayName,AttributeType,AttributeTypeName`
   );
   return d.value
-    .filter((a) => a.AttributeType && a.AttributeType !== 'Virtual')
-    .map((a) => ({ logicalName: a.LogicalName as string, displayName: label(a.DisplayName, a.LogicalName), type: a.AttributeType as string }))
+    .filter((a) => a.AttributeType && (a.AttributeType !== 'Virtual' || isMultiSelect(a)))
+    .map((a) => ({
+      logicalName: a.LogicalName as string,
+      displayName: label(a.DisplayName, a.LogicalName),
+      type: isMultiSelect(a) ? 'MultiSelectPicklist' : (a.AttributeType as string),
+    }))
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
@@ -100,10 +114,11 @@ export async function listRelationships(entity: string): Promise<RelationshipMet
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
-/** Option-set members for a Picklist/State/Status attribute. */
-export async function listOptions(entity: string, attribute: string): Promise<OptionMeta[]> {
+/** Option-set members for a Picklist/State/Status/MultiSelectPicklist attribute. */
+export async function listOptions(entity: string, attribute: string, crmType?: string): Promise<OptionMeta[]> {
+  const cast = crmType === 'MultiSelectPicklist' ? 'MultiSelectPicklistAttributeMetadata' : 'PicklistAttributeMetadata';
   const path = `/EntityDefinitions(LogicalName='${entity}')/Attributes(LogicalName='${attribute}')`
-    + `/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$select=LogicalName&$expand=OptionSet`;
+    + `/Microsoft.Dynamics.CRM.${cast}?$select=LogicalName&$expand=OptionSet`;
   try {
     const d = await get<any>(path);
     const opts = d?.OptionSet?.Options ?? [];

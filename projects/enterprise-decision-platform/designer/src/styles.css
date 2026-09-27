@@ -730,3 +730,35 @@ h1, h2, h3 { text-wrap: balance; }
   color: var(--n-fg2); width: 28px; height: 28px; border-radius: var(--radius); }
 .docs-pane-close:hover { background: var(--n-bg1-hover); color: var(--n-fg1); }
 .docs-pane-frame { flex: 1 1 auto; width: 100%; border: none; background: var(--n-bg1); }
+
+/* ── Record picker (lookup condition cells) ─────────────────────────────── */
+.rpick { position: relative; display: inline-flex; }
+.rpick input { width: 130px; }
+.rpick-list {
+  position: absolute; top: calc(100% + 2px); left: 0; z-index: 40; min-width: 190px; max-height: 220px; overflow-y: auto;
+  display: flex; flex-direction: column; background: var(--n-bg1); border: 1px solid var(--n-stroke2);
+  border-radius: var(--radius); box-shadow: var(--shadow8); padding: 3px;
+}
+.rpick-list button {
+  text-align: left; font: inherit; font-size: 12.5px; color: var(--n-fg1); background: none; border: none;
+  border-radius: var(--radius-sm); padding: 5px 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rpick-list button:hover { background: var(--n-bg1-hover); }
+.rpick-msg { font-size: 12px; color: var(--n-fg2); padding: 5px 8px; }
+.rpick-err { color: var(--danger); }
+
+/* Test panel — fill-from-record row */
+.tp-record { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; font-size: 12px; color: var(--n-fg2); }
+.tp-record .rpick input { width: 100%; box-sizing: border-box; font: inherit; font-size: 12.5px; border: 1px solid var(--n-stroke-acc); border-radius: var(--radius); padding: 4px 7px; background: var(--n-bg1); color: var(--n-fg1); }
+.tp-record .rpick { display: flex; }
+
+/* Table ergonomics: column move arrows, table bar, CSV export */
+.dt2-col-move { display: inline-flex; flex: none; }
+.dt2-col-move button { background: transparent; border: 0; color: var(--n-fg3); cursor: pointer; font-size: 13px; padding: 2px 2px; }
+.dt2-col-move button:hover:not(:disabled) { color: var(--n-fg1); }
+.dt2-col-move button:disabled { opacity: .35; cursor: default; }
+.dt2-rowact button:disabled { opacity: .35; cursor: default; }
+.dt2-tablebar { display: flex; align-items: center; gap: 10px; }
+.dt2-export { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; font: inherit; font-size: 12.5px;
+  color: var(--n-fg2); background: transparent; border: 1px dashed var(--n-stroke2); border-radius: var(--radius); padding: 6px 12px; cursor: pointer; }
+.dt2-export:hover { color: var(--n-fg1); border-style: solid; background: var(--n-bg1-hover); }

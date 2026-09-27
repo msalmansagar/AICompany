@@ -19,7 +19,8 @@ export function inputName(i: InputCol): string {
 /** A column can be used in conditions once it has a field, or is a Count aggregate. */
 export function colReady(i: InputCol): boolean { return !!i.field || (!!i.agg && i.agg.fn === 'Count'); }
 export interface OutputCol { name: string; type: 'Text' | 'Number' | 'Boolean'; }
-export interface Cell { any?: boolean; operator?: string; value?: string; value2?: string; valueField?: string; value2Field?: string; }
+// valueLabel is display-only (a picked record's name); PCRM serialization never emits it.
+export interface Cell { any?: boolean; operator?: string; value?: string; value2?: string; valueField?: string; value2Field?: string; valueLabel?: string; }
 export interface Row { cells: Cell[]; outputs: Record<string, string>; reasonCodes?: string[]; }
 export interface TableModel {
   editor: 'edp-table';
@@ -39,12 +40,14 @@ export function newRow(inputCount: number, outputCount: number): Row {
 }
 
 // CRM attribute type -> editor category
-export function category(crmType: string): 'text' | 'number' | 'date' | 'boolean' | 'optionset' {
+export function category(crmType: string): 'text' | 'number' | 'date' | 'boolean' | 'optionset' | 'lookup' | 'multiselect' {
   switch (crmType) {
     case 'Integer': case 'BigInt': case 'Decimal': case 'Double': case 'Money': return 'number';
     case 'DateTime': return 'date';
     case 'Boolean': return 'boolean';
     case 'Picklist': case 'State': case 'Status': return 'optionset';
+    case 'MultiSelectPicklist': return 'multiselect';
+    case 'Lookup': case 'Customer': case 'Owner': return 'lookup';
     default: return 'text';
   }
 }
@@ -52,7 +55,65 @@ export function category(crmType: string): 'text' | 'number' | 'date' | 'boolean
 // PCRM output type from CRM category
 export function pcrmType(crmType: string): string {
   const c = category(crmType);
-  return c === 'number' ? 'Decimal' : c === 'date' ? 'DateTime' : c === 'boolean' ? 'Boolean' : c === 'optionset' ? 'OptionSet' : 'Text';
+  return c === 'number' ? 'Decimal' : c === 'date' ? 'DateTime' : c === 'boolean' ? 'Boolean' : c === 'optionset' || c === 'multiselect' ? 'OptionSet' : 'Text';
+}
+
+// ---- structural edits (pure — the editor clones via these) ----
+
+function moved<T>(arr: T[], from: number, to: number): T[] {
+  const next = [...arr];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
+
+/** Move a rule row — row order IS priority (first match wins under First/Priority). */
+export function moveRow(m: TableModel, from: number, to: number): TableModel {
+  if (to < 0 || to >= m.rows.length) return m;
+  return { ...m, rows: moved(m.rows, from, to) };
+}
+
+/** Move a condition column together with every row's cell for it. */
+export function moveInput(m: TableModel, from: number, to: number): TableModel {
+  if (to < 0 || to >= m.inputs.length) return m;
+  return {
+    ...m,
+    inputs: moved(m.inputs, from, to),
+    rows: m.rows.map((r) => ({ ...r, cells: moved(r.cells, from, to) })),
+  };
+}
+
+// ---- CSV export ----
+
+const csvEscape = (s: string) => (/[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+
+function cellText(cell: Cell | undefined, input: InputCol): string {
+  if (!cell || cell.any || !cell.operator || cell.operator === 'Any') return 'any';
+  const ops = operatorsFor(category(input.type));
+  const label = ops.find((o) => o.op === cell.operator)?.label ?? cell.operator;
+  const n = arity(category(input.type), cell.operator);
+  if (n === 0) return label;
+  const one = cell.valueField ? `[${cell.valueField}]` : (cell.valueLabel ?? cell.value ?? '');
+  if (n === 1) return `${label} ${one}`;
+  const two = cell.value2Field ? `[${cell.value2Field}]` : (cell.value2 ?? '');
+  return `${label} ${one} and ${two}`;
+}
+
+/** The whole table as CSV — headers are column labels, condition cells are readable text. */
+export function tableToCsv(m: TableModel): string {
+  const head = [
+    '#',
+    ...m.inputs.map((i) => i.label || i.field || '(column)'),
+    ...m.outputs.map((o) => o.name),
+    'reason codes',
+  ];
+  const lines = m.rows.map((r, ri) => [
+    String(ri + 1),
+    ...m.inputs.map((i, ci) => cellText(r.cells[ci], i)),
+    ...m.outputs.map((o) => r.outputs[o.name] ?? ''),
+    (r.reasonCodes ?? []).filter(Boolean).join(' | '),
+  ]);
+  return [head, ...lines].map((row) => row.map(csvEscape).join(',')).join('\n');
 }
 
 interface OpDef { op: string; label: string; arity: 0 | 1 | 2; }
@@ -64,6 +125,8 @@ export function operatorsFor(cat: string): OpDef[] {
     case 'number': return [ANY, OP('Equals', '=', 1), OP('NotEquals', '≠', 1), OP('GreaterThan', '>', 1), OP('GreaterThanOrEqual', '≥', 1), OP('LessThan', '<', 1), OP('LessThanOrEqual', '≤', 1), OP('Between', 'between', 2), OP('In', 'in (a,b,…)', 1), OP('IsNull', 'is empty', 0)];
     case 'date': return [ANY, OP('On', 'on', 1), OP('Before', 'before', 1), OP('After', 'after', 1), OP('OnOrBefore', 'on/before', 1), OP('OnOrAfter', 'on/after', 1), OP('Between', 'between', 2), OP('IsNull', 'is empty', 0)];
     case 'boolean': return [ANY, OP('Equals', '=', 1)];
+    case 'lookup': return [ANY, OP('Equals', 'is', 1), OP('NotEquals', 'is not', 1), OP('IsEmpty', 'is empty', 0), OP('IsNotEmpty', 'has a value', 0)];
+    case 'multiselect': return [ANY, OP('Contains', 'includes', 1), OP('NotContains', 'does not include', 1), OP('In', 'includes any of (a,b,…)', 1), OP('IsEmpty', 'is empty', 0), OP('IsNotEmpty', 'has a value', 0)];
     case 'optionset': return [ANY, OP('Equals', '=', 1), OP('NotEquals', '≠', 1), OP('In', 'in (a,b,…)', 1), OP('IsNull', 'is empty', 0)];
     default: return [ANY, OP('Equals', '=', 1), OP('NotEquals', '≠', 1), OP('Contains', 'contains', 1), OP('StartsWith', 'starts with', 1), OP('EndsWith', 'ends with', 1), OP('In', 'in (a,b,…)', 1), OP('IsNull', 'is empty', 0)];
   }
