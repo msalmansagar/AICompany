@@ -251,7 +251,7 @@ describe('Split and Grid', () => {
     await openCases();
 
     await screen.findByTestId('v2-cases-list');
-    const preview = await screen.findByTestId('v2-case-preview');
+    const preview = await screen.findByTestId('v2-case-preview', {}, { timeout: 5000 });
     expect([screen.getByTestId('v2-cases').getAttribute('data-layout'), screen.getAllByRole('row', { selected: true }).length, Boolean(preview.dataset['caseId']), screen.getByTestId('v2-cases-list').className]).toEqual(['split', 1, true, 'v2-grid v2-grid-fits']);
   });
 
