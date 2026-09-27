@@ -30,6 +30,43 @@
 
 **Bumping.** Change `RuleEngineVersion` only. Never change `DataversePluginPackageVersion`: it is the record's identity, not a release number.
 
+### 1a. Version evidence (verified 2026-09-27, before merging A7)
+
+The four "versions" are four different things. Each claim is marked **D** (documented by Microsoft), **O** (observed in org5869857f, read-only) or **I** (inferred, not documented).
+
+| | What it is | Where it lives | 1.1.0 value | Evidence |
+|---|---|---|---|---|
+| **A** | Dataverse plug-in **package record** version | `pluginpackage.version` (String, "Version of the package") | **1.0.0, permanently** | **D:** *"You can't change the name and version of the plug-in package (on the server) once created. Attempting to do so by using an API call results in an error."* [1] · **D:** *"The name and version of the plug-in package cannot be changed once created."* [2] · **O:** record `qdb_EdpRuleRuntime` = 1.0.0, created 2026-08-19 |
+| **B** | NuGet **artifact** version | `<version>` in the `.nuspec` inside the uploaded `.nupkg`; stored as the record's file content (`pluginpackage.package`), not in `version` [3] | **1.0.0** (= A, by our choice) | **D:** *"The version of the plug-in package or plug-in assembly is not a factor in any upgrade behaviors."* [2] · **O:** the live record is 1.0.0 while its stored content's nuspec says 1.0.24, so A and B are independent and a mismatch was accepted at creation · **I:** no document states whether an *update* tool copies B into A. Setting B = A makes that question irrelevant |
+| **C** | Plug-in **assembly** version | `AssemblyVersion` of `EDP.RuleRuntime.Crm.dll` → `pluginassembly.version` / `major` / `minor` | **1.1.0.0** | **D:** `pluginassembly.version` = *"Version number of the assembly. The value can be obtained from the assembly through reflection"* (i.e. `AssemblyName.Version`); `major` and `minor` are read-only, derived [4] · **D:** *"You can update the version of the plug-in assembly as you need."* [2] · **O:** live `pluginassembly.version` 1.0.24.0 = the DLL's AssemblyVersion |
+| **D** | File / informational version | `AssemblyFileVersion` / `AssemblyInformationalVersion` | 1.1.0.0 / `1.1.0+<commit>` | **D (by omission):** the assembly record takes the reflection `Version`, not these [4]. They are for humans and traceability only |
+
+**How Dataverse knows an upload is an update, not a new package.**
+- **D:** by the *record you target*, not by name or version.
+  - `pac plugin push --pluginId` = *"ID of plug-in assembly or plug-in package"* [5];
+  - the Plug-in Registration Tool updates the *selected* package [2];
+  - the Web API updates `PATCH pluginpackages(<id>)` [3].
+- `qdb_EdpRuleRuntime` is `5a200f1a-b69b-f111-b8db-000d3abd8313`.
+
+**How assembly 1.1.0 is picked up inside the existing package.**
+- **D:** *"any assemblies that contain classes that implement the IPlugin interface are registered in the PluginAssembly table and associated with the plug-in package … you continue to update the PluginPackage table row and changes to the related plug-in assemblies are managed on the server."* [1]
+- **D:** *"If your update removes any plug-in assemblies, or types which are used in plug-in step registrations, the update will be rejected."* [2]
+- **I:** the server matches the assembly inside the package by assembly name (`EDP.RuleRuntime.Crm`, unchanged) and updates that `pluginassembly` row's version to 1.1.0.0, keeping its plug-in type ids. This is consistent with [1] and [2], but the matching key is not stated. The A7 dry run after the package update (§4 step 6) verifies it: it refuses if the active assembly or any contract type is missing.
+
+**Conclusion.**
+- A stays 1.0.0 (mandatory).
+- B = 1.0.0 is a deliberate, conservative choice. Microsoft permits B to differ ([2], and observed), but aligning them removes an undocumented question about update tooling.
+- C = 1.1.0.0 is the release identity Dataverse records and the sandbox caches on.
+- D is informational.
+- An update targets the existing record id, and the version plays no part in it.
+
+**References:**
+1. Microsoft Learn, *Build and package plug-in code*, § Dependent assemblies (updated 2026-07-10).
+2. Microsoft Learn, *Create and register a plug-in package using PAC CLI*, § Update a plug-in package.
+3. Microsoft Learn, *Plugin Package (PluginPackage) table/entity reference* (updated 2026-09-17): columns `Version`, `Content`, `Package`; `Update` = `PATCH /pluginpackages(id)`.
+4. Microsoft Learn, *Plug-in Assembly (PluginAssembly) table/entity reference* (updated 2026-09-17): column `Version`; `Major` / `Minor` read-only.
+5. Microsoft Learn, *Microsoft Power Platform CLI plugin command group*, `pac plugin push --pluginId`.
+
 ## 2. Build and verify (no org access)
 
 ```bash
