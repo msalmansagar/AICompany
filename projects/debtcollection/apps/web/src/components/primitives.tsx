@@ -302,9 +302,14 @@ export function PendingPhaseNotice({ view }: { view: ViewDefinition }) {
 
 const QAR = new Intl.NumberFormat('en-QA', { style: 'currency', currency: 'QAR', maximumFractionDigits: 0 });
 
-/** Formats an amount. Returns an em dash for an absent value rather than `QAR 0`. */
+/**
+ * Formats an amount. Returns an em dash for an absent value rather than `QAR 0`.
+ *
+ * The currency and the number are joined by an ordinary space, not the no-break space `Intl` emits:
+ * a KPI tile may wrap between them, and must never break inside the number (Issues 2026-09-27).
+ */
 export function formatMoney(value: number | undefined | null): string {
-  return value === undefined || value === null ? '—' : QAR.format(value);
+  return value === undefined || value === null ? '—' : QAR.format(value).replace(/ /g, ' ');
 }
 
 /** Millions, for KPI tiles, matching the prototype's `moneyM`. */

@@ -115,6 +115,14 @@ describe('the bucket', () => {
 });
 
 describe('the split layout', () => {
+  /** The Split list overflowed its pane and grew a horizontal scrollbar (Issues 2026-09-27). */
+  it('fits the Split list inside its pane, like Cases and Promise to Pay', async () => {
+    await openQueue('#queues/Legal');
+    await screen.findByRole('row', { name: 'Preview Recommend litigation' });
+
+    expect(screen.getByTestId('v2-queue-list').className).toBe('v2-grid v2-grid-fits');
+  });
+
   it('previews the chosen row, then opens its case', async () => {
     await openQueue('#queues/Legal');
 

@@ -260,6 +260,9 @@
 .dcp-v2 .v2-toolbar-end { margin-left: auto; }
 .dcp-v2 .v2-grid-summary { color: var(--v2-text-2); margin-right: auto; }
 .dcp-v2 .v2-split-list .v2-two-line-sub { min-width: 0; overflow: hidden; }
+/* In a Split row the text truncates; a status pill beside it keeps its full width (Issues 2026-09-27). */
+.dcp-v2 .v2-two-line-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dcp-v2 .v2-split-list .v2-two-line-sub .row-actions { flex: none; }
 
 /* ── Dashboards — Report Engine compositions in the V2 skin ─────────────────── */
 .dcp-v2 .v2-dashboards { display: flex; flex-direction: column; gap: var(--v2-space-3, 12px); }
@@ -272,6 +275,8 @@
 .dcp-v2 .v2-report-footer { margin: 8px 0 0; padding: 0 16px 12px; font-size: var(--v2-fs-xs); line-height: 1.45; }
 .dcp-v2 .v2-report-table { width: 100%; border-collapse: collapse; font-size: var(--v2-fs-sm); }
 .dcp-v2 .v2-report-table th { text-align: left; font-weight: 600; color: var(--v2-text-muted); padding: 8px 16px; border-bottom: 1px solid var(--v2-border); white-space: nowrap; }
+/* A wide report (five columns or more) takes the whole row and tighter cells, so every column shows without a scrollbar. */
+.dcp-v2 .v2-report-wide .v2-report-table th, .dcp-v2 .v2-report-wide .v2-report-table td { padding: 8px 10px; }
 .dcp-v2 .v2-report-table td { padding: 8px 16px; border-bottom: 1px solid var(--v2-border); vertical-align: middle; }
 .dcp-v2 .v2-report-table td:first-child { white-space: nowrap; }
 .dcp-v2 .v2-report-table .v2-num { text-align: right; font-variant-numeric: tabular-nums; }

@@ -163,7 +163,10 @@ const SPLIT_COLUMNS: readonly V2Column<PtpRow>[] = [
         <BucketBar bucket={row.caseBucket} />
         <span className="v2-two-line">
           <span className="v2-two-line-main">{customerName(row)}</span>
-          <span className="v2-two-line-sub">{row.caseNumber ?? '—'} · promised for {formatDate(row.ptpDate)} · <PromiseOutcome status={row.ptpStatus} /></span>
+          <span className="v2-two-line-sub">
+            <span className="v2-two-line-text">{row.caseNumber ?? '—'} · promised for {formatDate(row.ptpDate)}</span>
+            <PromiseOutcome status={row.ptpStatus} />
+          </span>
         </span>
       </span>
     ),

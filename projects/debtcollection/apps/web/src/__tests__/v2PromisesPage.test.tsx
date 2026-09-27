@@ -120,6 +120,17 @@ describe('Split', () => {
     expect([row.querySelector('.v2-bucket-bar')?.getAttribute('data-bucket'), Boolean(screen.getByTestId('v2-case-preview-empty')), screen.getByTestId('v2-promises-list').className]).toEqual(['3', true, 'v2-grid v2-grid-fits']);
   });
 
+  /** The status pill sat inside the truncating line and was clipped to "Activ" (Issues 2026-09-27). */
+  it('keeps the recorded status pill whole beside a truncating second line', async () => {
+    await openPromises();
+    const row = await screen.findByRole('row', { name: /Preview the promise on case COL-HL-000123/ });
+
+    const sub = row.querySelector('.v2-two-line-sub')!;
+    const text = sub.querySelector('.v2-two-line-text');
+    const pill = sub.querySelector('.row-actions .pill');
+    expect([Boolean(text), Boolean(pill), pill?.parentElement?.parentElement === sub, text?.contains(pill!)]).toEqual([true, true, true, false]);
+  });
+
   it('previews the promise\'s case when a row is chosen, without navigating', async () => {
     await openPromises();
 
