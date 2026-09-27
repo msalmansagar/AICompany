@@ -17,6 +17,13 @@ namespace EDP.RuleRuntime.Pcrm
         [JsonPropertyName("targetEntity")] public string TargetEntity { get; set; } = "";
         [JsonPropertyName("inputs")] public List<PcrmInput> Inputs { get; set; } = new List<PcrmInput>();
         [JsonPropertyName("variables")] public List<PcrmVariable> Variables { get; set; } = new List<PcrmVariable>();
+
+        /// <summary>
+        /// Declared population retrievals (EDP-FACT-001 F2). Each produces a named collection the
+        /// rule can quantify over. Boundary B-6 governs the shape: retrieval FINDS records, it
+        /// never RELATES them — there is no join, no subquery, and the primitive set is closed.
+        /// </summary>
+        [JsonPropertyName("retrievals")] public List<PcrmRetrieval> Retrievals { get; set; } = new List<PcrmRetrieval>();
         [JsonPropertyName("outputs")] public List<PcrmOutput> Outputs { get; set; } = new List<PcrmOutput>();
         [JsonPropertyName("logic")] public PcrmLogic Logic { get; set; } = new PcrmLogic();
     }
