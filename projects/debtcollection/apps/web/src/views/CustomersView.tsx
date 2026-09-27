@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DataGrid, type DataGridColumn } from '../data/DataGrid.js';
 import { createCustomerListQuery, type CustomerListQuery, type CustomerListRow, type CustomerSortKey } from '../data/customerListQuery.js';
 import { Card, InfoBanner, OrgBadge, formatCount, formatMoney } from '../components/primitives.js';
@@ -63,6 +63,7 @@ export function CustomersView({ onOpenCustomer, onOpenCase }: {
     ...(search.trim() ? { search: search.trim() } : {}),
     sortKey,
   }), [scopeFilter, search, sortKey]);
+  useEffect(() => { setSelectedId(undefined); }, [query]);
 
   return (
     <div data-testid="view-customers">
@@ -103,6 +104,7 @@ export function CustomersView({ onOpenCustomer, onOpenCase }: {
                 columns={SPLIT_COLUMNS} fetchPage={fetchPage} query={query}
                 rowKey={row => row.customerBusinessId} pageSize={50} rowHeight={58} height={600}
                 selectedKey={selectedId} onRowClick={row => setSelectedId(row.customerBusinessId)}
+                onSelectFirst={row => setSelectedId(row.customerBusinessId)}
                 emptyMessage="No customer has an open collection case in this CRM scope."
                 data-testid="customers-list"
               />

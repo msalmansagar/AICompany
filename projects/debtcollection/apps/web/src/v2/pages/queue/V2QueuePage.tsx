@@ -123,7 +123,7 @@ export function V2QueuePage({ request, fixedBucket, intro }: {
             <div className="v2-split-list">
               <V2DataGrid<WorkItem, typeof listQuery>
                 columns={SPLIT_COLUMNS} fetchPage={fetchPage as never} query={listQuery} rowKey={item => item.id}
-                onRowOpen={setSelected} selectedKey={selected?.id ?? ''}
+                onRowOpen={setSelected} selectedKey={selected?.id ?? ''} onSelectFirst={setSelected}
                 rowLabel={item => `Preview ${item.title}`}
                 isFiltered={Boolean(query)} emptyTitle="Nothing in this queue right now." height={560} testId="v2-queue-list" fitsWidth
               />

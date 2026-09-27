@@ -45,6 +45,8 @@ export function V2CustomersList({ onOpenCustomer, onOpenCase }: {
     sortKey,
   }), [scopeFilter, settledSearch, sortKey]);
 
+  useEffect(() => { setSelectedId(undefined); }, [query]);
+
   const chooseLayout = (next: ListLayout) => { setLayout(next); writeLayout(LAYOUT_KEY, next); };
   const summary = `Customers with an open case · ${SORTS.find(sort => sort.key === sortKey)?.label.toLowerCase() ?? ''}`;
 
@@ -87,7 +89,7 @@ export function V2CustomersList({ onOpenCustomer, onOpenCase }: {
             <div className="v2-split-list">
               <V2DataGrid<CustomerListRow, CustomerListQuery>
                 columns={SPLIT_COLUMNS} fetchPage={fetchPage} query={query} rowKey={row => row.customerBusinessId}
-                onRowOpen={row => setSelectedId(row.customerBusinessId)} selectedKey={selectedId ?? ''}
+                onRowOpen={row => setSelectedId(row.customerBusinessId)} selectedKey={selectedId ?? ''} onSelectFirst={row => setSelectedId(row.customerBusinessId)}
                 rowLabel={row => `Preview customer ${row.customerName ?? row.customerBusinessId}`} summary={summary}
                 isFiltered={Boolean(settledSearch)} emptyTitle="No customer has an open collection case in this CRM scope."
                 rowHeight={58} height={640} testId="v2-customers-list" fitsWidth

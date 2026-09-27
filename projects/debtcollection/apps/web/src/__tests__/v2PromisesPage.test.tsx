@@ -108,16 +108,18 @@ describe('Promise to Pay', () => {
   it('computes no kept rate', async () => {
     const page = await openPromises();
 
-    expect(page.textContent).not.toMatch(/rate|%/i);
+    // The status chips and their counts are the only figures the page states about promises.
+    expect(within(page).getByTestId('v2-promise-status').textContent).not.toMatch(/rate|%/i);
   });
 });
 
 describe('Split', () => {
-  it('opens in Split with the bucket bar on each row and an empty preview', async () => {
+  it('opens in Split with the bucket bar on each row and the first promise already previewed', async () => {
     await openPromises();
     const row = await screen.findByRole('row', { name: /Preview the promise on case COL-HL-000123/ });
+    const preview = await screen.findByTestId('v2-case-preview');
 
-    expect([row.querySelector('.v2-bucket-bar')?.getAttribute('data-bucket'), Boolean(screen.getByTestId('v2-case-preview-empty')), screen.getByTestId('v2-promises-list').className]).toEqual(['3', true, 'v2-grid v2-grid-fits']);
+    expect([row.querySelector('.v2-bucket-bar')?.getAttribute('data-bucket'), row.getAttribute('aria-selected'), preview.dataset['caseId'], screen.getByTestId('v2-promises-list').className]).toEqual(['3', 'true', 'c-1', 'v2-grid v2-grid-fits']);
   });
 
   /** The status pill sat inside the truncating line and was clipped to "Activ" (Issues 2026-09-27). */

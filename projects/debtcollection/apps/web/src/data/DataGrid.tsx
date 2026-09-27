@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import type { ContinuationToken, Page } from '@dcp/domain';
 import { usePagedQuery } from './usePagedQuery.js';
 import { VirtualizedRows } from './VirtualizedRows.js';
@@ -41,6 +41,12 @@ export interface DataGridProps<T, Q extends object> {
   onRowClick?: (item: T) => void;
   /** The row a Split layout is previewing, marked as selected. */
   selectedKey?: string | undefined;
+  /**
+   * Called with the first row once the list has one and nothing is selected, so a Split layout
+   * opens on a preview rather than a blank pane (user instruction, 2026-09-27). Never overrides a
+   * selection the officer made.
+   */
+  onSelectFirst?: ((item: T) => void) | undefined;
   /** Shown when the query matched nothing. The approved empty states are per-screen wording. */
   emptyMessage?: string;
   enabled?: boolean;
@@ -64,11 +70,13 @@ export function DataGrid<T, Q extends object>({
   height = 520,
   onRowClick,
   selectedKey,
+  onSelectFirst,
   emptyMessage = 'Nothing matches the current filters.',
   enabled = true,
   'data-testid': testId = 'data-grid',
 }: DataGridProps<T, Q>) {
   const paged = usePagedQuery<T, Q>({ fetchPage, query, pageSize, rowKey, enabled });
+  useSelectFirst(paged.items, selectedKey, onSelectFirst);
 
   if (paged.status === 'loadingFirst') {
     return <div className="empty-state" data-testid={`${testId}-loading-first`}>Loading…</div>;
@@ -148,6 +156,15 @@ export function DataGrid<T, Q extends object>({
       />
     </div>
   );
+}
+
+/** Selects the first row when there is one and nothing is selected yet. */
+export function useSelectFirst<T>(items: readonly T[], selectedKey: string | undefined, onSelectFirst: ((item: T) => void) | undefined): void {
+  const first = items[0];
+  const hasSelection = selectedKey !== undefined && selectedKey !== '';
+  useEffect(() => {
+    if (first !== undefined && !hasSelection && onSelectFirst) onSelectFirst(first);
+  }, [first, hasSelection, onSelectFirst]);
 }
 
 function HeaderRow<T>({ columns }: { columns: readonly DataGridColumn<T>[] }) {

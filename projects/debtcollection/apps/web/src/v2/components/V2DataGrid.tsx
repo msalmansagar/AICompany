@@ -1,6 +1,7 @@
 import type { KeyboardEvent, ReactNode } from 'react';
 import type { ContinuationToken, Page } from '@dcp/domain';
 import { usePagedQuery } from '../../data/usePagedQuery.js';
+import { useSelectFirst } from '../../data/DataGrid.js';
 import { VirtualizedRows } from '../../data/VirtualizedRows.js';
 import { EmptyState, ErrorState, LoadingSkeleton, rowActivation } from './primitives.js';
 
@@ -38,6 +39,7 @@ export function V2DataGrid<T, Q extends object>({
   rowLabel,
   isFiltered = false,
   selectedKey,
+  onSelectFirst,
   sort,
   onSortChange,
   summary,
@@ -59,6 +61,8 @@ export function V2DataGrid<T, Q extends object>({
   isFiltered?: boolean;
   /** The row shown as selected, for a list-and-preview layout. */
   selectedKey?: string | undefined;
+  /** Called with the first row once there is one and nothing is selected, so Split opens on a preview. */
+  onSelectFirst?: ((item: T) => void) | undefined;
   /** The current order, when headers may change it. The change is the caller's to send to the source. */
   sort?: GridSort | undefined;
   onSortChange?: (sort: GridSort) => void;
@@ -76,6 +80,7 @@ export function V2DataGrid<T, Q extends object>({
   testId?: string;
 }) {
   const paged = usePagedQuery<T, Q>({ fetchPage, query, pageSize, rowKey });
+  useSelectFirst(paged.items, selectedKey, onSelectFirst);
 
   if (paged.status === 'loadingFirst' || paged.status === 'idle') {
     return <LoadingSkeleton rows={6} label="Loading the list" testId={`${testId}-loading`} />;

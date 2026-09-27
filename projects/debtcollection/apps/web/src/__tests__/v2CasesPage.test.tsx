@@ -247,11 +247,12 @@ afterEach(() => {
 // ── Layouts ──────────────────────────────────────────────────────────────────
 
 describe('Split and Grid', () => {
-  it('opens in Split, with the list beside an empty preview', async () => {
+  it('opens in Split, with the first case already previewed beside the list', async () => {
     await openCases();
 
     await screen.findByTestId('v2-cases-list');
-    expect([screen.getByTestId('v2-cases').getAttribute('data-layout'), Boolean(screen.getByTestId('v2-case-preview-empty')), screen.getByTestId('v2-cases-list').className]).toEqual(['split', true, 'v2-grid v2-grid-fits']);
+    const preview = await screen.findByTestId('v2-case-preview');
+    expect([screen.getByTestId('v2-cases').getAttribute('data-layout'), screen.getAllByRole('row', { selected: true }).length, Boolean(preview.dataset['caseId']), screen.getByTestId('v2-cases-list').className]).toEqual(['split', 1, true, 'v2-grid v2-grid-fits']);
   });
 
   it('switches to Grid and remembers it for this browser', async () => {

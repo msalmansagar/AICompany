@@ -156,20 +156,19 @@ export function MyWorkView({ onOpenCase, initialBucket = 'MyAssigned' }: {
         title="My work"
         subtitle="Work that needs attention, gathered from across this workspace. Each row is the record itself — nothing here is a copy."
       >
-        <div className="row-actions" data-testid="mywork-buckets">
+        <div className="chips queue-chips" role="group" aria-label="Queue" data-testid="mywork-buckets">
           {BUCKETS.map(candidate => (
             <button
               key={candidate}
               type="button"
-              className={candidate === bucket ? 'btn primary' : 'btn'}
+              className={candidate === bucket ? 'chip sel' : 'chip'}
+              aria-pressed={candidate === bucket}
               data-testid={`bucket-${candidate}`}
               data-count={describeCount(counts[candidate] ?? unknownCount('NotRequested'))}
               onClick={() => { setSearch(''); setBucket(candidate); }}
             >
               {describeBucket(candidate)}
-              <span className="cell-sub">
-                {describeCount(counts[candidate] ?? unknownCount('NotRequested'))}
-              </span>
+              <span className="chip-count">{describeCount(counts[candidate] ?? unknownCount('NotRequested'))}</span>
             </button>
           ))}
         </div>
@@ -224,6 +223,7 @@ export function MyWorkView({ onOpenCase, initialBucket = 'MyAssigned' }: {
                 height={560}
                 selectedKey={selected?.id}
                 onRowClick={setSelected}
+                onSelectFirst={setSelected}
                 emptyMessage="Nothing in this list right now."
                 data-testid="mywork-list"
               />

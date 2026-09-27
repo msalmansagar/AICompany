@@ -98,12 +98,12 @@ afterEach(() => {
 });
 
 describe('Collection Cases', () => {
-  it('opens in Split, previews the chosen case, and opens it from the preview', async () => {
+  it('opens in Split with the first case already previewed, and opens it from the preview', async () => {
     await open('#cases');
 
-    await userEvent.click(await screen.findByText('Aisha Al-Mansouri', {}, { timeout: WAIT }));
-    const layout = screen.getByTestId('cases-split').className;
     const preview = await screen.findByTestId('case-preview', {}, { timeout: WAIT });
+    const layout = screen.getByTestId('cases-split').className;
+    expect(screen.getAllByRole('row', { selected: true })).toHaveLength(1);
     await userEvent.click(within(preview).getByTestId('case-preview-open'));
 
     expect([layout, window.location.hash]).toEqual(['split-layout', '#case/c-1']);
@@ -123,7 +123,8 @@ describe('Promise to Pay', () => {
   it('previews the promise and its case in Split, then opens the case', async () => {
     await open('#ptp');
 
-    await userEvent.click(await screen.findByText(/promised for 2026-10-01/, {}, { timeout: WAIT }));
+    const list = await screen.findByTestId('ptp-list', {}, { timeout: WAIT });
+    await userEvent.click(within(list).getByText(/promised for 2026-10-01/));
     const preview = await screen.findByTestId('ptp-preview', {}, { timeout: WAIT });
     await userEvent.click(await within(preview).findByTestId('ptp-case-preview-open', {}, { timeout: WAIT }));
 
@@ -132,10 +133,10 @@ describe('Promise to Pay', () => {
 });
 
 describe('Audit Trail', () => {
-  it('reads the chosen entry in full beside the list in Split', async () => {
+  it('reads the first entry in full beside the list in Split, without a click', async () => {
     await open('#audit');
 
-    await userEvent.click(await screen.findByText('Sync completed', {}, { timeout: WAIT }));
+    await screen.findByTestId('audit-list', {}, { timeout: WAIT });
 
     expect((await screen.findByTestId('audit-preview-diagnostics')).textContent).toContain('corr-77');
   });
@@ -154,15 +155,15 @@ describe('Customer & Loan 360', () => {
   it('lists every customer with an open case instead of asking for one', async () => {
     await open('#customer');
 
-    const row = await screen.findByText('Aisha Al-Mansouri', {}, { timeout: WAIT });
+    const list = await screen.findByTestId('customers-list', {}, { timeout: WAIT });
+    const row = within(list).getByText('Aisha Al-Mansouri');
 
     expect([Boolean(screen.getByTestId('view-customers')), row.closest('tr')?.textContent?.includes('28912345678')]).toEqual([true, true]);
   });
 
-  it('previews the customer in Split and opens their Customer 360 from the preview', async () => {
+  it('previews the first customer in Split and opens their Customer 360 from the preview', async () => {
     await open('#customer');
 
-    await userEvent.click(await screen.findByText('Aisha Al-Mansouri', {}, { timeout: WAIT }));
     const preview = await screen.findByTestId('customer-preview', {}, { timeout: WAIT });
     await userEvent.click(within(preview).getByTestId('customer-preview-open'));
 

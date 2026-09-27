@@ -103,6 +103,8 @@ export function CasesView({ onOpenCase, scope = {} }: { onOpenCase?: (id: string
     openOnly: true,
     sort: [{ field: 'qdb_currentdpd', descending: true }],
   }), [effectiveScopeFilter, bucket, status, search, scope.strategy, scope.owner]);
+  // A new question is a new list, so the preview follows it rather than showing a row it no longer holds.
+  useEffect(() => { setSelectedId(undefined); }, [query]);
 
   return (
     <>
@@ -171,6 +173,7 @@ export function CasesView({ onOpenCase, scope = {} }: { onOpenCase?: (id: string
               height={600}
               selectedKey={selectedId}
               onRowClick={row => setSelectedId(row.id)}
+              onSelectFirst={row => setSelectedId(row.id)}
               emptyMessage="No open cases match these filters."
               data-testid="cases-list"
             />
@@ -272,6 +275,7 @@ export function AuditView() {
               height={600}
               selectedKey={selected?.id}
               onRowClick={setSelected}
+              onSelectFirst={setSelected}
               emptyMessage="No log entries match."
               data-testid="audit-list"
             />

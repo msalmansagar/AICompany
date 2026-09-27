@@ -134,10 +134,11 @@ describe('the split layout', () => {
     expect(window.location.hash).toBe('#case/c-1');
   });
 
-  it('asks the officer to choose before anything is selected', async () => {
+  it('previews the first piece of work as soon as the list has one', async () => {
     await openQueue('#queues/Legal');
 
-    expect(await screen.findByTestId('v2-queue-preview-empty')).toBeTruthy();
+    const preview = await screen.findByTestId('v2-queue-preview');
+    expect(preview.textContent).toContain('Recommend litigation');
   });
 });
 

@@ -195,7 +195,7 @@ export function PromiseToPayView({ view, onOpenCase }: {
               <DataGrid<PtpRow, ActivityQuery>
                 columns={PTP_SPLIT_COLUMNS} fetchPage={fetchPage} query={query}
                 rowKey={row => row.id} pageSize={50} rowHeight={58} height={600}
-                selectedKey={selected?.id} onRowClick={setSelected}
+                selectedKey={selected?.id} onRowClick={setSelected} onSelectFirst={setSelected}
                 emptyMessage="No promise to pay has been recorded."
                 data-testid="ptp-list"
               />

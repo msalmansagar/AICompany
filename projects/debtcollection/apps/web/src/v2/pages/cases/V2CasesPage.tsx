@@ -252,7 +252,7 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
             <div className="v2-split-list">
               <V2DataGrid<CaseRow, CaseQuery>
                 columns={SPLIT_COLUMNS} fetchPage={fetchPage} query={query} rowKey={row => row.id}
-                onRowOpen={selectCase} selectedKey={selectedId ?? ''} rowLabel={row => `Preview case ${row.caseNumber}`} summary={summary}
+                onRowOpen={selectCase} selectedKey={selectedId ?? ''} onSelectFirst={row => setSelectedId(row.id)} rowLabel={row => `Preview case ${row.caseNumber}`} summary={summary}
                 isFiltered={activeFilters > 0} emptyTitle="There are no open cases in this CRM scope."
                 rowHeight={58} height={640} testId="v2-cases-list" fitsWidth
               />
