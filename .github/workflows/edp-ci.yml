@@ -119,3 +119,41 @@ jobs:
           dotnet-version: '9.0.x'
       - name: Test
         run: dotnet test EDP.DecisionClient.Tests/EDP.DecisionClient.Tests.csproj -c Release --nologo
+
+  deploy-tools:
+    name: Deploy tools (registration contract, parity, re-point, legacy guard)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/enterprise-decision-platform/deploy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # No dependencies: node:test only. Runs against in-memory fakes — never an org.
+      - name: Unit tests
+        run: node --test test/*.test.mjs
+      - name: On-prem manifest is generated from the registration contract
+        run: node tools/generate-onprem-manifest.mjs --check
+
+  plugin-package:
+    name: Plug-in package (build + verify)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: projects/enterprise-decision-platform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Build the cloud plug-in package
+        run: dotnet build runtime/src/EDP.RuleRuntime.Crm -c Release -p:PackForDataverse=true --nologo
+      - name: Verify version, signing, contents and plug-in types
+        shell: powershell   # Windows PowerShell 5.1 = .NET Framework, which is what loads net462 plug-in assemblies
+        run: |
+          $packages = (dotnet nuget locals global-packages --list) -replace '^global-packages:\s*', ''
+          $sdk = Join-Path $packages.Trim() 'microsoft.crmsdk.coreassemblies/9.0.2.51/lib/net462'
+          $package = Get-ChildItem runtime/src/EDP.RuleRuntime.Crm/bin/Release -Filter 'qdb_EdpRuleRuntime.*.nupkg' | Select-Object -First 1
+          ./runtime/tools/verify-package.ps1 -PackagePath $package.FullName -SdkDirectory $sdk

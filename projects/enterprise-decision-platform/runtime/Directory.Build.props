@@ -1,0 +1,31 @@
+<Project>
+  <!--
+    Rule Engine release versioning — ONE source for every runtime artifact.
+
+    RuleEngineVersion is the release. It drives AssemblyVersion, FileVersion and
+    InformationalVersion of EDP.RuleRuntime (core) and EDP.RuleRuntime.Crm (plug-in), so the two
+    assemblies can never disagree about which release they are.
+
+    Bump it on EVERY change that ships to Dataverse: the sandbox caches plug-in assemblies by
+    version, so re-uploading different code under an existing version can keep serving the old
+    code. The org already holds an older build labelled 1.0.24, which is why 1.1.0 skips past it.
+
+    DataversePluginPackageVersion is NOT the release version. It is the version of the plug-in
+    package RECORD in Dataverse (qdb_EdpRuleRuntime), fixed when the record was created on
+    2026-08-19 and immutable thereafter ("You can't change the name and version of the plug-in
+    package (on the server) once created" — Microsoft Learn, Build and package plug-in code).
+    The nuspec carries the record's version so an update never looks like an attempt to change
+    it; "the version of the plug-in package or plug-in assembly is not a factor in any upgrade
+    behaviors" (Microsoft Learn, Create and register a plug-in package). The release is
+    identified by the assembly version inside the package. See deploy/A7-RELEASE-PROCEDURE.md.
+  -->
+  <PropertyGroup>
+    <RuleEngineVersion>1.1.0</RuleEngineVersion>
+    <DataversePluginPackageVersion>1.0.0</DataversePluginPackageVersion>
+
+    <Version>$(RuleEngineVersion)</Version>
+    <AssemblyVersion>$(RuleEngineVersion).0</AssemblyVersion>
+    <FileVersion>$(RuleEngineVersion).0</FileVersion>
+    <InformationalVersion>$(RuleEngineVersion)</InformationalVersion>
+  </PropertyGroup>
+</Project>

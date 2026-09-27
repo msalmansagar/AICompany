@@ -1,8 +1,8 @@
 // Live proof that a decision can be explained: qdb_edp_EvaluateDecision returns the id of the
 // execution log it wrote (ExecutionId), and that id resolves through qdb_edp_ExplainDecision.
 // Before this shipped, ExplainDecision was unreachable — nothing handed the caller a log id.
-// Requires assembly >= 1.0.24 deployed AND the ExecutionId response property registered
-// (deploy/bre-register.js). Creates + cleans up its own rule.
+// Requires Rule Engine >= 1.1.0 serving EvaluateDecision AND the ExecutionId response property
+// registered (deploy/a7-repoint.mjs --apply registers it before moving any binding). Creates + cleans up its own rule.
 const fs = require('fs'), https = require('https');
 const ENV_PATH = process.env.EDP_ENV_PATH || 'D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env';
 const env = (() => { const o = {}; for (const l of fs.readFileSync(ENV_PATH, 'utf8').split(/\r?\n/)) { const m = l.match(/^([A-Z_]+)=(.*)$/); if (m) o[m[1]] = m[2].trim(); } return o; })();
