@@ -7,7 +7,7 @@
 **Prepared by:** MSS Technologies, Business Analyst
 **Date:** 2026-09-27
 **Version:** 1.0, DRAFT
-**Status:** **AWAITING CEO APPROVAL. BRD gate OPEN. Implementation is BLOCKED.** Nothing in §5 may be built until the CEO records an approve decision in `ceo-decision-edp-re-enh-001.md`.
+**Status:** **AWAITING CEO APPROVAL. BRD gate OPEN. Implementation is BLOCKED.** Nothing in §5 may be built until a CEO-function decision is recorded in `ceo-decision-edp-re-enh-001.md` **and ratified by the human sponsor**.
 
 **Development baseline:** `main` @ `335a488f` (Rule Engine 1.1.0 development baseline: F2a #105 + F2b #107 merged, ADR-18 accepted via #104). Code is byte-identical to `581d0592`, which passed the full regression (§11).
 
@@ -15,7 +15,10 @@
 
 **Origin:** a read-only capability assessment by a prospective consumer found the Engine fit for purpose at runtime but missing four generic contract properties. **This BRD is consumer-neutral.** No requirement here names, serves or is shaped by a single consumer.
 
-**Separation-of-duties note:** this document was authored by the agent that gathered its evidence. It must be decided by the CEO, not by an agent.
+**Governance (exactly as the repository establishes it):**
+- **Repository gate.** CLAUDE.md, "Default behavior" table, row "Capability that changes what the system promises" → `new-feature.md` → gate "BRD, CEO-approved". `.claude/workflows/new-feature.md`, Phase 1: "CEO approval — hard stop". The "CEO" named there is the repository's `ceo` role (`.claude/agents/ceo.md`, "MSS Technologies — CEO function"), which must run `.claude/scripts/gate-brd.sh` before approving (Article XVIII).
+- **Engagement precedent.** EDP-BIND-001 and EDP-FACT-001 treated a CEO-function decision as a recommendation that takes effect only when **ratified by the human sponsor**, because the author and the evidence-gatherer are the same agent. This BRD follows that precedent.
+- **Not established by this repository:** any QDB organisational approval authority. None is claimed or implied.
 
 ---
 
@@ -69,6 +72,59 @@ This BRD specifies four additive contract changes (B1 to B4) that close these ga
 | Rule authors (business) | B1, B2 in the designer |
 | Integrating consumers (any) | B2, B3, B4 runtime contract |
 | Platform operators | Part R deployment |
+
+## 4a. Prioritized user stories
+
+Each story is independently testable against the §5 requirements it names.
+
+### US-01: An integrating system addresses a rule by key and records what decided (Priority: P1)
+**Why P1:** without a stable identity and provenance, no consumer can integrate safely.
+**Covers:** B3, B4.
+**Independent test:** resolve a rule by `RuleKey` through `ResolveEffectiveVersion`, evaluate it, and recompute `ContentHash` from the stored PCRM.
+**Acceptance:**
+- AC-1: Given two rules with the same display name and different keys, when resolved by key, then the same version is returned every time (§11-6).
+- AC-2: Given any evaluation, then the response carries the B4 fields and `ContentHash` matches the published test vector method (§11-8).
+
+### US-02: A strict rule refuses malformed input instead of guessing (Priority: P1)
+**Why P1:** a silent wrong decision is worse than a refusal (`"abc" > 5000` matches today).
+**Covers:** B2.
+**Independent test:** evaluate a strict rule with each malformed input in §11-2.
+**Acceptance:**
+- AC-1: Given `"abc"` for a Decimal input on a strict rule, then `Success=false`, `Matched=false`, EDP062.
+- AC-2: Given a missing required fact that a retrieval filter depends on, then EDP060, and no retrieval executes (§11-4).
+
+### US-03: A business author declares and tests a fact that is not a column (Priority: P1)
+**Why P1:** without it, rules over assembled facts can only be seeded through the API.
+**Covers:** B1, FR-B2-12.
+**Independent test:** author, publish and scenario-test a rule with three declared facts in the designer only (§11-1).
+**Acceptance:**
+- AC-1: Given a declared fact, then it appears in every editor's column picker and survives an entity-schema refresh.
+- AC-2: Given the chained rule already in the org, then it evaluates exactly as before (FR-B1-02).
+
+### US-04: An author moves an existing rule to strict deliberately (Priority: P2)
+**Why P2:** existing rules must keep working (D4); migration is opt-in and not needed for the MVP.
+**Covers:** FR-B2-03.
+**Acceptance:**
+- AC-1: Given a lenient rule, when the author switches to strict, then a new version is created and the published version is unchanged.
+
+### US-05: A rule-set caller gets provenance per member (Priority: P3)
+**Why P3:** useful but not required; FR-B4-05 is *Should*.
+**Covers:** FR-B4-05.
+**Acceptance:**
+- AC-1: Given an `ExecuteRuleSet` call, then each member result carries its own `RuleKey`, `VersionNumber` and `ContentHash`.
+
+**P1-only approval is viable:** US-01 to US-03 form a complete, shippable 1.1.0 contract.
+
+## 4b. Inherited gates (carried forward per `.claude/workflows/new-feature.md`)
+
+`projects/state.yml` has no Rule Engine entry. The inherited gates come from the engagement's own records:
+
+| Gate | Source | Bearing on 1.1.0 |
+|---|---|---|
+| W0-2 separation-of-duties live tests (B-3) | `wave-0-audit-gate.md` | Not a blocker for 1.1.0's contract; blocks production |
+| W0-4 entity audit toggle (B-2), human-only | `wave-0-audit-gate.md` | Not a blocker for 1.1.0; blocks production |
+| W0-5 PDPPL / data residency (B-4), human-only | `wave-0-audit-gate.md`; `release.md` "Production" | 1.1.0 persists **no** raw inputs (B4 returns a hash only). Blocks any production release on a regulated client |
+| ADR-18 packaging | ADR-18 (**Accepted** 2026-09-27) | Discharged as a decision; its execution is Part R A7 |
 
 ## 5. Functional requirements: ENGINE CONTRACT ENHANCEMENTS (require CEO approval)
 
@@ -223,10 +279,27 @@ These deliver behaviour already promised. They are listed for completeness and d
 | B3 / A2 | 3.5 | 1.5 | 0.5 | 0.5 | 0.75 | **6.75** |
 | B4 / A4-lite | 2.25 | 1.0 | 0.25 | 0.5 | 0.5 | **4.5** |
 | **Contract subtotal** | | | | | | **29.0** |
-| Part R: A7 | 3.0 | 1.0 | 0.5 | 0.75 | 1.25 | **6.5** |
-| Part R: A6 | 0 | 0.5 | 0.25 | (A7) | 0.25 | **1.0** |
+| Part R: A7 | 4.0 | 1.25 | 0.75 | 0.75 | 1.25 | **8.0** |
+| Part R: A6 | 0 | 0.5 | 0 | (A7) | 0.25 | **0.75** |
 | Cross-cutting (ADR-19, review passes, regression, release notes) | | | | | | **2.25** |
-| **Release 1 total** | | | | | | **38.75** |
+| **Release 1 total** | | | | | | **40.0** |
+
+*Revised 2026-09-27 after the PR #102 review.*
+- **A7 +1.5 h:** the live metadata drift is three items, not one (`ChildCollectionName`, `ChildResultsJson`, `ExecutionId`). The existing `bre-register*.js` scripts all target the signed assembly and must be retargeted or guarded. The package-version question (live record 1.0.0 vs nuspec) must be resolved. The floating `Microsoft.PowerApps.MSBuild.Plugin 1.*` must be pinned.
+- **A6 −0.25 h:** the packaged-binary proof is done; only the permanent CRM-path tests remain.
+
+## 12a. Requirements Quality Checklist (`.claude/protocols/requirements-quality.md`)
+
+| Dimension | Question | Answer |
+|---|---|---|
+| Completeness | Does every functional requirement trace to an acceptance criterion in §11 or a user-story AC? | Yes |
+| Completeness | Are the edge cases enumerated: missing, null, wrong type, bad date, fractional integer, retrieval dependence, rule-set chaining, duplicate names, conflicting identifiers? | Yes (§5.2, §5.3, §11) |
+| Clarity | Does every quantity carry a number (key length 3–100; CorrelationId 1–100; NFR-02 < 1 ms p95 at ≤ 50 inputs)? | Yes |
+| Clarity | Is every failure's shape specified (`Success=false` + code; EDP070 for identifier conflict)? | Yes |
+| Consistency | Is there one term per concept ("declared fact", "rule key", "lenient/strict"), and no requirement contradicts another or D4/D7? | Yes |
+| Coverage | Are NFRs present (performance, compatibility, genericity, on-prem labelling)? | Yes (§7) |
+| Coverage | Is PDPPL addressed where personal data is involved? | Yes: 1.1.0 stores no raw inputs; W0-5 is carried forward (§4b) |
+| Uncertainty | Is every open clarification marker resolved? | Yes (the document contains none) |
 
 ## 13. Decisions requested
 
@@ -243,23 +316,32 @@ These deliver behaviour already promised. They are listed for completeness and d
 **Principles (D7):**
 - Every rule receives a **distinct** key.
 - **No rule is renamed or retired.** Display names stay exactly as they are.
-- Where display names duplicate, the key is distinguished by what actually differs (target, content). Where nothing differs, it is distinguished by creation order (earliest `createdon`, then GUID).
+- A key names the rule's **purpose**, never its current state or its current version's content. Keys freeze on first publish (FR-B3-05); state ("unversioned") and content ("payment-authorization") can change in a later version, which would leave a frozen key saying something false. *(Revised 2026-09-27: the first draft keyed three duplicates by state and two by v1 content; that failed the semantic-stability check.)*
+- Where display names duplicate and purpose is identical, the only stable distinguisher is **creation order**: ascending `createdon`, then rule id. It is deterministic and never changes.
 - The `sample.` / `demo.` / `test.` prefixes describe what the rules are in this sandbox. Keys are proposals for the sponsor to adjust before step 9.2.
+
+**Validated 2026-09-27 (mechanically):**
+- All 14 match `^[a-z0-9]+([._-][a-z0-9]+)*$` and are 14–34 characters (limit 100).
+- All are unique, also case-insensitively, and no key is a prefix of another.
+- None contains an environment name, GUID or date.
+- Creation order from live `createdon`, with no ties:
+  - All Node Types: 07-04 02:41:14Z < 07-04 14:10:32Z < 07-08 20:49:12Z < 07-14 02:07:03Z < 07-14 02:07:23Z
+  - Two-Stage: 07-04 15:39:25Z < 15:45:07Z
 
 | # | Rule id | Display name (unchanged) | Versions (verified 2026-09-27) | Proposed key |
 |---|---|---|---|---|
 | 1 | `c9f1a5a9-4f77-f111-ab0e-70a8a55bc6a5` | Loan Approval — Sample | v1 Published · loanapplication · table | `sample.loan-approval` |
-| 2 | `113121d0-5177-f111-ab0e-000d3abcff60` | All Node Types — Sample | v1 In Review · loanapplication · adjustedAmount, riskRating | `sample.all-node-types.loan-adjusted-amount` |
-| 3 | `da1bd318-b277-f111-ab0e-000d3abcff60` | All Node Types — Sample | none (created 2026-07-04) | `sample.all-node-types.unversioned-1` |
+| 2 | `113121d0-5177-f111-ab0e-000d3abcff60` | All Node Types — Sample | v1 In Review · loanapplication · adjustedAmount, riskRating | `sample.all-node-types.1` |
+| 3 | `da1bd318-b277-f111-ab0e-000d3abcff60` | All Node Types — Sample | none (created 2026-07-04) | `sample.all-node-types.2` |
 | 4 | `9ac69f74-bb77-f111-ab0e-70a8a55bc6a5` | Governance Test Rule | v1 Published · **no logic** | `test.governance` |
 | 5 | `23f45b83-be77-f111-ab0e-000d3abcff60` | Two-Stage Gov Test | v1 Published · **no logic** | `test.two-stage-governance.1` |
 | 6 | `82f6944e-bf77-f111-ab0e-000d3abcff60` | Two-Stage Gov Test | v1 Published · **no logic** | `test.two-stage-governance.2` |
-| 7 | `20398577-0e7b-f111-ab0e-70a8a55bc6a5` | All Node Types — Sample | v1 (no state) · payment_authorization_ticket | `sample.all-node-types.payment-authorization` |
+| 7 | `20398577-0e7b-f111-ab0e-70a8a55bc6a5` | All Node Types — Sample | v1 (no state) · payment_authorization_ticket | `sample.all-node-types.3` |
 | 8 | `cd0591cd-1f7b-f111-ab0e-70a8a55bc6a5` | Credit vs Revenue | v1 Published · account | `sample.credit-vs-revenue` |
 | 9 | `ade7ce50-da7d-f111-ab0e-000d3abd8313` | Demo — Underwriting Decision (chained) | v1 Published · account · **declared `tier`** | `demo.underwriting-decision.chained` |
 | 10 | `f35c2e51-da7d-f111-ab0e-70a8a55bc6a5` | Demo — Risk Tier (AND/OR) | v1 Published · account · condition set | `demo.risk-tier` |
-| 11 | `6b0ab9af-287f-f111-ab0e-70a8a55bc6a5` | All Node Types — Sample | none (created 2026-07-14) | `sample.all-node-types.unversioned-2` |
-| 12 | `16cb42bf-287f-f111-ab0e-70a8a55bc6a5` | All Node Types — Sample | none (created 2026-07-14) | `sample.all-node-types.unversioned-3` |
+| 11 | `6b0ab9af-287f-f111-ab0e-70a8a55bc6a5` | All Node Types — Sample | none (created 2026-07-14) | `sample.all-node-types.4` |
+| 12 | `16cb42bf-287f-f111-ab0e-70a8a55bc6a5` | All Node Types — Sample | none (created 2026-07-14) | `sample.all-node-types.5` |
 | 13 | `4383e6c8-6983-f111-ab0f-000d3abd8313` | Underwriting Decision — Full Engine (demo) | v1 Published · loanapplication · 10 inputs | `demo.underwriting-decision.full` |
 | 14 | `965efceb-4885-f111-ab0f-70a8a55bc6a5` | Account Credit Tier | v1 (no state) · account | `sample.account-credit-tier` |
 
