@@ -19,6 +19,11 @@ import { generalRefusals, type SaveState } from '../services/useSaveOperation.js
 
 // ── Dialog ───────────────────────────────────────────────────────────────────
 
+/**
+ * An action dialog. It opens as a right-docked side pane over the screen it was opened from, the way
+ * Power Platform opens a form, in V1 and V2 alike; the placement lives in the `.dialog` stylesheet
+ * rule so every dialog — activity, promise, bulk run — docks the same way without knowing it.
+ */
 export function Dialog({ title, subtitle, onClose, children, footer, testId, wide = false }: {
   title: string;
   subtitle?: string | undefined;
@@ -30,7 +35,7 @@ export function Dialog({ title, subtitle, onClose, children, footer, testId, wid
 }) {
   return (
     <div className="scrim" data-testid={`${testId}-scrim`} role="presentation">
-      <div className={wide ? 'dialog lg' : 'dialog'} role="dialog" aria-modal="true" aria-label={title} data-testid={testId}>
+      <div className={wide ? 'dialog lg' : 'dialog'} role="dialog" aria-modal="true" aria-label={title} data-testid={testId} data-placement="side">
         <div className="dialog-head">
           <div>
             <h3>{title}</h3>

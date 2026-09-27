@@ -43,7 +43,7 @@
 
 .dcp-v2 .kpi-tile { border: 1px solid var(--v2-border); border-radius: var(--v2-radius-lg); box-shadow: none; }
 
-.dcp-v2 .dialog { border-radius: 12px; box-shadow: var(--v2-shadow-dialog); }
+.dcp-v2 .dialog { border-radius: 0; box-shadow: var(--v2-shadow-dialog); border-left: 1px solid var(--v2-border); }
 
 .dcp-v2 .fluent-input,
 .dcp-v2 .fluent-select { border-radius: var(--v2-radius); border-color: var(--v2-border); }
