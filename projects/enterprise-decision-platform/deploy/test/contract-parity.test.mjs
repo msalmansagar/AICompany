@@ -6,7 +6,7 @@ import path from 'node:path';
 import { loadContract, validateContract, parameterNamesByPluginType } from '../lib/registration-contract.mjs';
 import { surfaceFromContract, surfaceFromOnPremManifest, compareSurfaces, describeFinding } from '../lib/surface-parity.mjs';
 import { buildOnPremManifest, serialiseOnPremManifest } from '../lib/onprem-manifest.mjs';
-import { scanPluginArguments, findUnregisteredArguments } from '../lib/source-contract.mjs';
+import { scanPluginArguments, findUnregisteredArguments, findUnusedContractArguments } from '../lib/source-contract.mjs';
 import { planMetadata, toCreateRequest } from '../lib/metadata-plan.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -120,4 +120,48 @@ test('toCreateRequest_ResponseProperty_SendsNoOptionality', () => {
   const { entitySet, body } = toCreateRequest(plan.creates[0]);
   assert.equal(entitySet, 'customapiresponseproperties');
   assert.equal('isoptional' in body, false);
+});
+
+// ---- IC-2: the reverse check, contract -> code ----
+
+test('pluginSource_EveryContractArgument_IsUsedByItsPluginType', () => {
+  const scan = scanPluginArguments(path.join(here, '..', '..', 'runtime', 'src', 'EDP.RuleRuntime.Crm'));
+  assert.deepEqual(findUnusedContractArguments(scan, contract), []);
+});
+
+test('findUnusedContractArguments_DeclaredButUnreadParameter_IsReported', () => {
+  const drifted = clone(contract);
+  drifted.operations.find((o) => o.uniqueName === 'qdb_edp_GetRuleHistory').request.push({ name: 'Unread', type: 'String', optional: true });
+  const scan = scanPluginArguments(path.join(here, '..', '..', 'runtime', 'src', 'EDP.RuleRuntime.Crm'));
+  assert.deepEqual(findUnusedContractArguments(scan, drifted),
+    ['qdb_edp_GetRuleHistory declares request "Unread" but EDP.RuleRuntime.Crm.RuleServicePlugin never reads it']);
+});
+
+test('findUnusedContractArguments_DeclaredButUnwrittenResponse_IsReported', () => {
+  const scan = { 'EDP.RuleRuntime.Crm.EvaluateDecisionPlugin': { reads: new Set(), writes: new Set() } };
+  const only = { operations: contract.operations.filter((o) => o.uniqueName === 'qdb_edp_EvaluateDecision') };
+  assert.ok(findUnusedContractArguments(scan, only).includes('qdb_edp_EvaluateDecision declares response "ProvenanceJson" but EDP.RuleRuntime.Crm.EvaluateDecisionPlugin never writes it'));
+});
+
+test('scanPluginArguments_IdentityResolverCaller_ReadsTheSharedIdentityParameters', () => {
+  const scan = scanPluginArguments(path.join(here, '..', '..', 'runtime', 'src', 'EDP.RuleRuntime.Crm'));
+  const reads = scan['EDP.RuleRuntime.Crm.RuleMetadataPlugin'].reads;
+  assert.deepEqual(['RuleId', 'RuleKey', 'RuleName', 'RuleVersionId'].filter((n) => reads.has(n)), ['RuleId', 'RuleKey', 'RuleName', 'RuleVersionId']);
+});
+
+// ---- Release 1 B3/B4 arguments are registered on both targets ----
+
+test('contract_ReleaseOneArguments_AreDeclared', () => {
+  const op = (name) => contract.operations.find((o) => o.uniqueName === name);
+  const evaluate = op('qdb_edp_EvaluateDecision');
+  assert.deepEqual(
+    [evaluate.request.some((p) => p.name === 'CorrelationId' && p.optional), evaluate.response.some((p) => p.name === 'Outcome'), evaluate.response.some((p) => p.name === 'ProvenanceJson')],
+    [true, true, true]);
+  for (const name of ['qdb_edp_GetPublishedVersion', 'qdb_edp_ResolveEffectiveVersion', 'qdb_edp_GetRuleHistory', 'qdb_edp_GetRuleMetadata'])
+    assert.ok(op(name).request.some((p) => p.name === 'RuleKey' && p.optional && p.type === 'String'), `${name} accepts RuleKey`);
+});
+
+test('contract_EvaluateDecision_HasNoInputsDigest', () => {
+  const evaluate = contract.operations.find((o) => o.uniqueName === 'qdb_edp_EvaluateDecision');
+  assert.equal([...evaluate.request, ...evaluate.response].some((p) => /digest/i.test(p.name)), false);
 });

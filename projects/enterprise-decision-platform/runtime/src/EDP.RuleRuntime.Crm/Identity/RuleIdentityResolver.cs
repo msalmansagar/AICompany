@@ -21,18 +21,18 @@ namespace EDP.RuleRuntime.Crm.Identity
         /// <summary>Read the four standard identifier parameters from a plug-in context.</summary>
         public static RuleIdentityRequest FromContext(IPluginExecutionContext context) => new RuleIdentityRequest
         {
-            RuleVersionId = ParseGuid(context, "RuleVersionId"),
-            RuleId = ParseGuid(context, "RuleId"),
-            RuleKey = Text(context, "RuleKey"),
-            RuleName = Text(context, "RuleName"),
+            RuleVersionId = ParamGuid(context, "RuleVersionId"),
+            RuleId = ParamGuid(context, "RuleId"),
+            RuleKey = ParamText(context, "RuleKey"),
+            RuleName = ParamText(context, "RuleName"),
         };
 
-        private static string? Text(IPluginExecutionContext context, string name)
+        private static string? ParamText(IPluginExecutionContext context, string name)
             => context.InputParameters.Contains(name) ? context.InputParameters[name] as string : null;
 
-        private static Guid? ParseGuid(IPluginExecutionContext context, string name)
+        private static Guid? ParamGuid(IPluginExecutionContext context, string name)
         {
-            var raw = Text(context, name);
+            var raw = ParamText(context, name);
             return string.IsNullOrWhiteSpace(raw) ? (Guid?)null : Guid.Parse(raw);
         }
     }
