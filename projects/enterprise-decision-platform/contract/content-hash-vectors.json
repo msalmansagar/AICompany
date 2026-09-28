@@ -1,0 +1,50 @@
+{
+  "$comment": "Shared ContentHash test vectors (ADR-20). Every implementation must reproduce canonical and sha256 exactly from pcrm. pcrm is exact JSON text so number spelling survives. Regenerate only by changing ADR-20.",
+  "algorithm": "SHA-256",
+  "encoding": "UTF-8 without BOM",
+  "vectors": [
+    {
+      "id": "a-key-order-and-metadata",
+      "description": "Members are sorted by UTF-16 code unit; top-level schemaVersion, ruleId, name, description and x-* members are excluded; the same names nested deeper are kept.",
+      "pcrm": "{\"x-designer\":{\"zoom\":2},\"name\":\"Loan approval\",\"schemaVersion\":\"1.1\",\"ruleId\":\"r-1\",\"description\":\"d\",\"targetEntity\":\"account\",\"outputs\":[{\"type\":\"Text\",\"name\":\"decision\"}],\"logic\":{\"type\":\"conditionSet\",\"rules\":[],\"otherwise\":{\"decision\":\"refer\"}},\"inputs\":[{\"type\":\"Decimal\",\"name\":\"amount\",\"required\":true,\"nullable\":false}],\"inputContract\":\"strict\"}",
+      "equivalentTo": "{\"inputContract\":\"strict\",\"inputs\":[{\"name\":\"amount\",\"nullable\":false,\"required\":true,\"type\":\"Decimal\"}],\"logic\":{\"otherwise\":{\"decision\":\"refer\"},\"rules\":[],\"type\":\"conditionSet\"},\"outputs\":[{\"name\":\"decision\",\"type\":\"Text\"}],\"targetEntity\":\"account\",\"schemaVersion\":\"1.0\",\"name\":\"Renamed\"}",
+      "canonical": "{\"inputContract\":\"strict\",\"inputs\":[{\"name\":\"amount\",\"nullable\":false,\"required\":true,\"type\":\"Decimal\"}],\"logic\":{\"otherwise\":{\"decision\":\"refer\"},\"rules\":[],\"type\":\"conditionSet\"},\"outputs\":[{\"name\":\"decision\",\"type\":\"Text\"}],\"targetEntity\":\"account\"}",
+      "sha256": "1b373ad1203d7c113c91972326b54622b71a1b4304acbef43ea50f6d10643673"
+    },
+    {
+      "id": "b-exact-numbers",
+      "description": "Numbers are rewritten exactly as decimal text: no exponent, no trailing fraction zeros, no leading zeros, -0 becomes 0, and no binary floating point is involved.",
+      "pcrm": "{\"logic\":{\"type\":\"decisionTable\",\"rows\":[{\"priority\":1,\"cells\":[{\"operator\":\"Between\",\"value\":1.50,\"value2\":1e3}],\"outputs\":{\"rate\":0.1,\"cap\":100000000000000000000000000001,\"tiny\":1E-7,\"neg\":-0.0,\"big\":2.5E+2,\"int\":7.000}}]}}",
+      "canonical": "{\"logic\":{\"rows\":[{\"cells\":[{\"operator\":\"Between\",\"value\":1.5,\"value2\":1000}],\"outputs\":{\"big\":250,\"cap\":100000000000000000000000000001,\"int\":7,\"neg\":0,\"rate\":0.1,\"tiny\":0.0000001},\"priority\":1}],\"type\":\"decisionTable\"}}",
+      "sha256": "b2b6fecbbab0491a0b6fabccfc2824d623a9ecafad3349343f336aee904d645c"
+    },
+    {
+      "id": "c-unicode-and-escapes",
+      "description": "Keys and strings are NFC-normalised; only quote, backslash and U+0000-U+001F are escaped (as lower-case \\u00xx); '/', non-ASCII and astral characters are written raw; keys sort by UTF-16 code unit, so an astral key sorts before U+FF21.",
+      "pcrm": "{\"logic\":{\"type\":\"conditionSet\",\"otherwise\":{\"note\":\"Café / ok\\n\\ttab \\\"q\\\" \\\\ \\u001f 😀\",\"café\":\"key-nfc\",\"Ａ\":1,\"😀\":2}}}",
+      "canonical": "{\"logic\":{\"otherwise\":{\"café\":\"key-nfc\",\"note\":\"Café / ok\\u000a\\u0009tab \\\"q\\\" \\\\ \\u001f 😀\",\"😀\":2,\"Ａ\":1},\"type\":\"conditionSet\"}}",
+      "sha256": "b3bfe733f1b59ba334372a58baed299c293cb3a5cf00e423b321f3a554bcbac9"
+    },
+    {
+      "id": "d-nulls-dropped",
+      "description": "Object members whose value is null are dropped at every depth; nulls inside arrays are kept.",
+      "pcrm": "{\"inputs\":[{\"name\":\"tier\",\"type\":\"Text\",\"binding\":null,\"via\":null}],\"logic\":{\"type\":\"conditionSet\",\"otherwise\":{\"list\":[1,null,\"x\"],\"gone\":null}}}",
+      "canonical": "{\"inputs\":[{\"name\":\"tier\",\"type\":\"Text\"}],\"logic\":{\"otherwise\":{\"list\":[1,null,\"x\"]},\"type\":\"conditionSet\"}}",
+      "sha256": "ef4ef57fd80b9e8b75554cb78e0011669a512b094a40d3408157ac45fb30e7fe"
+    },
+    {
+      "id": "e-array-order-and-nesting",
+      "description": "Array order is significant and preserved; nested objects are canonicalised recursively; booleans are literal.",
+      "pcrm": "{\"logic\":{\"type\":\"conditionSet\",\"rules\":[{\"when\":{\"op\":\"or\",\"negate\":false,\"conditions\":[{\"field\":\"b\",\"operator\":\"Equals\",\"value\":true},{\"field\":\"a\",\"operator\":\"In\",\"value\":[3,1,2]}]},\"then\":{\"ok\":true}}]}}",
+      "canonical": "{\"logic\":{\"rules\":[{\"then\":{\"ok\":true},\"when\":{\"conditions\":[{\"field\":\"b\",\"operator\":\"Equals\",\"value\":true},{\"field\":\"a\",\"operator\":\"In\",\"value\":[3,1,2]}],\"negate\":false,\"op\":\"or\"}}],\"type\":\"conditionSet\"}}",
+      "sha256": "22aeb19774f1b73f577e2c5090f87cbdb402ddd37292d118f16f4fb448ea52a4"
+    },
+    {
+      "id": "f-metadata-only",
+      "description": "A document holding only metadata canonicalises to the empty object.",
+      "pcrm": "{\"schemaVersion\":\"1.1\",\"ruleId\":\"x\",\"name\":\"n\",\"description\":\"\",\"x-a\":1}",
+      "canonical": "{}",
+      "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+    }
+  ]
+}
