@@ -24,9 +24,37 @@ namespace EDP.RuleRuntime.Tests
                 .ToList();
         }
 
+        /// <summary>(vector pcrm, related vector pcrm) pairs for one relation name in the shared file.</summary>
+        private static List<(string Pcrm, string RelatedPcrm)> Related(string relation)
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "contract", "content-hash-vectors.json");
+            using var document = JsonDocument.Parse(File.ReadAllText(path));
+            var vectors = document.RootElement.GetProperty("vectors").EnumerateArray().ToList();
+            var pcrmById = vectors.ToDictionary(v => v.GetProperty("id").GetString()!, v => v.GetProperty("pcrm").GetString()!);
+            return vectors.Where(v => v.TryGetProperty(relation, out _))
+                .Select(v => (v.GetProperty("pcrm").GetString()!, pcrmById[v.GetProperty(relation).GetString()!]))
+                .ToList();
+        }
+
         [Fact]
         public void Vectors_AreAtLeastFive()
             => Assert.True(Vectors().Count() >= 5);
+
+        [Fact]
+        public void Compute_ReorderedVector_HashesIdenticallyToItsOriginal()
+        {
+            var pairs = Related("sameHashAs");
+            Assert.NotEmpty(pairs);
+            Assert.All(pairs, pair => Assert.Equal(ContentHash.Compute(pair.RelatedPcrm), ContentHash.Compute(pair.Pcrm)));
+        }
+
+        [Fact]
+        public void Compute_StrictAndLenientVariants_HashDifferently()
+        {
+            var pairs = Related("differentHashFrom");
+            Assert.NotEmpty(pairs);
+            Assert.All(pairs, pair => Assert.NotEqual(ContentHash.Compute(pair.RelatedPcrm), ContentHash.Compute(pair.Pcrm)));
+        }
 
         [Theory]
         [MemberData(nameof(Vectors))]
