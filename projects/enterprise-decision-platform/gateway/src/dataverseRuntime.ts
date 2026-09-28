@@ -1,5 +1,5 @@
 import type { GatewayConfig } from './config.js';
-import type { DecisionRuntime, EvaluateOutcome, ValidateOutcome } from './envelope.js';
+import type { DecisionRuntime, DecisionProvenance, DecisionOutcome, EvaluateOutcome, ValidateOutcome } from './envelope.js';
 
 /**
  * DecisionRuntime backed by the Dataverse decision Custom API (ADR-EDS-02: transport-only).
@@ -16,9 +16,8 @@ export class DataverseRuntime implements DecisionRuntime {
     this.api = `${cfg.url}/api/data/v9.2`;
   }
 
-  async resolvePublishedVersion(ref: { id?: string; name?: string }): Promise<{ versionId: string }> {
-    const key = ref.id ? 'RuleId' : 'RuleName';
-    const value = ref.id ?? ref.name ?? '';
+  async resolvePublishedVersion(ref: { id?: string; name?: string; key?: string }): Promise<{ versionId: string }> {
+    const { key, value } = buildRuleIdentityParam(ref);
     const url = `${this.api}/qdb_edp_GetPublishedVersion(${key}=@p)?@p=%27${encodeURIComponent(value)}%27`;
     const body = await this.get(url);
     const result = parseResultJson(body);
@@ -31,36 +30,45 @@ export class DataverseRuntime implements DecisionRuntime {
     versionId: string;
     input: Record<string, unknown>;
     includeTrace: boolean;
-  }): Promise<{
-    matched: boolean;
-    outputs: Record<string, unknown>;
-    trace: unknown;
-    diagnostics: unknown;
-    elapsedMs: number | null;
-    executionId: string | null;
-  }> {
-    const body = await this.post(`${this.api}/qdb_edp_EvaluateDecision`, {
+    correlationId?: string;
+  }): Promise<EvaluateOutcome> {
+    const payload: Record<string, unknown> = {
       RuleVersionId: args.versionId,
       InputsJson: JSON.stringify(args.input),
-    });
+    };
+    if (args.correlationId !== undefined) payload.CorrelationId = args.correlationId;
+
+    const body = await this.post(`${this.api}/qdb_edp_EvaluateDecision`, payload);
+    const outcome = typeof body.Outcome === 'string' ? (body.Outcome as DecisionOutcome) : undefined;
+    const provenance = parseProvenanceJson(body.ProvenanceJson);
+
     return {
       matched: Boolean(body.Matched),
       outputs: safeJson(body.OutputsJson) ?? {},
       trace: args.includeTrace ? safeJson(body.TraceJson) ?? null : undefined,
       diagnostics: safeJson(body.DiagnosticsJson) ?? null,
       elapsedMs: typeof body.ElapsedMs === 'number' ? body.ElapsedMs : null,
-      // Empty means the best-effort trace was dropped (ADR-13) — there is no log to explain.
       executionId: typeof body.ExecutionId === 'string' && body.ExecutionId.length > 0 ? body.ExecutionId : null,
+      outcome,
+      provenance,
     };
   }
 
-  async test(args: { versionId: string; input: Record<string, unknown>; includeTrace: boolean }): Promise<EvaluateOutcome> {
-    const body = await this.post(`${this.api}/qdb_edp_TestRule`, {
+  async test(args: { versionId: string; input: Record<string, unknown>; includeTrace: boolean; correlationId?: string }): Promise<EvaluateOutcome> {
+    const payload: Record<string, unknown> = {
       RuleVersionId: args.versionId,
       InputsJson: JSON.stringify(args.input),
-    });
+    };
+    if (args.correlationId !== undefined) payload.CorrelationId = args.correlationId;
+
+    const body = await this.post(`${this.api}/qdb_edp_TestRule`, payload);
     const rj = parseResultJson(body); // TestRule returns a single ResultJson
     const elapsed = pick(rj, ['elapsedMs', 'ElapsedMs']);
+    const outcome = typeof pick(rj, ['outcome', 'Outcome']) === 'string'
+      ? (pick(rj, ['outcome', 'Outcome']) as DecisionOutcome)
+      : undefined;
+    const provenance = parseProvenanceJson(pick(rj, ['provenanceJson', 'ProvenanceJson']));
+
     return {
       matched: Boolean(pick(rj, ['matched', 'Matched'])),
       outputs: (pick(rj, ['outputs', 'Outputs']) as Record<string, unknown>) ?? {},
@@ -68,6 +76,8 @@ export class DataverseRuntime implements DecisionRuntime {
       diagnostics: pick(rj, ['diagnostics', 'Diagnostics']) ?? null,
       elapsedMs: typeof elapsed === 'number' ? elapsed : null,
       executionId: null, // test writes no durable log
+      outcome,
+      provenance,
     };
   }
 
@@ -145,7 +155,15 @@ export class DataverseRuntime implements DecisionRuntime {
 
   private async post(url: string, payload: unknown): Promise<Record<string, unknown>> {
     const res = await fetch(url, { method: 'POST', headers: await this.headers(), body: JSON.stringify(payload) });
-    if (!res.ok) throw new RuntimeError('dataverse_error', `Dataverse POST failed (${res.status}).`);
+    if (!res.ok) {
+      const body = await safeReadJson(res);
+      // EDP070/EDP071 plugin faults come as HTTP 400 — surface them as 400, not 502.
+      if (res.status === 400) {
+        const code = extractEdpFaultCode(body);
+        if (code !== null) throw new RuntimeError(code, extractEdpFaultMessage(body, code));
+      }
+      throw new RuntimeError('dataverse_error', `Dataverse POST failed (${res.status}).`);
+    }
     return (await res.json()) as Record<string, unknown>;
   }
 }
@@ -157,6 +175,14 @@ export class RuntimeError extends Error {
   }
 }
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function buildRuleIdentityParam(ref: { id?: string; name?: string; key?: string }): { key: string; value: string } {
+  if (ref.id) return { key: 'RuleId', value: ref.id };
+  if (ref.key) return { key: 'RuleKey', value: ref.key };
+  return { key: 'RuleName', value: ref.name ?? '' };
+}
+
 function safeJson(value: unknown): Record<string, unknown> | null {
   if (typeof value !== 'string') return null;
   try {
@@ -166,8 +192,23 @@ function safeJson(value: unknown): Record<string, unknown> | null {
   }
 }
 
+async function safeReadJson(res: Response): Promise<Record<string, unknown>> {
+  try {
+    return (await res.json()) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
 function parseResultJson(body: Record<string, unknown>): Record<string, unknown> {
   return safeJson(body.ResultJson) ?? body;
+}
+
+function parseProvenanceJson(raw: unknown): DecisionProvenance | null {
+  if (typeof raw !== 'string') return null;
+  const parsed = safeJson(raw);
+  if (!parsed) return null;
+  return parsed as unknown as DecisionProvenance;
 }
 
 function firstString(source: Record<string, unknown>, keys: readonly string[]): string | null {
@@ -184,4 +225,30 @@ function pick(source: Record<string, unknown>, keys: readonly string[]): unknown
     if (source[key] !== undefined) return source[key];
   }
   return undefined;
+}
+
+/**
+ * Extract an EDP fault code (EDP070, EDP071) from a Dataverse 400 error body.
+ * Dataverse surfaces plugin InvalidPluginExecutionException messages in `error.message`.
+ */
+function extractEdpFaultCode(body: Record<string, unknown>): string | null {
+  const message = extractErrorMessage(body);
+  if (/\bEDP070\b/.test(message)) return 'edp_070';
+  if (/\bEDP071\b/.test(message)) return 'edp_071';
+  return null;
+}
+
+function extractEdpFaultMessage(body: Record<string, unknown>, code: string): string {
+  const raw = extractErrorMessage(body);
+  // Strip the "EDP0xx: " prefix if present, else return as-is.
+  const stripped = raw.replace(/^EDP0\d+:\s*/, '');
+  return stripped || `Rule identity error (${code}).`;
+}
+
+function extractErrorMessage(body: Record<string, unknown>): string {
+  const err = body.error;
+  if (err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string') {
+    return (err as { message: string }).message;
+  }
+  return '';
 }

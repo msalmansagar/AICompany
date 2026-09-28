@@ -17,4 +17,8 @@
     <ProjectReference Include="..\EDP.DecisionClient\EDP.DecisionClient.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="../../../contract/rule-engine-contract.json" Link="contract/rule-engine-contract.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

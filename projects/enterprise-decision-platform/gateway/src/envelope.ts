@@ -5,27 +5,45 @@ import { z } from 'zod';
  *
  * The gateway speaks one request/response shape regardless of the underlying transport.
  * A rule is addressed by an explicit published version (`versionId`) or resolved from its
- * `id` / `name` (latest published). The gateway never executes rules — it maps this envelope
- * onto the Dataverse decision Custom API and maps the result back (ADR-EDS-02).
+ * `id` / `name` / `key` (latest published). The gateway never executes rules — it maps this
+ * envelope onto the Dataverse decision Custom API and maps the result back (ADR-EDS-02).
  */
+
+// IC-3: one definition per repo — must equal the contract pattern exactly.
+export const RULE_KEY_PATTERN = /^[a-z0-9]+([._-][a-z0-9]+)*$/;
+export const RULE_KEY_MIN_LENGTH = 3;
+export const RULE_KEY_MAX_LENGTH = 100;
+
+export const CORRELATION_ID_MAX_LENGTH = 100;
 
 export const RuleRefSchema = z
   .object({
     versionId: z.string().uuid().optional(),
     id: z.string().uuid().optional(),
     name: z.string().min(1).optional(),
+    /** Human-readable key (pattern: ^[a-z0-9]+([._-][a-z0-9]+)*$, 3–100 chars). IC-3. */
+    key: z
+      .string()
+      .min(RULE_KEY_MIN_LENGTH)
+      .max(RULE_KEY_MAX_LENGTH)
+      .regex(RULE_KEY_PATTERN, 'RuleKey must be lower-case alphanumeric (separators: . _ -)')
+      .optional(),
   })
-  .refine((r) => Boolean(r.versionId ?? r.id ?? r.name), {
-    message: 'rule must specify one of: versionId, id, name',
+  .refine((r) => Boolean(r.versionId ?? r.id ?? r.name ?? r.key), {
+    message: 'rule must specify one of: versionId, id, name, key',
   });
 
+const CorrelationIdSchema = z.string().min(1).max(CORRELATION_ID_MAX_LENGTH);
+
+const MetaSchema = z
+  .object({
+    correlationId: CorrelationIdSchema.optional(),
+    source: z.string().min(1).optional(),
+  })
+  .optional();
+
 export const EvaluateRequestSchema = z.object({
-  meta: z
-    .object({
-      correlationId: z.string().min(1).optional(),
-      source: z.string().min(1).optional(),
-    })
-    .optional(),
+  meta: MetaSchema,
   rule: RuleRefSchema,
   input: z.record(z.unknown()).default({}),
   options: z
@@ -42,14 +60,14 @@ export const TestRequestSchema = EvaluateRequestSchema;
 
 /** Validate a rule's structure/metadata (ValidateRule). */
 export const ValidateRequestSchema = z.object({
-  meta: z.object({ correlationId: z.string().min(1).optional(), source: z.string().min(1).optional() }).optional(),
+  meta: MetaSchema,
   rule: RuleRefSchema,
 });
 export type ValidateRequest = z.infer<typeof ValidateRequestSchema>;
 
 /** Evaluate a governed rule set by its id (ExecuteRuleSet). */
 export const EvaluateRuleSetRequestSchema = z.object({
-  meta: z.object({ correlationId: z.string().min(1).optional(), source: z.string().min(1).optional() }).optional(),
+  meta: MetaSchema,
   ruleSetId: z.string().uuid(),
   input: z.record(z.unknown()).default({}),
 });
@@ -62,12 +80,32 @@ export interface ResponseMeta {
   readonly elapsedMs: number | null;
 }
 
+/** Decision outcome literals (FR-B2-06). IC-3: test/contract-parity.test.ts holds them equal to the contract. */
+export const DECISION_OUTCOMES = ['MATCHED', 'NO_MATCH', 'INPUT_REJECTED', 'ENGINE_ERROR'] as const;
+export type DecisionOutcome = (typeof DECISION_OUTCOMES)[number];
+
+/** Provenance record parsed from EvaluateDecision ProvenanceJson (FR-B4-02, ADR-20). */
+export interface DecisionProvenance {
+  readonly executionId: string;
+  readonly ruleId: string | null;
+  readonly ruleKey: string | null;
+  readonly ruleVersionId: string | null;
+  readonly versionNumber: number | null;
+  readonly contentHash: string;
+  readonly evaluatedOnUtc: string;
+  readonly correlationId: string | null;
+}
+
 export interface EvaluateResponse {
   readonly meta: ResponseMeta;
   readonly matched: boolean;
   readonly outputs: Record<string, unknown>;
   readonly trace?: unknown;
   readonly diagnostics?: unknown;
+  /** Decision outcome (FR-B2-06). Present on EvaluateDecision/TestRule responses. */
+  readonly outcome?: DecisionOutcome;
+  /** Parsed provenance (FR-B4-02). Present on EvaluateDecision/TestRule responses. */
+  readonly provenance?: DecisionProvenance | null;
 }
 
 export interface ErrorResponse {
@@ -87,6 +125,10 @@ export interface EvaluateOutcome {
   readonly diagnostics: unknown;
   readonly elapsedMs: number | null;
   readonly executionId: string | null;
+  /** Decision outcome (FR-B2-06). */
+  readonly outcome?: DecisionOutcome;
+  /** Parsed provenance (FR-B4-02). null when not present. */
+  readonly provenance?: DecisionProvenance | null;
 }
 
 export interface ValidateOutcome {
@@ -95,11 +137,11 @@ export interface ValidateOutcome {
 }
 
 export interface DecisionRuntime {
-  resolvePublishedVersion(ref: { id?: string; name?: string }): Promise<{ versionId: string }>;
+  resolvePublishedVersion(ref: { id?: string; name?: string; key?: string }): Promise<{ versionId: string }>;
   /** EvaluateDecision — durable (writes an execution log). */
-  evaluate(args: { versionId: string; input: Record<string, unknown>; includeTrace: boolean }): Promise<EvaluateOutcome>;
+  evaluate(args: { versionId: string; input: Record<string, unknown>; includeTrace: boolean; correlationId?: string }): Promise<EvaluateOutcome>;
   /** TestRule — same decision, no durable write. */
-  test(args: { versionId: string; input: Record<string, unknown>; includeTrace: boolean }): Promise<EvaluateOutcome>;
+  test(args: { versionId: string; input: Record<string, unknown>; includeTrace: boolean; correlationId?: string }): Promise<EvaluateOutcome>;
   /** ValidateRule — structural validation of a rule version. */
   validate(args: { versionId: string }): Promise<ValidateOutcome>;
   /** ExecuteRuleSet — evaluate a governed set; returns the set's native aggregate payload. */
@@ -140,14 +182,14 @@ export interface ReadResponse {
 
 /** Read request that references a rule (schema, history). */
 export const RuleReadRequestSchema = z.object({
-  meta: z.object({ correlationId: z.string().min(1).optional(), source: z.string().min(1).optional() }).optional(),
+  meta: MetaSchema,
   rule: RuleRefSchema,
 });
 export type RuleReadRequest = z.infer<typeof RuleReadRequestSchema>;
 
 /** Explain a past decision by its execution-log id. */
 export const ExplainRequestSchema = z.object({
-  meta: z.object({ correlationId: z.string().min(1).optional(), source: z.string().min(1).optional() }).optional(),
+  meta: MetaSchema,
   executionLogId: z.string().uuid(),
 });
 export type ExplainRequest = z.infer<typeof ExplainRequestSchema>;

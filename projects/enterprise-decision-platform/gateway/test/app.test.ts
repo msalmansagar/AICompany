@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildApp } from '../src/app.js';
 import type { GatewayConfig } from '../src/config.js';
-import type { DecisionRuntime, EvaluateOutcome, ValidateOutcome } from '../src/envelope.js';
+import type { DecisionRuntime, EvaluateOutcome, ValidateOutcome, DecisionProvenance } from '../src/envelope.js';
 import { RuntimeError } from '../src/dataverseRuntime.js';
 
 const baseConfig: GatewayConfig = {
@@ -12,31 +12,52 @@ const baseConfig: GatewayConfig = {
   dataverse: { url: 'https://example.crm.dynamics.com', tenantId: 't', clientId: 'c', clientSecret: 's' },
 };
 
+const exampleProvenance: DecisionProvenance = {
+  executionId: 'exec-1',
+  ruleId: 'rule-1',
+  ruleKey: 'account.credit-tier',
+  ruleVersionId: 'ver-1',
+  versionNumber: 3,
+  contentHash: 'abc123',
+  evaluatedOnUtc: '2026-09-28T10:00:00Z',
+  correlationId: null,
+};
+
 class FakeRuntime implements DecisionRuntime {
-  resolveCalls: Array<{ id?: string; name?: string }> = [];
-  evaluateCalls: Array<{ versionId: string; input: Record<string, unknown>; includeTrace: boolean }> = [];
-  testCalls: Array<{ versionId: string; input: Record<string, unknown>; includeTrace: boolean }> = [];
+  resolveCalls: Array<{ id?: string; name?: string; key?: string }> = [];
+  evaluateCalls: Array<{ versionId: string; input: Record<string, unknown>; includeTrace: boolean; correlationId?: string }> = [];
+  testCalls: Array<{ versionId: string; input: Record<string, unknown>; includeTrace: boolean; correlationId?: string }> = [];
   validateCalls: Array<{ versionId: string }> = [];
   ruleSetCalls: Array<{ ruleSetId: string; input: Record<string, unknown> }> = [];
 
-  constructor(private readonly opts: { resolvedVersionId?: string; throwOnResolve?: boolean } = {}) {}
+  constructor(private readonly opts: { resolvedVersionId?: string; throwOnResolve?: boolean; throwWith?: RuntimeError } = {}) {}
 
-  async resolvePublishedVersion(ref: { id?: string; name?: string }): Promise<{ versionId: string }> {
+  async resolvePublishedVersion(ref: { id?: string; name?: string; key?: string }): Promise<{ versionId: string }> {
     this.resolveCalls.push(ref);
+    if (this.opts.throwWith) throw this.opts.throwWith;
     if (this.opts.throwOnResolve) throw new RuntimeError('rule_not_found', 'no published version');
     return { versionId: this.opts.resolvedVersionId ?? 'resolved-version' };
   }
 
   private outcome(): EvaluateOutcome {
-    return { matched: true, outputs: { creditTier: 'Gold', discount: 15 }, trace: [{ kind: 'tableRow', priority: 1 }], diagnostics: null, elapsedMs: 14, executionId: 'exec-1' };
+    return {
+      matched: true,
+      outputs: { creditTier: 'Gold', discount: 15 },
+      trace: [{ kind: 'tableRow', priority: 1 }],
+      diagnostics: null,
+      elapsedMs: 14,
+      executionId: 'exec-1',
+      outcome: 'MATCHED',
+      provenance: exampleProvenance,
+    };
   }
 
-  async evaluate(args: { versionId: string; input: Record<string, unknown>; includeTrace: boolean }): Promise<EvaluateOutcome> {
+  async evaluate(args: { versionId: string; input: Record<string, unknown>; includeTrace: boolean; correlationId?: string }): Promise<EvaluateOutcome> {
     this.evaluateCalls.push(args);
     return this.outcome();
   }
 
-  async test(args: { versionId: string; input: Record<string, unknown>; includeTrace: boolean }): Promise<EvaluateOutcome> {
+  async test(args: { versionId: string; input: Record<string, unknown>; includeTrace: boolean; correlationId?: string }): Promise<EvaluateOutcome> {
     this.testCalls.push(args);
     return { ...this.outcome(), executionId: null };
   }
@@ -114,7 +135,7 @@ describe('EDP gateway — decision surface', () => {
     const app = await buildApp({ config: baseConfig, runtime });
     const res = await app.inject({ method: 'POST', url: '/v1/decisions/evaluate', headers: KEY, payload: { rule: { name: 'Account Credit Tier' }, input: { revenue: 500000 }, options: { includeTrace: true } } });
     expect(res.statusCode).toBe(200);
-    expect(runtime.resolveCalls[0]).toEqual({ name: 'Account Credit Tier' });
+    expect(runtime.resolveCalls[0]).toEqual({ name: 'Account Credit Tier', id: undefined, key: undefined });
     expect(runtime.evaluateCalls[0]?.versionId).toBe('ver-abc');
     expect(res.json().trace).toEqual([{ kind: 'tableRow', priority: 1 }]);
   });
@@ -207,6 +228,73 @@ describe('EDP gateway — decision surface', () => {
     const res = await app.inject({ method: 'GET', url: '/docs' });
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toContain('text/html');
+  });
+
+  // ── RuleRef.key (FR-B3-10) ───────────────────────────────────────────────────
+
+  it('evaluate: rejects a rule.key that contains upper-case characters', async () => {
+    const app = await buildApp({ config: baseConfig, runtime: new FakeRuntime() });
+    const res = await app.inject({ method: 'POST', url: '/v1/decisions/evaluate', headers: KEY, payload: { rule: { key: 'Invalid-Key' }, input: {} } });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('invalid_request');
+  });
+
+  it('evaluate: resolves a rule by key and passes key to the runtime', async () => {
+    const runtime = new FakeRuntime({ resolvedVersionId: 'ver-key' });
+    const app = await buildApp({ config: baseConfig, runtime });
+    const res = await app.inject({ method: 'POST', url: '/v1/decisions/evaluate', headers: KEY, payload: { rule: { key: 'account.credit-tier' }, input: { revenue: 1000000 } } });
+    expect(res.statusCode).toBe(200);
+    expect(runtime.resolveCalls[0]).toMatchObject({ key: 'account.credit-tier' });
+    expect(runtime.evaluateCalls[0]?.versionId).toBe('ver-key');
+  });
+
+  it('evaluate: correlationId is forwarded to runtime.evaluate', async () => {
+    const runtime = new FakeRuntime();
+    const app = await buildApp({ config: baseConfig, runtime });
+    await app.inject({ method: 'POST', url: '/v1/decisions/evaluate', headers: KEY, payload: { meta: { correlationId: 'corr-fwd' }, rule: { versionId: V1 }, input: {} } });
+    expect(runtime.evaluateCalls[0]?.correlationId).toBe('corr-fwd');
+  });
+
+  it('evaluate: rejects correlationId longer than 100 characters', async () => {
+    const app = await buildApp({ config: baseConfig, runtime: new FakeRuntime() });
+    const longId = 'x'.repeat(101);
+    const res = await app.inject({ method: 'POST', url: '/v1/decisions/evaluate', headers: KEY, payload: { meta: { correlationId: longId }, rule: { versionId: V1 }, input: {} } });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('invalid_request');
+  });
+
+  // ── Outcome + Provenance (FR-B2-06, FR-B4-02) ───────────────────────────────
+
+  it('evaluate: response includes outcome and provenance', async () => {
+    const runtime = new FakeRuntime();
+    const app = await buildApp({ config: baseConfig, runtime });
+    const res = await app.inject({ method: 'POST', url: '/v1/decisions/evaluate', headers: KEY, payload: { rule: { versionId: V1 }, input: {} } });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.outcome).toBe('MATCHED');
+    expect(body.provenance).toMatchObject({ ruleKey: 'account.credit-tier', versionNumber: 3 });
+  });
+
+  // ── EDP070 / EDP071 fault codes (FR-B3-10) ──────────────────────────────────
+
+  it('evaluate: EDP070 (conflicting identifiers) maps to HTTP 400', async () => {
+    const runtime = new FakeRuntime({
+      throwWith: new RuntimeError('edp_070', 'EDP070: Multiple rules match key foo.'),
+    });
+    const app = await buildApp({ config: baseConfig, runtime });
+    const res = await app.inject({ method: 'POST', url: '/v1/decisions/evaluate', headers: KEY, payload: { rule: { key: 'foo' }, input: {} } });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('edp_070');
+  });
+
+  it('evaluate: EDP071 (malformed key) maps to HTTP 400', async () => {
+    const runtime = new FakeRuntime({
+      throwWith: new RuntimeError('edp_071', 'EDP071: RuleKey pattern mismatch.'),
+    });
+    const app = await buildApp({ config: baseConfig, runtime });
+    const res = await app.inject({ method: 'POST', url: '/v1/decisions/evaluate', headers: KEY, payload: { rule: { key: 'abc' }, input: {} } });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('edp_071');
   });
 });
 
