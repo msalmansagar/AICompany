@@ -6,8 +6,9 @@ import { countMatching, formatCountResult, useCounts, type CountRequest } from '
 import { ENTITY_SETS } from '../data/schema.js';
 import {
   BucketBar, BucketPill, Card, InfoBanner, KpiRow, OrgBadge, PartialCapabilityNotice, PromiseOutcome, StatusPill,
-  formatCount, formatDate, formatMoney,
+  formatCount, formatDate, formatDay, formatMoney,
 } from '../components/primitives.js';
+import { describeRecorder, useApplicationUsers } from '../data/applicationUsers.js';
 import { useCrmSession } from '../shell/context.js';
 import type { ViewDefinition } from '../shell/routes.js';
 import { ListToolbar, SplitLayout, useListLayout } from '../components/listLayout.js';
@@ -114,15 +115,26 @@ const INTAKE_COUNTS: readonly CountRequest[] = [
 
 // ── Promise to Pay ───────────────────────────────────────────────────────────
 
-const PTP_LIST_COLUMNS: readonly DataGridColumn<PtpRow>[] = [
-  { key: 'promised', header: 'Promised for', width: '130px', render: r => <span className="row-lead"><BucketBar bucket={r.caseBucket} />{formatDate(r.ptpDate)}</span> },
-  { key: 'case', header: 'Case', width: '160px', isLink: true, render: r => r.caseNumber ?? '—' },
-  { key: 'amount', header: 'Amount', width: '130px', render: r => formatMoney(r.promisedAmount) },
-  { key: 'type', header: 'Type', width: '90px', render: r => r.promiseType ?? '—' },
-  { key: 'status', header: 'Status', width: '170px', render: r => <PromiseOutcome status={r.ptpStatus} /> },
-  { key: 'received', header: 'Reported paid', width: '130px', render: r => formatMoney(r.amountReceived) },
-  { key: 'owner', header: 'Captured by', width: '160px', render: r => r.ownerName ?? '—' },
-];
+/** The grid, with who recorded each promise named for an officer — `System` for an integration. */
+function ptpListColumns(applicationUsers: ReadonlySet<string>): readonly DataGridColumn<PtpRow>[] {
+  return [
+    { key: 'case', header: 'Case', width: '150px', isLink: true, render: r => <span className="row-lead"><BucketBar bucket={r.caseBucket} />{r.caseNumber ?? '—'}</span> },
+    {
+      key: 'customer', header: 'Customer', render: r => (
+        <span className="two-line">
+          <span className="two-line-main">{r.caseCustomerName ?? '—'}</span>
+          <span className="two-line-sub">{r.subject}</span>
+        </span>
+      ),
+    },
+    { key: 'promised', header: 'Promised for', width: '120px', render: r => formatDay(r.ptpDate) },
+    { key: 'amount', header: 'Amount', width: '120px', numeric: true, render: r => formatMoney(r.promisedAmount) },
+    { key: 'type', header: 'Type', width: '80px', render: r => r.promiseType ?? '—' },
+    { key: 'status', header: 'Status', width: '160px', render: r => <PromiseOutcome status={r.ptpStatus} /> },
+    { key: 'received', header: 'Reported paid', width: '120px', numeric: true, render: r => formatMoney(r.amountReceived) },
+    { key: 'owner', header: 'Recorded by', width: '150px', render: r => describeRecorder(r, applicationUsers) },
+  ];
+}
 
 /** The Split list: who promised what on two lines, and the amount. */
 const PTP_SPLIT_COLUMNS: readonly DataGridColumn<PtpRow>[] = [
@@ -132,7 +144,7 @@ const PTP_SPLIT_COLUMNS: readonly DataGridColumn<PtpRow>[] = [
         <BucketBar bucket={r.caseBucket} />
         <span className="two-line">
           <span className="two-line-main">{r.caseCustomerName ?? r.caseNumber ?? '—'}</span>
-          <span className="two-line-sub">{r.caseNumber ?? '—'} · promised for {formatDate(r.ptpDate)} · {r.ptpStatus ?? '—'}</span>
+          <span className="two-line-sub">{r.caseNumber ?? '—'} · promised for {formatDay(r.ptpDate)} · {r.subject}</span>
         </span>
       </span>
     ),
@@ -154,6 +166,8 @@ export function PromiseToPayView({ view, onOpenCase }: {
   const [selected, setSelected] = useState<PtpRow | undefined>(undefined);
   const [dialog, setDialog] = useState<CaseCommandDialog>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const applicationUsers = useApplicationUsers(adapter);
+  const listColumns = useMemo(() => ptpListColumns(applicationUsers), [applicationUsers]);
 
   return (
     <div data-testid="view-ptp">
@@ -181,7 +195,7 @@ export function PromiseToPayView({ view, onOpenCase }: {
         <ListToolbar layout={layout} onChangeLayout={chooseLayout} testId="ptp-toolbar" />
         {layout === 'grid' && (
           <DataGrid<PtpRow, ActivityQuery>
-            columns={PTP_LIST_COLUMNS} fetchPage={fetchPage} query={query}
+            columns={listColumns} fetchPage={fetchPage} query={query}
             rowKey={row => row.id} pageSize={50}
             {...(onOpenCase ? { onRowClick: (row: PtpRow) => { if (row.caseId) onOpenCase(row.caseId); } } : {})}
             emptyMessage="No promise to pay has been recorded."
@@ -202,7 +216,7 @@ export function PromiseToPayView({ view, onOpenCase }: {
             )}
             preview={(
               <PromisePreview
-                promise={selected} reloadKey={reloadKey}
+                promise={selected} reloadKey={reloadKey} recordedBy={selected ? describeRecorder(selected, applicationUsers) : '—'}
                 onOpenCase={id => onOpenCase?.(id)}
                 onLogAction={() => setDialog('activity')}
                 onCapturePromise={() => setDialog('promise')}
@@ -220,9 +234,10 @@ export function PromiseToPayView({ view, onOpenCase }: {
 }
 
 /** The promise as the officer recorded it, above the case it was made on. */
-function PromisePreview({ promise, reloadKey, onOpenCase, onLogAction, onCapturePromise }: {
+function PromisePreview({ promise, reloadKey, recordedBy, onOpenCase, onLogAction, onCapturePromise }: {
   promise: PtpRow | undefined;
   reloadKey: number;
+  recordedBy: string;
   onOpenCase: (id: string) => void;
   onLogAction: () => void;
   onCapturePromise: () => void;
@@ -231,8 +246,9 @@ function PromisePreview({ promise, reloadKey, onOpenCase, onLogAction, onCapture
   return (
     <div data-testid="ptp-preview" data-promise-id={promise.id}>
       <div className="preview">
-        <PreviewHeading eyebrow="Promise to pay" title={`${formatMoney(promise.promisedAmount)} promised for ${formatDate(promise.ptpDate)}`}>
-          <p className="row-actions"><PromiseOutcome status={promise.ptpStatus} /><span className="preview-sub">recorded by {promise.ownerName ?? '—'}</span></p>
+        <PreviewHeading eyebrow="Promise to pay" title={`${formatMoney(promise.promisedAmount)} promised for ${formatDay(promise.ptpDate)}`}>
+          <p className="preview-sub">{promise.subject}</p>
+          <p className="row-actions"><PromiseOutcome status={promise.ptpStatus} /><span className="preview-sub">recorded by {recordedBy}</span></p>
         </PreviewHeading>
       </div>
       <CasePreview

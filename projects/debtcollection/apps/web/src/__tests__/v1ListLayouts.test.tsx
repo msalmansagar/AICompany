@@ -138,7 +138,7 @@ describe('Promise to Pay', () => {
     await open('#ptp');
 
     const list = await screen.findByTestId('ptp-list', {}, { timeout: WAIT });
-    await userEvent.click(within(list).getByText(/promised for 2026-10-01/));
+    await userEvent.click(within(list).getByText(/promised for 1 Oct 2026/));
     const preview = await screen.findByTestId('ptp-preview', {}, { timeout: WAIT });
     await userEvent.click(await within(preview).findByTestId('ptp-case-preview-open', {}, { timeout: WAIT }));
 

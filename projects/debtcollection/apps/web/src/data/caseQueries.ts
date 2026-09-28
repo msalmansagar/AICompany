@@ -153,6 +153,7 @@ export interface ActivityRow {
   strategyActionId?: string;
   /** Absent means the record predates provenance — never that an officer created it. */
   origin?: ActivityOrigin;
+  ownerId?: string;
   ownerName?: string;
   status?: string;
   /** Open / Completed / Cancelled, which settles a work state ahead of any deadline. */
@@ -229,6 +230,7 @@ export function toActivityRow(row: CrmRow): ActivityRow {
     ...optional('activityTypeId', readText(row, '_qdb_activitytypeid_value')),
     ...optional('strategyActionId', readText(row, '_qdb_strategyactionid_value')),
     ...optional('origin', originFromCode(row['qdb_origin'])),
+    ...optional('ownerId', readText(row, '_ownerid_value')),
     ...optional('ownerName', readLookupName(row, '_ownerid_value')),
     ...optional('status', readChoice(row, 'statuscode')),
     ...optional('stateCode', readNumber(row, 'statecode')),

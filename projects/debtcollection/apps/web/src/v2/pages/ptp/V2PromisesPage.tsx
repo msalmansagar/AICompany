@@ -3,7 +3,8 @@ import { createPtpQuery, type ActivityQuery, type PtpRow } from '../../../data/c
 import { useCounts, formatCountResult, type CountRequest } from '../../../data/counts.js';
 import { codeFor } from '../../../data/collectionQueries.js';
 import { ENTITY_SETS, PTP_STATUS_LABELS } from '../../../data/schema.js';
-import { PromiseOutcome, formatDate, formatMoney } from '../../../components/primitives.js';
+import { PromiseOutcome, formatDay, formatMoney } from '../../../components/primitives.js';
+import { describeRecorder, useApplicationUsers } from '../../../data/applicationUsers.js';
 import { useCrmSession } from '../../../shell/context.js';
 import type { ViewRequest } from '../../V2Workspace.js';
 import { useV2Shell } from '../../shell/V2Shell.js';
@@ -39,6 +40,8 @@ export function V2PromisesPage(_props: { request: ViewRequest }) {
   const [dialog, setDialog] = useState<CaseCommandDialog>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [toast, setToast] = useState('');
+  const applicationUsers = useApplicationUsers(adapter);
+  const gridColumns = useMemo(() => promiseGridColumns(applicationUsers), [applicationUsers]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -94,9 +97,9 @@ export function V2PromisesPage(_props: { request: ViewRequest }) {
 
         {layout === 'grid' && (
           <V2DataGrid<PtpRow, ActivityQuery>
-            columns={GRID_COLUMNS} fetchPage={fetchPage} query={query} rowKey={row => row.id}
+            columns={gridColumns} fetchPage={fetchPage} query={query} rowKey={row => row.id}
             onRowOpen={row => { if (row.caseId) openCase(row.caseId); }}
-            rowLabel={row => `Open the promise on case ${row.caseNumber ?? ''} due ${formatDate(row.ptpDate)}`}
+            rowLabel={row => `Open the promise on case ${row.caseNumber ?? ''} due ${formatDay(row.ptpDate)}`}
             isFiltered={status !== ALL} emptyTitle="No promise to pay has been recorded." height={560} testId="v2-promises-grid" fitsWidth
           />
         )}
@@ -106,7 +109,7 @@ export function V2PromisesPage(_props: { request: ViewRequest }) {
               <V2DataGrid<PtpRow, ActivityQuery>
                 columns={SPLIT_COLUMNS} fetchPage={fetchPage} query={query} rowKey={row => row.id}
                 onRowOpen={setSelected} selectedKey={selected?.id ?? ''} onSelectFirst={setSelected}
-                rowLabel={row => `Preview the promise on case ${row.caseNumber ?? ''} due ${formatDate(row.ptpDate)}`}
+                rowLabel={row => `Preview the promise on case ${row.caseNumber ?? ''} due ${formatDay(row.ptpDate)}`}
                 isFiltered={status !== ALL} emptyTitle="No promise to pay has been recorded." rowHeight={58} height={640} testId="v2-promises-list" fitsWidth
               />
             </div>
@@ -129,7 +132,9 @@ export function V2PromisesPage(_props: { request: ViewRequest }) {
 
 const customerName = (row: PtpRow) => row.caseCustomerName ?? row.caseNumber ?? '—';
 
-const GRID_COLUMNS: readonly V2Column<PtpRow>[] = [
+/** The grid, with who recorded each promise named for an officer — `System` for an integration. */
+function promiseGridColumns(applicationUsers: ReadonlySet<string>): readonly V2Column<PtpRow>[] {
+  return [
   {
     key: 'case', header: 'Case', width: '150px', render: row => (
       <span className="v2-case-row">
@@ -145,16 +150,17 @@ const GRID_COLUMNS: readonly V2Column<PtpRow>[] = [
     key: 'customer', header: 'Customer', render: row => (
       <span className="v2-two-line">
         <span className="v2-two-line-main">{customerName(row)}</span>
-        <span className="v2-two-line-sub"><BucketBadge bucket={row.caseBucket} /></span>
+        <span className="v2-two-line-sub"><BucketBadge bucket={row.caseBucket} /> {row.subject}</span>
       </span>
     ),
   },
-  { key: 'promised', header: 'Promised for', width: '112px', render: row => formatDate(row.ptpDate) },
+  { key: 'promised', header: 'Promised for', width: '112px', render: row => formatDay(row.ptpDate) },
   { key: 'amount', header: 'Amount', width: '110px', numeric: true, render: row => formatMoney(row.promisedAmount) },
   { key: 'type', header: 'Type', width: '76px', render: row => row.promiseType ?? '—' },
   { key: 'status', header: 'Status', width: '150px', render: row => <PromiseOutcome status={row.ptpStatus} /> },
-  { key: 'owner', header: 'Recorded by', width: '130px', render: row => row.ownerName ?? '—' },
-];
+  { key: 'owner', header: 'Recorded by', width: '130px', render: row => describeRecorder(row, applicationUsers) },
+  ];
+}
 
 const SPLIT_COLUMNS: readonly V2Column<PtpRow>[] = [
   {
@@ -164,7 +170,7 @@ const SPLIT_COLUMNS: readonly V2Column<PtpRow>[] = [
         <span className="v2-two-line">
           <span className="v2-two-line-main">{customerName(row)}</span>
           <span className="v2-two-line-sub">
-            <span className="v2-two-line-text">{row.caseNumber ?? '—'} · promised for {formatDate(row.ptpDate)}</span>
+            <span className="v2-two-line-text">{row.caseNumber ?? '—'} · promised for {formatDay(row.ptpDate)} · {row.subject}</span>
             <PromiseOutcome status={row.ptpStatus} />
           </span>
         </span>

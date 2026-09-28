@@ -223,8 +223,8 @@ export function PromiseOutcome({ status }: { status?: string | undefined }) {
   const claimsPayment = status !== undefined && /kept|broken/i.test(status);
   return (
     <span className="row-actions">
-      <StatusPill status={status} />
-      {claimsPayment && <span className="unverified" title="Payment has not been verified against MIS.">unverified</span>}
+      {status ? <span className={`pill plain ${statusTone(status)}`}>{status}</span> : <span className="pill plain muted">—</span>}
+      {claimsPayment && <span className="unverified" title="What the officer recorded. Payment has not been verified against MIS.">unverified</span>}
     </span>
   );
 }
@@ -326,4 +326,13 @@ export function formatDate(value: string | undefined | null): string {
   if (!value) return '—';
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '—' : date.toISOString().slice(0, 10);
+}
+
+const DAY = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+/** The same date as an officer says it — `4 Aug 2026` — for a list that is read, not sorted by eye. */
+export function formatDay(value: string | undefined | null): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '—' : DAY.format(date).replace(/\u00a0/g, ' ');
 }
