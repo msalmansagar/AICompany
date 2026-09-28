@@ -155,9 +155,10 @@ namespace EDP.RuleRuntime.Crm
         {
             var correlationId = Param(context, "CorrelationId");
             if (string.IsNullOrEmpty(correlationId)) return null;
-            var maxLength = EngineContract.Current.CorrelationIdMaxLength;
-            if (correlationId!.Length > maxLength)
-                throw new InvalidPluginExecutionException($"CorrelationId must be 1 to {maxLength} characters.");
+            var contract = EngineContract.Current;
+            if (correlationId!.Length < contract.CorrelationIdMinLength || correlationId.Length > contract.CorrelationIdMaxLength)
+                throw new InvalidPluginExecutionException(
+                    $"CorrelationId must be {contract.CorrelationIdMinLength} to {contract.CorrelationIdMaxLength} characters.");
             return correlationId;
         }
 

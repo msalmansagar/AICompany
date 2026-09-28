@@ -36,6 +36,7 @@ namespace EDP.RuleRuntime.Contract
             RuleKeyMinLength = ruleKey.GetProperty("minLength").GetInt32();
             RuleKeyMaxLength = ruleKey.GetProperty("maxLength").GetInt32();
             var correlation = root.GetProperty("correlationId");
+            CorrelationIdMinLength = correlation.GetProperty("minLength").GetInt32();
             CorrelationIdMaxLength = correlation.GetProperty("maxLength").GetInt32();
             var hash = root.GetProperty("contentHash");
             ExcludedTopLevelProperties = hash.GetProperty("excludedTopLevelProperties").EnumerateArray().Select(p => p.GetString()!).ToArray();
@@ -52,6 +53,7 @@ namespace EDP.RuleRuntime.Contract
         public Regex RuleKeyPattern { get; }
         public int RuleKeyMinLength { get; }
         public int RuleKeyMaxLength { get; }
+        public int CorrelationIdMinLength { get; }
         public int CorrelationIdMaxLength { get; }
         public IReadOnlyList<string> ExcludedTopLevelProperties { get; }
         public string ExcludedTopLevelPropertyPrefix { get; }

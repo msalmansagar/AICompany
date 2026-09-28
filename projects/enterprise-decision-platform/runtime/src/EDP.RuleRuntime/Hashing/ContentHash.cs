@@ -28,7 +28,7 @@ namespace EDP.RuleRuntime.Hashing
             if (document.RootElement.ValueKind != JsonValueKind.Object)
                 throw new FormatException("PCRM must be a JSON object.");
             var builder = new StringBuilder();
-            WriteObject(document.RootElement, builder, isTopLevel: true, contract);
+            WriteMembers(document.RootElement.EnumerateObject().Where(p => !IsExcludedMetadata(p.Name, contract)), builder, contract);
             return builder.ToString();
         }
 
@@ -43,7 +43,7 @@ namespace EDP.RuleRuntime.Hashing
         {
             switch (value.ValueKind)
             {
-                case JsonValueKind.Object: WriteObject(value, builder, isTopLevel: false, contract); break;
+                case JsonValueKind.Object: WriteMembers(value.EnumerateObject(), builder, contract); break;
                 case JsonValueKind.Array: WriteArray(value, builder, contract); break;
                 case JsonValueKind.String: WriteString(value.GetString()!, builder); break;
                 case JsonValueKind.Number: builder.Append(CanonicalNumber.Canonicalize(value.GetRawText(), contract.MaxExponentMagnitude)); break;
@@ -53,13 +53,13 @@ namespace EDP.RuleRuntime.Hashing
             }
         }
 
-        private static void WriteObject(JsonElement element, StringBuilder builder, bool isTopLevel, EngineContract contract)
+        /// <summary>Write an object from its members: nulls dropped, keys NFC and sorted by UTF-16 code unit.</summary>
+        private static void WriteMembers(IEnumerable<JsonProperty> properties, StringBuilder builder, EngineContract contract)
         {
             var members = new SortedDictionary<string, JsonElement>(StringComparer.Ordinal);
-            foreach (var property in element.EnumerateObject())
+            foreach (var property in properties)
             {
                 if (property.Value.ValueKind == JsonValueKind.Null) continue;
-                if (isTopLevel && IsExcludedMetadata(property.Name, contract)) continue;
                 var key = property.Name.Normalize(NormalizationForm.FormC);
                 if (members.ContainsKey(key)) throw new FormatException($"Duplicate key '{key}' in PCRM.");
                 members.Add(key, property.Value);
