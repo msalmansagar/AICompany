@@ -37,7 +37,7 @@ function fakeClient(rules, { keyStatuses = [] } = {}) {
       rule.ruleKey = body.qdb_edp_rulekey;
       rule.modifiedOn = '2026-10-01T00:00:00Z';
     },
-    post: async (p, body) => { writes.push({ method: 'POST', path: p, body }); keys.push({ SchemaName: body.SchemaName, KeyAttributes: body.KeyAttributes }); },
+    post: async (p, body, headers) => { writes.push({ method: 'POST', path: p, body, headers }); keys.push({ SchemaName: body.SchemaName, KeyAttributes: body.KeyAttributes }); },
   };
 }
 
@@ -175,6 +175,12 @@ test('applyRollback_RestoresEmptyKeys', async () => {
 
 test('uniquenessKeyDefinition_IsASingleColumnKeyOnRuleKey', () => {
   assert.deepEqual(uniquenessKeyDefinition().KeyAttributes, ['qdb_edp_rulekey']);
+});
+
+test('createUniquenessKey_IsCreatedInsideTheRuleEngineSolution', async () => {
+  const client = fakeClient(preBackfillRules());
+  await createUniquenessKey(client, () => {});
+  assert.deepEqual(client.writes[0].headers, { 'MSCRM.SolutionUniqueName': 'BusinessRuleEngine' });
 });
 
 test('waitForActive_PendingThenActive_ReturnsActive', async () => {

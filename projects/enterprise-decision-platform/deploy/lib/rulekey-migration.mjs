@@ -14,6 +14,10 @@ const RULE_SET = 'qdb_edp_rules';
 const KEY_ATTRIBUTE = 'qdb_edp_rulekey';
 export const UNIQUENESS_KEY_SCHEMA_NAME = 'qdb_edp_rulekey_uniqueness';
 
+// FR-B3-11: the key is created inside the solution that owns qdb_edp_rule, so it travels with
+// solution export/import. Key VALUES are rule data and travel with the rule records.
+export const RULE_ENGINE_SOLUTION = 'BusinessRuleEngine';
+
 export function loadMapping(file = path.join(here, '..', 'registration', 'rulekey-mapping.json')) {
   return JSON.parse(readFileSync(file, 'utf8'));
 }
@@ -155,7 +159,7 @@ export function uniquenessKeyDefinition() {
 }
 
 export async function createUniquenessKey(client, log) {
-  await client.post(`EntityDefinitions(LogicalName='qdb_edp_rule')/Keys`, uniquenessKeyDefinition());
+  await client.post(`EntityDefinitions(LogicalName='qdb_edp_rule')/Keys`, uniquenessKeyDefinition(), { 'MSCRM.SolutionUniqueName': RULE_ENGINE_SOLUTION });
   log({ action: 'create-uniqueness-key', schemaName: UNIQUENESS_KEY_SCHEMA_NAME });
 }
 

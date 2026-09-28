@@ -35,8 +35,8 @@ export async function createDataverseClient(envPath = process.env.EDP_ENV_PATH) 
   const orgUrl = settings.DATAVERSE_URL.replace(/\/$/, '');
   const token = await acquireToken(settings, orgUrl);
   const headers = { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json', 'OData-Version': '4.0', 'OData-MaxVersion': '4.0' };
-  const send = async (method, path, body) => {
-    const response = await fetch(`${orgUrl}${API_PATH}/${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  const send = async (method, path, body, extraHeaders = {}) => {
+    const response = await fetch(`${orgUrl}${API_PATH}/${path}`, { method, headers: { ...headers, ...extraHeaders }, body: body === undefined ? undefined : JSON.stringify(body) });
     const text = await response.text();
     if (!response.ok) throw new Error(`${method} ${path} failed: HTTP ${response.status} ${text.slice(0, 300)}`);
     return text ? JSON.parse(text) : null;
@@ -45,7 +45,7 @@ export async function createDataverseClient(envPath = process.env.EDP_ENV_PATH) 
     orgUrl,
     get: (path) => send('GET', path),
     patch: (path, body) => send('PATCH', path, body),
-    post: (path, body) => send('POST', path, body),
+    post: (path, body, extraHeaders) => send('POST', path, body, extraHeaders),
   };
 }
 

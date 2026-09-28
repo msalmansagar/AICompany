@@ -56,6 +56,12 @@ namespace EDP.RuleRuntime.Tests
             Assert.Empty(mismatches);
         }
 
+        /// <summary>AC-4: hashing is total over the live rules; no captured version fails to hash.</summary>
+        [Theory]
+        [MemberData(nameof(RecordedVersions))]
+        public void ContentHash_EveryCapturedVersion_Computes(string ruleVersionId)
+            => Assert.Matches("^[0-9a-f]{64}$", EDP.RuleRuntime.Hashing.ContentHash.Compute(PcrmOf(ruleVersionId)));
+
         [Fact]
         public void Generator_SamePcrm_ProducesTheSameCases()
         {
