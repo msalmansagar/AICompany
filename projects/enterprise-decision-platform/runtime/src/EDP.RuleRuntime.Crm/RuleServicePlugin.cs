@@ -112,7 +112,7 @@ namespace EDP.RuleRuntime.Crm
         {
             var pcrmJson = ResolvePcrm(service, context, requirePublished: false);
             var identity = ResolveIdentity(service, context);
-            var ruleId = identity.RuleId;
+            var ruleId = identity.RequireRuleId();
             var scenariosJson = ScenarioStore.LoadScenariosJson(service, ruleId);
             var runtime = new RuleRuntimeService(new OrgServiceMetadataResolver(service));
             var summary = ScenarioRunner.Run(scenariosJson, pcrmJson, runtime, DateTime.UtcNow);
@@ -294,7 +294,7 @@ namespace EDP.RuleRuntime.Crm
         private object GetRuleHistory(IOrganizationService service, IPluginExecutionContext context)
         {
             var identity = ResolveIdentity(service, context);
-            var ruleId = identity.RuleId;
+            var ruleId = identity.RequireRuleId();
             var query = new QueryExpression("qdb_edp_ruleversion")
             {
                 ColumnSet = new ColumnSet("qdb_edp_ruleversionid", "qdb_edp_versionnumber", "qdb_edp_lifecyclestate", "qdb_edp_ispinned", "qdb_edp_effectivefrom", "qdb_edp_effectiveto", "createdon"),
@@ -323,7 +323,7 @@ namespace EDP.RuleRuntime.Crm
         private object ResolveEffectiveVersion(IOrganizationService service, IPluginExecutionContext context)
         {
             var identity = ResolveIdentity(service, context);
-            var ruleId = identity.RuleId;
+            var ruleId = identity.RequireRuleId();
             var asOf = ParamDate(context, "AsOf") ?? DateTime.UtcNow;
             var candidates = PublishedCandidates(service, ruleId);
             var winner = EffectiveVersionResolver.Resolve(candidates, asOf);
@@ -368,7 +368,7 @@ namespace EDP.RuleRuntime.Crm
         private object GetRuleDocumentation(IOrganizationService service, IPluginExecutionContext context)
         {
             var identity = ResolveIdentity(service, context);
-            var ruleId = identity.RuleId;
+            var ruleId = identity.RequireRuleId();
             var query = new QueryExpression("qdb_edp_ruledocumentation")
             {
                 ColumnSet = new ColumnSet("qdb_edp_content"),

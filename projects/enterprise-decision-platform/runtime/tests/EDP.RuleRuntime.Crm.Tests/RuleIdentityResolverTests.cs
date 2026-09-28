@@ -107,6 +107,31 @@ namespace EDP.RuleRuntime.Crm.Tests
         public void Resolve_NoIdentifier_IsRefused()
             => Assert.Contains("Provide RuleVersionId, RuleId, RuleKey, or RuleName", Refusal(new RuleIdentityRequest()));
 
+        private static readonly Guid OrphanVersion = Guid.Parse("00000000-0000-0000-0000-0000000000f2");
+
+        private static FakeOrganizationService OrgWithOrphan()
+        {
+            var fake = Org();
+            fake.RetrieveById[OrphanVersion] = new Entity("qdb_edp_ruleversion", OrphanVersion);
+            return fake;
+        }
+
+        [Fact]
+        public void Resolve_OrphanedVersionAlone_ResolvesWithNoRule()
+            => Assert.Null(new RuleIdentityResolver(OrgWithOrphan()).Resolve(new RuleIdentityRequest { RuleVersionId = OrphanVersion }).RuleId);
+
+        [Fact]
+        public void Resolve_OrphanedVersionWithARuleId_IsRefusedWithEdp070()
+            => Assert.StartsWith("EDP070", Assert.Throws<InvalidPluginExecutionException>(
+                () => new RuleIdentityResolver(OrgWithOrphan()).Resolve(new RuleIdentityRequest { RuleVersionId = OrphanVersion, RuleId = Other })).Message);
+
+        [Fact]
+        public void RequireRuleId_OrphanedVersion_IsRefused()
+        {
+            var identity = new RuleIdentityResolver(OrgWithOrphan()).Resolve(new RuleIdentityRequest { RuleVersionId = OrphanVersion });
+            Assert.Throws<InvalidPluginExecutionException>(() => identity.RequireRuleId());
+        }
+
         [Fact]
         public void Resolve_KeyHeldByTwoRules_IsRefusedRatherThanGuessed()
         {

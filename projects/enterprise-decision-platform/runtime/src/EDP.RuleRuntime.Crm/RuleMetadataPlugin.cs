@@ -44,7 +44,7 @@ namespace EDP.RuleRuntime.Crm
             try
             {
                 var identity = new RuleIdentityResolver(service).Resolve(RuleIdentityRequest.FromContext(context));
-                var version = ResolveVersion(service, context, identity.RuleId);
+                var version = ResolveVersion(service, context, identity);
                 var result = Project(context.MessageName, version, identity);
                 context.OutputParameters["ResultJson"] = JsonSerializer.Serialize(result);
             }
@@ -62,7 +62,7 @@ namespace EDP.RuleRuntime.Crm
         /// Resolve the target rule version once the rule itself is known: RuleVersionId directly,
         /// else the given Version number of that rule, else its latest Published version.
         /// </summary>
-        private static Entity ResolveVersion(IOrganizationService service, IPluginExecutionContext context, Guid ruleId)
+        private static Entity ResolveVersion(IOrganizationService service, IPluginExecutionContext context, RuleIdentity identity)
         {
             var columns = new ColumnSet(
                 "qdb_edp_ruleversionid", "qdb_edp_ruleversionname", "qdb_edp_pcrmjson",
@@ -77,7 +77,7 @@ namespace EDP.RuleRuntime.Crm
                 ColumnSet = columns,
                 TopCount = 1,
                 Orders = { new OrderExpression("qdb_edp_versionnumber", OrderType.Descending) },
-                Criteria = { Conditions = { new ConditionExpression("qdb_edp_ruleid", ConditionOperator.Equal, ruleId) } }
+                Criteria = { Conditions = { new ConditionExpression("qdb_edp_ruleid", ConditionOperator.Equal, identity.RequireRuleId()) } }
             };
 
             var versionNumber = ParamInt(context, "Version");
