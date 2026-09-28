@@ -62,7 +62,7 @@ namespace EDP.RuleRuntime.Inputs
         private static void CheckInput(PcrmDocument document, PcrmInput input, IDictionary<string, object?> values,
             InputOrigin origin, List<RuleDiagnostic> diagnostics)
         {
-            var present = values.TryGetValue(input.Name, out var value);
+            var present = values.TryGetValue(input.Name, out var value) && !IsUnsourcedDeclaredFact(input, value, origin);
             if (!present || value == null)
             {
                 CheckPresence(input, present, diagnostics);
@@ -79,6 +79,13 @@ namespace EDP.RuleRuntime.Inputs
             var severity = document.IsStrict ? RuleErrorSeverity.Error : RuleErrorSeverity.Warning;
             diagnostics.Add(new RuleDiagnostic(check.Code, $"Input '{input.Name}': {check.Reason}", severity, input.Name));
         }
+
+        /// <summary>
+        /// The record path carries every declared fact as null (FR-B1-04: never read from the record),
+        /// so there a null declared fact means "nobody supplied it", not "supplied as null".
+        /// </summary>
+        private static bool IsUnsourcedDeclaredFact(PcrmInput input, object? value, InputOrigin origin)
+            => origin == InputOrigin.Record && input.IsDeclaredFact && value == null;
 
         private static void CheckPresence(PcrmInput input, bool present, List<RuleDiagnostic> diagnostics)
         {

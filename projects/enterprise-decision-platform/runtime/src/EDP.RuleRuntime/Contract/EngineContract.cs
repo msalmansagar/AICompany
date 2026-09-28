@@ -28,6 +28,7 @@ namespace EDP.RuleRuntime.Contract
             var strict = root.GetProperty("strictContract");
             StrictSchemaVersion = strict.GetProperty("schemaVersion").GetString()!;
             StrictInputContract = strict.GetProperty("inputContract").GetString()!;
+            LenientInputContract = strict.GetProperty("lenientInputContract").GetString()!;
             _strictKinds = root.GetProperty("inputTypes").EnumerateArray().ToDictionary(
                 t => t.GetProperty("name").GetString()!, t => ParseKind(t.GetProperty("strict")), StringComparer.OrdinalIgnoreCase);
             var ruleKey = root.GetProperty("ruleKey");
@@ -47,6 +48,7 @@ namespace EDP.RuleRuntime.Contract
 
         public string StrictSchemaVersion { get; }
         public string StrictInputContract { get; }
+        public string LenientInputContract { get; }
         public Regex RuleKeyPattern { get; }
         public int RuleKeyMinLength { get; }
         public int RuleKeyMaxLength { get; }

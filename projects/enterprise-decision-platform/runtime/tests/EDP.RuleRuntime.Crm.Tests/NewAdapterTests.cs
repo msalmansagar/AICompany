@@ -153,7 +153,14 @@ namespace EDP.RuleRuntime.Crm.Tests
         public void GetInputSchema_projects_declared_inputs()
         {
             var fake = new FakeOrganizationService();
-            fake.RetrieveResults["qdb_edp_ruleversion"] = new Entity("qdb_edp_ruleversion", Guid.NewGuid()) { ["qdb_edp_pcrmjson"] = TablePcrm };
+            var ruleId = Guid.NewGuid();
+            // A version always belongs to a rule (the lookup is required in Dataverse); the resolver reads both.
+            fake.RetrieveResults["qdb_edp_ruleversion"] = new Entity("qdb_edp_ruleversion", Guid.NewGuid())
+            {
+                ["qdb_edp_pcrmjson"] = TablePcrm,
+                ["qdb_edp_ruleid"] = new EntityReference("qdb_edp_rule", ruleId)
+            };
+            fake.RetrieveResults["qdb_edp_rule"] = new Entity("qdb_edp_rule", ruleId) { ["qdb_edp_rulename"] = "Loan DOA" };
             var json = InvokeResult(new RuleMetadataPlugin(), fake, "qdb_edp_GetInputSchema",
                 ("RuleVersionId", Guid.NewGuid().ToString()));
             Assert.Contains("loanAmount", json);

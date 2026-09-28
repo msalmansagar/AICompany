@@ -8,7 +8,7 @@ namespace EDP.RuleRuntime.Analytics
     /// <summary>One execution-log row reduced to the fields analytics needs.</summary>
     public sealed class LogEntry
     {
-        public string Outcome { get; set; } = "";      // "matched" | "no-match" | "error"
+        public string Outcome { get; set; } = "";      // "matched" | "no-match" | "rejected" | "error"
         public long DurationMs { get; set; }
         public DateTime ExecutedOnUtc { get; set; }
         public string VersionKey { get; set; } = "";    // rule-version id, or "adhoc" for unsaved runs
@@ -42,6 +42,9 @@ namespace EDP.RuleRuntime.Analytics
         public int Matched { get; set; }
         public int NoMatch { get; set; }
         public int Error { get; set; }
+
+        /// <summary>Inputs refused by a strict rule's contract (FR-B2-06); neither a match nor an engine error.</summary>
+        public int Rejected { get; set; }
         public double MatchRate { get; set; }
         public double ErrorRate { get; set; }
         public LatencyStats Latency { get; set; } = new LatencyStats();
@@ -56,7 +59,7 @@ namespace EDP.RuleRuntime.Analytics
     /// </summary>
     public static class AnalyticsAggregator
     {
-        private const string Matched = "matched", NoMatch = "no-match", Error = "error";
+        private const string Matched = "matched", NoMatch = "no-match", Error = "error", Rejected = "rejected";
 
         public static AnalyticsSummary Aggregate(IEnumerable<LogEntry> entries, DateTime fromUtc, DateTime toUtc, int topVersions = 10)
         {
@@ -69,6 +72,7 @@ namespace EDP.RuleRuntime.Analytics
                 Matched = rows.Count(r => Is(r, Matched)),
                 NoMatch = rows.Count(r => Is(r, NoMatch)),
                 Error = rows.Count(r => Is(r, Error)),
+                Rejected = rows.Count(r => Is(r, Rejected)),
             };
             summary.MatchRate = Ratio(summary.Matched, summary.Total);
             summary.ErrorRate = Ratio(summary.Error, summary.Total);
