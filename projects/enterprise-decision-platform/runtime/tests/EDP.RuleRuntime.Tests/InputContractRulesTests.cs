@@ -64,6 +64,13 @@ namespace EDP.RuleRuntime.Tests
         }
 
         [Fact]
+        public void Validate_StrictRecordBoundLookup_IsAllowed()
+        {
+            var diagnostics = Validate(Strict("{\"name\":\"owner\",\"type\":\"Lookup\",\"binding\":\"ownerid\"}", EmptyLogic));
+            Assert.DoesNotContain(diagnostics, d => d.Code == "EDP066");
+        }
+
+        [Fact]
         public void Validate_LenientLookupInput_IsAllowed()
         {
             var diagnostics = Validate("{\"inputs\":[{\"name\":\"owner\",\"type\":\"Lookup\"}],\"logic\":" + EmptyLogic + "}");

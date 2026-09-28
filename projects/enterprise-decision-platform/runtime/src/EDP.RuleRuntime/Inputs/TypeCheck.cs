@@ -50,7 +50,9 @@ namespace EDP.RuleRuntime.Inputs
                 case StrictTypeKind.Date: return AsDate(value);
                 case StrictTypeKind.DateTime: return AsDateTime(value);
                 case StrictTypeKind.Collection: return IsList(value) ? Valid(value) : Mismatch("expected a JSON array.");
-                default: return new TypeCheck(false, null, "EDP066", $"type '{declaredType}' cannot be used in a strict rule.");
+                // Only a record-bound reference reaches here in a strict rule (a declared one is EDP066 at
+                // validation). A caller supplying it sends the reference id as a JSON string, unconverted.
+                default: return value is string ? Valid(value) : Mismatch($"expected a JSON string (a {declaredType} reference id).");
             }
         }
 

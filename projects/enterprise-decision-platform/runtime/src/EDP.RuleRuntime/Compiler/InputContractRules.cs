@@ -46,9 +46,11 @@ namespace EDP.RuleRuntime.Compiler
 
         private static void CheckStrictRule(PcrmDocument document, List<RuleDiagnostic> diagnostics)
         {
-            foreach (var input in document.Inputs.Where(i => EngineContract.Current.StrictKindOf(i.Type) == StrictTypeKind.Unsupported))
+            // FR-B2-05: EDP066 is about DECLARED facts. A record-bound Lookup is read from Dataverse
+            // metadata and stays allowed; only declaring a Lookup fact in a strict rule is refused.
+            foreach (var input in document.Inputs.Where(i => i.IsDeclaredFact && EngineContract.Current.StrictKindOf(i.Type) == StrictTypeKind.Unsupported))
                 diagnostics.Add(new RuleDiagnostic("EDP066",
-                    $"Input '{input.Name}' has type '{input.Type}', which cannot be declared in a strict rule in Release 1.",
+                    $"Declared fact '{input.Name}' has type '{input.Type}', which cannot be declared in a strict rule in Release 1.",
                     RuleErrorSeverity.Error, input.Name));
             foreach (var collection in QuantifiedInputs(document))
                 diagnostics.Add(new RuleDiagnostic("EDP066",
