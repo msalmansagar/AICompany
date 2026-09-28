@@ -26,6 +26,11 @@ import { RuleSetsList } from './rulesets/RuleSetsList';
 import { RuleSetEditor } from './rulesets/RuleSetEditor';
 import { ScenariosPanel } from './scenarios/ScenariosPanel';
 import { VersionCompare } from './rules/VersionCompare';
+import { DeclaredFactsPanel } from './facts/DeclaredFactsPanel';
+import { InputRulesPanel } from './facts/InputRulesPanel';
+import { type InputRules, applyInputRules, boundInputNames, extractInputRules } from './facts/inputRules';
+import { validateRuleKey, suggestRuleKey, setRuleKeyOnce, ruleKeyProblem } from './rules/ruleKeyService';
+import { type DeclaredFact, extractDeclaredFacts, emptyValueFor, declaredFactValues, factAttributes, withDeclaredFacts } from './facts/declaredFacts';
 
 const EMPTY: DecisionGraphType = { nodes: [], edges: [] };
 const DEFAULT_ENTITY = ''; // new rules start with no table chosen — the author picks one
@@ -91,6 +96,19 @@ export function App() {
   const [drawerTab, setDrawerTab] = useState<'test' | 'validation' | 'scenarios'>('test');
   const [drawerOpen, setDrawerOpen] = useState(true);
 
+  // B1: Declared facts — inputs supplied by the caller, not read from the record (FR-B1-07).
+  const [declaredFacts, setDeclaredFacts] = useState<DeclaredFact[]>([]);
+  const [inputRules, setInputRules] = useState<InputRules>({});
+  const [showDeclaredFacts, setShowDeclaredFacts] = useState(false);
+
+  // B2: Input contract — strict (default for new rules) or lenient (legacy) (FR-B2-03).
+  const [inputContract, setInputContract] = useState<'strict' | 'lenient'>('strict');
+
+  // B3: Rule key — stable integration identity; set once and then read-only (FR-B3-04/05).
+  const [ruleKey, setRuleKey] = useState<string | null>(null);
+  const [ruleKeyDraft, setRuleKeyDraft] = useState('');
+  const [ruleKeyValidationError, setRuleKeyValidationError] = useState<string | null>(null);
+
   // Tables are fetched on demand — only when a user starts creating or opens a rule,
   // never on page load. Cached after the first load.
   async function loadEntities() {
@@ -125,10 +143,10 @@ export function App() {
     if (view !== 'editor' || authorMode !== 'canvas' || !targetEntity) return;
     let cancelled = false;
     buildEntitySchema(targetEntity)
-      .then((schema) => { if (!cancelled) setGraph((g) => withEntitySchema(g, schema)); })
+      .then((schema) => { if (!cancelled) setGraph((g) => withEntitySchema(g, withDeclaredFacts(schema, declaredFacts))); })
       .catch(() => { /* the schema is a convenience — the canvas still works without it */ });
     return () => { cancelled = true; };
-  }, [view, authorMode, targetEntity]);
+  }, [view, authorMode, targetEntity, declaredFacts]);
 
   const conditionHasClauses = (g: ConditionModel['when']): boolean => g.clauses.some((c) => c.field) || g.groups.some(conditionHasClauses);
   const hasContent = authorMode === 'table' ? table.inputs.length > 0
@@ -146,7 +164,11 @@ export function App() {
   }, [published, authorMode, view]);
 
   function currentPcrm() {
-    const meta = { name: ruleName, targetEntity };
+    return applyInputRules(surfacePcrm(), inputRules);
+  }
+
+  function surfacePcrm() {
+    const meta = { name: ruleName, targetEntity, inputContract, declaredFacts };
     if (authorMode === 'table') return tableToPcrm(table, meta);
     if (authorMode === 'conditions') return conditionsToPcrm(conditions, meta);
     return toPcrm(graph, meta);
@@ -159,6 +181,8 @@ export function App() {
     setRuleId(null); setVersionId(null); setVersionNumber(null); setLifecycle(''); setSavedLabel(''); setValidation(null);
     setEffFrom(''); setEffTo('');
     setShowTest(false); setTestResult(null); setTestError(''); setEditingEntity(false);
+    setDeclaredFacts([]); setInputRules({}); setInputContract('strict');
+    setRuleKey(null); setRuleKeyDraft(''); setRuleKeyValidationError(null);
     setStatus('Set up your new rule.'); setView('create');
     void loadEntities();
   }
@@ -190,6 +214,10 @@ export function App() {
       setVersionId(v?.versionId ?? null); setVersionNumber(v?.versionNumber ?? null);
       setLifecycle(v?.lifecycleState ?? ''); setSavedLabel('Loaded from Dataverse'); setValidation(null);
       setEffFrom(isoToInput(v?.effectiveFrom ?? null)); setEffTo(isoToInput(v?.effectiveTo ?? null));
+      setRuleKey(v?.ruleKey ?? null); setRuleKeyDraft(v?.ruleKey ?? ''); setRuleKeyValidationError(null);
+      setInputContract(v?.savedInputContract ?? 'lenient');
+      setDeclaredFacts(v?.savedPcrmInputs ? extractDeclaredFacts(v.savedPcrmInputs) : []);
+      setInputRules(v?.savedPcrmInputs ? extractInputRules(v.savedPcrmInputs) : {});
       setStatus(`Loaded ${v?.ruleName ?? ''} (version ${v?.versionNumber ?? '?'} · ${v?.lifecycleState ?? ''}).`);
     } catch (e: any) { setStatus(`Load failed: ${e.message}`); } finally { setBusy(false); }
   }
@@ -198,10 +226,23 @@ export function App() {
     setBusy(true); setStatus('Translating + saving to Dataverse…');
     try {
       const pcrm = currentPcrm();
+      const keyToSet = ruleKey ? null : ruleKeyDraft.trim();
+      const keyProblem = await ruleKeyProblem(keyToSet, !ruleId);
+      if (keyProblem) { setStatus(`Not saved: ${keyProblem}`); return; }
       const res = await saveRule({ ruleId, name: ruleName, jdmGraph: currentSource(), pcrm });
       setRuleId(res.ruleId); setVersionId(res.versionId); setVersionNumber(res.versionNumber); setLifecycle(res.lifecycle);
       setSavedLabel(res.updatedInPlace ? 'Draft updated just now' : 'Saved just now');
       if (!res.updatedInPlace) { setEffFrom(''); setEffTo(''); } // a new version starts with no effective window
+      // Write the rule key once, while it is empty (FR-B3-05): on create, or on a legacy rule without one.
+      if (keyToSet) {
+        try {
+          await setRuleKeyOnce(res.ruleId, keyToSet);
+          setRuleKey(keyToSet);
+        } catch (keyErr: any) {
+          setStatus(`Rule saved but key not set: ${keyErr.message}`);
+          void runValidation(pcrm); setBusy(false); return;
+        }
+      }
       setStatus(res.updatedInPlace
         ? `Saved ✓  draft version ${res.versionNumber} updated`
         : `Saved ✓  version ${res.versionNumber} created`);
@@ -251,7 +292,7 @@ export function App() {
   function openTest() {
     const pcrm = currentPcrm() as any;
     const seed: Record<string, unknown> = {};
-    for (const i of pcrm.inputs ?? []) seed[i.name] = '';
+    for (const i of pcrm.inputs ?? []) seed[i.name] = emptyValueFor(i.type);
     setTestInputs(JSON.stringify(seed, null, 2));
     setTestResult(null); setTestError(''); setTestRecordName(''); setShowTest(true);
   }
@@ -262,8 +303,10 @@ export function App() {
     setTestError(''); setTestRecordName(recordName);
     try {
       const inputs = await inputsFromRecord(currentPcrm(), recordId);
-      setTestInputs(JSON.stringify(inputs, null, 2));
-      setStatus(`Test inputs filled from “${recordName}”.`);
+      setTestInputs(JSON.stringify({ ...declaredFactValues(testInputs, declaredFacts), ...inputs }, null, 2));
+      const skipped = declaredFacts.length;
+      const note = skipped > 0 ? ` (${skipped} declared fact${skipped === 1 ? '' : 's'} left as you entered ${skipped === 1 ? 'it' : 'them'} — the record never supplies a declared fact)` : '';
+      setStatus(`Test inputs filled from “${recordName}”${note}.`);
     } catch (e: any) {
       setTestError(`Could not read the record: ${e.message}`);
     }
@@ -287,7 +330,15 @@ export function App() {
 
   const drawerHasContent = !!(testResult || testError || validation) || translationWarnings.length > 0 || drawerTab === 'scenarios';
   function openScenarios() { setDrawerTab('scenarios'); setDrawerOpen(true); }
-  const verdict = (r: EvaluateResult) => (!r.success ? '✗ Did not execute' : r.matched ? '✓ Matched' : '— No branch matched');
+  const verdictText = (r: EvaluateResult) => {
+    if (r.outcome === 'INPUT_REJECTED') return '⚠ Input rejected — one or more inputs failed the strict contract';
+    if (!r.success) return '✗ Did not execute';
+    return r.matched ? '✓ Matched' : '— No branch matched';
+  };
+  const verdictClass = (r: EvaluateResult) => {
+    if (r.outcome === 'INPUT_REJECTED') return 'rejected';
+    return r.success && r.matched ? 'ok' : r.success ? 'neutral' : 'bad';
+  };
 
   // Whether THIS version's window is live now (independent of other versions / lifecycle).
   const effState = (() => {
@@ -374,8 +425,22 @@ export function App() {
 
                 <label className="fld">
                   <span className="fld-lbl">Rule name</span>
-                  <input className="fld-input" value={ruleName} onChange={(e) => setRuleName(e.target.value)} placeholder="e.g. Loan Approval" />
+                  <input className="fld-input" value={ruleName} onChange={(e) => {
+                    setRuleName(e.target.value);
+                    if (!ruleKeyDraft) setRuleKeyDraft(suggestRuleKey(e.target.value));
+                  }} placeholder="e.g. Loan Approval" />
                 </label>
+
+                <div className="fld">
+                  <span className="fld-lbl">Rule key <span className="fld-opt">(required — stable integration identity)</span></span>
+                  <input className="fld-input" value={ruleKeyDraft} placeholder="e.g. loan.approval" onChange={(e) => {
+                    setRuleKeyDraft(e.target.value);
+                    const v = validateRuleKey(e.target.value);
+                    setRuleKeyValidationError(e.target.value ? (v.valid ? null : (v.error ?? null)) : null);
+                  }} />
+                  {ruleKeyValidationError && <span className="fld-error">{ruleKeyValidationError}</span>}
+                  <span className="fld-hint">Lower-case letters, digits, and dots/hyphens/underscores (e.g. loan.approval). Set once — cannot be changed after saving.</span>
+                </div>
 
                 <div className="fld">
                   <span className="fld-lbl">Which table does this rule run on?</span>
@@ -397,7 +462,7 @@ export function App() {
 
                 <div className="create-actions">
                   <button className="btn" onClick={() => setView('list')}>Cancel</button>
-                  <button className="btn primary" disabled={!ruleName.trim() || !targetEntity.trim()} onClick={createRule}>Create rule</button>
+                  <button className="btn primary" disabled={!ruleName.trim() || !targetEntity.trim() || !validateRuleKey(ruleKeyDraft.trim()).valid} onClick={createRule}>Create rule</button>
                 </div>
               </div>
             </div>
@@ -434,6 +499,15 @@ export function App() {
                   ) : (
                     <span className="badge new"><span className="dot" />Not saved</span>
                   )}
+                  {ruleKey && <span className="badge rule-key" title="Integration key — stable identifier for callers; read-only once set">{ruleKey}</span>}
+                  {!ruleKey && ruleId && !published && (
+                    <span className="rule-key-set" title="This rule has no integration key yet. It can be set once, with the next save; it cannot be changed afterwards.">
+                      <input className="fld-input" value={ruleKeyDraft} placeholder="Set rule key (once)" aria-label="Rule key"
+                        onChange={(e) => { setRuleKeyDraft(e.target.value); const v = validateRuleKey(e.target.value); setRuleKeyValidationError(e.target.value ? (v.valid ? null : (v.error ?? null)) : null); }} />
+                      {ruleKeyValidationError && <span className="fld-error">{ruleKeyValidationError}</span>}
+                    </span>
+                  )}
+                  {inputContract === 'lenient' && <span className="badge lenient" title="Lenient (legacy) — no strict input validation">Lenient (legacy)</span>}
                   {validation && (
                     <button className={`badge valid ${validation.isValid ? 'ok' : 'bad'}`} onClick={() => void runValidation()} title="Re-check against the runtime validator">
                       {validation.isValid ? '✓ Valid' : `⚠ ${validation.errorCount} issue${validation.errorCount === 1 ? '' : 's'}`}
@@ -450,6 +524,11 @@ export function App() {
                     <button className={authorMode === 'conditions' ? 'on' : ''} onClick={() => setAuthorMode('conditions')} title="Boolean expression — AND / OR / NOT groups with one outcome">Conditions</button>
                     <button className={authorMode === 'canvas' ? 'on' : ''} onClick={() => setAuthorMode('canvas')} title="GoRules canvas — expressions, functions, and switch nodes">Advanced</button>
                   </div>
+                  <button className="tb ghost" disabled={busy || published} onClick={() => setInputContract((c) => c === 'strict' ? 'lenient' : 'strict')}
+                    title={inputContract === 'strict' ? 'Strict inputs — saved with the next version. Click for Lenient (legacy)' : 'Lenient (legacy) — click to move this rule to Strict inputs; recorded in the next saved version'}>
+                    {inputContract === 'strict' ? 'Strict' : 'Lenient'}
+                  </button>
+                  <button className="tb ghost" disabled={busy} onClick={() => setShowDeclaredFacts((v) => !v)} title="Declared facts — inputs supplied by the caller, not read from the record">Facts</button>
                   <button className="tb ghost" disabled={busy} onClick={() => setShowMetadata((v) => !v)}>Fields</button>
                   <button className="tb test" disabled={busy || !hasContent} onClick={openTest} title={hasContent ? 'Test with sample inputs' : 'Add a condition first'}>▶ Test</button>
                   <button className="tb ghost" disabled={busy || !ruleId} onClick={openScenarios} title={ruleId ? 'Saved test scenarios + regression gate' : 'Save the rule first'}>⚑ Scenarios</button>
@@ -487,6 +566,12 @@ export function App() {
 
               <div className="body">
                 {showMetadata && <MetadataExplorer defaultEntity={targetEntity} onClose={() => setShowMetadata(false)} />}
+                {showDeclaredFacts && (
+                  <>
+                    <DeclaredFactsPanel facts={declaredFacts} onChange={setDeclaredFacts} disabled={published} />
+                    <InputRulesPanel names={boundInputNames(surfacePcrm())} rules={inputRules} onChange={setInputRules} disabled={published} />
+                  </>
+                )}
                 {showHistory && ruleId && <VersionCompare ruleId={ruleId} ruleName={ruleName} onClose={() => setShowHistory(false)} />}
                 <div className="editor-wrap">
                   {published && (
@@ -502,9 +587,9 @@ export function App() {
                   )}
                   <div className={`editor${published ? ' locked' : ''}`} ref={editorRef}>
                     {authorMode === 'table' ? (
-                      <DecisionTableEditor entity={targetEntity} value={table} onChange={setTable} />
+                      <DecisionTableEditor entity={targetEntity} value={table} onChange={setTable} extraAttributes={factAttributes(declaredFacts)} />
                     ) : authorMode === 'conditions' ? (
-                      <ConditionBuilder entity={targetEntity} value={conditions} onChange={setConditions} />
+                      <ConditionBuilder entity={targetEntity} value={conditions} onChange={setConditions} extraAttributes={factAttributes(declaredFacts)} />
                     ) : (
                       <JdmConfigProvider><DecisionGraph value={graph} onChange={setGraph} /></JdmConfigProvider>
                     )}
@@ -552,7 +637,7 @@ export function App() {
                         <>
                           <div className="res-block">
                             <span className="res-label">Outcome</span>
-                            <span className={`outcome ${testResult.success && testResult.matched ? 'ok' : testResult.success ? 'neutral' : 'bad'}`}>{verdict(testResult)} · {testResult.elapsedMs} ms</span>
+                            <span className={`outcome ${verdictClass(testResult)}`}>{verdictText(testResult)} · {testResult.elapsedMs} ms</span>
                           </div>
                           {Object.keys(testResult.outputs || {}).length > 0 && (
                             <div className="res-block">

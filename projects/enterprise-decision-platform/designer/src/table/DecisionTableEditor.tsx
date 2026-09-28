@@ -30,8 +30,13 @@ const optKey = (viaEntity: string | undefined, field: string) => `${viaEntity ??
  * a hit-policy corner, inline add-column, numbered rows. The difference is the cells —
  * here you pick CRM fields and operators (no expression typing).
  */
-export function DecisionTableEditor({ entity, value, onChange }: { entity: string; value: TableModel; onChange: (m: TableModel) => void }) {
-  const [attrs, setAttrs] = useState<AttributeMeta[]>([]);
+export function DecisionTableEditor({ entity, value, onChange, extraAttributes = [] }: {
+  entity: string; value: TableModel; onChange: (m: TableModel) => void;
+  /** Declared facts, offered beside the anchor entity's fields (FR-B1-07). */
+  extraAttributes?: AttributeMeta[];
+}) {
+  const [entityAttrs, setAttrs] = useState<AttributeMeta[]>([]);
+  const attrs = [...extraAttributes, ...entityAttrs.filter((a) => !extraAttributes.some((f) => f.logicalName === a.logicalName))];
   const [rels, setRels] = useState<RelationshipMeta[]>([]);
   const [children, setChildren] = useState<ChildRelationshipMeta[]>([]);
   const [relAttrs, setRelAttrs] = useState<Record<string, AttributeMeta[]>>({});

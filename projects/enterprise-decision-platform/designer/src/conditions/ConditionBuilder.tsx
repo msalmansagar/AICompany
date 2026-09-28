@@ -17,10 +17,13 @@ type FieldSource = 'entity' | 'element';
  * field-operator-value clauses, with a THEN outcome and an optional ELSE. Emits a conditionSet
  * PCRM (via conditionModel), which the runtime already executes.
  */
-export function ConditionBuilder({ entity, value, onChange }: {
+export function ConditionBuilder({ entity, value, onChange, extraAttributes = [] }: {
   entity: string; value: ConditionModel; onChange: (m: ConditionModel) => void;
+  /** Declared facts, offered beside the entity's own fields (FR-B1-07). */
+  extraAttributes?: AttributeMeta[];
 }) {
-  const [attrs, setAttrs] = useState<AttributeMeta[]>([]);
+  const [entityAttrs, setAttrs] = useState<AttributeMeta[]>([]);
+  const attrs = [...extraAttributes, ...entityAttrs.filter((a) => !extraAttributes.some((f) => f.logicalName === a.logicalName))];
   useEffect(() => {
     if (!entity) { setAttrs([]); return; }
     let live = true;

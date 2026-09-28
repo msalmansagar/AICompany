@@ -9,6 +9,7 @@ import { entityAccess } from '../dataverse/records';
 interface AggFilter { field: string; operator: string; value: unknown; }
 interface PcrmInput {
   name: string;
+  source?: string;  // "declared" = caller-supplied; never read from the record (FR-B1-03)
   binding?: string;
   via?: { relationship: string; entity: string };
   aggregate?: { function: string; childEntity: string; childLookup: string; filter?: AggFilter };
@@ -73,13 +74,19 @@ async function aggregateValue(input: PcrmInput, recordId: string): Promise<unkno
   return computeAggregate(d.value, agg.function, input.binding ?? '', agg.filter);
 }
 
-/** Test inputs for a PCRM, resolved from one record of its target entity. */
+/**
+ * Test inputs for a PCRM, resolved from one record of its target entity.
+ * Declared facts (source: "declared") are intentionally skipped — they are supplied by
+ * the caller, not the record. The caller is expected to leave them empty or pre-fill
+ * them manually (FR-B1-08).
+ */
 export async function inputsFromRecord(pcrm: any, recordId: string): Promise<Record<string, unknown>> {
   const inputs: PcrmInput[] = pcrm?.inputs ?? [];
   const anchor = await fetchRow(pcrm.targetEntity, recordId);
   const parents = new Map<string, Promise<Record<string, unknown> | null>>();
   const out: Record<string, unknown> = {};
   for (const input of inputs) {
+    if (input.source === 'declared') continue; // never read from the record (FR-B1-03)
     if (input.aggregate) out[input.name] = await aggregateValue(input, recordId);
     else if (input.via) out[input.name] = await viaValue(input, anchor, parents);
     else if (input.binding) out[input.name] = columnValue(anchor, input.binding);

@@ -23,6 +23,7 @@ const WRITE_PATTERNS = [
 
 // The designer's single writer (create or set-once) and the approved migration tool.
 export const ALLOWED_WRITERS = [
+  'designer/src/dataverse/client.ts', // writeRuleKey only: create, or set once while empty
   'deploy/lib/rulekey-migration.mjs',
 ];
 
@@ -49,8 +50,14 @@ test('ruleKeyWrites_OnlyTheAllowedWritersWriteTheColumn', () => {
   assert.deepEqual(writersOfTheKey().filter((f) => !ALLOWED_WRITERS.includes(f)), []);
 });
 
-test('ruleKeyWrites_TheBackfillTool_IsFoundAsAWriter', () => {
-  assert.ok(writersOfTheKey().includes('deploy/lib/rulekey-migration.mjs'), 'the guard must see the one known writer, or it proves nothing');
+test('ruleKeyWrites_TheKnownWriters_AreFound', () => {
+  assert.deepEqual(writersOfTheKey().sort(), [...ALLOWED_WRITERS].sort(), 'the guard must see every known writer, or it proves nothing');
+});
+
+test('ruleKeyWrites_TheDesignerWritesTheKeyInExactlyOneFunction', () => {
+  const source = readFileSync(path.join(projectRoot, 'designer', 'src', 'dataverse', 'client.ts'), 'utf8');
+  assert.equal((source.match(/qdb_edp_rulekey\s*:/g) ?? []).length, 1);
+  assert.match(source, /export async function writeRuleKey\([^)]*\)[^{]*\{\s*await req\([^;]*qdb_edp_rulekey: key/);
 });
 
 test('ruleKeyWrites_RuntimeSdksAndGateway_NeverWriteTheColumn', () => {

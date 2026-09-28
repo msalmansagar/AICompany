@@ -9,6 +9,8 @@ export interface Diagnostic { code: string; message: string; severity: string; }
 export interface EvaluateResult {
   success: boolean;
   matched: boolean;
+  /** FR-B2-06: MATCHED | NO_MATCH | INPUT_REJECTED | ENGINE_ERROR. Absent on legacy runtime. */
+  outcome?: string;
   outputs: Record<string, unknown>;
   reasonCodes: string[];
   elapsedMs: number;
@@ -38,6 +40,7 @@ async function evaluateViaCustomApi(base: string, pcrm: unknown, inputs: Record<
   return {
     success: !!d.Success,
     matched: !!d.Matched,
+    outcome: typeof d.Outcome === 'string' ? d.Outcome : undefined,
     outputs: safeParse(d.OutputsJson, {}),
     reasonCodes: safeParse(d.ReasonCodesJson, []),
     elapsedMs: d.ElapsedMs ?? 0,
