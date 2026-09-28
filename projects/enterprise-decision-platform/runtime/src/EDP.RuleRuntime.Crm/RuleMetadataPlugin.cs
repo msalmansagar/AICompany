@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text.Json;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
+using EDP.RuleRuntime.Contract;
+using EDP.RuleRuntime.Crm.Identity;
 using EDP.RuleRuntime.Pcrm;
 
 namespace EDP.RuleRuntime.Crm
@@ -16,13 +18,14 @@ namespace EDP.RuleRuntime.Crm
     /// (Command-Query Separation): every branch is a pure query.
     ///
     /// Backed messages (all unbound Functions, response property ResultJson):
-    ///   qdb_edp_GetInputSchema     — declared inputs (name/type/binding)
+    ///   qdb_edp_GetInputSchema     — declared inputs (name/type/kind/binding/required/nullable)
     ///   qdb_edp_GetOutputSchema    — declared outputs (name/type)
     ///   qdb_edp_GetRuleMetadata    — rule/version summary + declared-object counts
     ///   qdb_edp_GetPublishedVersion — resolve business identity -> published version
     ///
-    /// Version resolution (in order): RuleVersionId (direct) -> RuleId/RuleName +
-    /// optional Version number -> latest Published version. The caller references a
+    /// The rule is resolved by RuleIdentityResolver (RuleVersionId -> RuleId -> RuleKey ->
+    /// RuleName, ADR-21); then the version: RuleVersionId (direct) -> optional Version number ->
+    /// latest Published version. The caller references a
     /// rule by business identity; version selection stays inside the service (ADR-09).
     /// </summary>
     public sealed class RuleMetadataPlugin : IPlugin
@@ -40,8 +43,9 @@ namespace EDP.RuleRuntime.Crm
 
             try
             {
-                var version = ResolveVersion(service, context);
-                var result = Project(context.MessageName, version);
+                var identity = new RuleIdentityResolver(service).Resolve(RuleIdentityRequest.FromContext(context));
+                var version = ResolveVersion(service, context, identity.RuleId);
+                var result = Project(context.MessageName, version, identity);
                 context.OutputParameters["ResultJson"] = JsonSerializer.Serialize(result);
             }
             catch (InvalidPluginExecutionException)
@@ -54,8 +58,11 @@ namespace EDP.RuleRuntime.Crm
             }
         }
 
-        /// <summary>Resolve the target rule version record from business identity.</summary>
-        private static Entity ResolveVersion(IOrganizationService service, IPluginExecutionContext context)
+        /// <summary>
+        /// Resolve the target rule version once the rule itself is known: RuleVersionId directly,
+        /// else the given Version number of that rule, else its latest Published version.
+        /// </summary>
+        private static Entity ResolveVersion(IOrganizationService service, IPluginExecutionContext context, Guid ruleId)
         {
             var columns = new ColumnSet(
                 "qdb_edp_ruleversionid", "qdb_edp_ruleversionname", "qdb_edp_pcrmjson",
@@ -65,16 +72,12 @@ namespace EDP.RuleRuntime.Crm
             if (ruleVersionId.HasValue)
                 return service.Retrieve("qdb_edp_ruleversion", ruleVersionId.Value, columns);
 
-            var ruleId = ParamGuid(context, "RuleId") ?? ResolveRuleIdByName(service, ParamString(context, "RuleName"));
-            if (!ruleId.HasValue)
-                throw new InvalidPluginExecutionException("Provide RuleVersionId, RuleId, or RuleName.");
-
             var query = new QueryExpression("qdb_edp_ruleversion")
             {
                 ColumnSet = columns,
                 TopCount = 1,
                 Orders = { new OrderExpression("qdb_edp_versionnumber", OrderType.Descending) },
-                Criteria = { Conditions = { new ConditionExpression("qdb_edp_ruleid", ConditionOperator.Equal, ruleId.Value) } }
+                Criteria = { Conditions = { new ConditionExpression("qdb_edp_ruleid", ConditionOperator.Equal, ruleId) } }
             };
 
             var versionNumber = ParamInt(context, "Version");
@@ -83,33 +86,19 @@ namespace EDP.RuleRuntime.Crm
             else
                 query.Criteria.AddCondition("qdb_edp_lifecyclestate", ConditionOperator.Equal, LifecyclePublished);
 
-            var found = service.RetrieveMultiple(query).Entities.FirstOrDefault()
-                        ?? throw new InvalidPluginExecutionException("No matching rule version was found.");
-            return found;
-        }
-
-        private static Guid? ResolveRuleIdByName(IOrganizationService service, string? ruleName)
-        {
-            if (string.IsNullOrWhiteSpace(ruleName)) return null;
-            var query = new QueryExpression("qdb_edp_rule")
-            {
-                ColumnSet = new ColumnSet("qdb_edp_ruleid"),
-                TopCount = 1,
-                Criteria = { Conditions = { new ConditionExpression("qdb_edp_rulename", ConditionOperator.Equal, ruleName) } }
-            };
-            var rule = service.RetrieveMultiple(query).Entities.FirstOrDefault();
-            return rule?.Id;
+            return service.RetrieveMultiple(query).Entities.FirstOrDefault()
+                   ?? throw new InvalidPluginExecutionException("No matching rule version was found.");
         }
 
         /// <summary>Branch the projection by the invoked message name (one adapter, four contracts).</summary>
-        private static object Project(string messageName, Entity version)
+        private static object Project(string messageName, Entity version, RuleIdentity identity)
         {
             switch (messageName)
             {
                 case "qdb_edp_GetInputSchema": return InputSchema(version);
                 case "qdb_edp_GetOutputSchema": return OutputSchema(version);
-                case "qdb_edp_GetRuleMetadata": return Metadata(version);
-                case "qdb_edp_GetPublishedVersion": return PublishedVersion(version);
+                case "qdb_edp_GetRuleMetadata": return Metadata(version, identity);
+                case "qdb_edp_GetPublishedVersion": return PublishedVersion(version, identity);
                 default:
                     throw new InvalidPluginExecutionException($"Unsupported metadata message '{messageName}'.");
             }
@@ -123,9 +112,25 @@ namespace EDP.RuleRuntime.Crm
                 ruleVersionId = version.Id,
                 ruleName = pcrm.Name,
                 targetEntity = pcrm.TargetEntity,
-                inputs = pcrm.Inputs.Select(i => new { name = i.Name, type = i.Type, binding = i.Binding ?? i.Name }).ToList()
+                schemaVersion = pcrm.SchemaVersion,
+                inputContract = pcrm.IsStrict ? EngineContract.Current.StrictInputContract : EngineContract.Current.LenientInputContract,
+                inputs = pcrm.Inputs.Select(DescribeInput).ToList()
             };
         }
+
+        /// <summary>
+        /// One input for a caller (FR-B1-06, FR-B2-11). A declared fact has no binding: the caller
+        /// supplies it. A bound input with no explicit binding still reports its name, as before.
+        /// </summary>
+        private static object DescribeInput(PcrmInput input) => new
+        {
+            name = input.Name,
+            type = input.Type,
+            kind = input.IsDeclaredFact ? "declared" : "bound",
+            binding = input.IsDeclaredFact ? null : input.Binding ?? input.Name,
+            required = input.Required,
+            nullable = input.Nullable
+        };
 
         private static object OutputSchema(Entity version)
         {
@@ -140,13 +145,16 @@ namespace EDP.RuleRuntime.Crm
             return new { ruleVersionId = version.Id, ruleName = pcrm.Name, outputs };
         }
 
-        private static object Metadata(Entity version)
+        private static object Metadata(Entity version, RuleIdentity identity)
         {
             var pcrm = ParsePcrm(version);
             return new
             {
                 ruleVersionId = version.Id,
                 ruleId = version.GetAttributeValue<EntityReference>("qdb_edp_ruleid")?.Id,
+                ruleKey = identity.RuleKey,
+                nameIsAmbiguous = identity.NameIsAmbiguous,
+                matchCount = identity.NameMatchCount,
                 name = pcrm.Name,
                 schemaVersion = pcrm.SchemaVersion,
                 targetEntity = pcrm.TargetEntity,
@@ -159,12 +167,15 @@ namespace EDP.RuleRuntime.Crm
             };
         }
 
-        private static object PublishedVersion(Entity version)
+        private static object PublishedVersion(Entity version, RuleIdentity identity)
         {
             var state = LifecycleValue(version);
             return new
             {
                 ruleId = version.GetAttributeValue<EntityReference>("qdb_edp_ruleid")?.Id,
+                ruleKey = identity.RuleKey,
+                nameIsAmbiguous = identity.NameIsAmbiguous,
+                matchCount = identity.NameMatchCount,
                 ruleVersionId = version.Id,
                 versionNumber = version.GetAttributeValue<int>("qdb_edp_versionnumber"),
                 lifecycleState = state,

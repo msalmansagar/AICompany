@@ -9,6 +9,7 @@ using Microsoft.Xrm.Sdk.Query;
 using EDP.RuleRuntime;
 using EDP.RuleRuntime.Analytics;
 using EDP.RuleRuntime.Compiler;
+using EDP.RuleRuntime.Crm.Identity;
 using EDP.RuleRuntime.Crm.Metadata;
 using EDP.RuleRuntime.Crm.Scenarios;
 using EDP.RuleRuntime.Crm.Sinks;
@@ -21,13 +22,14 @@ namespace EDP.RuleRuntime.Crm
 {
     /// <summary>
     /// Enterprise Decision Service — the remaining operation surface (Phase 5). A THIN
-    /// adapter (ADR-06/ADR-EDS-01/03) backing seven Custom API messages; it branches on
-    /// the invoked message name and funnels every execution to the single runtime.
+    /// adapter (ADR-06/ADR-EDS-01/03) backing the Custom API messages dispatched in Execute;
+    /// it branches on the invoked message name and funnels every execution to the single runtime.
     ///
     /// Actions (may write execution trace): qdb_edp_ValidateRule, qdb_edp_TestRule,
-    ///   qdb_edp_ExecuteDecisionTable, qdb_edp_ExecuteRuleSet.
+    ///   qdb_edp_RunScenarios, qdb_edp_ExecuteDecisionTable, qdb_edp_ExecuteRuleSet.
     /// Functions (read-only): qdb_edp_GetRuleHistory, qdb_edp_GetRuleTemplates,
-    ///   qdb_edp_GetRuleDocumentation.
+    ///   qdb_edp_GetRuleDocumentation, qdb_edp_GetRuleAnalytics, qdb_edp_ResolveEffectiveVersion.
+    /// Rules are addressed through <see cref="RuleIdentityResolver"/> (ADR-21).
     /// All return a single ResultJson string (envelope-style, ADR-EDS-04).
     /// </summary>
     public sealed class RuleServicePlugin : IPlugin
@@ -109,8 +111,8 @@ namespace EDP.RuleRuntime.Crm
         private object RunScenarios(IOrganizationService service, IPluginExecutionContext context)
         {
             var pcrmJson = ResolvePcrm(service, context, requirePublished: false);
-            var ruleId = ResolveRuleId(service, context)
-                         ?? throw new InvalidPluginExecutionException("Provide RuleId, RuleName, or RuleVersionId.");
+            var identity = ResolveIdentity(service, context);
+            var ruleId = identity.RuleId;
             var scenariosJson = ScenarioStore.LoadScenariosJson(service, ruleId);
             var runtime = new RuleRuntimeService(new OrgServiceMetadataResolver(service));
             var summary = ScenarioRunner.Run(scenariosJson, pcrmJson, runtime, DateTime.UtcNow);
@@ -200,7 +202,7 @@ namespace EDP.RuleRuntime.Crm
                 }
                 var pcrm = decision.ResolvePcrm(m.VersionId.Value);
                 var r = decision.EvaluateInputs(pcrm, inputs, m.VersionId, context.InitiatingUserId, DateTime.UtcNow).Result;
-                results.Add(new { key = m.Key, ruleVersionId = m.VersionId, success = r.Success, matched = r.Matched, outputs = r.Outputs });
+                results.Add(new { key = m.Key, ruleVersionId = m.VersionId, outcome = r.OutcomeCode, success = r.Success, matched = r.Matched, outputs = r.Outputs });
                 if (r.Matched)
                 {
                     matchedCount++;
@@ -291,8 +293,8 @@ namespace EDP.RuleRuntime.Crm
 
         private object GetRuleHistory(IOrganizationService service, IPluginExecutionContext context)
         {
-            var ruleId = ResolveRuleId(service, context)
-                         ?? throw new InvalidPluginExecutionException("Provide RuleId, RuleName, or RuleVersionId.");
+            var identity = ResolveIdentity(service, context);
+            var ruleId = identity.RuleId;
             var query = new QueryExpression("qdb_edp_ruleversion")
             {
                 ColumnSet = new ColumnSet("qdb_edp_ruleversionid", "qdb_edp_versionnumber", "qdb_edp_lifecyclestate", "qdb_edp_ispinned", "qdb_edp_effectivefrom", "qdb_edp_effectiveto", "createdon"),
@@ -310,7 +312,7 @@ namespace EDP.RuleRuntime.Crm
                 effectiveTo = v.GetAttributeValue<DateTime?>("qdb_edp_effectiveto"),
                 createdOn = v.GetAttributeValue<DateTime?>("createdon")
             }).ToList();
-            return new { ruleId, versionCount = versions.Count, versions };
+            return new { ruleId, ruleKey = identity.RuleKey, nameIsAmbiguous = identity.NameIsAmbiguous, matchCount = identity.NameMatchCount, versionCount = versions.Count, versions };
         }
 
         /// <summary>
@@ -320,14 +322,17 @@ namespace EDP.RuleRuntime.Crm
         /// </summary>
         private object ResolveEffectiveVersion(IOrganizationService service, IPluginExecutionContext context)
         {
-            var ruleId = ResolveRuleId(service, context)
-                         ?? throw new InvalidPluginExecutionException("Provide RuleId, RuleName, or RuleVersionId.");
+            var identity = ResolveIdentity(service, context);
+            var ruleId = identity.RuleId;
             var asOf = ParamDate(context, "AsOf") ?? DateTime.UtcNow;
             var candidates = PublishedCandidates(service, ruleId);
             var winner = EffectiveVersionResolver.Resolve(candidates, asOf);
             return new
             {
                 ruleId,
+                ruleKey = identity.RuleKey,
+                nameIsAmbiguous = identity.NameIsAmbiguous,
+                matchCount = identity.NameMatchCount,
                 asOf = asOf.ToString("o"),
                 publishedCount = candidates.Count,
                 resolved = winner == null ? null : new
@@ -362,8 +367,8 @@ namespace EDP.RuleRuntime.Crm
 
         private object GetRuleDocumentation(IOrganizationService service, IPluginExecutionContext context)
         {
-            var ruleId = ResolveRuleId(service, context)
-                         ?? throw new InvalidPluginExecutionException("Provide RuleId, RuleName, or RuleVersionId.");
+            var identity = ResolveIdentity(service, context);
+            var ruleId = identity.RuleId;
             var query = new QueryExpression("qdb_edp_ruledocumentation")
             {
                 ColumnSet = new ColumnSet("qdb_edp_content"),
@@ -410,6 +415,7 @@ namespace EDP.RuleRuntime.Crm
                 matched = summary.Matched,
                 noMatch = summary.NoMatch,
                 error = summary.Error,
+                rejected = summary.Rejected,
                 matchRate = summary.MatchRate,
                 errorRate = summary.ErrorRate,
                 latency = new { avgMs = summary.Latency.AvgMs, p50Ms = summary.Latency.P50Ms, p95Ms = summary.Latency.P95Ms, maxMs = summary.Latency.MaxMs },
@@ -526,28 +532,9 @@ namespace EDP.RuleRuntime.Crm
             return pcrm!;
         }
 
-        private Guid? ResolveRuleId(IOrganizationService service, IPluginExecutionContext context)
-        {
-            var direct = ParamGuid(context, "RuleId");
-            if (direct.HasValue) return direct;
-
-            var versionId = ParamGuid(context, "RuleVersionId");
-            if (versionId.HasValue)
-            {
-                var v = service.Retrieve("qdb_edp_ruleversion", versionId.Value, new ColumnSet("qdb_edp_ruleid"));
-                return v.GetAttributeValue<EntityReference>("qdb_edp_ruleid")?.Id;
-            }
-
-            var name = ParamString(context, "RuleName");
-            if (string.IsNullOrWhiteSpace(name)) return null;
-            var query = new QueryExpression("qdb_edp_rule")
-            {
-                ColumnSet = new ColumnSet("qdb_edp_ruleid"),
-                TopCount = 1,
-                Criteria = { Conditions = { new ConditionExpression("qdb_edp_rulename", ConditionOperator.Equal, name) } }
-            };
-            return service.RetrieveMultiple(query).Entities.FirstOrDefault()?.Id;
-        }
+        /// <summary>The rule this call addresses, through the one shared resolver (IC-1, ADR-21).</summary>
+        private static RuleIdentity ResolveIdentity(IOrganizationService service, IPluginExecutionContext context)
+            => new RuleIdentityResolver(service).Resolve(RuleIdentityRequest.FromContext(context));
 
         private static Entity? ResolveLatestVersion(IOrganizationService service, Guid ruleId)
         {
@@ -590,6 +577,7 @@ namespace EDP.RuleRuntime.Crm
         private static object SerializeResult(RuleResult result, string executionSource) => new
         {
             executionSource,
+            outcome = result.OutcomeCode,
             success = result.Success,
             matched = result.Matched,
             outputs = result.Outputs,

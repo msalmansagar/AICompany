@@ -18,6 +18,7 @@ namespace EDP.RuleRuntime.Crm.Tests
             var ctx = new FakePluginContext { MessageName = "Delete" };
             var id = Guid.NewGuid();
             ctx.InputParameters["Target"] = new EntityReference(entity, id);
+            fake.RetrieveResults["qdb_edp_rule"] = new Entity("qdb_edp_rule", id);
 
             new DeleteAuditPlugin().Execute(new FakeServiceProvider(ctx, fake));
 
@@ -28,6 +29,34 @@ namespace EDP.RuleRuntime.Crm.Tests
             // F-06: actor recorded as a systemuser lookup, not just a string
             var actor = audit.GetAttributeValue<EntityReference>("qdb_edp_actorid");
             Assert.Equal("systemuser", actor.LogicalName);
+        }
+
+        [Fact]
+        public void Execute_DeletedKeyedRule_RecordsTheRetiredKey()
+        {
+            var fake = new FakeOrganizationService();
+            var ctx = new FakePluginContext { MessageName = "Delete" };
+            var id = Guid.NewGuid();
+            ctx.InputParameters["Target"] = new EntityReference("qdb_edp_rule", id);
+            fake.RetrieveResults["qdb_edp_rule"] = new Entity("qdb_edp_rule", id) { ["qdb_edp_rulekey"] = "demo.risk-tier" };
+
+            new DeleteAuditPlugin().Execute(new FakeServiceProvider(ctx, fake));
+
+            var audit = Assert.Single(fake.Created, e => e.LogicalName == "qdb_edp_ruleaudit");
+            Assert.EndsWith("; ruleKey=demo.risk-tier", audit.GetAttributeValue<string>("qdb_edp_details"));
+        }
+
+        [Fact]
+        public void Execute_DeletedVersion_DoesNotReadAnyRule()
+        {
+            var fake = new FakeOrganizationService();
+            var ctx = new FakePluginContext { MessageName = "Delete" };
+            ctx.InputParameters["Target"] = new EntityReference("qdb_edp_ruleversion", Guid.NewGuid());
+
+            new DeleteAuditPlugin().Execute(new FakeServiceProvider(ctx, fake));
+
+            var audit = Assert.Single(fake.Created, e => e.LogicalName == "qdb_edp_ruleaudit");
+            Assert.DoesNotContain("ruleKey=", audit.GetAttributeValue<string>("qdb_edp_details"));
         }
 
         [Fact]
