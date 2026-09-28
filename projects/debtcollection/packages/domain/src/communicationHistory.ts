@@ -31,6 +31,15 @@ export interface HistoryEntry {
   /** The platform's own status text. DCP never invents a delivery status (KI-83). */
   status: string;
   direction: 'outbound' | 'inbound' | 'unknown';
+  /**
+   * The collection case the entry belongs to, when the read spanned several — a customer's history
+   * across their loan accounts and facilities names which one each entry concerns.
+   */
+  caseId?: string;
+  /** What the record itself says beyond its subject — a promise's amount and date, say. Never derived. */
+  detail?: string;
+  /** Who owns the record, as the platform names them. */
+  recordedBy?: string;
 }
 
 /** What one source has handed over, and whether it has more. */

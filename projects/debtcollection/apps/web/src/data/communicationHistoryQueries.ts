@@ -187,23 +187,19 @@ export async function nextHistoryPage(
   const reads = readsFor(caseId);
   let state = cursor;
 
+  // A merge cut short by the watermark still hands over the rows it could place. They are kept and
+  // the next round asks only for what is still missing — discarding them, as this loop once did,
+  // silently lost rows whenever one source's page ended before another's (found by Customer 360).
+  const collected: HistoryEntry[] = [];
   for (let attempt = 0; attempt < 3; attempt++) {
-    const merged = mergeHistory(state.buffers, pageSize);
-    if (merged.starved.length === 0) {
-      const next = { buffers: merged.remaining, sources: state.sources };
-      return { entries: merged.page, cursor: next, complete: historyComplete(merged.remaining) };
-    }
-
-    state = await fillSources(adapter, reads, { buffers: merged.remaining, sources: state.sources },
-      merged.starved);
+    const merged = mergeHistory(state.buffers, pageSize - collected.length);
+    collected.push(...merged.page);
+    state = { buffers: merged.remaining, sources: state.sources };
+    if (merged.starved.length === 0 || collected.length >= pageSize) break;
+    state = await fillSources(adapter, reads, state, merged.starved);
   }
 
-  const final = mergeHistory(state.buffers, pageSize);
-  return {
-    entries: final.page,
-    cursor: { buffers: final.remaining, sources: state.sources },
-    complete: historyComplete(final.remaining),
-  };
+  return { entries: collected, cursor: state, complete: historyComplete(state.buffers) };
 }
 
 /** Reads one more page from each starved source, and records when a source is finished. */

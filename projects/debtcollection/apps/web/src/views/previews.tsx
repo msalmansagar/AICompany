@@ -159,7 +159,7 @@ export function CustomerPreview({ customerBusinessId, onOpen, onOpenCase, testId
   if (state.status === 'error') return <PreviewPrompt message={state.message} testId={`${testId}-unavailable`} />;
 
   const { aggregate } = state;
-  const partial = aggregate.isComplete ? '' : ' (partial)';
+  const partial = aggregate.position.source === 'rows' && !aggregate.isComplete ? ' (partial)' : '';
   return (
     <div className="preview" data-testid={testId} data-customer-id={customerBusinessId}>
       <div className="preview-head">
@@ -170,11 +170,11 @@ export function CustomerPreview({ customerBusinessId, onOpen, onOpenCase, testId
         <button type="button" className="btn primary" onClick={() => onOpen(customerBusinessId)} data-testid={`${testId}-open`}>Open Customer 360</button>
       </div>
       <FieldList testId={`${testId}-fields`} fields={[
-        { label: `Total overdue${partial}`, value: formatMoney(aggregate.totalOverdue) },
-        { label: `Total exposure${partial}`, value: formatMoney(aggregate.totalExposure) },
-        { label: 'Worst DPD', value: formatCount(aggregate.worstDpd) },
-        { label: 'Open cases', value: `${formatCount(aggregate.openCaseCount)}${aggregate.isComplete ? '' : '+'}` },
-        { label: 'Facilities', value: formatCount(aggregate.facilities.length) },
+        { label: `Total overdue${partial}`, value: formatMoney(aggregate.position.totalOverdue) },
+        { label: `Total exposure${partial}`, value: formatMoney(aggregate.position.totalExposure) },
+        { label: 'Worst DPD', value: formatCount(aggregate.position.worstDpd) },
+        { label: 'Open cases', value: formatCount(aggregate.position.openCases) },
+        { label: 'Loan accounts / facilities', value: formatCount(aggregate.financialUnits.length) },
         { label: 'Mobile', value: aggregate.profile?.mobile ?? '—' },
       ]} />
       <ul className="preview-list" data-testid={`${testId}-cases`}>

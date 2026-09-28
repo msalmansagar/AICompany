@@ -28,6 +28,7 @@ import './styles/phase7.css';
 import './styles/phase10.css';
 import './styles/lists.css';
 import './styles/sidebar.css';
+import './styles/customer360.css';
 import { toError } from './platform/errors.js';
 import { SCOPE_SEGMENT, decodeScope, encodeScope } from './data/caseListScopeUrl.js';
 import { WorkspaceVersionRoot, useWorkspaceVersion } from './v2/version/WorkspaceVersionRoot.js';

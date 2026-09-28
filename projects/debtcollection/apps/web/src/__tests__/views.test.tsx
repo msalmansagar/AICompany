@@ -281,35 +281,30 @@ describe('the Case Workspace keeps all seven approved tabs', () => {
 
 // ── Customer 360 ─────────────────────────────────────────────────────────────
 
-describe('Customer & Loan 360 aggregates and admits what it cannot source', () => {
+describe('Customer 360 aggregates and admits what it cannot source', () => {
   beforeEach(() => install(fakeXrm({
     qdb_collectioncase: [CASE_ROW],
     contact: [{ contactid: 'cust-1', fullname: 'A Customer', statecode: 0, telephone1: '+974 5555 0000' }],
   })));
 
-  it('shows the customer gathered from their cases', async () => {
+  it('shows the customer gathered from their cases, named from the CRM contact', async () => {
     await openView('customer', '28912345678');
     const view = await screen.findByTestId('view-customer');
     expect(view.getAttribute('data-customer-id')).toBe('28912345678');
-    expect(screen.getByTestId('customer-fields').textContent).toContain('contact');
+    expect(screen.getByTestId('c360-tags').textContent).toContain('Housing Loan · contact');
   });
 
-  it('lists one row per facility', async () => {
+  it('lists one card per loan account, named as a loan account and not a facility', async () => {
     await openView('customer', '28912345678');
-    const table = await screen.findByTestId('customer-facilities');
-    const rows = table.querySelectorAll('tbody tr');
-    expect(rows.length, 'the facility table must have rows before its columns mean anything').toBe(1);
-    expect(rows[0]!.getAttribute('data-facility')).toBe('HL-99001');
+    const units = await screen.findAllByTestId('c360-unit');
+    expect(units).toHaveLength(1);
+    expect([units[0]!.getAttribute('data-unit'), units[0]!.getAttribute('data-kind'), /Facility/.test(units[0]!.textContent ?? '')]).toEqual(['HL-99001', 'loanAccount', false]);
   });
 
-  it('keeps collateral, guarantor and insurance as columns and marks them unsourced', async () => {
+  it('omits collateral, guarantor and insurance rather than showing placeholders for what has no source', async () => {
     await openView('customer', '28912345678');
-    const table = await screen.findByTestId('customer-facilities');
-    const headers = [...table.querySelectorAll('thead th')].map(th => th.textContent);
-    expect(headers).toContain('Collateral');
-    expect(headers).toContain('Guarantor');
-    expect(headers).toContain('Insurance');
-    expect(table.querySelectorAll('.not-sourced').length).toBe(3);
+    await screen.findByTestId('view-customer');
+    expect(screen.getByTestId('view-customer').textContent).not.toMatch(/Collateral|Guarantor|Insurance|not yet sourced/);
   });
 
   it('lists the customers with arrears rather than a customer master when no customer is named', async () => {

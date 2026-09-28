@@ -496,6 +496,15 @@ export const SNAPSHOT_POLICY_LABELS: Readonly<Record<number, string>> = {
  * Each entry is an entity set and the columns read from it. The verifier normalises `_x_value` back
  * to `x` and drops annotations before asking the organisation whether each attribute exists.
  */
+/**
+ * What a customer's cross-case history reads from a collection activity: the activity columns plus
+ * the promise's own figures, so a promise on the timeline can state its amount and date without a
+ * second read per row. Every column is already registered through PTP_COLUMNS.
+ */
+export const HISTORY_ACTIVITY_COLUMNS = [
+  ...ACTIVITY_COLUMNS, 'qdb_ptpdate', 'qdb_promisedamount', 'qdb_ptpstatus', '_qdb_outcomeid_value',
+] as const;
+
 export const READ_REGISTRY: readonly { entitySet: string; columns: readonly string[] }[] = [
   { entitySet: ENTITY_SETS.collectionCase, columns: CASE_DETAIL_COLUMNS },
   { entitySet: ENTITY_SETS.collectionActivity, columns: PTP_COLUMNS },

@@ -1,0 +1,62 @@
+/* =====================================================================
+   Customer 360 — one customer across Housing Loan and BFD.
+   Identity and position on top; loan accounts, facilities and the
+   collection history in the main column; supporting cards in a compact
+   right rail that stacks on a narrower frame. Built from tokens.css.
+   ===================================================================== */
+.c360 { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+/* ============ Identity and position ============ */
+.c360-head { display: flex; flex-direction: column; gap: 14px; }
+.c360-identity { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.c360-avatar {
+  width: 44px; height: 44px; border-radius: 50%; flex: 0 0 auto;
+  background: var(--primary-tint); color: var(--primary);
+  display: inline-flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 600;
+}
+.c360-names { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.c360-name { font-size: 20px; font-weight: 600; overflow-wrap: anywhere; }
+.c360-tags { flex-wrap: wrap; }
+.c360-sub { color: var(--text-secondary); font-size: 12.5px; overflow-wrap: anywhere; }
+.c360-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start; }
+.c360-head .kpi-row { margin: 0; }
+
+/* ============ Two columns, one on a narrow frame ============ */
+.c360-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); gap: 14px; align-items: start; }
+.c360-main, .c360-side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+@media (max-width: 1100px) {
+  .c360-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ============ Loan accounts and facilities ============ */
+.c360-units { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+.c360-unit {
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface);
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0;
+}
+.c360-unit-head { display: flex; align-items: flex-start; gap: 10px; }
+.c360-unit-names { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.c360-unit-eyebrow { font-size: 11.5px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
+.c360-unit-title { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.c360-unit-number { font-size: 12.5px; color: var(--text-secondary); }
+.c360-unit .read-grid { border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 12px; }
+.c360-link { border: none; background: transparent; padding: 0; font: inherit; }
+.c360-link:hover { text-decoration: underline; }
+.c360-unit-actions { margin-top: 0; }
+
+.c360-next { display: flex; flex-direction: column; gap: 3px; padding: 8px 12px; border-radius: var(--radius); background: var(--surface-alt); }
+.c360-next-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-secondary); font-weight: 600; }
+.c360-next-value { font-size: 13px; }
+
+/* ============ Choosing a case ============ */
+.c360-picker { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.c360-picker-option {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; text-align: left;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+  cursor: pointer; font: inherit; color: var(--text);
+}
+.c360-picker-option:hover { background: var(--primary-tint-2); border-color: var(--primary); }
+
+/* ============ History ============ */
+.c360-timeline { list-style: none; margin: 8px 0 0; padding: 0; }
+.c360-detail { color: var(--text); }

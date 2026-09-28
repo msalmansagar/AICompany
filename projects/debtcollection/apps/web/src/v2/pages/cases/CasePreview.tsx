@@ -1,8 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { ActionPlanItem } from '@dcp/domain';
+import { useEffect, useState } from 'react';
 import { createActivityQuery, createPtpQuery, type ActivityRow, type CaseDetail, type PtpRow } from '../../../data/caseQueries.js';
-import { loadActionPlan } from '../../../data/followUpQueries.js';
-import { toPlanItem, type CaseContext } from '../../../data/actionPlanRows.js';
+import { useNextAction } from '../../../data/useNextAction.js';
 import { OrgBadge, StatusPill, formatCount, formatDate, formatMoney } from '../../../components/primitives.js';
 import { StoredPositionNotice } from '../../../components/Freshness.js';
 import { useCrmSession } from '../../../shell/context.js';
@@ -95,36 +93,13 @@ function Stat({ label, value, isStrong = false }: { label: string; value: React.
   );
 }
 
-type NextState = { status: 'loading' } | { status: 'error' } | { status: 'ready'; next?: ActionPlanItem; outstanding: number };
-
 /**
  * The first current item of the case's action plan, in the strategy's own sequence — the same
- * answer the Case Workspace gives. No strategy, or nothing outstanding, is said plainly; nothing is
- * worded from assumptions.
+ * answer the Case Workspace and Customer 360 give, through the one shared hook. No strategy, or
+ * nothing outstanding, is said plainly; nothing is worded from assumptions.
  */
 function NextAction({ detail, reloadKey }: { detail: CaseDetail; reloadKey: number }) {
-  const { adapter } = useCrmSession();
-  const [state, setState] = useState<NextState>({ status: 'loading' });
-  const context = useMemo<CaseContext>(() => ({
-    caseId: detail.id,
-    ...(detail.episodeNumber !== undefined ? { episodeNumber: detail.episodeNumber } : {}),
-    now: new Date(),
-    formatDate,
-  }), [detail.id, detail.episodeNumber]);
-
-  useEffect(() => {
-    if (!detail.strategyId) { setState({ status: 'ready', outstanding: 0 }); return undefined; }
-    let cancelled = false;
-    setState({ status: 'loading' });
-    loadActionPlan(adapter, { caseId: detail.id, strategyId: detail.strategyId })
-      .then(plan => {
-        if (cancelled) return;
-        const outstanding = plan.rows.map(row => toPlanItem(row, context)).filter(item => item.isCurrent);
-        setState({ status: 'ready', outstanding: outstanding.length, ...(outstanding[0] ? { next: outstanding[0] } : {}) });
-      })
-      .catch(() => { if (!cancelled) setState({ status: 'error' }); });
-    return () => { cancelled = true; };
-  }, [adapter, detail.id, detail.strategyId, context, reloadKey]);
+  const state = useNextAction(detail.id, detail.strategyId, detail.episodeNumber, reloadKey);
 
   return (
     <section className="v2-next" aria-label="Next action" data-testid="v2-preview-next">

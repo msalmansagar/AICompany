@@ -163,7 +163,7 @@ function V2CustomerPreview({ customerBusinessId, onOpen, onOpenCase }: {
 
   const { aggregate } = state;
   const name = aggregate.profile?.displayName ?? customerBusinessId;
-  const partial = aggregate.isComplete ? '' : ' (partial)';
+  const partial = aggregate.position.source === 'rows' && !aggregate.isComplete ? ' (partial)' : '';
   return (
     <div className="v2-split-preview" data-testid="v2-customer-preview" data-customer-id={customerBusinessId}>
       <div className="v2-preview-head">
@@ -175,11 +175,11 @@ function V2CustomerPreview({ customerBusinessId, onOpen, onOpenCase }: {
         <button type="button" className="v2-btn v2-btn-primary" onClick={() => onOpen(customerBusinessId)} data-testid="v2-customer-preview-open">Open Customer 360</button>
       </div>
       <KeyValueList testId="v2-customer-preview-fields" items={[
-        { label: `Total overdue${partial}`, value: formatMoney(aggregate.totalOverdue) },
-        { label: `Total exposure${partial}`, value: formatMoney(aggregate.totalExposure) },
-        { label: 'Worst DPD', value: formatCount(aggregate.worstDpd) },
-        { label: 'Open cases', value: `${formatCount(aggregate.openCaseCount)}${aggregate.isComplete ? '' : '+'}` },
-        { label: 'Facilities', value: formatCount(aggregate.facilities.length) },
+        { label: `Total overdue${partial}`, value: formatMoney(aggregate.position.totalOverdue) },
+        { label: `Total exposure${partial}`, value: formatMoney(aggregate.position.totalExposure) },
+        { label: 'Worst DPD', value: formatCount(aggregate.position.worstDpd) },
+        { label: 'Open cases', value: formatCount(aggregate.position.openCases) },
+        { label: 'Loan accounts / facilities', value: formatCount(aggregate.financialUnits.length) },
         { label: 'Mobile', value: aggregate.profile?.mobile ?? '—' },
       ]} />
       <ul className="v2-list" data-testid="v2-customer-preview-cases">

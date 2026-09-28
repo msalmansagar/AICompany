@@ -47,7 +47,7 @@ export function Card({ title, subtitle, children, actions }: {
 /** The prototype's five KPI tones. A tile with no tone is the neutral default. */
 export type Tone = 'ok' | 'warn' | 'bad' | 'info' | 'muted';
 
-export interface Kpi { label: string; value: string; hint?: string; tone?: Tone }
+export interface Kpi { label: string; value: string; hint?: string; tone?: Tone; /** Shown on hover — the caveat a figure carries. */ title?: string }
 
 /**
  * The KPI row.
@@ -60,7 +60,7 @@ export function KpiRow({ items }: { items: readonly Kpi[] }) {
   return (
     <div className="kpi-row">
       {items.map(kpi => (
-        <div key={kpi.label} className={kpi.tone ? `kpi-tile ${kpi.tone}` : 'kpi-tile'}>
+        <div key={kpi.label} className={kpi.tone ? `kpi-tile ${kpi.tone}` : 'kpi-tile'} title={kpi.title}>
           <div className="kpi-label">{kpi.label}</div>
           <div className="kpi-value">{kpi.value}</div>
           {kpi.hint && <div className="kpi-delta flat">{kpi.hint}</div>}

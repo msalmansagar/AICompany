@@ -78,56 +78,51 @@ afterEach(() => {
   window.location.hash = '';
 });
 
-describe('one customer across both CRMs', () => {
+describe('one customer across both CRMs — the shared screen inside the V2 frame', () => {
   it('names the customer from the CRM record', async () => {
     await openCustomer();
 
-    expect((await screen.findByTestId('v2-customer-name', {}, { timeout: 5000 })).textContent).toBe('Aisha Al-Mansouri');
+    expect((await screen.findByTestId('c360-name', {}, { timeout: 5000 })).textContent).toBe('Aisha Al-Mansouri');
+    expect(screen.getByTestId('v2-customer').className).toBe('v2-bridged');
   });
 
-  it('counts the CRMs the cases come from', async () => {
+  it('lists each unit with its own case, named by its kind', async () => {
     await openCustomer();
 
-    expect((await screen.findByTestId('v2-customer-stats', {}, { timeout: 5000 })).textContent).toContain('2 across 2 CRMs');
+    const units = await screen.findAllByTestId('c360-unit', {}, { timeout: 5000 });
+    expect(units.map(u => u.getAttribute('data-unit') + ':' + u.getAttribute('data-kind'))).toEqual(['HL-99001:loanAccount', 'BFD-4410:facility']);
   });
 
-  it('lists each facility with its own case', async () => {
+  it('opens a case from its unit', async () => {
     await openCustomer();
+    const units = await screen.findAllByTestId('c360-unit', {}, { timeout: 5000 });
 
-    const facilities = await screen.findByTestId('v2-customer-facilities', {}, { timeout: 5000 });
-    expect([facilities.textContent?.includes('HL-99001'), facilities.textContent?.includes('BFD-4410')]).toEqual([true, true]);
-  });
-
-  it('opens a case', async () => {
-    await openCustomer();
-    const cases = await screen.findByTestId('v2-customer-cases', {}, { timeout: 5000 });
-
-    await userEvent.click(within(cases).getByRole('button', { name: 'Open case COL-BFD-000777' }));
+    await userEvent.click(within(units[1]!).getByTestId('c360-unit-open'));
 
     expect(window.location.hash).toBe('#case/c-2');
   });
 });
 
 describe('honesty', () => {
-  it('marks totals partial when the read did not see every case', async () => {
+  it('says when more cases exist than were read', async () => {
     await openCustomer('#customer/28912345678', { hasMore: true });
 
-    expect(await screen.findByTestId('v2-customer-partial', {}, { timeout: 5000 })).toBeTruthy();
-    expect(screen.getByTestId('v2-customer-stats').textContent).toContain('Total overdue (partial)');
+    await screen.findByTestId('c360-units', {}, { timeout: 5000 });
+    expect(screen.getByText(/more cases than one read returns/)).toBeTruthy();
   });
 
-  it('does not mark complete totals as partial', async () => {
+  it('does not say so when every case was read', async () => {
     await openCustomer();
-    await screen.findByTestId('v2-customer-stats', {}, { timeout: 5000 });
+    await screen.findByTestId('c360-units', {}, { timeout: 5000 });
 
-    expect(screen.queryByTestId('v2-customer-partial')).toBeNull();
+    expect(screen.queryByText(/more cases than one read returns/)).toBeNull();
   });
 
   it('calls the do-not-contact settings preferences, not a collections hold', async () => {
     await openCustomer();
 
-    const prefs = await screen.findByTestId('v2-customer-prefs', {}, { timeout: 5000 });
-    expect(prefs.textContent).toContain('not a collections contact hold');
+    await screen.findByTestId('c360-prefs', {}, { timeout: 5000 });
+    expect(screen.getByText(/not a collections contact hold/)).toBeTruthy();
   });
 });
 
@@ -162,6 +157,6 @@ describe('without a customer', () => {
   it('says so when the customer has no case', async () => {
     await openCustomer('#customer/000', { cases: [] });
 
-    expect(await screen.findByTestId('v2-customer-none', {}, { timeout: 5000 })).toBeTruthy();
+    expect(await screen.findByText(/No collection case names customer 000/, {}, { timeout: 5000 })).toBeTruthy();
   });
 });
