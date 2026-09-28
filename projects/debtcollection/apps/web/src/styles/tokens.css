@@ -281,8 +281,8 @@ a { color: var(--primary); }
 /* ============ Sitemap nav ============ */
 .nav {
   background: var(--nav-bg); border-right: 1px solid var(--border);
-  width: 248px; transition: width .15s ease; overflow-y: auto; overflow-x: hidden;
-  padding: 8px 0; flex-shrink: 0;
+  width: 248px; transition: width .15s ease;
+  flex-shrink: 0;
 }
 .nav.collapsed { width: 48px; }
 .nav-group-label {

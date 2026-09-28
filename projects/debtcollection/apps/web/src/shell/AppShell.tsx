@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Icon } from '../components/primitives.js';
+import { Sidebar } from '../components/Sidebar.js';
 import { ROLE_LABELS, useCrmSession, useOrg, useRole } from './context.js';
 import { navigationFor, navigationSectionOf, type NavigationGroup } from './navigation.js';
 import type { RoleKey } from './routes.js';
@@ -115,7 +116,11 @@ export function AppShell({ commands, children }: AppShellProps) {
       </header>
 
       <div className="body">
-        <NavRail role={role} activeId={route.view.id} onNavigate={route.go} isCollapsed={isCollapsed} />
+        <NavRail
+          role={role} activeId={route.view.id} onNavigate={route.go} isCollapsed={isCollapsed}
+          header={<RailBrand scope={scope} />}
+          profile={<RailProfile userName={context.userName} roleLabel={ROLE_LABELS[role]} />}
+        />
         <main className="content">
           {commands && <div className="cmdbar" role="toolbar" aria-label="Commands">{commands}</div>}
           <div className="scroll">
@@ -150,18 +155,26 @@ function initialsOf(name: string): string {
  * V2 draws the same sections, words and order in its own style. Nothing here decides what is
  * offered; it only renders what the model offers this role.
  */
-export function NavRail({ role, activeId, onNavigate, isCollapsed = false }: {
+export function NavRail({ role, activeId, onNavigate, isCollapsed = false, header, profile }: {
   role: RoleKey;
   activeId: string;
   onNavigate: (viewId: string) => void;
   /** Icons only; every entry keeps its name as a tooltip so nothing becomes unreachable by name. */
   isCollapsed?: boolean;
+  /** The fixed header above the menu — the product and the CRM scope. */
+  header?: ReactNode;
+  /** The fixed footer below the menu — who is signed in. Always visible, never scrolled to. */
+  profile?: ReactNode;
 }) {
   const groups: readonly NavigationGroup[] = navigationFor(role);
   const current = activeId === 'case' ? 'cases' : activeId;
   return (
-    <nav className={isCollapsed ? 'nav collapsed' : 'nav'} aria-label="Workspace navigation" data-testid="nav-rail" data-collapsed={String(isCollapsed)}>
-      <div className="nav-scroll">
+    <Sidebar
+      className={isCollapsed ? 'nav collapsed' : 'nav'} label="Workspace navigation" testId="nav-rail" data-collapsed={String(isCollapsed)}
+      header={header ?? null} {...(profile !== undefined ? { profile } : {})}
+      regionClassNames={{ nav: 'nav-scroll' }}
+    >
+      <>
         {groups.map(group => (
           <div key={group.section} role="group" aria-label={group.section}>
             <div className="nav-group-label">{group.section}</div>
@@ -181,10 +194,35 @@ export function NavRail({ role, activeId, onNavigate, isCollapsed = false }: {
             ))}
           </div>
         ))}
-      </div>
-    </nav>
+      </>
+    </Sidebar>
   );
 }
+
+/** The rail's fixed header: the product and the CRM scope in view, in the prototype's type. */
+function RailBrand({ scope }: { scope: string }) {
+  return (
+    <div className="nav-brand">
+      <span className="nav-brand-name">Debt Collection</span>
+      <span className="nav-brand-scope">{RAIL_SCOPE_LABELS[scope] ?? scope}</span>
+    </div>
+  );
+}
+
+/** The rail's fixed footer: who is signed in and the working role. Long names truncate, never wrap the rail. */
+function RailProfile({ userName, roleLabel }: { userName: string; roleLabel: string }) {
+  return (
+    <div className="nav-user" title={`${userName} · ${roleLabel}`} data-testid="nav-user">
+      <span className="nav-user-avatar" aria-hidden="true">{initialsOf(userName)}</span>
+      <span className="nav-user-meta">
+        <span className="nav-user-name">{userName}</span>
+        <span className="nav-user-role">{roleLabel}</span>
+      </span>
+    </div>
+  );
+}
+
+const RAIL_SCOPE_LABELS: Readonly<Record<string, string>> = { all: 'HL + BFD', HL: 'Housing Loan', BFD: 'BFD' };
 
 /**
  * A command bar button.

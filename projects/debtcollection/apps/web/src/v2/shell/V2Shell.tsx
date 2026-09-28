@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Icon } from '../../components/primitives.js';
+import { Sidebar } from '../../components/Sidebar.js';
 import { ROLE_LABELS, useCrmSession, useOrg, useRole } from '../../shell/context.js';
 import type { Route } from '../../shell/useHashRoute.js';
 import { useWorkspaceVersion } from '../version/WorkspaceVersionRoot.js';
@@ -84,15 +85,28 @@ function V2Nav({ activeId, onNavigate }: { activeId: string; onNavigate: Go }) {
   const groups = navigationFor(role);
 
   return (
-    <nav className="v2-nav" aria-label="Workspace">
-      <div className="v2-nav-brand">
-        <span className="v2-nav-logo" aria-hidden="true">DC</span>
-        <span className="v2-nav-brandtext">
-          <span className="v2-nav-title">Collections</span>
-          <span className="v2-nav-sub">{SCOPE_LABELS[scope]}</span>
-        </span>
-      </div>
-
+    <Sidebar
+      className="v2-nav" label="Workspace" testId="v2-nav-rail"
+      regionClassNames={{ header: 'v2-nav-head', nav: 'v2-nav-scroll', profile: 'v2-nav-foot' }}
+      header={(
+        <div className="v2-nav-brand">
+          <span className="v2-nav-logo" aria-hidden="true">DC</span>
+          <span className="v2-nav-brandtext">
+            <span className="v2-nav-title">Collections</span>
+            <span className="v2-nav-sub">{SCOPE_LABELS[scope]}</span>
+          </span>
+        </div>
+      )}
+      profile={(
+        <div className="v2-nav-user" title={context.userName}>
+          <span className="v2-nav-avatar" aria-hidden="true">{initialsOf(context.userName)}</span>
+          <span className="v2-nav-usermeta">
+            <span className="v2-nav-username">{context.userName}</span>
+            <span className="v2-nav-sub">{ROLE_LABELS[role]}</span>
+          </span>
+        </div>
+      )}
+    >
       <div className="v2-nav-groups">
         {groups.map(group => (
           <div key={group.section} className="v2-nav-group" role="group" aria-label={group.section}>
@@ -114,15 +128,7 @@ function V2Nav({ activeId, onNavigate }: { activeId: string; onNavigate: Go }) {
           </div>
         ))}
       </div>
-
-      <div className="v2-nav-user" title={context.userName}>
-        <span className="v2-nav-avatar" aria-hidden="true">{initialsOf(context.userName)}</span>
-        <span className="v2-nav-usermeta">
-          <span className="v2-nav-username">{context.userName}</span>
-          <span className="v2-nav-sub">{ROLE_LABELS[role]}</span>
-        </span>
-      </div>
-    </nav>
+    </Sidebar>
   );
 }
 
