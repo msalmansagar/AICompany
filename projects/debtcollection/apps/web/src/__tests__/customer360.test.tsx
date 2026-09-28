@@ -145,7 +145,8 @@ describe('the position', () => {
     await open();
     const head = screen.getByTestId('c360-head');
 
-    await waitFor(() => expect(head.textContent).toContain('1 of 3 recorded as kept'), { timeout: WAIT });
+    await waitFor(() => expect(head.textContent).toContain('1 of 3'), { timeout: WAIT });
+    expect(head.textContent).toContain('recorded as kept');
     expect([head.textContent?.includes('QAR 1,020,000'), head.textContent?.includes('QAR 46,250'), head.textContent?.includes('74'), head.textContent?.includes('Payment verification is not currently integrated')])
       .toEqual([true, true, true, true]);
     expect(head.textContent).not.toContain('(partial)');

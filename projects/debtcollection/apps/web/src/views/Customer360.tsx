@@ -140,7 +140,10 @@ function CustomerHeader({ aggregate, actions }: { aggregate: CustomerAggregate; 
   const profile = aggregate.profile;
   const name = profile?.displayName ?? aggregate.customerBusinessId;
   const identifierLabel = profile?.table === 'contact' ? 'QID' : profile?.table === 'account' ? 'CR number' : 'Customer id';
+  // The CRM tag already names the customer's own source; the source tags add information only when
+  // the customer's units span more than one system, or when there is no CRM record to name one.
   const sources = [...new Set(aggregate.financialUnits.map(unit => financialUnitTerms(unit.organization).source))];
+  const showSources = !profile || sources.length > 1;
   const caseIds = useMemo(() => aggregate.cases.map(c => c.id), [aggregate.cases]);
   const promises = usePromisePerformance(adapter, caseIds);
   const partial = aggregate.position.source === 'rows' && !aggregate.isComplete ? ' (partial)' : '';
@@ -155,7 +158,7 @@ function CustomerHeader({ aggregate, actions }: { aggregate: CustomerAggregate; 
             {profile && <span className="pill plain info">{profile.table === 'contact' ? 'Housing Loan · contact' : 'BFD · account'}</span>}
             {!profile && <span className="pill plain warn">No linked CRM record</span>}
             {aggregate.segments.map(segment => <span key={segment} className="pill plain muted">{segment}</span>)}
-            {sources.map(source => <span key={source} className="pill plain muted">{source}</span>)}
+            {showSources && sources.map(source => <span key={source} className="pill plain muted">{source}</span>)}
           </div>
           <p className="c360-sub" data-testid="c360-sub">
             {identifierLabel} {aggregate.customerBusinessId}
@@ -170,8 +173,9 @@ function CustomerHeader({ aggregate, actions }: { aggregate: CustomerAggregate; 
         { label: 'Worst DPD', value: formatCount(aggregate.position.worstDpd), hint: 'Across loan accounts and facilities' },
         { label: 'Open cases', value: formatCount(aggregate.position.openCases) },
         {
-          label: 'Recorded PTP performance', value: describePromises(promises),
-          hint: 'Based on recorded Promise to Pay outcomes. Payment verification is not currently integrated.',
+          label: 'Recorded PTP performance', value: describePromises(promises).value,
+          hint: `${describePromises(promises).hint}Based on recorded Promise to Pay outcomes. Payment verification is not currently integrated.`,
+          title: 'Based on recorded Promise to Pay outcomes. Payment verification is not currently integrated.',
         },
       ]} />
       <StoredPositionNotice asOf={aggregate.misAsOfDate} syncedOn={aggregate.lastMisSyncOn} />
@@ -192,12 +196,12 @@ function usePromisePerformance(adapter: Parameters<typeof loadPromisePerformance
   return performance;
 }
 
-/** "1 of 3 recorded as kept"; none recorded and unknown are said as themselves, never as zero. */
-export function describePromises(performance: PromisePerformance | undefined): string {
-  if (!performance) return '—';
-  if (performance.recorded === undefined) return 'Unknown';
-  if (performance.recorded === 0) return 'No promise recorded';
-  return `${formatCount(performance.kept)} of ${formatCount(performance.recorded)} recorded as kept`;
+/** "1 of 3" with "recorded as kept" beside it; none recorded and unknown are said as themselves, never as zero. */
+export function describePromises(performance: PromisePerformance | undefined): { value: string; hint: string } {
+  if (!performance) return { value: '—', hint: '' };
+  if (performance.recorded === undefined) return { value: 'Unknown', hint: '' };
+  if (performance.recorded === 0) return { value: 'None recorded', hint: '' };
+  return { value: `${formatCount(performance.kept)} of ${formatCount(performance.recorded)}`, hint: 'recorded as kept. ' };
 }
 
 // ── Loan accounts and facilities ─────────────────────────────────────────────
