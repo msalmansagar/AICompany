@@ -7,7 +7,7 @@
 **Prepared by:** MSS Technologies, Business Analyst
 **Date:** 2026-09-27 (v1.0) · 2026-09-28 (v1.1)
 **Version:** 1.1: amended per the CEO-function decision (MC-1 to MC-5 folded in; see §0a)
-**Status:** **CEO-FUNCTION DECISION RECORDED: APPROVE WITH CONDITIONS** (`ceo-decision-edp-re-enh-001.md`). **AWAITING HUMAN SPONSOR RATIFICATION. Implementation is BLOCKED** until the sponsor ratifies this amended BRD. After ratification, the next steps per `new-feature.md` are github-researcher, then Architecture (ADRs for the `ContentHash` canonical form and the `Outcome` contract), then build.
+**Status:** **RATIFIED by the human sponsor 2026-09-28** (`sponsor-ratification-edp-re-enh-001.md`), on top of the CEO-function decision APPROVE WITH CONDITIONS (`ceo-decision-edp-re-enh-001.md`). **B1–B4 source implementation is authorised. No live deployment, live data change or live schema change is authorised**: each needs its own explicit human go-ahead (HD-3). HD-9 is resolved: **Option Y, deploy first**; IC-4 is amended accordingly.
 
 **Development baseline:** `main` @ **`4bfc1e71`** (Rule Engine Release 1 engineering baseline). It includes F2a #105, F2b #107, ADR-18 accepted (#104), the packaging build (#102), and **A7 release engineering (#168), merged and dry-run-verified but not deployed**.
 
@@ -337,7 +337,7 @@ The column `qdb_edp_rulekey` already exists (String 100, optional; verified live
 
 All three are checked by a read-only verifier, and any failure stops the step.
 
-**Two safe orders. The sponsor chooses (HD-9):**
+**Two safe orders were assessed. The sponsor chose ORDER Y (deploy first) on 2026-09-28 (HD-9).** Order X is retained below for the record only. Under Y, **RuleKey is not advertised as supported until backfill is complete and uniqueness is Active**, and the "no unexpected records were modified" check is added to the gates:
 
 | Step | Order X: key data first (**as the CEO decision states**, §10, IC-4) | Order Y: capability first (as the sponsor proposed) |
 |---|---|---|
@@ -434,15 +434,15 @@ AI-assisted engineering hours only. **Waiting time is excluded throughout:** spo
 | # | Decision | Owner | State |
 |---|---|---|---|
 | CEO-1 | Approve / revise / reject EDP-RE-ENH-001 | CEO function | **Decided 2026-09-28: APPROVE WITH CONDITIONS** (`ceo-decision-edp-re-enh-001.md`) |
-| HD-1 | **Ratify the CEO-function decision and this BRD as amended (v1.1).** Nothing is authorised until then | **Human sponsor** | open |
-| HD-2 / CEO-2 | Confirm the key format (FR-B3-02) and the **actual Appendix A key strings** (the mapping *principle* is approved) | Sponsor + CEO function | principle approved; strings open |
+| HD-1 | Ratify the CEO-function decision and this BRD as amended (v1.1) | Human sponsor | **Ratified 2026-09-28** |
+| HD-2 / CEO-2 | Confirm the key format and the actual Appendix A key strings | Sponsor + CEO function | **Approved 2026-09-28**: the 14 strings as recorded; re-verified before any live backfill |
 | HD-3 / S-1 | Authorise, individually and at the time, each §9 step and each A7 live step (`release.md` CEO ship decision + per-step go-ahead) | Sponsor | open |
 | HD-4 | Is a server-computed input fingerprint ever needed? (HMAC under an ADR, in Release 2, or never) | Sponsor | open |
-| HD-5 | Acknowledge the 1.1.0 residual: RuleKey immutability is not server-enforced (R-7) | Sponsor | open |
+| HD-5 | Acknowledge the 1.1.0 residual: RuleKey immutability is not server-enforced (R-7) | Sponsor | **Acknowledged 2026-09-28**, with Release 1 enforcement on every supported Rule Engine path (designer, APIs, SDK, gateway; a copy gets a new key; a new version keeps the key) |
 | HD-6 | Schedule the non-blocking F2 follow-ups FU-1…FU-4 | Sponsor | open |
 | HD-7 | W0-5 PDPPL / data residency: human-only production gate | Sponsor / Auditor | open |
 | HD-8 | Authorise the separate on-prem runtime-validation track | Sponsor | open |
-| **HD-9** | **Choose the rule-key migration order (§9):** X, keys first (as the CEO decision and IC-4 state, with an authoring freeze), or Y, capability first (as proposed, varying IC-4's RuleKey clause) | **Sponsor** | open |
+| **HD-9** | Rule-key migration order (§9) | Sponsor | **Decided 2026-09-28: Option Y, deploy first.** IC-4 amended. Invariant: RuleKey is not advertised as a supported consumer identity until backfill is complete and Dataverse uniqueness is Active |
 
 The CEO decision also asks for its conditions to be recorded as numbered blockers in `projects/state.yml`, which has no Rule Engine entry yet. That is a shared file, so it is proposed for the ratification commit rather than changed in this review.
 
