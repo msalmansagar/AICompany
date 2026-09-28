@@ -3,12 +3,13 @@ import { Icon } from '../../components/primitives.js';
 import { ROLE_LABELS, useCrmSession, useOrg, useRole } from '../../shell/context.js';
 import type { Route } from '../../shell/useHashRoute.js';
 import { useWorkspaceVersion } from '../version/WorkspaceVersionRoot.js';
-import { activeNavId, navigationFor, v2GroupFor, v2LabelFor } from './v2Navigation.js';
+import { activeNavigationId, navigationFor, navigationLabelOf, navigationSectionOf } from '../../shell/navigation.js';
 
 /**
  * The V2 application shell: navy navigation rail, a sticky header, and the page.
  *
- * The rail collapses to icons (the user's choice, remembered in this browser, and automatically on a
+ * The rail draws the shared business navigation (`shell/navigation.ts`) — the same sections, words
+ * and order V1 draws — in V2's own style. The rail collapses to icons (the user's choice, remembered in this browser, and automatically on a
  * narrower window) and becomes a drawer on a small one. The header's search is real — it opens the
  * case list searched by case number or customer id — and the scope and role pickers are the same ones
  * V1 uses, so both versions read the same records.
@@ -66,7 +67,7 @@ export function V2Shell({ route, children }: { route: Route & { go: Go }; childr
           type="button" className="v2-scrim" aria-label="Close navigation" tabIndex={-1}
           onClick={() => setDrawerOpen(false)}
         />
-        <V2Nav activeId={activeNavId(route.view.id)} onNavigate={navigate} />
+        <V2Nav activeId={activeNavigationId(route.view.id)} onNavigate={navigate} />
         <div className="v2-main">
           <V2Header route={route} onOpenDrawer={() => setDrawerOpen(true)} onToggleCollapsed={toggleCollapsed} isCollapsed={isCollapsed} />
           <main ref={main} tabIndex={-1} className="v2-page" data-testid="v2-content" data-view={route.view.id}>{children}</main>
@@ -94,8 +95,8 @@ function V2Nav({ activeId, onNavigate }: { activeId: string; onNavigate: Go }) {
 
       <div className="v2-nav-groups">
         {groups.map(group => (
-          <div key={group.label} className="v2-nav-group" role="group" aria-label={group.label}>
-            <div className="v2-nav-section">{group.label}</div>
+          <div key={group.section} className="v2-nav-group" role="group" aria-label={group.section}>
+            <div className="v2-nav-section">{group.section}</div>
             {group.items.map(item => (
               <button
                 key={item.id}
@@ -108,7 +109,6 @@ function V2Nav({ activeId, onNavigate }: { activeId: string; onNavigate: Go }) {
               >
                 <Icon name={item.icon} className="v2-nav-icon" />
                 <span className="v2-nav-label">{item.label}</span>
-                {item.isParked && <span className="v2-nav-badge">Parked</span>}
               </button>
             ))}
           </div>
@@ -162,8 +162,8 @@ function V2Header({ route, onOpenDrawer, onToggleCollapsed, isCollapsed }: {
         <Icon name="menu" className="v2-nav-icon" />
       </button>
       <div className="v2-header-title">
-        <div className="v2-crumb">{v2GroupFor(route.view)}</div>
-        <h1 className="v2-title">{v2LabelFor(route.view)}</h1>
+        <div className="v2-crumb">{navigationSectionOf(route.view)}</div>
+        <h1 className="v2-title">{route.view.id === 'case' ? 'Case' : navigationLabelOf(route.view)}</h1>
       </div>
       <div className="v2-header-tools">
         <form className="v2-search" role="search" onSubmit={submit}>

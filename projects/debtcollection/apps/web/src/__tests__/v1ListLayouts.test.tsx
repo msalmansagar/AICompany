@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { App } from '../App.js';
 import { NAV_COLLAPSED_KEY } from '../shell/AppShell.js';
 import { findView } from '../shell/routes.js';
-import { v2GroupFor } from '../v2/shell/v2Navigation.js';
+import { navigationSectionOf } from '../shell/navigation.js';
 import type { XrmLike } from '../platform/crmContext.js';
 
 /**
@@ -229,14 +229,13 @@ describe('the header navigation toggle', () => {
 });
 
 describe('Dashboards', () => {
-  it('sits with the officer\'s work in both workspaces', async () => {
+  it('sits under Strategy & Oversight in both workspaces, and is a supervisor\'s entry', async () => {
     const view = findView('dashboards')!;
     await open('#myday');
 
     const rail = screen.getByTestId('nav-rail');
-    const workspaceGroup = within(rail).getByText('Workspace').parentElement!;
 
-    expect([view.group, v2GroupFor(view), within(workspaceGroup).queryByTestId('nav-dashboards') !== null]).toEqual(['Workspace', 'Work', true]);
+    expect([view.group, navigationSectionOf(view), within(rail).queryByTestId('nav-dashboards')]).toEqual(['Strategy & Oversight', 'Strategy & Oversight', null]);
   });
 });
 

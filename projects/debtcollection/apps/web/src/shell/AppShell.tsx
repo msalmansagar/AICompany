@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from 'react';
 import { Icon } from '../components/primitives.js';
 import { ROLE_LABELS, useCrmSession, useOrg, useRole } from './context.js';
-import { GROUP_ORDER, isPending, viewsForRole, type ViewDefinition } from './routes.js';
+import { navigationFor, navigationSectionOf, type NavigationGroup } from './navigation.js';
+import type { RoleKey } from './routes.js';
 import { useHashRoute } from './useHashRoute.js';
 
 /** The rail's collapsed state, remembered in this browser — a convenience, never state that matters. */
@@ -40,7 +41,6 @@ export function AppShell({ commands, children }: AppShellProps) {
   const { role, setRole } = useRole();
   const { scope, setScope } = useOrg();
   const route = useHashRoute();
-  const visible = viewsForRole(role);
   const [isCollapsed, setCollapsed] = useState(readCollapsed);
   const toggleCollapsed = () => setCollapsed(previous => { writeCollapsed(!previous); return !previous; });
 
@@ -115,7 +115,7 @@ export function AppShell({ commands, children }: AppShellProps) {
       </header>
 
       <div className="body">
-        <NavRail views={visible} activeId={route.view.id} onNavigate={route.go} isCollapsed={isCollapsed} />
+        <NavRail role={role} activeId={route.view.id} onNavigate={route.go} isCollapsed={isCollapsed} />
         <main className="content">
           {commands && <div className="cmdbar" role="toolbar" aria-label="Commands">{commands}</div>}
           <div className="scroll">
@@ -123,7 +123,7 @@ export function AppShell({ commands, children }: AppShellProps) {
               <div className="page-head">
                 <div>
                   <h1>{route.view.label}</h1>
-                  <div className="page-sub">{route.view.group}</div>
+                  <div className="page-sub">{navigationSectionOf(route.view)}</div>
                 </div>
               </div>
               {children}
@@ -145,54 +145,42 @@ function initialsOf(name: string): string {
 }
 
 /**
- * The left navigation.
+ * The left navigation: the shared business model (`navigation.ts`), drawn in the prototype's rail.
  *
- * Grouped and ordered exactly as the prototype. A view whose functionality belongs to a later phase
- * still appears, marked, because the approved information architecture is part of what was approved —
- * quietly dropping the Workout group until Phase 9 would change the shape of the product.
+ * V2 draws the same sections, words and order in its own style. Nothing here decides what is
+ * offered; it only renders what the model offers this role.
  */
-export function NavRail({ views, activeId, onNavigate, isCollapsed = false }: {
-  views: readonly ViewDefinition[];
+export function NavRail({ role, activeId, onNavigate, isCollapsed = false }: {
+  role: RoleKey;
   activeId: string;
   onNavigate: (viewId: string) => void;
   /** Icons only; every entry keeps its name as a tooltip so nothing becomes unreachable by name. */
   isCollapsed?: boolean;
 }) {
+  const groups: readonly NavigationGroup[] = navigationFor(role);
+  const current = activeId === 'case' ? 'cases' : activeId;
   return (
     <nav className={isCollapsed ? 'nav collapsed' : 'nav'} aria-label="Workspace navigation" data-testid="nav-rail" data-collapsed={String(isCollapsed)}>
       <div className="nav-scroll">
-        {GROUP_ORDER.map(group => {
-          const inGroup = views.filter(v => v.group === group);
-          if (inGroup.length === 0) return null;
-          return (
-            <div key={group}>
-              <div className="nav-group-label">{group}</div>
-              {inGroup.map(view => (
-                <button
-                  key={view.id}
-                  type="button"
-                  className={view.id === activeId ? 'nav-item active' : 'nav-item'}
-                  data-testid={`nav-${view.id}`}
-                  data-pending={isPending(view) ? String(view.phase) : undefined}
-                  aria-current={view.id === activeId ? 'page' : undefined}
-                  title={view.label}
-                  onClick={() => onNavigate(view.id)}
-                >
-                  <Icon name={view.icon} />
-                  <span>{view.label}</span>
-                  {isPending(view) && (
-                    <span
-                      className="nav-count"
-                      title={view.isParked ? 'Parked by QDB' : `Phase ${view.phase} owns this functionality`}
-                    >
-                      {view.isParked ? 'Parked' : `P${view.phase}`}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          );
-        })}
+        {groups.map(group => (
+          <div key={group.section} role="group" aria-label={group.section}>
+            <div className="nav-group-label">{group.section}</div>
+            {group.items.map(item => (
+              <button
+                key={item.id}
+                type="button"
+                className={item.id === current ? 'nav-item active' : 'nav-item'}
+                data-testid={`nav-${item.id}`}
+                aria-current={item.id === current ? 'page' : undefined}
+                title={item.label}
+                onClick={() => onNavigate(item.id)}
+              >
+                <Icon name={item.icon} />
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        ))}
       </div>
     </nav>
   );

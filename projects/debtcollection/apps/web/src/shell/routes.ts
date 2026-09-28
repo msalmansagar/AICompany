@@ -1,9 +1,11 @@
 /**
- * The workspace's 21 views, exactly as the approved prototype defines them.
+ * The workspace's 21 views — every route the hash router resolves.
  *
- * This table is the single source of navigation truth: the nav rail, the router and the RBAC gating
- * all read it, so a view cannot exist in one and be missing from another. Order, grouping, labels,
- * icons, role gates and badge keys are the prototype's — nothing was reordered or renamed.
+ * This table is the single source of **routing** truth: the router and the role gating read it, and
+ * the ids are what bookmarks carry, so an id is never renamed. What the left navigation offers, in
+ * which words and in which order, is `navigation.ts`: the business model both workspaces share.
+ * Labels and sections here follow that model (user instruction, 2026-09-28); the ids, icons, role
+ * gates and badge keys are the prototype's.
  *
  * `phase` records who owns the *functionality*. A view owned by a later phase is still present,
  * still navigable and still laid out as designed; it simply says which phase will make it work,
@@ -22,7 +24,7 @@ export interface ViewDefinition {
   id: string;
   label: string;
   icon: IconName;
-  group: 'Workspace' | 'Customer' | 'Strategy' | 'Engagement' | 'Workout' | 'Oversight' | 'Admin';
+  group: 'Workspace' | 'Customer' | 'Collection' | 'Resolution' | 'Strategy & Oversight' | 'Control' | 'Administration';
   /** Absent means every role sees it. */
   roles?: readonly RoleKey[];
   /** Named count this view shows as a badge, when a bounded count is available for it. */
@@ -42,84 +44,83 @@ export const VIEWS: readonly ViewDefinition[] = [
   { id: 'myday', label: 'My Day', icon: 'home', group: 'Workspace', phase: 5 },
   { id: 'queues', label: 'Work Queues', icon: 'queue', group: 'Workspace', badge: 'openQueues', phase: 5 },
   { id: 'cases', label: 'Collection Cases', icon: 'case', group: 'Workspace', badge: 'openCases', phase: 5 },
-  // Dashboards sit with the officer's daily work rather than under Oversight (user instruction,
-  // 2026-09-27) — the one departure from the prototype's grouping, made in both workspaces alike.
-  {
-    id: 'dashboards', label: 'Dashboards', icon: 'chart', group: 'Workspace', phase: 5,
-    pendingSummary: 'Reports and dashboards run in the QDB Report Engine as you; a row opens the Cases list in the same scope. ' +
-      'Drill-down into Work Queues, export, and Portfolio MIS transitions are not wired yet.',
-  },
+  // Contextual: reached from a list, never from the navigation.
+  { id: 'case', label: 'Case Detail', icon: 'doc', group: 'Workspace', phase: 5 },
 
   // ── Customer ───────────────────────────────────────────────────────────────
-  { id: 'customer', label: 'Customer & Loan 360', icon: 'users', group: 'Customer', phase: 5 },
-  { id: 'case', label: 'Case Detail', icon: 'doc', group: 'Customer', phase: 5 },
-  { id: 'intake', label: 'Delinquency Intake', icon: 'refresh', group: 'Customer', roles: ['manager'], phase: 5 },
+  { id: 'customer', label: 'Customer 360', icon: 'users', group: 'Customer', phase: 5 },
 
-  // ── Strategy ───────────────────────────────────────────────────────────────
-  { id: 'buckets', label: 'Segmentation Matrix', icon: 'strategy', group: 'Strategy', phase: 5 },
+  // ── Collection ─────────────────────────────────────────────────────────────
   {
-    id: 'rules', label: 'Strategy Rules', icon: 'settings', group: 'Strategy', roles: ['manager'], phase: 5,
-    pendingSummary: 'Rules are readable here. Authoring and publishing belong to Phase 8, and the ' +
-      'thresholds themselves live in the QDB Rule Engine rather than in this application.',
-  },
-  {
-    id: 'actionplan', label: 'Action Plan', icon: 'check', group: 'Strategy', phase: 5,
+    id: 'actionplan', label: 'Action Plan', icon: 'check', group: 'Collection', phase: 5,
     pendingSummary: 'Every action an active strategy can resolve to is listed here. The plan for one ' +
       'case, and the work attributed to each planned action, are on that case\'s Actions tab.',
   },
-
-  // ── Engagement ─────────────────────────────────────────────────────────────
   {
-    id: 'ptp', label: 'Promise to Pay', icon: 'promise', group: 'Engagement', badge: 'openPtps', phase: 5,
+    id: 'ptp', label: 'Promise to Pay', icon: 'promise', group: 'Collection', badge: 'openPtps', phase: 5,
     pendingSummary: 'Promises are captured and worked from the case. Reminders need the Phase 7 ' +
       'communication transport, and automatic kept/broken evaluation needs the MIS payment contract.',
   },
   {
-    id: 'comms', label: 'Communication', icon: 'send', group: 'Engagement', phase: 7,
+    id: 'comms', label: 'Communications', icon: 'send', group: 'Collection', phase: 7,
     pendingSummary: 'SMS, WhatsApp, email and warning letters are Phase 7. Nothing here sends anything, ' +
       'and no send is simulated.',
   },
   {
-    id: 'templates', label: 'Template Library', icon: 'letter', group: 'Engagement', phase: 7,
+    id: 'templates', label: 'Template Library', icon: 'letter', group: 'Collection', phase: 7,
     pendingSummary: 'Template management arrives with the Communication Centre in Phase 7.',
   },
 
-  // ── Workout ────────────────────────────────────────────────────────────────
-  // Disputes, Legal Hand-off and Deceased & Claims open the operational queue on their own process
+  // ── Resolution ─────────────────────────────────────────────────────────────
+  // Disputes, Legal Hand-off and Deceased Review open the operational queue on their own process
   // (Phase 9). What each can and cannot do is said by the view itself; see `workoutQueueView.tsx`.
-  { id: 'disputes', label: 'Disputes', icon: 'dispute', group: 'Workout', badge: 'openDisputes', phase: 9 },
+  { id: 'disputes', label: 'Disputes', icon: 'dispute', group: 'Resolution', badge: 'openDisputes', phase: 9 },
   {
-    id: 'restructure', label: 'Restructuring', icon: 'restructure', group: 'Workout', phase: 9, isParked: true,
+    id: 'restructure', label: 'Restructuring', icon: 'restructure', group: 'Resolution', phase: 9, isParked: true,
     pendingSummary: 'Restructuring is parked by QDB, not cancelled. QDB handles it as Facility ' +
       'Amendment, and nothing further is built here until QDB resumes it. A restructuring ' +
       'recommendation raised by an officer appears in Work Queues today.',
   },
-  { id: 'legal', label: 'Legal Hand-off', icon: 'legal', group: 'Workout', phase: 9 },
-  { id: 'claims', label: 'Deceased & Claims', icon: 'shield', group: 'Workout', phase: 9 },
+  { id: 'legal', label: 'Legal Hand-off', icon: 'legal', group: 'Resolution', phase: 9 },
+  { id: 'claims', label: 'Deceased Review', icon: 'shield', group: 'Resolution', phase: 9 },
 
-  // ── Oversight ──────────────────────────────────────────────────────────────
+  // ── Strategy & Oversight ───────────────────────────────────────────────────
+  { id: 'buckets', label: 'Portfolio & Strategy', icon: 'strategy', group: 'Strategy & Oversight', phase: 5 },
   {
-    id: 'mis', label: 'Portfolio MIS', icon: 'trend', group: 'Oversight', roles: ['manager', 'rm'], phase: 10,
+    id: 'dashboards', label: 'Dashboards', icon: 'chart', group: 'Strategy & Oversight', phase: 5,
+    pendingSummary: 'Reports and dashboards run in the QDB Report Engine as you; a row opens the Cases list in the same scope. ' +
+      'Drill-down into Work Queues, export, and Portfolio MIS transitions are not wired yet.',
+  },
+  {
+    id: 'mis', label: 'Portfolio MIS', icon: 'trend', group: 'Strategy & Oversight', roles: ['manager', 'rm'], phase: 10,
     pendingSummary: 'Portfolio MIS needs the QDB MIS transport contract, which does not yet exist (KI-53). ' +
       'Phase 10 owns it.',
   },
   {
-    id: 'approvals', label: 'Approvals', icon: 'approve', group: 'Oversight', badge: 'pendingApprovals', phase: 10,
+    id: 'approvals', label: 'Approvals', icon: 'approve', group: 'Strategy & Oversight', badge: 'pendingApprovals', phase: 10,
     pendingSummary: 'Approval routing is Phase 10. No entity exists for it yet.',
   },
-  { id: 'audit', label: 'Audit Trail', icon: 'audit', group: 'Oversight', phase: 5 },
 
-  // ── Admin ──────────────────────────────────────────────────────────────────
+  // ── Control ────────────────────────────────────────────────────────────────
+  { id: 'audit', label: 'Audit Trail', icon: 'audit', group: 'Control', phase: 5 },
+
+  // ── Administration ─────────────────────────────────────────────────────────
+  { id: 'intake', label: 'Delinquency Intake', icon: 'refresh', group: 'Administration', roles: ['manager'], phase: 5 },
   {
-    id: 'admin', label: 'Configuration', icon: 'settings', group: 'Admin', roles: ['manager'], phase: 5,
+    id: 'rules', label: 'Strategy Rules', icon: 'settings', group: 'Administration', roles: ['manager'], phase: 5,
+    pendingSummary: 'Rules are readable here. Authoring and publishing belong to Phase 8, and the ' +
+      'thresholds themselves live in the QDB Rule Engine rather than in this application.',
+  },
+  {
+    id: 'admin', label: 'Configuration', icon: 'settings', group: 'Administration', roles: ['manager'], phase: 5,
     pendingSummary: 'Configuration is readable. Publishing, comparison, version history and export ' +
       'belong to Phases 8-10.',
   },
 ];
 
-/** Nav group order, as the prototype lays them out. */
+/** Section order, as the shared navigation model lays it out. */
 export const GROUP_ORDER: readonly ViewDefinition['group'][] = [
-  'Workspace', 'Customer', 'Strategy', 'Engagement', 'Workout', 'Oversight', 'Admin',
+  'Workspace', 'Customer', 'Collection', 'Resolution', 'Strategy & Oversight', 'Control', 'Administration',
 ];
 
 export const DEFAULT_VIEW_ID = 'myday';
