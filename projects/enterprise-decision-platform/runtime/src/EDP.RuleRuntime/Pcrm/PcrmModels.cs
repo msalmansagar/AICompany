@@ -15,6 +15,13 @@ namespace EDP.RuleRuntime.Pcrm
         [JsonPropertyName("ruleId")] public string RuleId { get; set; } = "";
         [JsonPropertyName("name")] public string Name { get; set; } = "";
         [JsonPropertyName("targetEntity")] public string TargetEntity { get; set; } = "";
+
+        /// <summary>
+        /// "strict" makes every declared input typed and required-checked before evaluation
+        /// (ADR-19). Absent or "lenient" keeps the pre-1.1 behaviour exactly. Strict requires
+        /// schemaVersion "1.1"; the validator rejects the contradiction (EDP065).
+        /// </summary>
+        [JsonPropertyName("inputContract")] public string? InputContract { get; set; }
         [JsonPropertyName("inputs")] public List<PcrmInput> Inputs { get; set; } = new List<PcrmInput>();
         [JsonPropertyName("variables")] public List<PcrmVariable> Variables { get; set; } = new List<PcrmVariable>();
 
@@ -26,6 +33,17 @@ namespace EDP.RuleRuntime.Pcrm
         [JsonPropertyName("retrievals")] public List<PcrmRetrieval> Retrievals { get; set; } = new List<PcrmRetrieval>();
         [JsonPropertyName("outputs")] public List<PcrmOutput> Outputs { get; set; } = new List<PcrmOutput>();
         [JsonPropertyName("logic")] public PcrmLogic Logic { get; set; } = new PcrmLogic();
+
+        /// <summary>Strict exactly when schemaVersion is "1.1" and inputContract is "strict" (ratified; no heuristics).</summary>
+        [JsonIgnore]
+        public bool IsStrict =>
+            string.Equals(InputContract, Contract.EngineContract.Current.StrictInputContract, System.StringComparison.Ordinal)
+            && string.Equals(SchemaVersion, Contract.EngineContract.Current.StrictSchemaVersion, System.StringComparison.Ordinal);
+
+        /// <summary>The rule declares a strict contract, whatever its schema version (used to detect EDP065).</summary>
+        [JsonIgnore]
+        public bool DeclaresStrictContract =>
+            string.Equals(InputContract, Contract.EngineContract.Current.StrictInputContract, System.StringComparison.Ordinal);
     }
 
     public sealed class PcrmInput
@@ -33,6 +51,15 @@ namespace EDP.RuleRuntime.Pcrm
         [JsonPropertyName("name")] public string Name { get; set; } = "";
         [JsonPropertyName("type")] public string Type { get; set; } = "Text";
         [JsonPropertyName("binding")] public string? Binding { get; set; }
+
+        /// <summary>Optional "declared" marker for a caller-supplied fact (FR-B1-01). Absence of any binding means the same.</summary>
+        [JsonPropertyName("source")] public string? Source { get; set; }
+
+        /// <summary>When true, evaluation is refused if the input is not supplied (EDP060).</summary>
+        [JsonPropertyName("required")] public bool Required { get; set; }
+
+        /// <summary>When false, a null value is refused (EDP061). Defaults to true, the pre-1.1 behaviour.</summary>
+        [JsonPropertyName("nullable")] public bool Nullable { get; set; } = true;
 
         /// <summary>
         /// Optional N:1 navigation. When present, <see cref="Binding"/> names a field on the
@@ -47,6 +74,13 @@ namespace EDP.RuleRuntime.Pcrm
         /// aggregate (ignored for Count).
         /// </summary>
         [JsonPropertyName("aggregate")] public PcrmAggregate? Aggregate { get; set; }
+
+        /// <summary>
+        /// A declared fact is supplied by the caller or an upstream rule and is never read from the
+        /// record (FR-B1-10): it has no binding, relationship or aggregate. Every pre-1.1 unbound input
+        /// is one by construction, which is why the chained legacy rules keep working unchanged.
+        /// </summary>
+        [JsonIgnore] public bool IsDeclaredFact => string.IsNullOrWhiteSpace(Binding) && Via == null && Aggregate == null;
     }
 
     /// <summary>Single-hop 1:N aggregation over an anchor's child collection.</summary>

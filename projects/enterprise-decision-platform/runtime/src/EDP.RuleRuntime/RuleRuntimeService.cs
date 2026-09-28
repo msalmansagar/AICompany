@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using EDP.RuleRuntime.Compiler;
 using EDP.RuleRuntime.Execution;
 using EDP.RuleRuntime.Executor;
+using EDP.RuleRuntime.Inputs;
 using EDP.RuleRuntime.Metadata;
 
 namespace EDP.RuleRuntime
@@ -18,6 +19,7 @@ namespace EDP.RuleRuntime
     {
         private readonly RuleCompiler _compiler;
         private readonly RuleExecutor _executor = new RuleExecutor();
+        private readonly InputContractValidator _inputContract = new InputContractValidator();
         private readonly ConcurrentDictionary<string, CompiledRule> _cache =
             new ConcurrentDictionary<string, CompiledRule>();
 
@@ -27,11 +29,34 @@ namespace EDP.RuleRuntime
             _compiler = new RuleCompiler(metadata);
         }
 
-        /// <summary>Compile (cached) then execute a PCRM rule against input values.</summary>
-        public RuleResult Execute(string pcrmJson, IDictionary<string, object?> inputs, DateTime? nowUtc = null)
+        /// <summary>
+        /// Compile (cached), enforce the rule's input contract, then execute (ADR-19). A strict rule
+        /// whose input breaks its contract returns INPUT_REJECTED without evaluating anything; the
+        /// values a strict rule does evaluate are already converted to their declared types.
+        /// </summary>
+        public RuleResult Execute(string pcrmJson, IDictionary<string, object?> inputs, DateTime? nowUtc = null, InputOrigin origin = InputOrigin.Caller)
         {
             var compiled = CompileCached(pcrmJson);
-            return _executor.Execute(compiled, inputs, nowUtc);
+            var validation = _inputContract.Validate(compiled.Document, inputs, origin);
+            if (validation.IsRejected)
+                return RuleResult.Rejected(validation.Diagnostics, RejectionTrace(validation));
+            return _executor.Execute(compiled, validation.Inputs, nowUtc).WithAdditionalDiagnostics(validation.Diagnostics);
+        }
+
+        /// <summary>
+        /// Check inputs against the rule's contract without evaluating. The record path calls this
+        /// after binding the anchor inputs and before any retrieval runs (FR-B2-07).
+        /// </summary>
+        public InputValidationResult ValidateInputs(string pcrmJson, IDictionary<string, object?> inputs, InputOrigin origin)
+            => _inputContract.Validate(CompileCached(pcrmJson).Document, inputs, origin);
+
+        private static ExecutionTrace RejectionTrace(InputValidationResult validation)
+        {
+            var trace = new ExecutionTrace();
+            foreach (var diagnostic in validation.Diagnostics)
+                if (diagnostic.Severity == RuleErrorSeverity.Error)
+                    trace.Add("input-contract", $"{diagnostic.Code}: {diagnostic.Message}", false);
+            return trace;
         }
 
         /// <summary>
