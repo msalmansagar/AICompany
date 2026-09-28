@@ -6,7 +6,7 @@
 **Module in focus:** Rule Engine runtime contract: inputs, identity, provenance
 **Prepared by:** MSS Technologies, Business Analyst
 **Date:** 2026-09-27 (v1.0) · 2026-09-28 (v1.1)
-**Version:** 1.1: amended per the CEO-function decision (MC-1 to MC-5 folded in; see §0a)
+**Version:** 1.1.1: v1.1 as ratified, plus the architecture-gate text reconciliations AC-1 to AC-5 (§0b). **No scope change and no change to any sponsor decision.**
 **Status:** **RATIFIED by the human sponsor 2026-09-28** (`sponsor-ratification-edp-re-enh-001.md`), on top of the CEO-function decision APPROVE WITH CONDITIONS (`ceo-decision-edp-re-enh-001.md`). **B1–B4 source implementation is authorised. No live deployment, live data change or live schema change is authorised**: each needs its own explicit human go-ahead (HD-3). HD-9 is resolved: **Option Y, deploy first**; IC-4 is amended accordingly.
 
 **Development baseline:** `main` @ **`4bfc1e71`** (Rule Engine Release 1 engineering baseline). It includes F2a #105, F2b #107, ADR-18 accepted (#104), the packaging build (#102), and **A7 release engineering (#168), merged and dry-run-verified but not deployed**.
@@ -57,6 +57,22 @@ The CEO function decided **APPROVE WITH CONDITIONS**. Its "before ratification" 
 3. **Migration order.** Decision §10 and IC-4 order the rule-key migration as backfill → uniqueness key → deploy 1.1.0. The sequence the sponsor proposed deploys first. §9 records both and their trade-off as **HD-9** for the sponsor.
 
 ---
+
+## 0b. Architecture-gate reconciliations (v1.1.1, 2026-09-28)
+
+The architecture gate (`ceo-decision-edp-re-enh-001-architecture.md`) approved ADR-19/20/21 on condition that this text be reconciled with them. These are clarifications of how the ratified requirements are carried, not new requirements:
+
+| Condition | Change in this document |
+|---|---|
+| **AC-1** | FR-B4-02: the seven identity and provenance values travel inside one `ProvenanceJson` response property, beside top-level `Outcome` and `ExecutionId`. Reason: an on-prem Process Action cannot reuse a request argument name (`RuleVersionId`, `CorrelationId`) as a response argument, and one semantic contract must serve both targets. **Sponsor notification item**, not a re-ratification. |
+| **AC-2** | FR-B2-04: `Collection` added as an explicit strict type (a JSON array); it is the only type a strict rule may quantify over. It is covered by the ContentHash include-set (vector b declares it). |
+| **AC-3** | FR-B2-05: EDP068, EDP069, EDP070 and EDP071 registered. The free block used is **EDP060–EDP071**, verified unused before assignment; FR-B1-05's "060–070" is corrected. |
+| **AC-4** | §5.4a item 7: hashing is **total** over well-formed JSON (exact decimal text by string manipulation; only an exponent beyond ±1000 is refused). Decimal representability is enforced only when validating a **strict** rule (EDP068), so no legacy rule can stop hashing. The replay confirms every live rule version hashes. |
+| **AC-5** | FR-B3-11: the uniqueness key is created inside the `BusinessRuleEngine` solution, so it travels with solution export and import; key values are rule data and travel with the rule records. |
+
+Also recorded here, because implementation made them explicit:
+- An `otherwise` branch or a table default row is a **match**, as it always has been; `Outcome` does not change that. `NO_MATCH` means no branch, row or default applied.
+- Three live rule versions have no parent rule (Appendix A observations). They stay addressable by `RuleVersionId` exactly as before; no other identifier can name them, and rule-level operations (history, documentation, effective version) refuse them.
 
 ## 1. Executive summary
 
@@ -160,7 +176,7 @@ Each story is independently testable against the §5 requirements it names.
 | FR-B1-02 | **Existing unbound inputs keep their current behaviour.** An input without a binding authored before 1.1.0 is a declared fact by definition, and evaluates exactly as today (verified: the chained `tier` input) | Must |
 | FR-B1-03 | Value sources for a declared fact, in order: (1) caller `InputsJson`; (2) inside a rule set, an upstream member's output of the same name (existing chaining, unchanged); (3) otherwise null. **A declared fact is never read from the target record** | Must |
 | FR-B1-04 | On the `TargetRef` path, a declared fact is not looked up as a record attribute. Today `BuildInputs` reads an attribute named after the input (`RuleDecisionService.cs`), a latent wrong-column risk. This is removed. Where an attribute of that name exists, see §8 R-3 | Must |
-| FR-B1-05 | The validator emits **EDP064 (Info)** (EDP020–023 are taken by the table-completeness analyzer; all new codes sit in the free 060–070 block) for each declared fact: "supplied by the caller or an upstream rule". Info never blocks publish | Must |
+| FR-B1-05 | The validator emits **EDP064 (Info)** (EDP020–023 are taken by the table-completeness analyzer; all new codes sit in the free 060–071 block, verified unused) for each declared fact: "supplied by the caller or an upstream rule". Info never blocks publish | Must |
 | FR-B1-06 | `GetInputSchema` returns `kind: "bound" \| "declared"` and `binding: null` for declared facts. The field is additive; existing fields are unchanged | Must |
 | FR-B1-07 | Designer: a **Facts** panel to add, rename, type and remove declared facts. Declared facts appear in the column picker of the decision-table editor, the condition builder (including inside `for each`) and the GoRules input node (`x-edp-kind: "declared"`). Refreshing the entity schema preserves declared facts | Must |
 | FR-B1-08 | Scenario tester: declared facts render as typed, empty inputs. "Fill from record" leaves them untouched and says so | Must |
@@ -206,6 +222,7 @@ Each story is independently testable against the §5 requirements it names.
 | Date | JSON string, ISO-8601 calendar date `YYYY-MM-DD` | DateTime (date, UTC midnight) | any other form incl. `31/12/2026` → EDP062 |
 | DateTime | JSON string, ISO-8601 date-time **with** offset or `Z` | DateTime (UTC) | missing offset or any other form → EDP062 |
 | Lookup / reference | **Not supported as a declared fact in a strict rule in Release 1** (no concrete need stated). The validator rejects such a declaration | — | EDP066 at validation |
+| Collection (AC-2) | JSON **array** (elements are not type-checked; FR-B2-10). The only type a strict rule may quantify over | list | a scalar or object → EDP062; quantifying over a non-Collection input in a strict rule → EDP066 at validation |
 
 **The other cases:**
 - Missing required fact → EDP060.
@@ -227,8 +244,13 @@ A **legacy (lenient) rule** keeps today's behaviour exactly. It gains only EDP06
 | EDP065 | `inputContract: "strict"` on a rule whose `schemaVersion` is not "1.1" (contradictory artifact) | validation error | validation error |
 | EDP066 | A declared fact of a type not supported under the strict contract in Release 1 (Lookup / reference) | — | validation error |
 | EDP067 | An input was supplied that the rule does not declare; it is ignored | Info | Info |
+| EDP064 | A declared fact (FR-B1-05): supplied by the caller or an upstream rule, never read from the record | Info | Info |
+| EDP068 (AC-3) | A numeric literal in a **strict** rule is not exactly representable as a .NET `decimal` | — | validation error |
+| EDP069 (AC-3) | An input marked `"source": "declared"` also carries a binding, relationship or aggregate (FR-B1-10) | validation error | validation error |
+| EDP070 | Identifiers supplied to one call name different rules (FR-B3-06) | HTTP 400 | HTTP 400 |
+| EDP071 (AC-3) | A `RuleKey` that does not match the key format, including any upper case (FR-B3-13) | HTTP 400 | HTTP 400 |
 
-Errors at evaluation produce `Outcome=INPUT_REJECTED`. Validation errors (EDP065, EDP066) stop the rule from being published.
+Errors at evaluation produce `Outcome=INPUT_REJECTED`. Validation errors (EDP065, EDP066, EDP068, EDP069) stop the rule from being published.
 
 ### 5.3 B3: stable rule key (A2)
 
@@ -256,7 +278,7 @@ Errors at evaluation produce `Outcome=INPUT_REJECTED`. Validation errors (EDP065
 | ID | Requirement | Priority |
 |---|---|---|
 | FR-B4-01 | `EvaluateDecision` accepts optional `CorrelationId` (string, 1 to 100 characters, echoed verbatim, never interpreted) | Must |
-| FR-B4-02 | `EvaluateDecision` returns, additively: `Outcome` (FR-B2-06), `ExecutionId`, `RuleId`, `RuleKey`, `RuleVersionId`, `VersionNumber`, `ContentHash`, `EvaluatedOnUtc`, `CorrelationId`. Existing `Success`, `Matched`, `OutputsJson`, `ReasonCodesJson`, `TraceJson`, `DiagnosticsJson`, `ElapsedMs` and `ChildResultsJson` keep their current meaning. `ExecutionId` is the execution-log record id and is **empty when the best-effort trace is dropped** (ADR-13). It is therefore not a sole correlation key; `CorrelationId` is | Must |
+| FR-B4-02 | `EvaluateDecision` returns, additively: `Outcome` (FR-B2-06), `ExecutionId`, `RuleId`, `RuleKey`, `RuleVersionId`, `VersionNumber`, `ContentHash`, `EvaluatedOnUtc`, `CorrelationId`. **Transport (AC-1):** `Outcome` and `ExecutionId` are top-level response properties; the seven identity and provenance values travel in one `ProvenanceJson` property `{executionId, ruleId, ruleKey, ruleVersionId, versionNumber, contentHash, evaluatedOnUtc, correlationId}`, because an on-prem Process Action cannot reuse a request argument name as a response argument. Existing `Success`, `Matched`, `OutputsJson`, `ReasonCodesJson`, `TraceJson`, `DiagnosticsJson`, `ElapsedMs` and `ChildResultsJson` keep their current meaning. `ExecutionId` is the execution-log record id and is **empty when the best-effort trace is dropped** (ADR-13). It is therefore not a sole correlation key; `CorrelationId` is | Must |
 | FR-B4-03 | `ContentHash` = lower-case hex SHA-256 of the **canonical form** (§5.4a) of the PCRM **that was executed**, computed at evaluation. It is always present, including for ad-hoc `PcrmJson` calls (where `RuleId`, `RuleVersionId`, `VersionNumber` and `RuleKey` are empty). Plain SHA-256 is appropriate here: it hashes rule logic, not personal data | Must |
 | FR-B4-04 | **REMOVED from Release 1 (MC-3).** No input-derived digest is returned. A plain SHA-256 of low-entropy, sensitive decision facts (age, bands, status codes, small amounts, flags) is reversible by enumeration, which would make it personal data on a regulated client. Correlation is served by the caller-owned `CorrelationId`. Any future server-computed input fingerprint may return **only** as a keyed HMAC-SHA-256 whose key custody, provisioning and rotation are fixed in an ADR, as a Release 2 decision (HD-4) | n/a |
 | FR-B4-05 | `ExecuteRuleSet` returns the same provenance per member result, plus the set's `CorrelationId`. **Deferred out of the P1 MVP** (CEO decision §3) | Should, deferred |
@@ -281,7 +303,8 @@ Defined as a **byte sequence**, not as the output of any particular serialiser, 
    - Every other character is emitted literally.
 7. **Numbers:** the exact decimal value, written without exponent, without a leading `+`, without leading zeros (except a single `0` before the point) and without trailing fractional zeros. A value with no fractional part has no decimal point; `-0` is written `0`.
    - Examples: `1.50` → `1.5`, `2.0` → `2`, `1e3` → `1000`.
-   - A numeric literal that is not exactly representable as a .NET `decimal` makes the rule invalid for hashing and is rejected at validation.
+   - **Hashing is total (AC-4):** the canonical text is produced by string manipulation of the literal, so any well-formed JSON number hashes; only an exponent beyond ±1000 is refused.
+   - A numeric literal that is not exactly representable as a .NET `decimal` is rejected at validation **only in a strict rule** (EDP068). A legacy rule is never refused for it, and never stops hashing.
 8. **Literals:** `true`, `false`.
 9. **Serialisation:** no whitespace anywhere; `:` and `,` only as separators.
 10. **Encoding:** UTF-8 without a byte-order mark.

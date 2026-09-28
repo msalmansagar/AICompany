@@ -1,6 +1,6 @@
 # ADR-19: Strict Input Contract, the `Outcome` Discriminator, and How Provenance Is Returned
 
-**Status:** Proposed. For the CEO-function architecture gate (`new-feature.md` Phase 2).
+**Status:** Accepted (architecture gate 2026-09-28, `ceo-decision-edp-re-enh-001-architecture.md`, APPROVE WITH CONDITIONS; sponsor-ratified). Implemented in source on `feat/edp-re-r1-contract`; **not deployed**.
 **Date:** 2026-09-28
 **Decided by:** Solution Architect.
 **Implements:** EDP-RE-ENH-001 v1.1 (ratified 2026-09-28): FR-B2-01…12, FR-B4-01…08, MC-1, MC-2.
@@ -93,6 +93,14 @@ This follows the operation's existing convention of JSON-valued properties (`Out
 - `ExecutionId` stays a top-level property for compatibility and is repeated in `ProvenanceJson`. It remains empty when the best-effort trace is dropped (ADR-13); `correlationId` is the reliable correlation key.
 - **No `InputsDigest`** (MC-3).
 - `ResolveEffectiveVersion` and `GetPublishedVersion` add `ruleKey` to their existing `ResultJson`. They return no hash and nothing that implies an evaluation happened (FR-B4-08).
+
+### Implementation notes (2026-09-28)
+
+- An `otherwise` branch or a decision-table default row is a **match**, as before 1.1.0; `Outcome` derives from the existing matched flag and does not reinterpret it. `NO_MATCH` means no branch, row or default applied.
+- On the `TargetRef` path every declared fact is carried as null and never read from the record. The validator treats such a null as **not supplied**, so a required declared fact is EDP060 there (a mixed record + caller overlay is A1b, Release 2).
+- Record-bound values are not type-checked (they arrive CRM-typed from metadata); only caller-supplied values and declared facts are.
+- A lenient rule given a number that `decimal` cannot hold still fails as it did before 1.1.0 (the same `FormatException`); a strict rule rejects it as EDP062.
+- The execution log records `rejected` for INPUT_REJECTED, and `GetRuleAnalytics` gains an additive `rejected` count so its buckets still sum to the total.
 
 ## Consequences
 

@@ -1,6 +1,6 @@
 # ADR-20: The `ContentHash` Canonical Form
 
-**Status:** Proposed. For the CEO-function architecture gate (`new-feature.md` Phase 2).
+**Status:** Accepted (architecture gate 2026-09-28, `ceo-decision-edp-re-enh-001-architecture.md`, APPROVE WITH CONDITIONS; sponsor-ratified). Implemented in source on `feat/edp-re-r1-contract`; **not deployed**.
 **Date:** 2026-09-28
 **Decided by:** Solution Architect.
 **Implements:** EDP-RE-ENH-001 v1.1 §5.4a, FR-B4-03, FR-B4-06, MC-4, IC-3.
@@ -59,6 +59,12 @@ Both are tested against **one shared vector file**, `contract/content-hash-vecto
 - (f) (e) written with a decomposed Unicode string and non-canonical numbers, which must equal (e).
 
 The C# and TypeScript suites both assert every vector's canonical text and hash. CI runs both suites (runtime-net9, sdk-js).
+
+### Implementation notes (2026-09-28)
+
+- C#: `runtime/src/EDP.RuleRuntime/Hashing/ContentHash.cs` and `CanonicalNumber.cs`. TypeScript: the JS SDK's own tokenizer (raw number text and duplicate keys survive, which `JSON.parse` cannot guarantee).
+- Vectors: `contract/content-hash-vectors.json`, 12 vectors: the five FR-B4-06 cases (a–e, with the reordered-equals and strict-vs-lenient-differs relations asserted) plus seven that pin individual rules. Both implementations assert every vector in CI.
+- AC-4: the replay asserts every captured live rule version hashes.
 
 ## Consequences
 

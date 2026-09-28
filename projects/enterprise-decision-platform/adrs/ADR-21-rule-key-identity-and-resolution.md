@@ -1,6 +1,6 @@
 # ADR-21: RuleKey Identity and One Rule-Identity Resolver
 
-**Status:** Proposed. For the CEO-function architecture gate (`new-feature.md` Phase 2).
+**Status:** Accepted (architecture gate 2026-09-28, `ceo-decision-edp-re-enh-001-architecture.md`, APPROVE WITH CONDITIONS; sponsor-ratified). Implemented in source on `feat/edp-re-r1-contract`; **not deployed**.
 **Date:** 2026-09-28
 **Decided by:** Solution Architect.
 **Implements:** EDP-RE-ENH-001 v1.1 FR-B3-01…16; sponsor ratification HD-2, HD-5, HD-9; IC-1.
@@ -66,6 +66,15 @@ The two copies also apply **different identifier precedence**: metadata checks v
 7. Only then is RuleKey declared supported.
 
 **Invariant:** RuleKey is **not advertised** as a supported consumer identity until steps 2–6 are proven.
+
+### Implementation notes (2026-09-28)
+
+- **Resolution rule.** The highest-precedence identifier resolves the rule; every other identifier supplied must describe that same rule (RuleId equal, RuleKey equal ordinally, RuleName equal case-insensitively, as Dataverse compares names), or the call fails with EDP070.
+- **Orphaned versions.** Three live versions have no parent rule. They remain addressable by `RuleVersionId` alone, exactly as before 1.1.0; any other identifier with them is EDP070, and rule-level operations (history, documentation, effective version, scenarios) refuse them.
+- **A key held by two rules** before the uniqueness key exists is refused rather than guessed ("keys are not yet unique"); it is also a gate failure in the migration.
+- **FR-B3-11 (AC-5).** `deploy/a7-rulekey.mjs` creates the key with `MSCRM.SolutionUniqueName: BusinessRuleEngine` (the unmanaged solution that owns `qdb_edp_rule`, verified read-only), so the key definition travels with solution export and import. Key values are rule data: they travel with the rule records (data migration), and because they are environment-independent the same key resolves the same rule everywhere.
+- **Retired keys (FR-B3-14).** `DeleteAuditPlugin` records `ruleKey=<key>` in the append-only delete audit; the designer's reuse check refuses such keys. Server-side enforcement remains Release 2.
+- **HD-5.** Only the designer's create / set-once path and the approved migration tool write `qdb_edp_rulekey`; `deploy/test/rulekey-write-guard.test.mjs` fails the build otherwise.
 
 ## Consequences
 
