@@ -4,10 +4,13 @@
 // (DecisionIntelligencePlugin) backs both; the plugin branches on the message name.
 // Idempotent. Then smoke-tests against the latest execution log row.
 const fs = require('fs'), https = require('https');
+// Retired for cloud by ADR-18 / A7: refuses unless EDP_ALLOW_LEGACY_SIGNED_REGISTRATION=1 (deliberate rollback only).
+const { LEGACY_ASSEMBLY_NAME, assertLegacySignedRegistrationAllowed } = require('./lib/runtime-target.cjs');
+assertLegacySignedRegistrationAllowed('bre-register-intel.js');
 const env = (() => { const o = {}; for (const l of fs.readFileSync((process.env.EDP_ENV_PATH || 'D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env'), 'utf8').split(/\r?\n/)) { const m = l.match(/^([A-Z_]+)=(.*)$/); if (m) o[m[1]] = m[2].trim(); } return o; })();
 const ORG = (env.DATAVERSE_URL || 'https://org5869857f.crm4.dynamics.com').replace(/\/$/, ''), HOST = new URL(ORG).host, API = '/api/data/v9.2';
 const SOLUTION = 'BusinessRuleEngine';
-const DLL = (process.env.EDP_DLL_PATH || 'D:/AI Projects/AICompany/projects/enterprise-decision-platform/runtime/pack/EDP.RuleRuntime.Crm.Signed.dll');
+const DLL = (process.env.EDP_DLL_PATH || `D:/AI Projects/AICompany/projects/enterprise-decision-platform/runtime/pack/${LEGACY_ASSEMBLY_NAME}.dll`);
 const ASSEMBLY_VERSION = '1.0.9.0';
 const PLUGIN_TYPENAME = 'EDP.RuleRuntime.Crm.DecisionIntelligencePlugin';
 
@@ -34,7 +37,7 @@ async function first(t, set, filter, select) { const r = await raw('GET', `${API
 (async () => {
   const t = await token();
 
-  const asm = await first(t, 'pluginassemblies', "name eq 'EDP.RuleRuntime.Crm.Signed'", 'pluginassemblyid');
+  const asm = await first(t, 'pluginassemblies', `name eq '${LEGACY_ASSEMBLY_NAME}'`, 'pluginassemblyid');
   if (!asm) throw new Error('assembly not found — run bre-register.js first.');
   await raw('PATCH', `${API}/pluginassemblies(${asm.pluginassemblyid})`, t, { content: fs.readFileSync(DLL).toString('base64'), version: ASSEMBLY_VERSION });
   console.log('assembly patched ->', ASSEMBLY_VERSION);

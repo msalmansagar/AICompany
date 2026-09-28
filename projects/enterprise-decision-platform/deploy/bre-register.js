@@ -2,10 +2,13 @@
 // Register the EDP plugin assembly + Custom API (qdb_edp_EvaluateDecision) in Dataverse
 // (BusinessRuleEngine solution), then smoke-test it. Idempotent.
 const fs = require('fs'), https = require('https');
+// Retired for cloud by ADR-18 / A7: refuses unless EDP_ALLOW_LEGACY_SIGNED_REGISTRATION=1 (deliberate rollback only).
+const { LEGACY_ASSEMBLY_NAME, assertLegacySignedRegistrationAllowed } = require('./lib/runtime-target.cjs');
+assertLegacySignedRegistrationAllowed('bre-register.js');
 const env = (() => { const o = {}; for (const l of fs.readFileSync((process.env.EDP_ENV_PATH || 'D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env'), 'utf8').split(/\r?\n/)) { const m = l.match(/^([A-Z_]+)=(.*)$/); if (m) o[m[1]] = m[2].trim(); } return o; })();
 const ORG = (env.DATAVERSE_URL || 'https://org5869857f.crm4.dynamics.com').replace(/\/$/, ''), HOST = new URL(ORG).host, API = '/api/data/v9.2';
 const SOLUTION = 'BusinessRuleEngine';
-const DLL = (process.env.EDP_DLL_PATH || 'D:/AI Projects/AICompany/projects/enterprise-decision-platform/runtime/pack/EDP.RuleRuntime.Crm.Signed.dll');
+const DLL = (process.env.EDP_DLL_PATH || `D:/AI Projects/AICompany/projects/enterprise-decision-platform/runtime/pack/${LEGACY_ASSEMBLY_NAME}.dll`);
 const SEED_VERSION = '1a4a23bd-4f77-f111-ab0e-000d3abcff60'; // "Loan Approval — Sample" v1
 
 function raw(method, path, token, body, extra) {
@@ -29,14 +32,14 @@ async function first(t, set, filter, select) { const r = await raw('GET', `${API
   console.log('DLL base64 length:', b64.length);
 
   // 1) plugin assembly
-  let asm = await first(t, 'pluginassemblies', "name eq 'EDP.RuleRuntime.Crm.Signed'", 'pluginassemblyid');
+  let asm = await first(t, 'pluginassemblies', `name eq '${LEGACY_ASSEMBLY_NAME}'`, 'pluginassemblyid');
   if (asm) {
     await raw('PATCH', `${API}/pluginassemblies(${asm.pluginassemblyid})`, t, { content: b64, version: '1.0.23.0' }); // SEC-06: keep in sync with the deployed assembly (bump to 1.0.24 at W0-1 cutover)
     console.log('assembly updated:', asm.pluginassemblyid);
   } else {
     // SEC-07: publickeytoken is the CURRENT strong-name identity. It MUST be replaced with the new token when the
     // key is rotated (W0-1) — the old key is in git history, so the current identity is considered compromised.
-    const r = await raw('POST', `${API}/pluginassemblies`, t, { name: 'EDP.RuleRuntime.Crm.Signed', content: b64, isolationmode: 2, sourcetype: 0, version: '1.0.0.0', culture: 'neutral', publickeytoken: '06949b1887fabe5d' }, sol);
+    const r = await raw('POST', `${API}/pluginassemblies`, t, { name: LEGACY_ASSEMBLY_NAME, content: b64, isolationmode: 2, sourcetype: 0, version: '1.0.0.0', culture: 'neutral', publickeytoken: '06949b1887fabe5d' }, sol);
     if (r.status >= 300) throw new Error('assembly ' + r.status + ' ' + r.body.slice(0, 300));
     asm = j(r); console.log('assembly created:', asm.pluginassemblyid);
   }

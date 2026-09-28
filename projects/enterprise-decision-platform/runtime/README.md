@@ -36,7 +36,7 @@ dotnet run
 Paste a PCRM rule + input values, click **Evaluate**, and see the decision, outputs, and full execution trace. Uses a permissive metadata resolver so any rule runs unseeded. No Dataverse connection — this is why it does not violate the zero-external-infra invariant (that governs the shipped product's execution, which stays in CRM).
 
 ## Sandbox / packaging note
-Core library targets **netstandard2.0** for CRM plugin-sandbox compatibility. NCalc + System.Text.Json must be **IL-merged** into the plugin assembly for isolated-sandbox deployment — a packaging step for the plugin phase, not needed for local tests. (NCalcSync 5.4.2 currently carries advisory GHSA-3w5p-95mh-gq75 — revisit version at packaging time.)
+Core library targets **netstandard2.0** for CRM plugin-sandbox compatibility. Cloud ships as a Dataverse **plug-in package** (ADR-18): `dotnet build src/EDP.RuleRuntime.Crm -c Release -p:PackForDataverse=true`, verified by `tools/verify-package.ps1`; the release version is `RuleEngineVersion` in `Directory.Build.props` (see `../deploy/A7-RELEASE-PROCEDURE.md`). On-premises cannot use packages, so `pack.sh` still IL-merges NCalc + System.Text.Json into one signed assembly. (NCalcSync 5.4.2 currently carries advisory GHSA-3w5p-95mh-gq75 — revisit version at packaging time.)
 
 ## CRM integration (`src/EDP.RuleRuntime.Crm`, net462)
 The Option-1 build — the runtime wired into CRM, all **locally tested with a fake `IOrganizationService` (no live org)**:
