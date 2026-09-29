@@ -73,6 +73,7 @@ const EMPTY_RULE_STATE: RuleEvaluationResult = {
   fieldReadonly: {},
   fieldValues: {},
   filteredOptions: {},
+  disabledOptions: {},
   buttonVisibility: {},
   buttonEnabledState: {},
 };

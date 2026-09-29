@@ -95,6 +95,8 @@ export type BusinessRuleAction =
   | 'calculateValue'
   | 'filterOptions'
   | 'filterLookup'
+  // Keeps the named options visible but unselectable; filterOptions removes the rest.
+  | 'disableOptions'
   | 'validateField'
   | 'validateForm';
 
@@ -342,6 +344,8 @@ export interface ValidationRule {
   conditions?: StructuredCondition[];
   // DFE-ENH-001 FR-007 — extended cross-field: operator and target field schema name
   crossFieldOperator?: CrossFieldComparisonOperator;
+  // A field schema name, or a relative date token such as '@today' or '@monthEnd+10y'
+  // (see engines/relativeDate) when the bound moves with the calendar.
   crossFieldTargetRef?: string;
 }
 
@@ -383,7 +387,7 @@ export interface BusinessRule {
   targetFieldId?: string;
   targetSectionId?: string;
   targetTabId?: string;
-  actionValue?: string;             // for setValue / calculateValue / filterOptions
+  actionValue?: string;             // for setValue / calculateValue / filterOptions / disableOptions
   priority: number;
   isActive: boolean;
 }
@@ -953,6 +957,8 @@ export interface RuleEvaluationResult {
   fieldReadonly: Record<string, boolean>;
   fieldValues: Record<string, unknown>; // fields that had values set/cleared/calculated
   filteredOptions: Record<string, OptionValue[]>;
+  // Option values (or lookup record ids) a rule has made unselectable, keyed by field id.
+  disabledOptions: Record<string, string[]>;
   // DFE-CBTN-001: per-button conditional state, keyed by button id. A button id
   // is present only when that button declares the corresponding condition set;
   // absent ⇒ the button's static isVisible / isActive flag applies (legacy).

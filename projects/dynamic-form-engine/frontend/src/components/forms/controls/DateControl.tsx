@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Input } from '@fluentui/react-components';
 import { useFormContext } from '../../../contexts/FormContext';
+import { resolveDateBounds } from '../../../engine/dateBounds';
 import type { ControlProps } from '../FieldRenderer';
 
 export function DateControl({
@@ -14,6 +15,7 @@ export function DateControl({
 
   const rawValue = fieldValues[field.schemaName];
   const displayValue = rawValue ? String(rawValue).substring(0, 10) : '';
+  const bounds = useMemo(() => resolveDateBounds(field.validationRules ?? []), [field.validationRules]);
 
   function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
     updateFieldValue(field.schemaName, event.target.value || null);
@@ -24,6 +26,8 @@ export function DateControl({
       id={inputId}
       type="date"
       value={displayValue}
+      min={bounds.min}
+      max={bounds.max}
       onChange={handleChange}
       readOnly={isReadonly}
       disabled={isReadonly}

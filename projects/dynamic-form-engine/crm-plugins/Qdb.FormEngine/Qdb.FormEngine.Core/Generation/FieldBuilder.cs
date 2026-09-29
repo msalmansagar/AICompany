@@ -389,25 +389,32 @@ namespace Qdb.FormEngine.Core.Generation
             return _rawData.ValidationRules
                 .Where(r => EntityHelper.GetLookupId(r, "qdb_form_field_id") == fieldId)
                 .OrderBy(r => r.GetAttributeValue<int>("qdb_priority"))
-                .Select(r => new ValidationRule
-                {
-                    Id = r.Id,
-                    FieldId = fieldId,
-                    RuleType = PicklistMapper.ToValidationRuleType(EntityHelper.GetOptionSetValue(r, "qdb_rule_type")),
-                    ErrorMessage = Resolve(r.Id, "qdb_form_validation_rule", "qdb_error_message", r.GetAttributeValue<string>("qdb_error_message")),
-                    MinLength = r.Contains("qdb_min_length") ? (int?)r.GetAttributeValue<int>("qdb_min_length") : null,
-                    MaxLength = r.Contains("qdb_max_length") ? (int?)r.GetAttributeValue<int>("qdb_max_length") : null,
-                    MinValue = r.Contains("qdb_min_value") ? (decimal?)r.GetAttributeValue<decimal>("qdb_min_value") : null,
-                    MaxValue = r.Contains("qdb_max_value") ? (decimal?)r.GetAttributeValue<decimal>("qdb_max_value") : null,
-                    RegexPattern = r.GetAttributeValue<string>("qdb_regex_pattern"),
-                    CompareToFieldId = EntityHelper.GetNullableLookupId(r, "qdb_compare_to_field_id"),
-                    CompareToValue = r.GetAttributeValue<string>("qdb_compare_to_value"),
-                    CustomExpression = r.GetAttributeValue<string>("qdb_custom_expression"),
-                    RuleTemplateId = EntityHelper.GetNullableLookupId(r, "qdb_rule_template_id"),
-                    IsActive = r.GetAttributeValue<bool>("qdb_is_active"),
-                    Priority = r.GetAttributeValue<int>("qdb_priority")
-                })
+                .Select(r => BuildValidationRule(r, fieldId))
                 .ToList();
+        }
+
+        private ValidationRule BuildValidationRule(Entity r, Guid fieldId)
+        {
+            var rule = new ValidationRule
+            {
+                Id = r.Id,
+                FieldId = fieldId,
+                RuleType = PicklistMapper.ToValidationRuleType(EntityHelper.GetOptionSetValue(r, "qdb_rule_type")),
+                ErrorMessage = Resolve(r.Id, "qdb_form_validation_rule", "qdb_error_message", r.GetAttributeValue<string>("qdb_error_message")),
+                MinLength = r.Contains("qdb_min_length") ? (int?)r.GetAttributeValue<int>("qdb_min_length") : null,
+                MaxLength = r.Contains("qdb_max_length") ? (int?)r.GetAttributeValue<int>("qdb_max_length") : null,
+                MinValue = r.Contains("qdb_min_value") ? (decimal?)r.GetAttributeValue<decimal>("qdb_min_value") : null,
+                MaxValue = r.Contains("qdb_max_value") ? (decimal?)r.GetAttributeValue<decimal>("qdb_max_value") : null,
+                RegexPattern = r.GetAttributeValue<string>("qdb_regex_pattern"),
+                CompareToFieldId = EntityHelper.GetNullableLookupId(r, "qdb_compare_to_field_id"),
+                CompareToValue = r.GetAttributeValue<string>("qdb_compare_to_value"),
+                CustomExpression = r.GetAttributeValue<string>("qdb_custom_expression"),
+                RuleTemplateId = EntityHelper.GetNullableLookupId(r, "qdb_rule_template_id"),
+                IsActive = r.GetAttributeValue<bool>("qdb_is_active"),
+                Priority = r.GetAttributeValue<int>("qdb_priority")
+            };
+            ValidationRuleJsonReader.Apply(rule, r.GetAttributeValue<string>("qdb_rule_json"));
+            return rule;
         }
 
         // DFE-BRJSON-FIX — the designer serialises a whole rule (BusinessRuleDefinition: schema
@@ -429,7 +436,11 @@ namespace Qdb.FormEngine.Core.Generation
             { "show_tab", "showTab" }, { "hide_tab", "hideTab" },
             { "show_section", "showSection" }, { "hide_section", "hideSection" },
             { "set_required", "makeRequired" }, { "clear_required", "makeOptional" },
-            { "set_value", "setValue" }
+            { "set_value", "setValue" },
+            // The runtime has evaluated calculateValue since the expression engine shipped; the
+            // designer could not author one, and a hand-written rule was dropped here at publish.
+            { "calculate_value", "calculateValue" },
+            { "disable_options", "disableOptions" }
         };
 
         /// <summary>Designer action types that name a tab rather than a field.</summary>

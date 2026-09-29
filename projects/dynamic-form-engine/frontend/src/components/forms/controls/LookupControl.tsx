@@ -10,6 +10,7 @@ import type { LookupResult } from '@qdb/shared';
 import { useFormContext } from '../../../contexts/FormContext';
 import { useLookupSearch } from '../../../hooks/useLookupSearch';
 import type { ControlProps } from '../FieldRenderer';
+import { useDisabledOptions } from './useDisabledOptions';
 
 const useStyles = makeStyles({
   container: {
@@ -158,6 +159,7 @@ export function LookupControl({
   const styles = useStyles();
   const containerRef = useRef<HTMLDivElement>(null);
   const { fieldValues, updateFieldValue, formCode, lang } = useFormContext();
+  const disabledOptions = useDisabledOptions(field.id);
   const [inputText, setInputText] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownPos, setDropdownPos] = useState<DropdownPos>({ top: 0, left: 0, width: 0 });
@@ -365,18 +367,23 @@ export function LookupControl({
           {!isSearching &&
             results.map((result) => {
               const isSelected = result.id === rawValue?.id;
+              const isDisabled = disabledOptions.has(result.id);
               return (
                 <button
                   key={result.id}
                   role="option"
                   aria-selected={isSelected}
+                  // aria-disabled, not disabled: a disabled button leaves the tab order, so a
+                  // keyboard or screen-reader user would never learn the result exists.
+                  aria-disabled={isDisabled}
+                  style={isDisabled ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                   className={mergeClasses(
                     styles.option,
                     isMultiColumn && styles.optionMultiColumn,
                     isSelected && styles.optionSelected,
                   )}
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => handleSelect(result)}
+                  onClick={() => { if (!isDisabled) handleSelect(result); }}
                 >
                   {isMultiColumn && displayColumns ? (
                     displayColumns.map((col) => (

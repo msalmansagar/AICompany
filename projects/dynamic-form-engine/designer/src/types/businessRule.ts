@@ -29,6 +29,11 @@ export type RuleActionType =
   | 'set_required'
   | 'clear_required'
   | 'set_value'
+  // Sets the target from an expression over field codes, e.g. {quantity} * {unit_price}.
+  // The runtime has evaluated it for a long time; the designer could not author it.
+  | 'calculate_value'
+  // Keeps the named options visible but unselectable. Value = JSON array of option values.
+  | 'disable_options'
   | 'show_message';
 
 /** Action types that act on a tab rather than a field. */

@@ -35,6 +35,7 @@ import type {
 } from '@/types/businessRule';
 import { TAB_ACTION_TYPES, SECTION_ACTION_TYPES } from '@/types/businessRule';
 import { buildDefaultDefinition, TRIGGER_EVENT_OPTIONS, type RuleCreationTarget } from '@/screens/ruleDefaults';
+import { ActionValueEditor, type RuleOptionChoice } from '@/screens/rules/ActionValueEditor';
 import type { RuleTriggerEvent } from '@qdb/shared';
 
 const useStyles = makeStyles({
@@ -173,14 +174,14 @@ const ACTION_TYPES: Array<{ value: RuleActionType; label: string }> = [
   { value: 'set_required', label: 'Set Required' },
   { value: 'clear_required', label: 'Clear Required' },
   { value: 'set_value', label: 'Set Value' },
+  { value: 'calculate_value', label: 'Calculate Value' },
+  { value: 'disable_options', label: 'Disable Options' },
   { value: 'show_message', label: 'Show Message' },
 ];
 
 const VALUE_OPERATORS = new Set<ConditionOperator>([
   'equals', 'not_equals', 'contains', 'not_contains', 'greater_than', 'less_than',
 ]);
-
-const VALUE_ACTION_TYPES = new Set<RuleActionType>(['set_value', 'show_message']);
 
 function generateRuleId(): string {
   return `tmp_rule_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -259,6 +260,8 @@ function ActionTargetPicker({
 interface RuleEditorProps {
   rule: DesignerBusinessRule;
   fieldCodes: string[];
+  /** Each field's options keyed by field code, for actions that pick among them. */
+  fieldOptions: Record<string, RuleOptionChoice[]>;
   tabs: RuleTarget[];
   sections: RuleTarget[];
   onSave: (updated: DesignerBusinessRule) => void;
@@ -278,7 +281,7 @@ function normaliseDefinition(raw: BusinessRuleDefinition | null | undefined): Bu
   };
 }
 
-function RuleEditor({ rule, fieldCodes, tabs, sections, onSave, onCancel, onDelete }: RuleEditorProps): React.ReactElement {
+function RuleEditor({ rule, fieldCodes, fieldOptions, tabs, sections, onSave, onCancel, onDelete }: RuleEditorProps): React.ReactElement {
   const styles = useStyles();
   const [name, setName] = useState(rule.name ?? '');
   const [definition, setDefinition] = useState<BusinessRuleDefinition>(() => normaliseDefinition(rule.definition));
@@ -504,14 +507,11 @@ function RuleEditor({ rule, fieldCodes, tabs, sections, onSave, onCancel, onDele
               sections={sections}
               onChange={patch => updateAction(idx, patch)}
             />
-            {VALUE_ACTION_TYPES.has(action.action_type) && (
-              <Field label="Value" style={{ flex: 1 }}>
-                <Input
-                  value={action.value ?? ''}
-                  onChange={(_, d) => updateAction(idx, { value: d.value })}
-                />
-              </Field>
-            )}
+            <ActionValueEditor
+              action={action}
+              targetOptions={fieldOptions[action.target_field_code ?? ''] ?? []}
+              onChange={patch => updateAction(idx, patch)}
+            />
             <Button
               appearance="subtle"
               icon={<DeleteRegular />}
@@ -561,6 +561,15 @@ export function RuleConfigScreen(): React.ReactElement {
 
   const fieldCodes = useMemo(
     () => Object.values(fields).map(f => f.code).filter(Boolean),
+    [fields],
+  );
+
+  const fieldOptions = useMemo<Record<string, RuleOptionChoice[]>>(
+    () => Object.fromEntries(
+      Object.values(fields)
+        .filter(f => f.code && f.options.length > 0)
+        .map(f => [f.code, f.options.map(o => ({ value: o.value, label: o.label || o.value }))]),
+    ),
     [fields],
   );
 
@@ -799,6 +808,7 @@ export function RuleConfigScreen(): React.ReactElement {
               key={selectedRule.id}
               rule={selectedRule}
               fieldCodes={fieldCodes.length > 0 ? fieldCodes : ['(no fields)']}
+              fieldOptions={fieldOptions}
               tabs={tabTargets}
               sections={sectionTargets}
               onSave={handleSaveRule}

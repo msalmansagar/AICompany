@@ -7,7 +7,13 @@ import type {
   StructuredCondition,
   CrossFieldComparisonOperator,
 } from '@qdb/shared';
-import { ExpressionEngine, type ExpressionContext, validateGridRow } from '@qdb/shared';
+import {
+  ExpressionEngine,
+  type ExpressionContext,
+  validateGridRow,
+  isRelativeDateRef,
+  resolveRelativeDate,
+} from '@qdb/shared';
 
 type ZodShape = Record<string, ZodTypeAny>;
 
@@ -426,7 +432,7 @@ export class ValidationEngine {
     const targetRef = rule.crossFieldTargetRef ?? rule.compareToFieldId;
     if (!targetRef) return null;
 
-    const targetValue = allValues[targetRef];
+    const targetValue = resolveCrossFieldTarget(targetRef, allValues);
     const operator = rule.crossFieldOperator ?? '==';
 
     return applyCrossFieldOperator(value, targetValue, operator) ? null : rule.errorMessage;
@@ -487,6 +493,16 @@ export class ValidationEngine {
 }
 
 export const validationEngine = new ValidationEngine();
+
+/**
+ * The value a cross-field rule compares against: another field's value, or the calendar
+ * day a relative token names. A token the engine does not define resolves to null, which
+ * applyCrossFieldOperator treats as nothing to compare, so a bad token never blocks a save.
+ */
+function resolveCrossFieldTarget(targetRef: string, allValues: FormFieldValues): unknown {
+  if (isRelativeDateRef(targetRef)) return resolveRelativeDate(targetRef);
+  return allValues[targetRef];
+}
 
 // ── Pure comparison helpers (exported for testing) ─────────────────────────────
 

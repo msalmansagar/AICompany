@@ -11,6 +11,8 @@ import {
   tokens,
 } from '@fluentui/react-components';
 import { AddRegular, CheckmarkRegular, DeleteRegular, DismissRegular } from '@fluentui/react-icons';
+import { isRelativeDateRef } from '@qdb/shared';
+import { RelativeDateRefEditor } from './RelativeDateRefEditor';
 import { useDesignerStore } from '@/state/designerStore';
 import type {
   DesignerValidationRule,
@@ -242,6 +244,9 @@ function ConditionBuilder({ conditions, allFieldCodes, onChange }: ConditionBuil
 
 // ── Cross-field editor (for cross_field) ───────────────────────────────────────
 
+/** What a maker gets when they switch a bound to a relative date: today, no offset. */
+const DEFAULT_RELATIVE_TARGET = '@today';
+
 interface CrossFieldEditorProps {
   sourceFieldLabel: string;
   operator: CrossFieldComparisonOperator;
@@ -259,6 +264,8 @@ function CrossFieldEditor({
   onOperatorChange,
   onTargetChange,
 }: CrossFieldEditorProps): React.ReactElement {
+  // The target is either a field code or a relative date token; the token's prefix says which.
+  const isRelative = isRelativeDateRef(targetFieldRef);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       <Field label="Source field (this field)">
@@ -279,17 +286,32 @@ function CrossFieldEditor({
       </Field>
       <Field label="Compare against">
         <Select
-          value={targetFieldRef}
-          onChange={(_, d) => onTargetChange(d.value)}
+          value={isRelative ? 'relative' : 'field'}
+          onChange={(_, d) => onTargetChange(d.value === 'relative' ? DEFAULT_RELATIVE_TARGET : (allFieldCodes[0] ?? ''))}
+          aria-label="Compare against"
         >
-          {allFieldCodes.length === 0 && (
-            <option value="">No other fields available</option>
-          )}
-          {allFieldCodes.map(code => (
-            <option key={code} value={code}>{code}</option>
-          ))}
+          <option value="field">Another field</option>
+          <option value="relative">A date relative to today</option>
         </Select>
       </Field>
+      {isRelative ? (
+        <RelativeDateRefEditor value={targetFieldRef} onChange={onTargetChange} />
+      ) : (
+        <Field label="Target field">
+          <Select
+            value={targetFieldRef}
+            onChange={(_, d) => onTargetChange(d.value)}
+            aria-label="Target field"
+          >
+            {allFieldCodes.length === 0 && (
+              <option value="">No other fields available</option>
+            )}
+            {allFieldCodes.map(code => (
+              <option key={code} value={code}>{code}</option>
+            ))}
+          </Select>
+        </Field>
+      )}
     </div>
   );
 }

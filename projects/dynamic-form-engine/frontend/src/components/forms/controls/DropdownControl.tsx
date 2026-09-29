@@ -8,6 +8,7 @@ import type { OptionValue } from '@qdb/shared';
 import { useFormContext } from '../../../contexts/FormContext';
 import { optionsApi } from '../../../api/optionsApi';
 import type { ControlProps } from '../FieldRenderer';
+import { useDisabledOptions } from './useDisabledOptions';
 
 const useStyles = makeStyles({
   dropdown: {
@@ -26,6 +27,7 @@ export function DropdownControl({
   const { formCode, fieldValues, updateFieldValue, ruleState } = useFormContext();
 
   const [dynamicOptions, setDynamicOptions] = useState<OptionValue[] | null>(null);
+  const disabledOptions = useDisabledOptions(field.id);
 
   const filteredByRule = ruleState.filteredOptions[field.id];
   const staticOptions = field.options ?? [];
@@ -97,7 +99,7 @@ export function DropdownControl({
       aria-invalid={!!errorId}
     >
       {activeOptions.map((option) => (
-        <Option key={option.value} value={option.value}>
+        <Option key={option.value} value={option.value} disabled={disabledOptions.has(option.value)}>
           {option.label}
         </Option>
       ))}

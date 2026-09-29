@@ -54,6 +54,7 @@
     <Compile Include="Abstractions\RenderCacheWriteRequest.cs" />
     <Compile Include="Generation\EntityHelper.cs" />
     <Compile Include="Generation\FieldBuilder.cs" />
+    <Compile Include="Generation\ValidationRuleJsonReader.cs" />
     <Compile Include="Generation\IFormJsonGenerator.cs" />
     <Compile Include="Generation\FormJsonGenerator.cs" />
     <Compile Include="Generation\ITranslationResolver.cs" />

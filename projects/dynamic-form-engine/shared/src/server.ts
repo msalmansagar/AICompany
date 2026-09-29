@@ -7,6 +7,17 @@ export { RuleEngine } from './engines/RuleEngine.js';
 export { ExpressionEngine } from './engines/ExpressionEngine.js';
 export type { ExpressionValue, ExpressionContext, EvaluateOptions } from './engines/ExpressionEngine.js';
 export { ExpressionError } from './engines/ExpressionEngine.js';
+// Relative date bounds: one parser so the designer writes the token the runtime resolves.
+export {
+  RELATIVE_DATE_PREFIX,
+  RELATIVE_DATE_ANCHORS,
+  RELATIVE_DATE_UNITS,
+  isRelativeDateRef,
+  parseRelativeDateRef,
+  formatRelativeDateRef,
+  resolveRelativeDate,
+} from './engines/relativeDate.js';
+export type { RelativeDateRef, RelativeDateAnchor, RelativeDateUnit } from './engines/relativeDate.js';
 export {
   ExpressionEngineServer,
   ExpressionTimeoutError,
@@ -34,6 +45,14 @@ export {
   isGridValid,
 } from './validation/gridCellValidation.js';
 export type { GridRowErrors } from './validation/gridCellValidation.js';
+// Validation rule JSON: the designer writes it, both publishers read it.
+export {
+  RULE_JSON_SCHEMA_VERSION,
+  encodeConditionalRequired,
+  encodeCrossField,
+  decodeRuleJson,
+} from './validation/ruleJsonCodec.js';
+export type { DecodedConditionalRequired, DecodedCrossField, DecodeResult } from './validation/ruleJsonCodec.js';
 export { createCssSanitiserPlugin } from './sanitizer/CssSanitiserPlugin.js';
 // Grid depends-on filter template: one parser, one emitter per query dialect, so the
 // portal (FetchXML) and the in-CRM engine (OData) read a maker's template the same way.

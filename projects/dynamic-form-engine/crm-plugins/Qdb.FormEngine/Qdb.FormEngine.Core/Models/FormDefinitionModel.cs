@@ -238,6 +238,20 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("ruleTemplateId")] public Guid? RuleTemplateId { get; set; }
         [JsonProperty("isActive")] public bool IsActive { get; set; }
         [JsonProperty("priority")] public int Priority { get; set; }
+        // DFE-ENH-001 FR-006: the conditions under which the field becomes required.
+        [JsonProperty("conditions")] public List<StructuredCondition> Conditions { get; set; }
+        // DFE-ENH-001 FR-007: comparison against another field, or against a relative date
+        // token such as "@today" or "@monthEnd+10y" that the runtime resolves.
+        [JsonProperty("crossFieldOperator")] public string CrossFieldOperator { get; set; }
+        [JsonProperty("crossFieldTargetRef")] public string CrossFieldTargetRef { get; set; }
+    }
+
+    /// <summary>One condition of a conditional-required validation rule.</summary>
+    public sealed class StructuredCondition
+    {
+        [JsonProperty("fieldRef")] public string FieldRef { get; set; }
+        [JsonProperty("operator")] public string Operator { get; set; }
+        [JsonProperty("value")] public string Value { get; set; }
     }
 
     /// <summary>A conditional rule that shows, hides, or modifies fields at runtime.</summary>

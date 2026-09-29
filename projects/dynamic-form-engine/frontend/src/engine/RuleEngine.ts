@@ -167,6 +167,25 @@ function buildExpressionContext(values: FormFieldValues): ExpressionContext {
   return ctx;
 }
 
+/**
+ * The option values a disableOptions action names.
+ *
+ * A maker may paste a JSON array or type a comma-separated list; option-set values are
+ * numbers in CRM but strings on the wire, so every entry is compared as a string.
+ */
+function parseOptionValueList(actionValue: string): string[] {
+  const trimmed = actionValue.trim();
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed.map((entry) => String(entry));
+    } catch {
+      return [];
+    }
+  }
+  return trimmed.split(',').map((entry) => entry.trim()).filter((entry) => entry !== '');
+}
+
 function buildEmptyResult(): RuleEvaluationResult {
   return {
     fieldVisibility: {},
@@ -176,6 +195,7 @@ function buildEmptyResult(): RuleEvaluationResult {
     fieldReadonly: {},
     fieldValues: {},
     filteredOptions: {},
+    disabledOptions: {},
     buttonVisibility: {},
     buttonEnabledState: {},
   };
@@ -503,6 +523,12 @@ export class RuleEngine {
         case 'filterOptions':
           if (targetFieldId && actionValue) {
             result.filteredOptions[targetFieldId] = this.parseFilteredOptions(actionValue);
+          }
+          break;
+
+        case 'disableOptions':
+          if (targetFieldId && actionValue) {
+            result.disabledOptions[targetFieldId] = parseOptionValueList(actionValue);
           }
           break;
 

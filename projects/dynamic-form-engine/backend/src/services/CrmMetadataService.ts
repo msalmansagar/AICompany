@@ -32,7 +32,7 @@ import type {
   FieldPlacement,
   RuleTriggerEvent,
 } from '@qdb/shared';
-import { isRenderableImageUrl, RULE_TRIGGER_EVENTS } from '@qdb/shared';
+import { isRenderableImageUrl, RULE_TRIGGER_EVENTS, decodeRuleJson } from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
 import { ButtonAssembler, SCOPED_BUTTON_ENTITY, type RawScopedButton, type IndexedButtons } from './ButtonAssembler.js';
 import { logger } from '../utils/logger.js';
@@ -766,6 +766,7 @@ export class CrmMetadataService extends CrmBaseService {
       ruleTemplateId: rule._qdb_rule_template_id_value,
       isActive: true,
       priority: rule.qdb_priority ?? 100,
+      ...readStructuredRuleJson(rule.qdb_rule_json),
     };
   }
 
@@ -1497,6 +1498,7 @@ interface RawValidationRule {
   qdb_custom_expression?: string;
   _qdb_rule_template_id_value?: string;
   qdb_priority?: number;
+  qdb_rule_json?: string;
 }
 
 interface RawLookupConfig {
@@ -1642,7 +1644,23 @@ const DESIGNER_ACTION_MAP: Record<string, BusinessRuleAction> = {
   set_required: 'makeRequired',
   clear_required: 'makeOptional',
   set_value: 'setValue',
+  // The runtime has evaluated calculateValue since the expression engine shipped; the
+  // designer could not author one, and a hand-written rule was dropped here at publish.
+  calculate_value: 'calculateValue',
+  disable_options: 'disableOptions',
 };
+
+/**
+ * The structured half of a validation rule: the conditions of a conditional-required rule,
+ * or the operator and target of a cross-field rule. Nothing for a rule without a payload,
+ * so a legacy record publishes exactly as it did.
+ */
+function readStructuredRuleJson(ruleJson: string | undefined): Partial<ValidationRule> {
+  const decoded = decodeRuleJson(ruleJson);
+  if (!decoded) return {};
+  if (decoded.kind === 'conditional_required') return { conditions: decoded.conditions };
+  return { crossFieldOperator: decoded.operator, crossFieldTargetRef: decoded.targetFieldRef };
+}
 
 /** Designer action types that name a tab rather than a field. */
 const DESIGNER_TAB_ACTIONS = new Set(['show_tab', 'hide_tab']);

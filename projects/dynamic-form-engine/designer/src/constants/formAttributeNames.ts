@@ -338,6 +338,7 @@ export const BUSINESS_RULE_ACTION_VALUE: Record<string, number> = {
   set_required: 100000007,
   clear_required: 100000008,
   set_value: 100000011,
+  calculate_value: 100000013,
 };
 
 /** qdb_action option value → designer action type, for importing a legacy rule. */
