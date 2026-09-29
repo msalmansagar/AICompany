@@ -207,8 +207,14 @@ function parseResultJson(body: Record<string, unknown>): Record<string, unknown>
 function parseProvenanceJson(raw: unknown): DecisionProvenance | null {
   if (typeof raw !== 'string') return null;
   const parsed = safeJson(raw);
-  if (!parsed) return null;
-  return parsed as unknown as DecisionProvenance;
+  return isProvenance(parsed) ? parsed : null;
+}
+
+/** A provenance envelope always carries its content hash and evaluation time (FR-B4-02). */
+function isProvenance(value: unknown): value is DecisionProvenance {
+  if (typeof value !== 'object' || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.contentHash === 'string' && typeof record.evaluatedOnUtc === 'string';
 }
 
 function firstString(source: Record<string, unknown>, keys: readonly string[]): string | null {

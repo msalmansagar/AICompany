@@ -225,7 +225,8 @@ export async function loadLatestVersion(ruleId: string): Promise<LoadedVersion |
   const v = data.value[0];
   // Parse PCRM once to restore entity, inputContract, and declared inputs.
   let pcrm: Record<string, unknown> | null = null;
-  try { pcrm = v?.qdb_edp_pcrmjson ? JSON.parse(v.qdb_edp_pcrmjson) as Record<string, unknown> : null; } catch { /* ignore */ }
+  try { pcrm = v?.qdb_edp_pcrmjson ? JSON.parse(v.qdb_edp_pcrmjson) as Record<string, unknown> : null; }
+  catch (parseError) { console.warn('[EDP] The saved PCRM of rule', ruleId, 'could not be read; opening without its input contract and declared facts.', parseError); }
   const targetEntity = (pcrm?.targetEntity as string | undefined) ?? '';
   const rawContract = pcrm?.inputContract;
   const savedInputContract: 'strict' | 'lenient' | undefined =
@@ -412,7 +413,7 @@ export async function isRuleKeyUsedByAnotherRule(key: string): Promise<boolean> 
  */
 export async function isRuleKeyRetired(key: string): Promise<boolean> {
   const marker = retiredRuleKeyMarker(key).replace(/'/g, "''");
-  const data = await req<{ value: unknown[] }>(`/qdb_edp_ruleaudits?$filter=${encodeURIComponent(`endswith(qdb_edp_details,'${marker}')`)}&$select=qdb_edp_ruleauditid&$top=1`);
+  const data = await req<{ value: unknown[] }>(`/qdb_edp_ruleaudits?$filter=endswith(qdb_edp_details,'${marker}')&$select=qdb_edp_ruleauditid&$top=1`);
   return data.value.length > 0;
 }
 

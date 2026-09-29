@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { canonicalizePcrm, computeContentHash } from '../src/contentHash.js';
+import { canonicalizePcrm, computeContentHash, EXCLUDED_TOP_LEVEL, EXCLUDED_TOP_LEVEL_PREFIX, MAX_EXPONENT_MAGNITUDE } from '../src/contentHash.js';
 import { RULE_KEY_PATTERN, DECISION_OUTCOMES } from '../src/index.js';
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -93,6 +93,14 @@ describe('computeContentHash — shared vectors', () => {
 // ── Contract parity (IC-3) ────────────────────────────────────────────────────
 
 describe('SDK contract parity (IC-3)', () => {
+  it('hash exclusions and exponent limit match the contract', () => {
+    const hash = (JSON.parse(readFileSync(resolve(PROJECT_ROOT, 'contract/rule-engine-contract.json'), 'utf8')) as {
+      contentHash: { excludedTopLevelProperties: string[]; excludedTopLevelPropertyPrefix: string; maxExponentMagnitude: number };
+    }).contentHash;
+    expect([[...EXCLUDED_TOP_LEVEL].sort(), EXCLUDED_TOP_LEVEL_PREFIX, MAX_EXPONENT_MAGNITUDE])
+      .toEqual([[...hash.excludedTopLevelProperties].sort(), hash.excludedTopLevelPropertyPrefix, hash.maxExponentMagnitude]);
+  });
+
   it('outcome literals match the shared contract exactly', () => {
     const contract = loadContract();
     expect([...DECISION_OUTCOMES]).toEqual(contract.outcomes);

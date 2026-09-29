@@ -240,7 +240,7 @@ export function App() {
           setRuleKey(keyToSet);
         } catch (keyErr: any) {
           setStatus(`Rule saved but key not set: ${keyErr.message}`);
-          void runValidation(pcrm); setBusy(false); return;
+          void runValidation(pcrm); return;
         }
       }
       setStatus(res.updatedInPlace

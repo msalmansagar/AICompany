@@ -9,8 +9,10 @@ import { createHash } from 'node:crypto';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const EXCLUDED_TOP_LEVEL = new Set(['schemaVersion', 'ruleId', 'name', 'description']);
-const MAX_EXPONENT_MAGNITUDE = 1000;
+// IC-3: test/content-hash.test.ts holds these equal to contract/rule-engine-contract.json.
+export const EXCLUDED_TOP_LEVEL: ReadonlySet<string> = new Set(['schemaVersion', 'ruleId', 'name', 'description']);
+export const EXCLUDED_TOP_LEVEL_PREFIX = 'x-';
+export const MAX_EXPONENT_MAGNITUDE = 1000;
 
 // ── Token representation ──────────────────────────────────────────────────────
 
@@ -89,7 +91,7 @@ function writeString(value: string): string {
 }
 
 function isExcludedTopLevel(key: string): boolean {
-  return EXCLUDED_TOP_LEVEL.has(key) || key.startsWith('x-');
+  return EXCLUDED_TOP_LEVEL.has(key) || key.startsWith(EXCLUDED_TOP_LEVEL_PREFIX);
 }
 
 // ── Number canonicalization ───────────────────────────────────────────────────
