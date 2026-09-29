@@ -33,9 +33,9 @@
 | Core runtime (net9) | 176 | **333** passed, 0 failed, 0 skipped |
 | CRM adapter (net462) | 98 | **153** passed |
 | Designer (vitest) | 96 | **156** passed; `tsc && vite build` ✓ |
-| JS SDK (vitest) | — | **51** passed; `tsc --noEmit` clean |
-| .NET SDK | — | **15** passed |
-| Gateway (vitest) | — | **31** passed; typecheck clean |
+| JS SDK (vitest) | 9 | **52** passed; `tsc --noEmit` clean |
+| .NET SDK | 6 | **15** passed |
+| Gateway (vitest) | 20 | **31** passed; typecheck clean |
 | Deploy tools (node --test) | 53 | **98** passed |
 | Plug-in package | — | build ✓; `verify-package.ps1` **PASS** (release 1.1.0, record 1.0.0, 9 IPlugin types); contract resource embedded in the packaged `EDP.RuleRuntime.dll` 1.1.0.0 |
 | Security gate | 5 warnings, 0 critical | 5 warnings (all pre-existing lines), 0 critical |
@@ -50,7 +50,7 @@
 | Self-review of runtime | — | Orphaned versions were refused by the new resolver (fixed `1fcad803`); EDP066 was raised for record-bound Lookups, blocking publish of any strict rule with a lookup column (fixed `936a0f93`) |
 | SDK + gateway (agent output, verified) | — | JS SDK did not typecheck (7 strict-null errors) and carried a boolean flag and a stale comment; it also accepted leading-zero numbers the C# parser rejects: all fixed. Gateway and .NET SDK had copies of contract values with no parity test: tests added |
 | Designer (agent output, verified) | — | Six defects fixed before commit: legacy rules opened as strict; strict switch locked once a key existed; reuse check never called; key written after the rule was created; the retired-key query filtered a column the audit table does not have (would fail every availability check live); legacy unbound `tier` not recognised as a declared fact. Also added: required/nullable on bound inputs, one-time key entry for unkeyed rules, typed empty test inputs, styles |
-| Final review (whole branch) | see PR #169 | recorded there |
+| Final review (whole branch, code-reviewer) | PASS WITH WARNINGS: 3 should-fix, 2 nits, 0 blocking | All five fixed (`9249d04d`): JS SDK hash exclusions and exponent limit held equal to the contract; the gateway validates the provenance envelope instead of casting; the designer reports an unreadable saved PCRM instead of swallowing it; consistent retired-key query encoding; duplicate busy reset removed |
 
 ## 5. Deviations and decisions made during build (none changes a sponsor decision)
 
