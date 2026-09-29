@@ -20,6 +20,7 @@ import { formApi } from '../api/formApi';
 import { ruleEngine } from '../engine/RuleEngine';
 import { validationEngine } from '../engine/ValidationEngine';
 import { isFieldVisible } from '../engine/fieldVisibility';
+import { mapRuleValuesToSchemaNames } from '../engine/ruleValueTargets';
 import { getAllFormFields, getAllTabFields, getTabZoneFields } from '../components/forms/tabFields';
 
 export interface FormContextValue {
@@ -234,7 +235,7 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
         setRuleState(result);
 
         // Apply setValue/clearValue/calculateValue from rules
-        const ruleSetValues = result.fieldValues;
+        const ruleSetValues = mapRuleValuesToSchemaNames(result.fieldValues, getAllFormFields(formDefinition));
         const hasSetValues = Object.keys(ruleSetValues).length > 0;
 
         if (hasSetValues) {
