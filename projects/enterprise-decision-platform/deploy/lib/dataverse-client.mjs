@@ -44,6 +44,12 @@ export async function createDataverseClient(envPath = process.env.EDP_ENV_PATH) 
   return {
     orgUrl,
     get: (path) => send('GET', path),
+    /** Raw bytes of a file column (e.g. pluginpackages(id)/package/$value). */
+    getBytes: async (path) => {
+      const response = await fetch(`${orgUrl}${API_PATH}/${path}`, { headers: { Authorization: headers.Authorization } });
+      if (!response.ok) throw new Error(`GET ${path} failed: HTTP ${response.status}`);
+      return Buffer.from(await response.arrayBuffer());
+    },
     patch: (path, body) => send('PATCH', path, body),
     post: (path, body, extraHeaders) => send('POST', path, body, extraHeaders),
   };

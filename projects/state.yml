@@ -305,3 +305,20 @@ projects:
 #     ceo_approved_phases: [ba]
 #     output_dir: projects/insurance-calc-engine/
 #     status: in_progress  # in_progress | blocked | delivered
+
+  - name: enterprise-decision-platform
+    type: crm
+    phase: qa
+    started: 2026-07-04
+    last_updated: 2026-09-29
+    last_agent: ceo (ship decision, Rule Engine 1.1.0 cloud)
+    output_dir: projects/enterprise-decision-platform/
+    status: cloud_deployed_validation_in_progress
+    notes: >
+      Rule Engine 1.1.0 (Release 1, B1-B4) deployed to the cloud sandbox org5869857f on
+      2026-09-29 from PR #169 @ fe4df34c (not merged): package, 10 metadata creates, 29
+      registration re-binds, designer; 37/37 cloud checks and 600/600 replay cases pass.
+      Open gates: TC-1 non-admin validation (no identity holds an EDP role; a security
+      change needs sponsor approval), then RuleKey backfill, uniqueness key (Active) and
+      RuleKey SUPPORTED. Signed 1.0.23 kept registered for rollback. On-prem: compatible by
+      design, runtime validation pending. Record: release1-cloud-deployment-record.md.
