@@ -1,0 +1,1165 @@
+{
+  "takenAtUtc": "2026-09-29T08:31:47.181Z",
+  "orgUrl": "https://org5869857f.crm4.dynamics.com",
+  "assemblies": [
+    {
+      "id": "a14a80ae-a177-f111-ab0e-000d3abcff60",
+      "name": "EDP.RuleRuntime.Crm.Signed",
+      "version": "1.0.23.0",
+      "publicKeyToken": "06949b1887fabe5d",
+      "sourceType": 0,
+      "packageId": null
+    },
+    {
+      "id": "b7231120-b69b-f111-b8db-000d3abd8313",
+      "name": "EDP.RuleRuntime.Crm",
+      "version": "1.1.0.0",
+      "publicKeyToken": "null",
+      "sourceType": 4,
+      "packageId": "5a200f1a-b69b-f111-b8db-000d3abd8313"
+    }
+  ],
+  "pluginTypes": [
+    {
+      "id": "e5f2b66d-bb77-f111-ab0e-000d3abcff60",
+      "typeName": "EDP.RuleRuntime.Crm.GovernanceActionPlugin",
+      "assemblyId": "a14a80ae-a177-f111-ab0e-000d3abcff60"
+    },
+    {
+      "id": "4cebc584-6b79-f111-ab0e-000d3abcff60",
+      "typeName": "EDP.RuleRuntime.Crm.RuleMetadataPlugin",
+      "assemblyId": "a14a80ae-a177-f111-ab0e-000d3abcff60"
+    },
+    {
+      "id": "b8231120-b69b-f111-b8db-000d3abd8313",
+      "typeName": "EDP.RuleRuntime.Crm.AppendOnlyGuardPlugin",
+      "assemblyId": "b7231120-b69b-f111-b8db-000d3abd8313"
+    },
+    {
+      "id": "bb231120-b69b-f111-b8db-000d3abd8313",
+      "typeName": "EDP.RuleRuntime.Crm.DecisionIntelligencePlugin",
+      "assemblyId": "b7231120-b69b-f111-b8db-000d3abd8313"
+    },
+    {
+      "id": "bc231120-b69b-f111-b8db-000d3abd8313",
+      "typeName": "EDP.RuleRuntime.Crm.DeleteAuditPlugin",
+      "assemblyId": "b7231120-b69b-f111-b8db-000d3abd8313"
+    },
+    {
+      "id": "bd231120-b69b-f111-b8db-000d3abd8313",
+      "typeName": "EDP.RuleRuntime.Crm.EvaluateDecisionPlugin",
+      "assemblyId": "b7231120-b69b-f111-b8db-000d3abd8313"
+    },
+    {
+      "id": "be231120-b69b-f111-b8db-000d3abd8313",
+      "typeName": "EDP.RuleRuntime.Crm.GovernanceActionPlugin",
+      "assemblyId": "b7231120-b69b-f111-b8db-000d3abd8313"
+    },
+    {
+      "id": "bf231120-b69b-f111-b8db-000d3abd8313",
+      "typeName": "EDP.RuleRuntime.Crm.ProductionPinJustificationPlugin",
+      "assemblyId": "b7231120-b69b-f111-b8db-000d3abd8313"
+    },
+    {
+      "id": "c0231120-b69b-f111-b8db-000d3abd8313",
+      "typeName": "EDP.RuleRuntime.Crm.RuleAnalysisPlugin",
+      "assemblyId": "b7231120-b69b-f111-b8db-000d3abd8313"
+    },
+    {
+      "id": "c1231120-b69b-f111-b8db-000d3abd8313",
+      "typeName": "EDP.RuleRuntime.Crm.RuleMetadataPlugin",
+      "assemblyId": "b7231120-b69b-f111-b8db-000d3abd8313"
+    },
+    {
+      "id": "c2231120-b69b-f111-b8db-000d3abd8313",
+      "typeName": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "assemblyId": "b7231120-b69b-f111-b8db-000d3abd8313"
+    },
+    {
+      "id": "c60a30b1-a177-f111-ab0e-70a8a55bc6a5",
+      "typeName": "EDP.RuleRuntime.Crm.EvaluateDecisionPlugin",
+      "assemblyId": "a14a80ae-a177-f111-ab0e-000d3abcff60"
+    },
+    {
+      "id": "8bba4c07-7979-f111-ab0e-70a8a55bc6a5",
+      "typeName": "EDP.RuleRuntime.Crm.DecisionIntelligencePlugin",
+      "assemblyId": "a14a80ae-a177-f111-ab0e-000d3abcff60"
+    },
+    {
+      "id": "d262b514-8879-f111-ab0e-70a8a55bc6a5",
+      "typeName": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "assemblyId": "a14a80ae-a177-f111-ab0e-000d3abcff60"
+    },
+    {
+      "id": "0bc51cba-8b79-f111-ab0e-70a8a55bc6a5",
+      "typeName": "EDP.RuleRuntime.Crm.RuleAnalysisPlugin",
+      "assemblyId": "a14a80ae-a177-f111-ab0e-000d3abcff60"
+    },
+    {
+      "id": "8c9b6fc6-8b79-f111-ab0e-70a8a55bc6a5",
+      "typeName": "EDP.RuleRuntime.Crm.AppendOnlyGuardPlugin",
+      "assemblyId": "a14a80ae-a177-f111-ab0e-000d3abcff60"
+    },
+    {
+      "id": "46c56b1b-637c-f111-ab0e-70a8a55bc6a5",
+      "typeName": "EDP.RuleRuntime.Crm.DeleteAuditPlugin",
+      "assemblyId": "a14a80ae-a177-f111-ab0e-000d3abcff60"
+    }
+  ],
+  "customApis": [
+    {
+      "id": "bd4113dc-a977-f111-ab0e-000d3abcff60",
+      "uniqueName": "qdb_edp_EvaluateDecision",
+      "isFunction": false,
+      "bindingType": 0,
+      "pluginTypeId": "c60a30b1-a177-f111-ab0e-70a8a55bc6a5",
+      "request": [
+        {
+          "id": "a768695d-aa77-f111-ab0e-000d3abcff60",
+          "name": "InputsJson",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "ad68695d-aa77-f111-ab0e-000d3abcff60",
+          "name": "TargetRef",
+          "type": "EntityReference",
+          "optional": true
+        },
+        {
+          "id": "8b9a26f8-b277-f111-ab0e-000d3abcff60",
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "0fadfec4-b277-f111-ab0e-70a8a55bc6a5",
+          "name": "PcrmJson",
+          "type": "String",
+          "optional": true
+        }
+      ],
+      "response": [
+        {
+          "id": "958b2ec8-b277-f111-ab0e-000d3abcff60",
+          "name": "ElapsedMs",
+          "type": "Integer"
+        },
+        {
+          "id": "eb381261-aa77-f111-ab0e-70a8a536c536",
+          "name": "Success",
+          "type": "Boolean"
+        },
+        {
+          "id": "f2381261-aa77-f111-ab0e-70a8a536c536",
+          "name": "Matched",
+          "type": "Boolean"
+        },
+        {
+          "id": "f8381261-aa77-f111-ab0e-70a8a536c536",
+          "name": "OutputsJson",
+          "type": "String"
+        },
+        {
+          "id": "1badfec4-b277-f111-ab0e-70a8a55bc6a5",
+          "name": "TraceJson",
+          "type": "String"
+        },
+        {
+          "id": "21adfec4-b277-f111-ab0e-70a8a55bc6a5",
+          "name": "DiagnosticsJson",
+          "type": "String"
+        },
+        {
+          "id": "1fc5a55b-c27c-f111-ab0e-70a8a55bc6a5",
+          "name": "ReasonCodesJson",
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "id": "4eebc584-6b79-f111-ab0e-000d3abcff60",
+      "uniqueName": "qdb_edp_GetInputSchema",
+      "isFunction": true,
+      "bindingType": 0,
+      "pluginTypeId": "4cebc584-6b79-f111-ab0e-000d3abcff60",
+      "request": [
+        {
+          "id": "7254d68a-6b79-f111-ab0e-000d3abcff60",
+          "name": "RuleId",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "a504d690-6b79-f111-ab0e-000d3abcff60",
+          "name": "Version",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "4489848d-6b79-f111-ab0e-70a8a55bc6a5",
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "4e89848d-6b79-f111-ab0e-70a8a55bc6a5",
+          "name": "RuleName",
+          "type": "String",
+          "optional": true
+        }
+      ],
+      "response": [
+        {
+          "id": "5989848d-6b79-f111-ab0e-70a8a55bc6a5",
+          "name": "ResultJson",
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "id": "ae04d690-6b79-f111-ab0e-000d3abcff60",
+      "uniqueName": "qdb_edp_GetOutputSchema",
+      "isFunction": true,
+      "bindingType": 0,
+      "pluginTypeId": "4cebc584-6b79-f111-ab0e-000d3abcff60",
+      "request": [
+        {
+          "id": "bf04d690-6b79-f111-ab0e-000d3abcff60",
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "c604d690-6b79-f111-ab0e-000d3abcff60",
+          "name": "Version",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "0f93dc93-6b79-f111-ab0e-70a8a55bc6a5",
+          "name": "RuleId",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "1693dc93-6b79-f111-ab0e-70a8a55bc6a5",
+          "name": "RuleName",
+          "type": "String",
+          "optional": true
+        }
+      ],
+      "response": [
+        {
+          "id": "cc04d690-6b79-f111-ab0e-000d3abcff60",
+          "name": "ResultJson",
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "id": "d204d690-6b79-f111-ab0e-000d3abcff60",
+      "uniqueName": "qdb_edp_GetRuleMetadata",
+      "isFunction": true,
+      "bindingType": 0,
+      "pluginTypeId": "4cebc584-6b79-f111-ab0e-000d3abcff60",
+      "request": [
+        {
+          "id": "f2f45197-6b79-f111-ab0e-000d3abcff60",
+          "name": "RuleId",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "1c93dc93-6b79-f111-ab0e-70a8a55bc6a5",
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "2293dc93-6b79-f111-ab0e-70a8a55bc6a5",
+          "name": "RuleName",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "2893dc93-6b79-f111-ab0e-70a8a55bc6a5",
+          "name": "Version",
+          "type": "String",
+          "optional": true
+        }
+      ],
+      "response": [
+        {
+          "id": "f8f45197-6b79-f111-ab0e-000d3abcff60",
+          "name": "ResultJson",
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "id": "fff45197-6b79-f111-ab0e-000d3abcff60",
+      "uniqueName": "qdb_edp_GetPublishedVersion",
+      "isFunction": true,
+      "bindingType": 0,
+      "pluginTypeId": "4cebc584-6b79-f111-ab0e-000d3abcff60",
+      "request": [
+        {
+          "id": "ed0b8f9a-6b79-f111-ab0e-70a8a55bc6a5",
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "f40b8f9a-6b79-f111-ab0e-70a8a55bc6a5",
+          "name": "RuleId",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "fa0b8f9a-6b79-f111-ab0e-70a8a55bc6a5",
+          "name": "RuleName",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "000c8f9a-6b79-f111-ab0e-70a8a55bc6a5",
+          "name": "Version",
+          "type": "String",
+          "optional": true
+        }
+      ],
+      "response": [
+        {
+          "id": "060c8f9a-6b79-f111-ab0e-70a8a55bc6a5",
+          "name": "ResultJson",
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "id": "339d010a-7979-f111-ab0e-000d3abcff60",
+      "uniqueName": "qdb_edp_ExplainDecision",
+      "isFunction": true,
+      "bindingType": 0,
+      "pluginTypeId": "8bba4c07-7979-f111-ab0e-70a8a55bc6a5",
+      "request": [
+        {
+          "id": "660bf90c-7979-f111-ab0e-70a8a536c536",
+          "name": "ExecutionLogId",
+          "type": "String",
+          "optional": false
+        }
+      ],
+      "response": [
+        {
+          "id": "ce160c10-7979-f111-ab0e-70a8a55bc6a5",
+          "name": "ResultJson",
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "id": "649f471a-8879-f111-ab0e-000d3abcff60",
+      "uniqueName": "qdb_edp_TestRule",
+      "isFunction": false,
+      "bindingType": 0,
+      "pluginTypeId": "d262b514-8879-f111-ab0e-70a8a55bc6a5",
+      "request": [
+        {
+          "id": "33d85620-8879-f111-ab0e-000d3abcff60",
+          "name": "InputsJson",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "f6d2931d-8879-f111-ab0e-70a8a536c536",
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "20855c3d-8879-f111-ab0e-70a8a536c536",
+          "name": "PcrmJson",
+          "type": "String",
+          "optional": true
+        }
+      ],
+      "response": [
+        {
+          "id": "fa19a523-8879-f111-ab0e-70a8a536c536",
+          "name": "ResultJson",
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "id": "58e7dc3f-8879-f111-ab0e-000d3abcff60",
+      "uniqueName": "qdb_edp_GetRuleTemplates",
+      "isFunction": true,
+      "bindingType": 0,
+      "pluginTypeId": "d262b514-8879-f111-ab0e-70a8a55bc6a5",
+      "request": [
+        {
+          "id": "d5727b43-8879-f111-ab0e-70a8a536c536",
+          "name": "Industry",
+          "type": "String",
+          "optional": true
+        }
+      ],
+      "response": [
+        {
+          "id": "dc727b43-8879-f111-ab0e-70a8a536c536",
+          "name": "ResultJson",
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "id": "fef28cbd-8b79-f111-ab0e-000d3abcff60",
+      "uniqueName": "qdb_edp_GetDependencies",
+      "isFunction": true,
+      "bindingType": 0,
+      "pluginTypeId": "0bc51cba-8b79-f111-ab0e-70a8a55bc6a5",
+      "request": [
+        {
+          "id": "12f38cbd-8b79-f111-ab0e-000d3abcff60",
+          "name": "PcrmJson",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "b8c936c0-8b79-f111-ab0e-70a8a55bc6a5",
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true
+        }
+      ],
+      "response": [
+        {
+          "id": "1df38cbd-8b79-f111-ab0e-000d3abcff60",
+          "name": "ResultJson",
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "id": "54500dc4-8b79-f111-ab0e-000d3abcff60",
+      "uniqueName": "qdb_edp_ExplainRule",
+      "isFunction": true,
+      "bindingType": 0,
+      "pluginTypeId": "0bc51cba-8b79-f111-ab0e-70a8a55bc6a5",
+      "request": [
+        {
+          "id": "65500dc4-8b79-f111-ab0e-000d3abcff60",
+          "name": "PcrmJson",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "589b6fc6-8b79-f111-ab0e-70a8a55bc6a5",
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true
+        }
+      ],
+      "response": [
+        {
+          "id": "6e9b6fc6-8b79-f111-ab0e-70a8a55bc6a5",
+          "name": "ResultJson",
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "id": "38961435-aa7c-f111-ab0e-000d3abd8313",
+      "uniqueName": "qdb_edp_GetRuleAnalytics",
+      "isFunction": true,
+      "bindingType": 0,
+      "pluginTypeId": "d262b514-8879-f111-ab0e-70a8a55bc6a5",
+      "request": [
+        {
+          "id": "cbc03937-aa7c-f111-ab0e-000d3abcf32d",
+          "name": "RuleId",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "63aa163b-aa7c-f111-ab0e-000d3abd8313",
+          "name": "PeriodDays",
+          "type": "String",
+          "optional": true
+        }
+      ],
+      "response": [
+        {
+          "id": "3ff2e338-aa7c-f111-ab0e-70a8a55bc6a5",
+          "name": "ResultJson",
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "id": "19773658-227d-f111-ab0e-000d3abd8313",
+      "uniqueName": "qdb_edp_ResolveEffectiveVersion",
+      "isFunction": true,
+      "bindingType": 0,
+      "pluginTypeId": "d262b514-8879-f111-ab0e-70a8a55bc6a5",
+      "request": [
+        {
+          "id": "dab3405b-227d-f111-ab0e-000d3abcf32d",
+          "name": "RuleName",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "60b6dd5c-227d-f111-ab0e-70a8a55bc6a5",
+          "name": "AsOf",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "f831995e-227d-f111-ab0e-7c1e5283ad83",
+          "name": "RuleId",
+          "type": "String",
+          "optional": true
+        }
+      ],
+      "response": [
+        {
+          "id": "666d495e-227d-f111-ab0e-000d3abd8313",
+          "name": "ResultJson",
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "id": "061aa523-8879-f111-ab0e-70a8a536c536",
+      "uniqueName": "qdb_edp_ExecuteDecisionTable",
+      "isFunction": false,
+      "bindingType": 0,
+      "pluginTypeId": "d262b514-8879-f111-ab0e-70a8a55bc6a5",
+      "request": [
+        {
+          "id": "40b1e929-8879-f111-ab0e-70a8a536c536",
+          "name": "InputsJson",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "cca9df26-8879-f111-ab0e-70a8a55bc6a5",
+          "name": "PcrmJson",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "d2a9df26-8879-f111-ab0e-70a8a55bc6a5",
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true
+        }
+      ],
+      "response": [
+        {
+          "id": "31855c3d-8879-f111-ab0e-70a8a536c536",
+          "name": "ResultJson",
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "id": "eb727b43-8879-f111-ab0e-70a8a536c536",
+      "uniqueName": "qdb_edp_GetRuleDocumentation",
+      "isFunction": true,
+      "bindingType": 0,
+      "pluginTypeId": "d262b514-8879-f111-ab0e-70a8a55bc6a5",
+      "request": [
+        {
+          "id": "a7f2e246-8879-f111-ab0e-000d3abcff60",
+          "name": "RuleId",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "adf2e246-8879-f111-ab0e-000d3abcff60",
+          "name": "RuleName",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "10737b43-8879-f111-ab0e-70a8a536c536",
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true
+        }
+      ],
+      "response": [
+        {
+          "id": "4e121c45-8879-f111-ab0e-70a8a55bc6a5",
+          "name": "ResultJson",
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "id": "86989d6e-bb77-f111-ab0e-70a8a55bc6a5",
+      "uniqueName": "qdb_edp_RuleGovernanceAction",
+      "isFunction": false,
+      "bindingType": 0,
+      "pluginTypeId": "e5f2b66d-bb77-f111-ab0e-000d3abcff60",
+      "request": [
+        {
+          "id": "1263af73-bb77-f111-ab0e-000d3abcff60",
+          "name": "Action",
+          "type": "String",
+          "optional": false
+        },
+        {
+          "id": "88c69f74-bb77-f111-ab0e-70a8a55bc6a5",
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": false
+        },
+        {
+          "id": "8ec69f74-bb77-f111-ab0e-70a8a55bc6a5",
+          "name": "Comments",
+          "type": "String",
+          "optional": true
+        }
+      ],
+      "response": [
+        {
+          "id": "2d63af73-bb77-f111-ab0e-000d3abcff60",
+          "name": "Success",
+          "type": "Boolean"
+        },
+        {
+          "id": "3f63af73-bb77-f111-ab0e-000d3abcff60",
+          "name": "Message",
+          "type": "String"
+        },
+        {
+          "id": "94c69f74-bb77-f111-ab0e-70a8a55bc6a5",
+          "name": "NewState",
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "id": "d5160c10-7979-f111-ab0e-70a8a55bc6a5",
+      "uniqueName": "qdb_edp_GetAnalytics",
+      "isFunction": true,
+      "bindingType": 0,
+      "pluginTypeId": "8bba4c07-7979-f111-ab0e-70a8a55bc6a5",
+      "request": [
+        {
+          "id": "6d0bf90c-7979-f111-ab0e-70a8a536c536",
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true
+        }
+      ],
+      "response": [
+        {
+          "id": "950ff710-7979-f111-ab0e-000d3abcff60",
+          "name": "ResultJson",
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "id": "ef62b514-8879-f111-ab0e-70a8a55bc6a5",
+      "uniqueName": "qdb_edp_ValidateRule",
+      "isFunction": false,
+      "bindingType": 0,
+      "pluginTypeId": "c2231120-b69b-f111-b8db-000d3abd8313",
+      "request": [
+        {
+          "id": "5d9f471a-8879-f111-ab0e-000d3abcff60",
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "fa41ee1a-8879-f111-ab0e-70a8a55bc6a5",
+          "name": "PcrmJson",
+          "type": "String",
+          "optional": true
+        }
+      ],
+      "response": [
+        {
+          "id": "4542ee1a-8879-f111-ab0e-70a8a55bc6a5",
+          "name": "ResultJson",
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "id": "daa9df26-8879-f111-ab0e-70a8a55bc6a5",
+      "uniqueName": "qdb_edp_ExecuteRuleSet",
+      "isFunction": false,
+      "bindingType": 0,
+      "pluginTypeId": "d262b514-8879-f111-ab0e-70a8a55bc6a5",
+      "request": [
+        {
+          "id": "e713682c-8879-f111-ab0e-000d3abcff60",
+          "name": "RuleVersionIdsJson",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "88f0dc2c-8879-f111-ab0e-70a8a55bc6a5",
+          "name": "InputsJson",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "ccfde18e-997b-f111-ab0e-70a8a55bc6a5",
+          "name": "RuleSetId",
+          "type": "String",
+          "optional": true
+        }
+      ],
+      "response": [
+        {
+          "id": "e6936730-8879-f111-ab0e-70a8a536c536",
+          "name": "ResultJson",
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "id": "16c4cf3e-8879-f111-ab0e-70a8a55bc6a5",
+      "uniqueName": "qdb_edp_GetRuleHistory",
+      "isFunction": true,
+      "bindingType": 0,
+      "pluginTypeId": "d262b514-8879-f111-ab0e-70a8a55bc6a5",
+      "request": [
+        {
+          "id": "52e7dc3f-8879-f111-ab0e-000d3abcff60",
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "40855c3d-8879-f111-ab0e-70a8a536c536",
+          "name": "RuleId",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "29c4cf3e-8879-f111-ab0e-70a8a55bc6a5",
+          "name": "RuleName",
+          "type": "String",
+          "optional": true
+        }
+      ],
+      "response": [
+        {
+          "id": "30c4cf3e-8879-f111-ab0e-70a8a55bc6a5",
+          "name": "ResultJson",
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "id": "c0c936c0-8b79-f111-ab0e-70a8a55bc6a5",
+      "uniqueName": "qdb_edp_CompareVersions",
+      "isFunction": true,
+      "bindingType": 0,
+      "pluginTypeId": "0bc51cba-8b79-f111-ab0e-70a8a55bc6a5",
+      "request": [
+        {
+          "id": "4b500dc4-8b79-f111-ab0e-000d3abcff60",
+          "name": "RuleVersionIdA",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "d2c936c0-8b79-f111-ab0e-70a8a55bc6a5",
+          "name": "RuleVersionIdB",
+          "type": "String",
+          "optional": true
+        }
+      ],
+      "response": [
+        {
+          "id": "dbc936c0-8b79-f111-ab0e-70a8a55bc6a5",
+          "name": "ResultJson",
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "id": "759b6fc6-8b79-f111-ab0e-70a8a55bc6a5",
+      "uniqueName": "qdb_edp_AnalyzeRule",
+      "isFunction": true,
+      "bindingType": 0,
+      "pluginTypeId": "0bc51cba-8b79-f111-ab0e-70a8a55bc6a5",
+      "request": [
+        {
+          "id": "7f936aca-8b79-f111-ab0e-000d3abcff60",
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "869b6fc6-8b79-f111-ab0e-70a8a55bc6a5",
+          "name": "PcrmJson",
+          "type": "String",
+          "optional": true
+        }
+      ],
+      "response": [
+        {
+          "id": "85936aca-8b79-f111-ab0e-000d3abcff60",
+          "name": "ResultJson",
+          "type": "String"
+        }
+      ]
+    },
+    {
+      "id": "38dbae73-977c-f111-ab0e-70a8a55bc6a5",
+      "uniqueName": "qdb_edp_RunScenarios",
+      "isFunction": false,
+      "bindingType": 0,
+      "pluginTypeId": "d262b514-8879-f111-ab0e-70a8a55bc6a5",
+      "request": [
+        {
+          "id": "5c5fba79-977c-f111-ab0e-000d3abd8313",
+          "name": "RuleId",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "5aceb27f-977c-f111-ab0e-000d3abd8313",
+          "name": "RuleName",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "28c9b579-977c-f111-ab0e-70a8a55bc6a5",
+          "name": "PcrmJson",
+          "type": "String",
+          "optional": true
+        },
+        {
+          "id": "30c9b579-977c-f111-ab0e-70a8a55bc6a5",
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true
+        }
+      ],
+      "response": [
+        {
+          "id": "60ceb27f-977c-f111-ab0e-000d3abd8313",
+          "name": "ResultJson",
+          "type": "String"
+        }
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "id": "894a2fc5-bb9b-f111-b8db-000d3abcf32d",
+      "message": "qdb_edp_ValidateRule",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "c2231120-b69b-f111-b8db-000d3abd8313",
+      "imageCount": 0
+    },
+    {
+      "id": "c54113dc-a977-f111-ab0e-000d3abcff60",
+      "message": "qdb_edp_EvaluateDecision",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "c60a30b1-a177-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "4f54d68a-6b79-f111-ab0e-000d3abcff60",
+      "message": "qdb_edp_GetInputSchema",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "4cebc584-6b79-f111-ab0e-000d3abcff60",
+      "imageCount": 0
+    },
+    {
+      "id": "b604d690-6b79-f111-ab0e-000d3abcff60",
+      "message": "qdb_edp_GetOutputSchema",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "4cebc584-6b79-f111-ab0e-000d3abcff60",
+      "imageCount": 0
+    },
+    {
+      "id": "da04d690-6b79-f111-ab0e-000d3abcff60",
+      "message": "qdb_edp_GetRuleMetadata",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "4cebc584-6b79-f111-ab0e-000d3abcff60",
+      "imageCount": 0
+    },
+    {
+      "id": "09f55197-6b79-f111-ab0e-000d3abcff60",
+      "message": "qdb_edp_GetPublishedVersion",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "4cebc584-6b79-f111-ab0e-000d3abcff60",
+      "imageCount": 0
+    },
+    {
+      "id": "3b9d010a-7979-f111-ab0e-000d3abcff60",
+      "message": "qdb_edp_ExplainDecision",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "8bba4c07-7979-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "6c9f471a-8879-f111-ab0e-000d3abcff60",
+      "message": "qdb_edp_TestRule",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "d262b514-8879-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "60e7dc3f-8879-f111-ab0e-000d3abcff60",
+      "message": "qdb_edp_GetRuleTemplates",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "d262b514-8879-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "06f38cbd-8b79-f111-ab0e-000d3abcff60",
+      "message": "qdb_edp_GetDependencies",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "0bc51cba-8b79-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "5c500dc4-8b79-f111-ab0e-000d3abcff60",
+      "message": "qdb_edp_ExplainRule",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "0bc51cba-8b79-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "8b936aca-8b79-f111-ab0e-000d3abcff60",
+      "message": "Update",
+      "entity": "qdb_edp_ruleaudit",
+      "stage": 10,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "8c9b6fc6-8b79-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "4d961435-aa7c-f111-ab0e-000d3abd8313",
+      "message": "qdb_edp_GetRuleAnalytics",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "d262b514-8879-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "22773658-227d-f111-ab0e-000d3abd8313",
+      "message": "qdb_edp_ResolveEffectiveVersion",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "d262b514-8879-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "0e1aa523-8879-f111-ab0e-70a8a536c536",
+      "message": "qdb_edp_ExecuteDecisionTable",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "d262b514-8879-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "f9727b43-8879-f111-ab0e-70a8a536c536",
+      "message": "qdb_edp_GetRuleDocumentation",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "d262b514-8879-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "8e989d6e-bb77-f111-ab0e-70a8a55bc6a5",
+      "message": "qdb_edp_RuleGovernanceAction",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "e5f2b66d-bb77-f111-ab0e-000d3abcff60",
+      "imageCount": 0
+    },
+    {
+      "id": "dd160c10-7979-f111-ab0e-70a8a55bc6a5",
+      "message": "qdb_edp_GetAnalytics",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "8bba4c07-7979-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "e2a9df26-8879-f111-ab0e-70a8a55bc6a5",
+      "message": "qdb_edp_ExecuteRuleSet",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "d262b514-8879-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "1ec4cf3e-8879-f111-ab0e-70a8a55bc6a5",
+      "message": "qdb_edp_GetRuleHistory",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "d262b514-8879-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "c9c936c0-8b79-f111-ab0e-70a8a55bc6a5",
+      "message": "qdb_edp_CompareVersions",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "0bc51cba-8b79-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "7d9b6fc6-8b79-f111-ab0e-70a8a55bc6a5",
+      "message": "qdb_edp_AnalyzeRule",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "0bc51cba-8b79-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "423225cd-8b79-f111-ab0e-70a8a55bc6a5",
+      "message": "Delete",
+      "entity": "qdb_edp_ruleaudit",
+      "stage": 10,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "8c9b6fc6-8b79-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "453225cd-8b79-f111-ab0e-70a8a55bc6a5",
+      "message": "Update",
+      "entity": "qdb_edp_ruleexecutionlog",
+      "stage": 10,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "8c9b6fc6-8b79-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "483225cd-8b79-f111-ab0e-70a8a55bc6a5",
+      "message": "Delete",
+      "entity": "qdb_edp_ruleexecutionlog",
+      "stage": 10,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "8c9b6fc6-8b79-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "47cd4c11-dd7b-f111-ab0e-70a8a55bc6a5",
+      "message": "Update",
+      "entity": "qdb_edp_ruleapproval",
+      "stage": 10,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "8c9b6fc6-8b79-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "54cd4c11-dd7b-f111-ab0e-70a8a55bc6a5",
+      "message": "Delete",
+      "entity": "qdb_edp_ruleapproval",
+      "stage": 10,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "8c9b6fc6-8b79-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "4bc56b1b-637c-f111-ab0e-70a8a55bc6a5",
+      "message": "Delete",
+      "entity": "qdb_edp_rule",
+      "stage": 20,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "46c56b1b-637c-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "bf5a8a21-637c-f111-ab0e-70a8a55bc6a5",
+      "message": "Delete",
+      "entity": "qdb_edp_ruleversion",
+      "stage": 20,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "46c56b1b-637c-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    },
+    {
+      "id": "45dbae73-977c-f111-ab0e-70a8a55bc6a5",
+      "message": "qdb_edp_RunScenarios",
+      "entity": "none",
+      "stage": 30,
+      "mode": 0,
+      "disabled": false,
+      "eventHandlerId": "d262b514-8879-f111-ab0e-70a8a55bc6a5",
+      "imageCount": 0
+    }
+  ]
+}
