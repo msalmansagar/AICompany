@@ -252,10 +252,15 @@ the version in `package.json`). The emitted `solution.xml` is pinned to
    - Refresh the browser (F5 or clear cache).
    - Confirm **Form Management > Form Designer** appears in the left navigation.
 
-4. Open the web resource directly to confirm the React application loads:
+4. Open the designer the way a user does, via `main.aspx`, to confirm the
+   React application loads:
    ```
-   https://<crm-server>/<org-name>/WebResources/qdb_/form-designer/index.html
+   https://<crm-server>/<org-name>/main.aspx?pagetype=webresource&webresourceName=qdb_%2Fform-designer%2Findex.html
    ```
+   Do **not** verify at the raw `/WebResources/qdb_/form-designer/index.html`
+   path. `parent.Xrm` is absent there, and a build can load at that path
+   while rendering blank everywhere users actually open it (the 2026-09-16
+   blank-designer defect was masked this way for weeks).
 
 5. Confirm the designer initialises without errors:
    - Open browser developer tools (F12).
