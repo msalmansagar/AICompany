@@ -57,10 +57,8 @@ The form marks five partner-bank fields ApplicationRequired; the Web API does no
   picklist. Proposed: picklist = Housing Loan; department = the "Housing Loan" business unit;
   assigned-to = that unit's `qdb_manager`. Confirm, and confirm "Housing Loan" rather than
   "Collections - Housing Loans".
-- **D3 Server-side boundary.** 9.1 has no Custom API. Options: a custom Action backed by a plugin
-  (works on 9.1 and cloud), or the Integration Service (needs hosting and browser auth).
-- **D4 Cross-CRM.** Is HL CRM a separate organisation from `QDB1`? Decides whether the Case can
-  reference the HL contact at all.
+- **D3 Server-side boundary — recommendation follows from D4.** DCP runs in HL CRM; the Case is written in QDB1. A plugin or Action in HL CRM cannot write to another organisation without holding QDB1 credentials inside CRM, and 9.1 has no Custom API. The **Integration Service** is the designed cross-organisation boundary: its org router already targets HL and BFD by configuration, it holds each org's service identity server-side, and it can derive every fixed value. It needs a host on QDB infrastructure and a decision on browser → service authentication (P11). Awaiting confirmation.
+- **D4 Cross-CRM — ANSWERED 2026-09-29 (user): HL CRM is a separate organisation from `QDB1`.** The Case can never hold a lookup to the HL contact; `qdb_contact` points at QDB1 contacts and stays empty. HL identity reaches the Case only as values (name, mobile, and whatever D5 approves).
 - **D5 HL context.** Loan account, DCP case reference, source system: `qdb_qid` / `qdb_contact`
   or nothing.
 - **D6 Customer notification.** Whether a DCP-raised complaint may trigger the customer SMS/email.
