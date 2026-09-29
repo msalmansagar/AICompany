@@ -10,6 +10,7 @@ import { orgRouterPlugin } from './plugins/org-router.js';
 import { healthRoutes } from './routes/health.js';
 import { customerRoutes } from './routes/customers.js';
 import { identityExceptionRoutes } from './routes/identity-exceptions.js';
+import { complaintRoutes } from './routes/complaints.js';
 
 export interface AppOverrides {
   /** Inject a mock adapter in tests; production resolves from config. */
@@ -57,6 +58,7 @@ export async function buildApp(
       await healthRoutes(instance);
       await customerRoutes(instance);
       await identityExceptionRoutes(instance);
+      await complaintRoutes(instance, config);
     }),
   );
 

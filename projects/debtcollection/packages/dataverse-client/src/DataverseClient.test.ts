@@ -83,6 +83,26 @@ describe('DataverseClient', () => {
       const headers = options.headers as Record<string, string>;
       expect(headers['x-correlation-id']).toBe('corr-123');
     });
+
+    it('should_send_MSCRMCallerID_when_a_caller_is_named', async () => {
+      fetchSpy.mockResolvedValueOnce(mockFetchResponse(200, { value: [] }));
+
+      const client = buildClient();
+      await client.getList('msst_dcpcustomers', {}, { callerId: 'user-guid-7' });
+
+      const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect((options.headers as Record<string, string>)['MSCRMCallerID']).toBe('user-guid-7');
+    });
+
+    it('should_not_send_MSCRMCallerID_when_no_caller_is_named', async () => {
+      fetchSpy.mockResolvedValueOnce(mockFetchResponse(200, { value: [] }));
+
+      const client = buildClient();
+      await client.getList('msst_dcpcustomers');
+
+      const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(options.headers as Record<string, string>).not.toHaveProperty('MSCRMCallerID');
+    });
   });
 
   describe('getByAlternateKey', () => {
@@ -148,6 +168,17 @@ describe('DataverseClient', () => {
       await client.create('msst_dcpcustomers', { msst_qid: 'QAT-004' });
 
       expect(fetchSpy).toHaveBeenCalledOnce();
+    });
+
+    it('should_send_MSCRMCallerID_on_create_when_a_caller_is_named', async () => {
+      const entityId = 'https://hl-crm.example.com/api/data/v9.2/incidents(c-1)';
+      fetchSpy.mockResolvedValueOnce(mockFetchResponse(204, null, { 'OData-EntityId': entityId }));
+
+      const client = buildClient();
+      await client.create('incidents', { title: 'x' }, { callerId: 'user-guid-8' });
+
+      const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect((options.headers as Record<string, string>)['MSCRMCallerID']).toBe('user-guid-8');
     });
   });
 

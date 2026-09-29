@@ -189,7 +189,7 @@ export class DataverseClient {
     requestOptions: RequestOptions,
   ): Promise<{ id: string }> {
     return withRetry(async () => {
-      const headers = await this.buildHeaders(requestOptions.correlationId);
+      const headers = await this.buildHeaders(requestOptions);
       const response = await fetch(url, {
         method: 'POST',
         headers,
@@ -208,7 +208,7 @@ export class DataverseClient {
     });
   }
 
-  private async buildHeaders(correlationId?: string): Promise<Record<string, string>> {
+  private async buildHeaders(requestOptions: RequestOptions): Promise<Record<string, string>> {
     const token = await this.getAccessToken(this.orgKey);
     return {
       Authorization: `Bearer ${token}`,
@@ -217,7 +217,8 @@ export class DataverseClient {
       'OData-MaxVersion': ODATA_MAX_VERSION,
       'OData-Version': ODATA_VERSION,
       Prefer: 'odata.include-annotations="*"',
-      ...(correlationId !== undefined ? { 'x-correlation-id': correlationId } : {}),
+      ...(requestOptions.correlationId !== undefined ? { 'x-correlation-id': requestOptions.correlationId } : {}),
+      ...(requestOptions.callerId !== undefined ? { MSCRMCallerID: requestOptions.callerId } : {}),
     };
   }
 
@@ -229,7 +230,7 @@ export class DataverseClient {
     extraHeaders: Record<string, string> = {},
   ): Promise<unknown> {
     return withRetry(async () => {
-      const headers = mergeHeaders(await this.buildHeaders(requestOptions.correlationId), extraHeaders);
+      const headers = mergeHeaders(await this.buildHeaders(requestOptions), extraHeaders);
       const fetchOptions: RequestInit = {
         method,
         headers: headers,
