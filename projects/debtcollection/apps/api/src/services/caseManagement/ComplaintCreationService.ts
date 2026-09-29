@@ -36,8 +36,6 @@ export interface ComplaintCreationDependencies {
   now: () => Date;
 }
 
-/** Dataverse's answer to inserting a primary key that already exists. */
-const DUPLICATE_RECORD_CODE = '0x80040237';
 const FORMATTED = '@OData.Community.Display.V1.FormattedValue';
 
 /**
@@ -60,19 +58,21 @@ export class ComplaintCreationService {
     const references = await resolveCaseManagementReferences(caseManagementClient, nonCustomerAccountId);
     const complaintId = complaintIdFor({ collectionCaseId: request.collectionCaseId, requestId: request.requestId, userId: request.user.sub });
     const payload = buildHlComplaintPayload({
-      complaintId, ownerUserId, references, context, description: request.description, receivedOn: this.dependencies.now(),
+      ownerUserId, references, context, description: request.description, receivedOn: this.dependencies.now(),
     });
-    const isRepeatSubmission = await this.insert(payload, ownerUserId);
+    const isRepeatSubmission = await this.insert(complaintId, payload, ownerUserId);
     return this.readBack(complaintId, ownerUserId, isRepeatSubmission);
   }
 
-  /** Inserts as the owner. Returns true when the record already existed — the retry case. */
-  private async insert(payload: Record<string, unknown>, ownerUserId: string): Promise<boolean> {
+  /**
+   * Creates as the owner, create-only: the platform refuses a second record under the same id with
+   * 412, which is how a retried submission is recognised. Returns true for that retry.
+   */
+  private async insert(complaintId: string, payload: Record<string, unknown>, ownerUserId: string): Promise<boolean> {
     try {
-      await this.dependencies.caseManagementClient.create('incidents', payload, { callerId: ownerUserId });
-      return false;
+      const outcome = await this.dependencies.caseManagementClient.createWithId('incidents', complaintId, payload, { callerId: ownerUserId });
+      return outcome === 'alreadyExists';
     } catch (error) {
-      if (error instanceof CrmApiError && error.odataCode === DUPLICATE_RECORD_CODE) return true;
       if (error instanceof CrmApiError && error.httpStatus === 403) {
         throw new ComplaintAccessError('Case Management does not allow this user to create a Case');
       }

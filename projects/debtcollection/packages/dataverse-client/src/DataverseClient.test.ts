@@ -182,6 +182,50 @@ describe('DataverseClient', () => {
     });
   });
 
+  describe('createWithId', () => {
+    it('should_patch_the_chosen_id_with_If_None_Match_star', async () => {
+      fetchSpy.mockResolvedValueOnce(mockFetchResponse(204, null));
+
+      const client = buildClient();
+      const outcome = await client.createWithId('incidents', 'id-1', { title: 'x' });
+
+      const [url, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(outcome).toBe('created');
+      expect(url).toContain('/incidents(id-1)');
+      expect(options.method).toBe('PATCH');
+      expect((options.headers as Record<string, string>)['If-None-Match']).toBe('*');
+    });
+
+    it('should_report_alreadyExists_when_the_platform_answers_412', async () => {
+      fetchSpy.mockResolvedValueOnce(mockFetchResponse(412, { error: { code: '0x80060882', message: 'exists' } }));
+
+      const client = buildClient();
+
+      expect(await client.createWithId('incidents', 'id-1', {})).toBe('alreadyExists');
+    });
+
+    it('should_rethrow_any_other_refusal', async () => {
+      fetchSpy.mockResolvedValueOnce(mockFetchResponse(403, { error: { code: '0x80040220', message: 'no privilege' } }));
+
+      const client = buildClient();
+
+      await expect(client.createWithId('incidents', 'id-1', {})).rejects.toBeInstanceOf(CrmApiError);
+    });
+  });
+
+  describe('getSingle', () => {
+    it('should_return_the_object_at_a_relative_path', async () => {
+      fetchSpy.mockResolvedValueOnce(mockFetchResponse(200, { LogicalName: 'casetypecode' }));
+
+      const client = buildClient();
+      const result = await client.getSingle<{ LogicalName: string }>("EntityDefinitions(LogicalName='incident')", { select: ['LogicalName'] });
+
+      expect(result.LogicalName).toBe('casetypecode');
+      const [url] = fetchSpy.mock.calls[0] as [string];
+      expect(url.endsWith("/api/data/v9.2/EntityDefinitions(LogicalName='incident')?$select=LogicalName")).toBe(true);
+    });
+  });
+
   describe('retry behaviour', () => {
     it('should_retry_on_429_and_succeed_on_second_attempt', async () => {
       fetchSpy

@@ -119,10 +119,10 @@ async function resolveOptionValue(client: DataverseClient, column: string, label
 /** A single metadata object, not a list: the Web API answers this path with the attribute itself. */
 async function readOptions(client: DataverseClient, column: string): Promise<OptionMetadata[]> {
   try {
-    const attribute = await client.getList<never>(
+    const attribute = await client.getSingle<{ OptionSet?: { Options?: OptionMetadata[] } }>(
       `${INCIDENT}/Attributes(LogicalName='${column}')/Microsoft.Dynamics.CRM.PicklistAttributeMetadata`,
       { select: ['LogicalName'], expand: ['OptionSet'] },
-    ) as unknown as { OptionSet?: { Options?: OptionMetadata[] } };
+    );
     return attribute.OptionSet?.Options ?? [];
   } catch (error) {
     if (error instanceof CrmApiError && error.httpStatus === 404) {

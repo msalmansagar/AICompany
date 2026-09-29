@@ -4,7 +4,6 @@ import { HL_COMPLAINT_MAPPING } from './hlComplaintMapping.js';
 
 /** Everything the HL complaint record is built from — all of it resolved on the server. */
 export interface HlComplaintPayloadInput {
-  complaintId: string;
   ownerUserId: string;
   references: CaseManagementReferences;
   context: HlComplaintContext;
@@ -24,7 +23,6 @@ export function buildHlComplaintPayload(input: HlComplaintPayloadInput): Record<
   const { references, context } = input;
   const bind = (column: keyof CaseManagementReferences['navigation']) => `${references.navigation[column]}@odata.bind`;
   return {
-    incidentid: input.complaintId,
     description: input.description,
     qdb_customer_name: context.customerName,
     qdb_contact_name: context.customerName,

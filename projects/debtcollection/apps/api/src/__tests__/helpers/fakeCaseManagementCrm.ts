@@ -99,7 +99,7 @@ function answerHl(state: FakeCrmState, url: string): Response {
 }
 
 function answerBfd(state: FakeCrmState, url: string, method: string): Response {
-  if (method === 'POST' && url.endsWith('/incidents')) return answerCreate(state);
+  if (method === 'PATCH' && url.includes('/incidents(')) return answerCreate(state);
   if (url.includes('/incidents(')) return json(200, state.createdIncident);
   if (url.includes('/systemusers')) return json(200, { value: state.bfdUsers });
   if (url.includes('/accounts(')) return state.nonCustomer === 'notFound' ? refusal(404, '0x80040217') : json(200, state.nonCustomer);
@@ -112,8 +112,8 @@ function answerBfd(state: FakeCrmState, url: string, method: string): Response {
 }
 
 function answerCreate(state: FakeCrmState): Response {
-  if (state.createOutcome === 'duplicate') return refusal(412, '0x80040237');
+  if (state.createOutcome === 'duplicate') return refusal(412, '0x80060882');
   if (state.createOutcome === 'forbidden') return refusal(403, '0x80040220');
   if (state.createOutcome === 'serverError') return refusal(500, '0x80040216');
-  return new Response(null, { status: 204, headers: { 'OData-EntityId': `${BFD_URL}/api/data/v9.2/incidents(created)` } });
+  return new Response(null, { status: 204 });
 }

@@ -16,7 +16,8 @@ let requests: RecordedRequest[];
 function submit(app: FastifyInstance, body: Record<string, unknown> = { requestId: REQUEST_ID, description: 'Customer disputes the late fee.' }) {
   return app.inject({ method: 'POST', url: ROUTE, headers: { authorization: 'Bearer user-token' }, payload: body });
 }
-const createRequest = () => requests.find(r => r.method === 'POST' && r.url.endsWith('/incidents'));
+const createRequest = () => requests.find(r => r.method === 'PATCH' && r.url.includes('/incidents('));
+const createdId = () => /incidents\(([^)]+)\)/.exec(createRequest()?.url ?? '')?.[1];
 const hlWrites = () => requests.filter(r => r.url.startsWith(HL_URL) && r.method !== 'GET');
 
 describe('POST /collection-cases/:id/complaints', () => {
@@ -138,13 +139,19 @@ describe('POST /collection-cases/:id/complaints', () => {
   });
 
   describe('idempotency', () => {
+    it('should_create_only_so_the_platform_refuses_a_second_record_under_the_same_id', async () => {
+      await submit(app);
+
+      expect(createRequest()?.headers['If-None-Match']).toBe('*');
+    });
+
     it('should_derive_the_same_record_id_for_a_retried_submission', async () => {
       await submit(app);
-      const firstId = createRequest()?.body?.['incidentid'];
+      const firstId = createdId();
       requests.length = 0;
       await submit(app);
 
-      expect(createRequest()?.body?.['incidentid']).toBe(firstId);
+      expect(createdId()).toBe(firstId);
     });
 
     it('should_report_the_existing_complaint_when_the_submission_was_already_created', async () => {
@@ -158,11 +165,11 @@ describe('POST /collection-cases/:id/complaints', () => {
 
     it('should_derive_a_different_record_for_a_new_submission_on_the_same_collection_case', async () => {
       await submit(app);
-      const firstId = createRequest()?.body?.['incidentid'];
+      const firstId = createdId();
       requests.length = 0;
       await submit(app, { requestId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', description: 'A second complaint.' });
 
-      expect(createRequest()?.body?.['incidentid']).not.toBe(firstId);
+      expect(createdId()).not.toBe(firstId);
     });
   });
 

@@ -155,7 +155,7 @@ function complaintAspects(): readonly ProcessAspect[] {
     {
       id: 'complaint-raise', process: 'Complaint', aspect: 'Raise a formal complaint',
       capability: 'Blocked',
-      explanation: 'Raising one from the workspace needs security QDB has not granted; Case Management raises them.',
+      explanation: 'Raised with Create complaint on Housing Loan cases, through the Integration Service, once that service is hosted and signed in to. Case Management then owns it.',
     },
   ];
 }
