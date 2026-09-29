@@ -1,6 +1,9 @@
-# HL complaint → BFD Case Management — inspection findings
+# HL complaint → BFD Case Management — findings and implementation
 
-Status: **inspection only. No code, no org change.** Date 2026-09-29 (Asia/Qatar).
+Status 2026-09-29 (Asia/Qatar): **code complete and tested; not yet runnable end to end.** It needs the
+Integration Service hosted and configured, browser sign-in to it decided, and privileges granted
+(§5). No schema change, no Case Management change. Started 15:21, code complete 17:10 against a
+5-hour estimate. Nothing here is production ready.
 
 Sources: the cloud sandbox org5869857f (Node probes `probe-case-management*.mjs`) and the QDB
 on-prem organisation `QDB1` (CRM 9.1.42.8, browser script `onprem-case-management-inspect.js`,
@@ -49,17 +52,67 @@ The form marks five partner-bank fields ApplicationRequired; the Web API does no
   context, **not used without a decision** ("do not populate a field merely because it looks
   similar").
 
-## 3. Decisions still open
+## 3. Decisions
 
-- **D1 Non Customer resolution.** Proposed: its id held in server-side configuration, verified at
-  runtime to be active and named "Non Customer"; refuse otherwise. Needs a configuration home.
-- **D2 Business Unit path.** The brief reads the manager from `qdb_businessunit`, which is a
-  picklist. Proposed: picklist = Housing Loan; department = the "Housing Loan" business unit;
-  assigned-to = that unit's `qdb_manager`. Confirm, and confirm "Housing Loan" rather than
-  "Collections - Housing Loans".
-- **D3 Server-side boundary — recommendation follows from D4.** DCP runs in HL CRM; the Case is written in QDB1. A plugin or Action in HL CRM cannot write to another organisation without holding QDB1 credentials inside CRM, and 9.1 has no Custom API. The **Integration Service** is the designed cross-organisation boundary: its org router already targets HL and BFD by configuration, it holds each org's service identity server-side, and it can derive every fixed value. It needs a host on QDB infrastructure and a decision on browser → service authentication (P11). Awaiting confirmation.
-- **D4 Cross-CRM — ANSWERED 2026-09-29 (user): HL CRM is a separate organisation from `QDB1`.** The Case can never hold a lookup to the HL contact; `qdb_contact` points at QDB1 contacts and stays empty. HL identity reaches the Case only as values (name, mobile, and whatever D5 approves).
-- **D5 HL context.** Loan account, DCP case reference, source system: `qdb_qid` / `qdb_contact`
-  or nothing.
-- **D6 Customer notification.** Whether a DCP-raised complaint may trigger the customer SMS/email.
-- **D7 Security.** Which role lets a collection user raise a complaint.
+| # | Decision | Outcome |
+|---|---|---|
+| D1 | Non Customer resolution | **Configured id, verified.** `CASE_MANAGEMENT_NON_CUSTOMER_ACCOUNT_ID` in the Integration Service's validated configuration. Every request checks the account exists, is active and is named "Non Customer", else refuses. No GUID in React; no search that picks a first match. |
+| D2 | Business Unit path | **Picklist + department manager** — the metadata conflict with the brief, resolved as reported: `qdb_businessunit` = the option labelled Housing Loan; `qdb_department` = the one enabled business unit named exactly "Housing Loan"; Assigned To = its `qdb_manager`. Missing, ambiguous or manager-less refuses. "Collections - Housing Loans" is **not** used — to be confirmed with QDB. |
+| D3 | Server-side boundary | **Integration Service** (user, 2026-09-29: QDB will host it, reachable from HL CRM and QDB1). |
+| D4 | Cross-CRM | **HL CRM is a separate organisation from QDB1** (user, 2026-09-29). No lookup to the HL contact; name and mobile travel as values. |
+| D5 | HL context on the Case | **Nothing beyond the approved fields.** Loan account, Collection Case number and source system are not written to the Case (no approved field; `qdb_qid` / `qdb_contact` not used). Open if Case Management users must see them. |
+| D6 | Customer SMS / email on create | **Open.** Read the workflow definitions with `onprem-case-workflows-inspect.js` before the first live complaint. |
+| D7 | Security | **CRM decides.** The service reads the Collection Case as the HL user and creates the Case as the QDB1 user (`MSCRMCallerID`); each must hold the privileges in their own organisation. |
+
+## 4. What was built
+
+- **Integration Service** `POST /collection-cases/:id/complaints` (`apps/api/src/routes/complaints.ts`,
+  `apps/api/src/services/caseManagement/`). Body = `{ requestId, description }` with `.strict()` —
+  any other field is refused. Steps: find the user in HL CRM by email → read the Collection Case
+  and the HL contact as that user → find the user in QDB1 → resolve Non Customer, department and
+  manager, product, option values by label, and lookup navigation names from metadata → create
+  the Case **create-only** (`PATCH` + `If-None-Match: *`, ADR-DCP-19) under an id derived from
+  Collection Case + user + request id → read it back → return case number, status, created,
+  assigned to, owner and a Case Management link. 201 new · 200 repeat · 403 refused by CRM ·
+  404 no case · 422 context/validation · 503 configuration.
+- **Nothing is written to HL CRM**, so a Case Management failure cannot leave the Collection Case
+  changed. 0..N complaints per Collection Case: each new pane is a new request id.
+- **Dataverse client**: `callerId` (`MSCRMCallerID`), `createWithId`, `getSingle`.
+- **Workspace**: a *Raise a complaint* card on the Workout & Legal tab of HL cases (V1 and V2 share
+  it). The side pane asks only for the description, sends one request id per pane (repeated on
+  retry) and shows the result with *Open Case Management Case*. The service address is the HL
+  platform configuration flag `caseManagementServiceUrl` (https only); sign-in is an optional
+  session capability. Either missing → the pane says why. Deployed to org5869857f and shown there
+  in its "not configured" state (`docs/evidence/2026-09-29-create-complaint-unconfigured.jpg`).
+- **ADR-DCP-21** records the architecture; the field dictionaries and React architecture no longer
+  describe complaint data as DCP's own.
+- **Tests**: API 388 (+33), Dataverse client 39 (+6), web 1,252 (+13). Code-reviewed; its critical
+  finding (a retry recognised by an unproven error code) was fixed by moving to the create-only
+  pattern.
+
+## 5. Before it can run (deployment prerequisites)
+
+1. Host the Integration Service on QDB infrastructure, reachable from HL CRM and QDB1, with
+   `FEATURE_BFD=true`, the `DV_BFD_*` settings for QDB1 (API version 9.1), and
+   `CASE_MANAGEMENT_NON_CUSTOMER_ACCOUNT_ID` = the Non Customer account's id in QDB1.
+2. Its service identity needs **Act on Behalf of Another User** in both HL CRM and QDB1 (for
+   `MSCRMCallerID`), plus read on systemuser, businessunit, account, qdb_case_products and metadata
+   in QDB1.
+3. Each collection user must be an **enabled QDB1 user** with the same primary email as in HL CRM,
+   holding a role with Case create and read — for example the existing "Case Creation" role.
+   Role assignment is QDB's decision.
+4. Decide browser → service sign-in (AD FS on-prem; P11) and supply it to the workspace session.
+5. Set `caseManagementServiceUrl` in the HL `qdb_platformconfiguration.qdb_featureflags`.
+6. Run `onprem-case-workflows-inspect.js` and settle D6 before the first real complaint.
+
+## 6. Remaining gaps
+
+- **Not run end to end** against any Case Management: no hosted service, no sign-in. The route is
+  proven against a fake of both organisations only.
+- The existing "Customer complaints" list on the case reads complaints through
+  `qdb_collectionactivity.qdb_complaintcaseid`, a same-organisation lookup, so it cannot show
+  complaints raised in QDB1. Listing them needs a stored cross-organisation reference — a schema
+  decision (D5).
+- Users are matched by primary email in each organisation; a user without one, or with different
+  emails in the two, is refused.
+- BFD complaints are not implemented (mapping not approved); the service refuses non-HL cases.

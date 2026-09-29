@@ -114,6 +114,7 @@ Both targets are equal. Platform and organisation differences live in `qdb_platf
 | ADR-DCP-18 | Concurrency-controlled writes bypass `Xrm.WebApi` for a same-origin `fetch` | **Accepted** (Phase 6) — `ADR_Phase6_Writes.md` |
 | ADR-DCP-19 | Duplicate submission prevented by a client-chosen primary key, not by the UI | **Accepted** (Phase 6) — `ADR_Phase6_Writes.md` |
 | ADR-DCP-20 | A bulk communication is made safe by its ids, not by its procedure | **Accepted** (Phase 7) — `ADR_Phase7_BulkIdempotency.md` |
+| ADR-DCP-21 | Complaints are raised in QDB's **existing BFD Case Management** through the Integration Service; DCP owns no complaint entity, workflow or lifecycle. HL: Case customer = the existing Non Customer account, real HL customer carried as values | **Accepted** (brief 2026-09-29) — `CaseManagement_HLComplaint_Findings.md` |
 
 Superseded ADRs are kept and marked; none are deleted.
 
@@ -130,7 +131,7 @@ Superseded ADRs are kept and marked; none are deleted.
 | 6 | Collection activities & PTP lifecycle | " |
 | 7 | Communication Center — SMS/WhatsApp (fax), Email, templates, validation, history | " |
 | 8 | Strategy automation & assignment | " |
-| 9 | Advanced processes — field visit, restructuring, legal, deceased & insurance, complaints | " |
+| 9 | Advanced processes — field visit, restructuring, legal, deceased & insurance, complaints (integration with QDB's existing BFD Case Management — DCP initiates, Case Management owns; ADR-DCP-21) | " |
 | 10 | Reporting & oversight | " |
 | 11 | Hardening & production readiness — regression, security, performance, both targets, same-source verification | production readiness report |
 

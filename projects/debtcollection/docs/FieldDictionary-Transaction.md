@@ -121,8 +121,10 @@ matrix is code in `StatusTransitionMatrix.cs` with a parity-tested TypeScript mi
 
 Descriptive fields for field visit (location, purpose, customer response…), restructuring (tenor,
 instalment, grace, waiver…), legal (checklist, referral…), deceased/insurance (documents, claim…),
-complaint/dispute (type, root cause, SLA…) are **Form Engine configuration** keyed by
-`qdb_collectionactivitytype.qdb_defaultformcode`, not columns here.
+dispute (type, root cause…) are **Form Engine configuration** keyed by
+`qdb_collectionactivitytype.qdb_defaultformcode`, not columns here. A complaint is not a DCP record:
+it is a Case in QDB's existing BFD Case Management, which owns its type, root cause, SLA and lifecycle
+(ADR-DCP-21).
 
 ## `qdb_delinquencysnapshot` — Delinquency Snapshot (org-owned, append-only)
 
