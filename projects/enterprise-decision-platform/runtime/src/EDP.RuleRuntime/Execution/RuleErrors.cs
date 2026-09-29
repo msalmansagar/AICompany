@@ -3,7 +3,8 @@ using System.Collections.Generic;
 
 namespace EDP.RuleRuntime.Execution
 {
-    public enum RuleErrorSeverity { Error, Warning }
+    // Info is appended so the existing numeric values of Error and Warning never change.
+    public enum RuleErrorSeverity { Error, Warning, Info }
 
     public sealed class RuleDiagnostic
     {

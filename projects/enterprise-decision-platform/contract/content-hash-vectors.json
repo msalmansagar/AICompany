@@ -1,0 +1,94 @@
+{
+  "$comment": "Shared ContentHash test vectors (ADR-20, FR-B4-06). Every implementation must reproduce canonical and sha256 exactly from pcrm, and honour sameHashAs / differentHashFrom. pcrm is exact JSON text so number spelling survives. Change only together with ADR-20.",
+  "algorithm": "SHA-256",
+  "encoding": "UTF-8 without BOM",
+  "vectors": [
+    {
+      "id": "a-minimal-rule",
+      "description": "FR-B4-06(a): the smallest executable rule.",
+      "pcrm": "{\"logic\":{\"type\":\"conditionSet\",\"otherwise\":{\"ok\":true}}}",
+      "canonical": "{\"logic\":{\"otherwise\":{\"ok\":true},\"type\":\"conditionSet\"}}",
+      "sha256": "56867e5b74ecf872f92ec3b4e7fe34a86f2dc05820e4c2e4d98f4cf1f35f8317"
+    },
+    {
+      "id": "b-every-input-type",
+      "description": "FR-B4-06(b): a strict rule declaring every Release 1 input type plus one record-bound input.",
+      "pcrm": "{\"schemaVersion\":\"1.1\",\"inputContract\":\"strict\",\"ruleId\":\"vec-b\",\"name\":\"Every input type\",\"targetEntity\":\"account\",\n\"inputs\":[\n {\"name\":\"note\",\"type\":\"Text\",\"required\":true,\"nullable\":false},\n {\"name\":\"amount\",\"type\":\"Decimal\",\"required\":true,\"nullable\":false},\n {\"name\":\"limit\",\"type\":\"Currency\"},\n {\"name\":\"count\",\"type\":\"WholeNumber\"},\n {\"name\":\"active\",\"type\":\"Boolean\"},\n {\"name\":\"status\",\"type\":\"Choice\"},\n {\"name\":\"segment\",\"type\":\"OptionSet\"},\n {\"name\":\"start\",\"type\":\"Date\"},\n {\"name\":\"at\",\"type\":\"DateTime\"},\n {\"name\":\"lines\",\"type\":\"Collection\"},\n {\"name\":\"region\",\"type\":\"Text\",\"binding\":\"address1_stateorprovince\"}],\n\"outputs\":[{\"name\":\"decision\",\"type\":\"Text\"}],\n\"logic\":{\"type\":\"conditionSet\",\"rules\":[{\"when\":{\"op\":\"and\",\"conditions\":[{\"field\":\"amount\",\"operator\":\"GreaterThanOrEqual\",\"value\":1000.00},{\"field\":\"active\",\"operator\":\"Equals\",\"value\":true}]},\"then\":{\"decision\":\"approve\"},\"reasonCodes\":[\"R1\"]}],\"otherwise\":{\"decision\":\"refer\"}}}",
+      "canonical": "{\"inputContract\":\"strict\",\"inputs\":[{\"name\":\"note\",\"nullable\":false,\"required\":true,\"type\":\"Text\"},{\"name\":\"amount\",\"nullable\":false,\"required\":true,\"type\":\"Decimal\"},{\"name\":\"limit\",\"type\":\"Currency\"},{\"name\":\"count\",\"type\":\"WholeNumber\"},{\"name\":\"active\",\"type\":\"Boolean\"},{\"name\":\"status\",\"type\":\"Choice\"},{\"name\":\"segment\",\"type\":\"OptionSet\"},{\"name\":\"start\",\"type\":\"Date\"},{\"name\":\"at\",\"type\":\"DateTime\"},{\"name\":\"lines\",\"type\":\"Collection\"},{\"binding\":\"address1_stateorprovince\",\"name\":\"region\",\"type\":\"Text\"}],\"logic\":{\"otherwise\":{\"decision\":\"refer\"},\"rules\":[{\"reasonCodes\":[\"R1\"],\"then\":{\"decision\":\"approve\"},\"when\":{\"conditions\":[{\"field\":\"amount\",\"operator\":\"GreaterThanOrEqual\",\"value\":1000},{\"field\":\"active\",\"operator\":\"Equals\",\"value\":true}],\"op\":\"and\"}}],\"type\":\"conditionSet\"},\"outputs\":[{\"name\":\"decision\",\"type\":\"Text\"}],\"targetEntity\":\"account\"}",
+      "sha256": "e521e2b490e1ae1f78e4dd089d3e1db4909d3e5454d2487246f6eb137692f61a"
+    },
+    {
+      "id": "c-every-input-type-reordered",
+      "description": "FR-B4-06(c): vector b with members reordered, whitespace changed, metadata changed and 1000.00 written as 1e3. Must hash identically to b.",
+      "pcrm": "{\n  \"logic\" : { \"otherwise\" : { \"decision\" : \"refer\" }, \"type\" : \"conditionSet\",\n    \"rules\" : [ { \"reasonCodes\" : [ \"R1\" ], \"then\" : { \"decision\" : \"approve\" },\n      \"when\" : { \"conditions\" : [ { \"value\" : 1e3, \"operator\" : \"GreaterThanOrEqual\", \"field\" : \"amount\" },\n                                   { \"value\" : true, \"field\" : \"active\", \"operator\" : \"Equals\" } ], \"op\" : \"and\" } } ] },\n  \"outputs\" : [ { \"type\" : \"Text\", \"name\" : \"decision\" } ],\n  \"inputs\" : [\n    { \"nullable\" : false, \"required\" : true, \"type\" : \"Text\", \"name\" : \"note\" },\n    { \"type\" : \"Decimal\", \"nullable\" : false, \"name\" : \"amount\", \"required\" : true },\n    { \"type\" : \"Currency\", \"name\" : \"limit\" },\n    { \"type\" : \"WholeNumber\", \"name\" : \"count\" },\n    { \"type\" : \"Boolean\", \"name\" : \"active\" },\n    { \"type\" : \"Choice\", \"name\" : \"status\" },\n    { \"type\" : \"OptionSet\", \"name\" : \"segment\" },\n    { \"type\" : \"Date\", \"name\" : \"start\" },\n    { \"type\" : \"DateTime\", \"name\" : \"at\" },\n    { \"type\" : \"Collection\", \"name\" : \"lines\" },\n    { \"binding\" : \"address1_stateorprovince\", \"type\" : \"Text\", \"name\" : \"region\" } ],\n  \"targetEntity\" : \"account\", \"inputContract\" : \"strict\",\n  \"name\" : \"Every input type (renamed)\", \"ruleId\" : \"vec-c\", \"schemaVersion\" : \"1.1\", \"x-designer\" : { \"zoom\" : 1.25 }\n}",
+      "sameHashAs": "b-every-input-type",
+      "canonical": "{\"inputContract\":\"strict\",\"inputs\":[{\"name\":\"note\",\"nullable\":false,\"required\":true,\"type\":\"Text\"},{\"name\":\"amount\",\"nullable\":false,\"required\":true,\"type\":\"Decimal\"},{\"name\":\"limit\",\"type\":\"Currency\"},{\"name\":\"count\",\"type\":\"WholeNumber\"},{\"name\":\"active\",\"type\":\"Boolean\"},{\"name\":\"status\",\"type\":\"Choice\"},{\"name\":\"segment\",\"type\":\"OptionSet\"},{\"name\":\"start\",\"type\":\"Date\"},{\"name\":\"at\",\"type\":\"DateTime\"},{\"name\":\"lines\",\"type\":\"Collection\"},{\"binding\":\"address1_stateorprovince\",\"name\":\"region\",\"type\":\"Text\"}],\"logic\":{\"otherwise\":{\"decision\":\"refer\"},\"rules\":[{\"reasonCodes\":[\"R1\"],\"then\":{\"decision\":\"approve\"},\"when\":{\"conditions\":[{\"field\":\"amount\",\"operator\":\"GreaterThanOrEqual\",\"value\":1000},{\"field\":\"active\",\"operator\":\"Equals\",\"value\":true}],\"op\":\"and\"}}],\"type\":\"conditionSet\"},\"outputs\":[{\"name\":\"decision\",\"type\":\"Text\"}],\"targetEntity\":\"account\"}",
+      "sha256": "e521e2b490e1ae1f78e4dd089d3e1db4909d3e5454d2487246f6eb137692f61a"
+    },
+    {
+      "id": "d1-strict-variant",
+      "description": "FR-B4-06(d): strict variant of one rule.",
+      "pcrm": "{\"schemaVersion\":\"1.1\",\"inputContract\":\"strict\",\"inputs\":[{\"name\":\"amount\",\"type\":\"Decimal\"}],\"outputs\":[{\"name\":\"ok\",\"type\":\"Boolean\"}],\"logic\":{\"type\":\"conditionSet\",\"rules\":[{\"when\":{\"op\":\"and\",\"conditions\":[{\"field\":\"amount\",\"operator\":\"GreaterThan\",\"value\":0}]},\"then\":{\"ok\":true}}],\"otherwise\":{\"ok\":false}}}",
+      "differentHashFrom": "d2-lenient-variant",
+      "canonical": "{\"inputContract\":\"strict\",\"inputs\":[{\"name\":\"amount\",\"type\":\"Decimal\"}],\"logic\":{\"otherwise\":{\"ok\":false},\"rules\":[{\"then\":{\"ok\":true},\"when\":{\"conditions\":[{\"field\":\"amount\",\"operator\":\"GreaterThan\",\"value\":0}],\"op\":\"and\"}}],\"type\":\"conditionSet\"},\"outputs\":[{\"name\":\"ok\",\"type\":\"Boolean\"}]}",
+      "sha256": "2537953005f022469f284075e3a27df0a4c5ae3c95bee1b438674875e57256f4"
+    },
+    {
+      "id": "d2-lenient-variant",
+      "description": "FR-B4-06(d): lenient variant of the same rule. inputContract is executable content, so it must hash differently from d1.",
+      "pcrm": "{\"schemaVersion\":\"1.0\",\"inputs\":[{\"name\":\"amount\",\"type\":\"Decimal\"}],\"outputs\":[{\"name\":\"ok\",\"type\":\"Boolean\"}],\"logic\":{\"type\":\"conditionSet\",\"rules\":[{\"when\":{\"op\":\"and\",\"conditions\":[{\"field\":\"amount\",\"operator\":\"GreaterThan\",\"value\":0}]},\"then\":{\"ok\":true}}],\"otherwise\":{\"ok\":false}}}",
+      "differentHashFrom": "d1-strict-variant",
+      "canonical": "{\"inputs\":[{\"name\":\"amount\",\"type\":\"Decimal\"}],\"logic\":{\"otherwise\":{\"ok\":false},\"rules\":[{\"then\":{\"ok\":true},\"when\":{\"conditions\":[{\"field\":\"amount\",\"operator\":\"GreaterThan\",\"value\":0}],\"op\":\"and\"}}],\"type\":\"conditionSet\"},\"outputs\":[{\"name\":\"ok\",\"type\":\"Boolean\"}]}",
+      "sha256": "cca1ea9a7bb0e7807eff80c9028550d69d4c086a71499e030dbc9eb5ccbaed7e"
+    },
+    {
+      "id": "e-adhoc-pcrmjson",
+      "description": "FR-B4-06(e): an ad-hoc PcrmJson as the designer Test button sends it: no ruleId, designer x-* annotations, a decision table.",
+      "pcrm": "{\"schemaVersion\":\"1.1\",\"inputContract\":\"strict\",\"name\":\"Untitled\",\"x-edp-canvas\":{\"nodes\":3},\"inputs\":[{\"name\":\"score\",\"type\":\"WholeNumber\",\"required\":true,\"nullable\":false,\"source\":\"declared\"}],\"outputs\":[{\"name\":\"tier\",\"type\":\"Text\"}],\"logic\":{\"type\":\"decisionTable\",\"hitPolicy\":\"First\",\"tableInputs\":[{\"field\":\"score\"}],\"outputColumns\":[\"tier\"],\"rows\":[{\"priority\":1,\"cells\":[{\"operator\":\"GreaterThanOrEqual\",\"value\":700}],\"outputs\":{\"tier\":\"A\"}},{\"priority\":2,\"cells\":[{\"operator\":\"Any\",\"any\":true}],\"outputs\":{\"tier\":\"B\"}}]}}",
+      "canonical": "{\"inputContract\":\"strict\",\"inputs\":[{\"name\":\"score\",\"nullable\":false,\"required\":true,\"source\":\"declared\",\"type\":\"WholeNumber\"}],\"logic\":{\"hitPolicy\":\"First\",\"outputColumns\":[\"tier\"],\"rows\":[{\"cells\":[{\"operator\":\"GreaterThanOrEqual\",\"value\":700}],\"outputs\":{\"tier\":\"A\"},\"priority\":1},{\"cells\":[{\"any\":true,\"operator\":\"Any\"}],\"outputs\":{\"tier\":\"B\"},\"priority\":2}],\"tableInputs\":[{\"field\":\"score\"}],\"type\":\"decisionTable\"},\"outputs\":[{\"name\":\"tier\",\"type\":\"Text\"}]}",
+      "sha256": "d07385b5f3fcf050ce676fd5717682bfb92e831b2e146b8d63c77ba99fc3b85a"
+    },
+    {
+      "id": "f-key-order-and-metadata",
+      "description": "Members sort by UTF-16 code unit; top-level schemaVersion, ruleId, name, description and x-* are excluded; the same names nested deeper are kept.",
+      "pcrm": "{\"x-designer\":{\"zoom\":2},\"name\":\"Loan approval\",\"schemaVersion\":\"1.1\",\"ruleId\":\"r-1\",\"description\":\"d\",\"targetEntity\":\"account\",\"outputs\":[{\"type\":\"Text\",\"name\":\"decision\"}],\"logic\":{\"type\":\"conditionSet\",\"rules\":[],\"otherwise\":{\"decision\":\"refer\"}},\"inputs\":[{\"type\":\"Decimal\",\"name\":\"amount\",\"required\":true,\"nullable\":false}],\"inputContract\":\"strict\"}",
+      "canonical": "{\"inputContract\":\"strict\",\"inputs\":[{\"name\":\"amount\",\"nullable\":false,\"required\":true,\"type\":\"Decimal\"}],\"logic\":{\"otherwise\":{\"decision\":\"refer\"},\"rules\":[],\"type\":\"conditionSet\"},\"outputs\":[{\"name\":\"decision\",\"type\":\"Text\"}],\"targetEntity\":\"account\"}",
+      "sha256": "1b373ad1203d7c113c91972326b54622b71a1b4304acbef43ea50f6d10643673"
+    },
+    {
+      "id": "g-exact-numbers",
+      "description": "Numbers are rewritten exactly as decimal text: no exponent, no trailing fraction zeros, no leading zeros, -0 becomes 0; no binary floating point is involved.",
+      "pcrm": "{\"logic\":{\"type\":\"decisionTable\",\"rows\":[{\"priority\":1,\"cells\":[{\"operator\":\"Between\",\"value\":1.50,\"value2\":1e3}],\"outputs\":{\"rate\":0.1,\"cap\":100000000000000000000000000001,\"tiny\":1E-7,\"neg\":-0.0,\"big\":2.5E+2,\"int\":7.000}}]}}",
+      "canonical": "{\"logic\":{\"rows\":[{\"cells\":[{\"operator\":\"Between\",\"value\":1.5,\"value2\":1000}],\"outputs\":{\"big\":250,\"cap\":100000000000000000000000000001,\"int\":7,\"neg\":0,\"rate\":0.1,\"tiny\":0.0000001},\"priority\":1}],\"type\":\"decisionTable\"}}",
+      "sha256": "b2b6fecbbab0491a0b6fabccfc2824d623a9ecafad3349343f336aee904d645c"
+    },
+    {
+      "id": "h-unicode-and-escapes",
+      "description": "Keys and strings are NFC-normalised; only quote, backslash and U+0000-U+001F are escaped (as lower-case \\u00xx); '/', non-ASCII and astral characters are written raw; keys sort by UTF-16 code unit, so an astral key sorts before U+FF21.",
+      "pcrm": "{\"logic\":{\"type\":\"conditionSet\",\"otherwise\":{\"note\":\"Café / ok\\n\\ttab \\\"q\\\" \\\\ \\u001f 😀\",\"café\":\"key-nfc\",\"Ａ\":1,\"😀\":2}}}",
+      "canonical": "{\"logic\":{\"otherwise\":{\"café\":\"key-nfc\",\"note\":\"Café / ok\\u000a\\u0009tab \\\"q\\\" \\\\ \\u001f 😀\",\"😀\":2,\"Ａ\":1},\"type\":\"conditionSet\"}}",
+      "sha256": "b3bfe733f1b59ba334372a58baed299c293cb3a5cf00e423b321f3a554bcbac9"
+    },
+    {
+      "id": "i-nulls-dropped",
+      "description": "Object members whose value is null are dropped at every depth; nulls inside arrays are kept.",
+      "pcrm": "{\"inputs\":[{\"name\":\"tier\",\"type\":\"Text\",\"binding\":null,\"via\":null}],\"logic\":{\"type\":\"conditionSet\",\"otherwise\":{\"list\":[1,null,\"x\"],\"gone\":null}}}",
+      "canonical": "{\"inputs\":[{\"name\":\"tier\",\"type\":\"Text\"}],\"logic\":{\"otherwise\":{\"list\":[1,null,\"x\"]},\"type\":\"conditionSet\"}}",
+      "sha256": "ef4ef57fd80b9e8b75554cb78e0011669a512b094a40d3408157ac45fb30e7fe"
+    },
+    {
+      "id": "j-array-order-and-nesting",
+      "description": "Array order is significant and preserved; nested objects are canonicalised recursively; booleans are literal.",
+      "pcrm": "{\"logic\":{\"type\":\"conditionSet\",\"rules\":[{\"when\":{\"op\":\"or\",\"negate\":false,\"conditions\":[{\"field\":\"b\",\"operator\":\"Equals\",\"value\":true},{\"field\":\"a\",\"operator\":\"In\",\"value\":[3,1,2]}]},\"then\":{\"ok\":true}}]}}",
+      "canonical": "{\"logic\":{\"rules\":[{\"then\":{\"ok\":true},\"when\":{\"conditions\":[{\"field\":\"b\",\"operator\":\"Equals\",\"value\":true},{\"field\":\"a\",\"operator\":\"In\",\"value\":[3,1,2]}],\"negate\":false,\"op\":\"or\"}}],\"type\":\"conditionSet\"}}",
+      "sha256": "22aeb19774f1b73f577e2c5090f87cbdb402ddd37292d118f16f4fb448ea52a4"
+    },
+    {
+      "id": "k-metadata-only",
+      "description": "A document holding only metadata canonicalises to the empty object.",
+      "pcrm": "{\"schemaVersion\":\"1.1\",\"ruleId\":\"x\",\"name\":\"n\",\"description\":\"\",\"x-a\":1}",
+      "canonical": "{}",
+      "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+    }
+  ]
+}

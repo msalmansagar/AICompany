@@ -115,7 +115,7 @@ A contract change is a contract change: under CLAUDE.md, adding or changing an o
 | 3 | ✋ Back up the currently deployed package content | GET `pluginpackages(<id>)/package/$value` → keep the `.nupkg` with the run | none |
 | 4 | ✋ **CEO ship decision** (`.claude/workflows/release.md`) | — | — |
 | 5 | ✋ Update the package content with the 1.1.0 nupkg | PRT **Update** on `qdb_EdpRuleRuntime`, or `pac plugin push --pluginId <package id> --type Nuget` | the package |
-| 6 | Dry run again; expect **0 problems**, 3 metadata creates, 29 moves | `a7-repoint.mjs` | none |
+| 6 | Dry run again; expect **0 problems**, 10 metadata creates, 29 moves | `a7-repoint.mjs` | none |
 | 7 | ✋ Apply: metadata **first**, then moves, then wait and verify | `a7-repoint.mjs --apply` | metadata + bindings |
 | 8 | Read-only smoke | `a7-repoint.mjs --smoke` | none |
 | 9 | ✋ Soak, then (separately authorised) remove the signed 1.0.23 assembly | — | — |
@@ -127,12 +127,34 @@ A contract change is a contract change: under CLAUDE.md, adding or changing an o
 
 **Step 7 order is mandatory.** `EvaluateDecisionPlugin` writes `ExecutionId` unconditionally, and neither `ExecutionId` nor `ChildResultsJson` is registered on the org today. The tool registers metadata before moving any binding, and refuses to move anything while an incompatible definition exists.
 
-**Expected live plan** (dry run, 2026-09-27, org5869857f):
+**Expected live plan** (read-only dry run, 2026-09-28, org5869857f, with the Release 1 contract):
 - **30 registrations**: 22 Custom APIs (21 on signed 1.0.23, `ValidateRule` already on the package) and 8 entity steps (6 AppendOnlyGuard, 2 DeleteAudit). No step images.
-- **3 metadata creates**, all on EvaluateDecision: `ChildCollectionName` (request, String, optional), and `ChildResultsJson` and `ExecutionId` (response, String).
-- **29 moves; 0 problems.**
+- **10 metadata creates.** From A7, on EvaluateDecision: `ChildCollectionName` (request), `ChildResultsJson` and `ExecutionId` (response). From Release 1: EvaluateDecision `CorrelationId` (request) and `Outcome`, `ProvenanceJson` (response); `RuleKey` (request) on GetPublishedVersion, GetRuleHistory, GetRuleMetadata and ResolveEffectiveVersion. All String; requests optional.
+- **0 incompatibilities; 29 moves, 1 already in place; 0 problems.**
 
 These numbers are evidence, not a hard-coded expectation: the tool re-derives them every run.
+
+## 4a. Release 1 (B1–B4) additions to the sequence
+
+Release 1 ships in the same single 1.1.0 deployment (HD-9, **Order Y: deploy first**). Invariant: **RuleKey MUST NOT be exposed as a supported consumer identity until the backfill is complete and the Dataverse uniqueness key is Active.** ID and name lookup keep working throughout; nothing needs an authoring freeze.
+
+| # | Step | Tool | Writes |
+|---|---|---|---|
+| R0 | CI green, including the TC-3 replay (`ReplayRegressionTests`: every captured live rule version decides as before) and the ContentHash vectors | CI | none |
+| R1 | Read-only: no declared fact shares its name with a column on its target (FR-B1-10, R-3). Expect **0 coincidences** (14 versions, 0 on 2026-09-28) | `node deploy/check-declared-facts.mjs` | none |
+| R2 | Read-only: the approved key mapping still applies cleanly. Expect **14 writes, 0 problems** (verified 2026-09-28) | `node deploy/a7-rulekey.mjs plan` | none |
+| R3 | ✋ Steps 3–8 above deploy 1.1.0 (package, 10 metadata creates, re-point) | §4 | package, metadata, bindings |
+| R4 | ✋ Deploy the 1.1.0 designer web resource | designer build | web resource |
+| R5 | ✋ **TC-1:** live acceptance (BRD §11) as a **non-administrator**, against the 1.1.0 package | manual, evidence pasted | test data only |
+| R6 | ✋ Backfill the 14 approved keys | `node deploy/a7-rulekey.mjs backfill --apply --log <run.json>` | `qdb_edp_rulekey` on 14 rules |
+| R7 | Gates: completeness, format, case-insensitive uniqueness, no unexpected change since the backfill snapshot | `a7-rulekey.mjs verify --log <run.json>` | none |
+| R8 | ✋ Create the uniqueness key (inside `BusinessRuleEngine`) and wait for **Active** | `a7-rulekey.mjs create-key --apply --log <run.json>` | entity key |
+| R9 | Re-read and prove uniqueness; answer whether RuleKey may be declared supported | `a7-rulekey.mjs status --log <run.json>` | none |
+| R10 | ✋ Declare RuleKey supported to consumers (FR-B3-16), only if R9 says **SUPPORTED** | communication | none |
+
+**Rollback.** R6: `a7-rulekey.mjs rollback --apply --log <run.json>` clears only keys the run wrote that still hold what it wrote. R8: remove the uniqueness key by hand (the tools never delete). R3: A7 rollback (§6).
+
+**Any conflict stops the step.** A mapped rule that is missing, renamed or already holds a different key, or an approved key already held elsewhere, is reported and nothing is written. The approved strings (`registration/rulekey-mapping.json`, asserted equal to BRD Appendix A) are never edited to make a run pass.
 
 ## 5. How the re-point tool decides
 
@@ -186,7 +208,12 @@ These numbers are evidence, not a hard-coded expectation: the tool re-derives th
 4. ✋ Remove signed 1.0.23 (after a soak).
 5. ✋ Any rollback.
 
-Not part of A7 and separately gated:
-- pin-guard step registration;
-- B1–B4 (EDP-RE-ENH-001);
-- the rule-key backfill and uniqueness key.
+Release 1 (§4a), each separately authorised:
+6. ✋ Designer web resource deployment.
+7. ✋ Non-administrator live acceptance (TC-1).
+8. ✋ RuleKey backfill.
+9. ✋ Uniqueness key creation.
+10. ✋ Declaring RuleKey supported.
+
+Not part of this release and separately gated:
+- pin-guard step registration.

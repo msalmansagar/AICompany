@@ -56,11 +56,11 @@ async function createRecord(entitySet: string, idAttribute: string, body: unknow
   return id as string;
 }
 
-export interface RuleSummary { ruleId: string; name: string; }
+export interface RuleSummary { ruleId: string; name: string; ruleKey: string | null; }
 
 export async function listRules(): Promise<RuleSummary[]> {
-  const data = await req<{ value: any[] }>(`/${RULES}?$select=qdb_edp_rulename&$top=50&$orderby=createdon desc`);
-  return data.value.map((r) => ({ ruleId: r.qdb_edp_ruleid, name: r.qdb_edp_rulename ?? '(unnamed)' }));
+  const data = await req<{ value: any[] }>(`/${RULES}?$select=qdb_edp_rulename,qdb_edp_rulekey&$top=50&$orderby=createdon desc`);
+  return data.value.map((r) => ({ ruleId: r.qdb_edp_ruleid, name: r.qdb_edp_rulename ?? '(unnamed)', ruleKey: r.qdb_edp_rulekey ?? null }));
 }
 
 const LIFECYCLE: Record<number, string> = {
@@ -71,7 +71,7 @@ export function lifecycleLabel(value: number | null | undefined): string {
 }
 
 export interface RuleRow {
-  ruleId: string; name: string; entity: string; status: string;
+  ruleId: string; name: string; ruleKey: string | null; entity: string; status: string;
   versionNumber: number; versionId: string; modifiedOn: string;
   owner: string; effectiveFrom: string | null; effectiveTo: string | null;
 }
@@ -80,7 +80,7 @@ export interface RuleRow {
 export async function listRulesDetailed(): Promise<RuleRow[]> {
   const data = await req<{ value: any[] }>(
     `/${VERSIONS}?$select=qdb_edp_ruleversionid,qdb_edp_versionnumber,qdb_edp_lifecyclestate,qdb_edp_pcrmjson,qdb_edp_effectivefrom,qdb_edp_effectiveto,_qdb_edp_ruleid_value,modifiedon` +
-      `&$expand=qdb_edp_ruleid($select=qdb_edp_rulename),createdby($select=fullname)&$orderby=qdb_edp_versionnumber desc&$top=250`
+      `&$expand=qdb_edp_ruleid($select=qdb_edp_rulename,qdb_edp_rulekey),createdby($select=fullname)&$orderby=qdb_edp_versionnumber desc&$top=250`
   );
   const latest = new Map<string, any>();
   for (const v of data.value) {
@@ -95,6 +95,7 @@ export async function listRulesDetailed(): Promise<RuleRow[]> {
       return {
         ruleId: v._qdb_edp_ruleid_value as string,
         name: v.qdb_edp_ruleid?.qdb_edp_rulename ?? '(unnamed)',
+        ruleKey: v.qdb_edp_ruleid?.qdb_edp_rulekey ?? null,
         entity,
         status: lifecycleLabel(v.qdb_edp_lifecyclestate),
         versionNumber: v.qdb_edp_versionnumber ?? 1,
@@ -202,32 +203,47 @@ export interface LoadedVersion {
   jdmGraph: DecisionGraphType | null;
   targetEntity: string;
   ruleName: string;
+  /** The rule's integration key (qdb_edp_rulekey); null when not yet set on legacy rules. */
+  ruleKey: string | null;
   versionNumber: number;
   versionId: string | null;
   lifecycleState: string;
   effectiveFrom: string | null; // ISO UTC, or null = open-ended
   effectiveTo: string | null;
+  /** Restored from the saved PCRM — 'strict' | 'lenient'. Absent for pre-1.1 rules. */
+  savedInputContract?: 'strict' | 'lenient';
+  /** Raw PCRM inputs array from the saved version — callers extract declared facts from it. */
+  savedPcrmInputs?: unknown[];
 }
 
 export async function loadLatestVersion(ruleId: string): Promise<LoadedVersion | null> {
-  const rule = await req<any>(`/${RULES}(${ruleId})?$select=qdb_edp_rulename`);
+  const rule = await req<any>(`/${RULES}(${ruleId})?$select=qdb_edp_rulename,qdb_edp_rulekey`);
   const data = await req<{ value: any[] }>(
     `/${VERSIONS}?$filter=_qdb_edp_ruleid_value eq ${ruleId}` +
       `&$select=qdb_edp_ruleversionid,qdb_edp_jdmsourcejson,qdb_edp_pcrmjson,qdb_edp_versionnumber,qdb_edp_lifecyclestate,qdb_edp_effectivefrom,qdb_edp_effectiveto&$orderby=qdb_edp_versionnumber desc&$top=1`
   );
   const v = data.value[0];
-  // The target entity lives inside the PCRM — restore it so field pickers can load.
-  let targetEntity = '';
-  try { targetEntity = v?.qdb_edp_pcrmjson ? (JSON.parse(v.qdb_edp_pcrmjson).targetEntity ?? '') : ''; } catch { /* ignore */ }
+  // Parse PCRM once to restore entity, inputContract, and declared inputs.
+  let pcrm: Record<string, unknown> | null = null;
+  try { pcrm = v?.qdb_edp_pcrmjson ? JSON.parse(v.qdb_edp_pcrmjson) as Record<string, unknown> : null; }
+  catch (parseError) { console.warn('[EDP] The saved PCRM of rule', ruleId, 'could not be read; opening without its input contract and declared facts.', parseError); }
+  const targetEntity = (pcrm?.targetEntity as string | undefined) ?? '';
+  const rawContract = pcrm?.inputContract;
+  const savedInputContract: 'strict' | 'lenient' | undefined =
+    rawContract === 'strict' ? 'strict' : rawContract === 'lenient' ? 'lenient' : undefined;
+  const savedPcrmInputs = Array.isArray(pcrm?.inputs) ? (pcrm!.inputs as unknown[]) : undefined;
   return {
     jdmGraph: v?.qdb_edp_jdmsourcejson ? (JSON.parse(v.qdb_edp_jdmsourcejson) as DecisionGraphType) : null,
     targetEntity,
     ruleName: rule.qdb_edp_rulename ?? 'Rule',
+    ruleKey: rule.qdb_edp_rulekey ?? null,
     versionNumber: v?.qdb_edp_versionnumber ?? 0,
     versionId: v?.qdb_edp_ruleversionid ?? null,
     lifecycleState: lifecycleLabel(v?.qdb_edp_lifecyclestate),
     effectiveFrom: v?.qdb_edp_effectivefrom ?? null,
     effectiveTo: v?.qdb_edp_effectiveto ?? null,
+    savedInputContract,
+    savedPcrmInputs,
   };
 }
 
@@ -370,6 +386,43 @@ export async function setEffectiveWindow(versionId: string, fromIso: string | nu
 export async function getVersionState(versionId: string): Promise<string> {
   const v = await req<any>(`/${VERSIONS}(${versionId})?$select=qdb_edp_lifecyclestate`);
   return lifecycleLabel(v.qdb_edp_lifecyclestate);
+}
+
+// ── Rule Key management (FR-B3-05: single write location) ────────────────────
+// writeRuleKey is the ONE place that writes qdb_edp_rulekey to Dataverse.
+// saveRule, createVersion, and duplicateRule must never touch this field.
+
+/**
+ * Set a rule's integration key on its record.
+ * This is the single Dataverse write location for qdb_edp_rulekey (FR-B3-05).
+ */
+export async function writeRuleKey(ruleId: string, key: string): Promise<void> {
+  await req(`/${RULES}(${ruleId})`, 'PATCH', { qdb_edp_rulekey: key });
+}
+
+/** Return true when the given key is already held by any rule record. */
+export async function isRuleKeyUsedByAnotherRule(key: string): Promise<boolean> {
+  const escaped = key.replace(/'/g, "''");
+  const data = await req<{ value: unknown[] }>(`/${RULES}?$filter=qdb_edp_rulekey eq '${escaped}'&$select=qdb_edp_ruleid&$top=1`);
+  return data.value.length > 0;
+}
+
+/**
+ * Return true when the given key appears in the rule audit table (FR-B3-14).
+ * Retired keys must not be reused — they are preserved in qdb_edp_ruleaudits after rule deletion.
+ */
+export async function isRuleKeyRetired(key: string): Promise<boolean> {
+  const marker = retiredRuleKeyMarker(key).replace(/'/g, "''");
+  const data = await req<{ value: unknown[] }>(`/qdb_edp_ruleaudits?$filter=endswith(qdb_edp_details,'${marker}')&$select=qdb_edp_ruleauditid&$top=1`);
+  return data.value.length > 0;
+}
+
+/**
+ * The text DeleteAuditPlugin appends to a deleted rule's audit details (DeleteAuditPlugin.RuleKeyMarker,
+ * "; ruleKey=<key>"). Matching it at the END of the details is exact: "ruleKey=a.b" cannot match "ruleKey=x.a.b".
+ */
+export function retiredRuleKeyMarker(key: string): string {
+  return `ruleKey=${key}`;
 }
 
 // ── Governed rule sets (qdb_edp_ruleset) ──────────────────────────────────────

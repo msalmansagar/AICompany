@@ -1,4 +1,6 @@
 import type { DecisionGraphType } from '@gorules/jdm-editor';
+import { STRICT_SCHEMA_VERSION, STRICT_INPUT_CONTRACT, LENIENT_INPUT_CONTRACT } from '../contract';
+import { type DeclaredFact, mergeDeclaredFacts } from '../facts/declaredFacts';
 
 // GoRules-JDM -> Platform Canonical Rule Model translator.
 // Handles a graph pipeline: input schema -> inputs; expression nodes -> variables
@@ -6,7 +8,14 @@ import type { DecisionGraphType } from '@gorules/jdm-editor';
 // Function nodes (arbitrary JS) are not executable in the deterministic C# runtime and
 // are reported as a warning. The JDM source is always saved for round-trip editing.
 
-export interface PcrmMeta { name: string; targetEntity: string; }
+export interface PcrmMeta {
+  name: string;
+  targetEntity: string;
+  /** Absent = strict (new rules default to strict, FR-B2-03). */
+  inputContract?: 'strict' | 'lenient';
+  /** Declared facts to merge into the inputs list (FR-B1-07). */
+  declaredFacts?: DeclaredFact[];
+}
 
 export interface TranslationResult {
   pcrm: any;
@@ -25,12 +34,21 @@ export function translate(graph: DecisionGraphType, meta: PcrmMeta): Translation
 
   if (fnNodes.length) warnings.push(`${fnNodes.length} function node(s) render on the canvas but are not executable in the deterministic runtime (Horizon 2).`);
 
+  // New rules default to strict (FR-B2-03). Absent = strict; explicit 'lenient' = lenient.
+  const isStrict = (meta.inputContract ?? 'strict') !== 'lenient';
+  const schemaVersion = isStrict ? STRICT_SCHEMA_VERSION : '1.0';
+  const inputContract = isStrict ? STRICT_INPUT_CONTRACT : LENIENT_INPUT_CONTRACT;
+
+  const boundInputs = deriveInputs(inputNode, table, nodes);
+  const mergedInputs = mergeDeclaredFacts(boundInputs, meta.declaredFacts ?? []);
+
   const pcrm: any = {
-    schemaVersion: '1.0',
+    schemaVersion,
+    inputContract,
     ruleId: meta.name.trim().toLowerCase().replace(/\s+/g, '-') || 'rule',
     name: meta.name,
     targetEntity: meta.targetEntity,
-    inputs: deriveInputs(inputNode, table, nodes),
+    inputs: mergedInputs,
     variables: deriveVariables(exprNodes),
     outputs: [],
     logic: { type: 'conditionSet', rules: [], otherwise: {} },

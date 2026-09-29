@@ -4,7 +4,7 @@ import { effectiveState, statusCounts, entitiesPresent, filterCatalog } from './
 
 function row(over: Partial<RuleRow> = {}): RuleRow {
   return {
-    ruleId: 'r', name: 'Rule', entity: 'account', status: 'Published',
+    ruleId: 'r', name: 'Rule', ruleKey: null, entity: 'account', status: 'Published',
     versionNumber: 1, versionId: 'v', modifiedOn: '', owner: 'Ada Lovelace',
     effectiveFrom: null, effectiveTo: null, ...over,
   };

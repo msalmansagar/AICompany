@@ -21,6 +21,7 @@ namespace EDP.RuleRuntime.Crm.Tests
         public readonly Dictionary<string, Entity> RetrieveResults = new Dictionary<string, Entity>(StringComparer.OrdinalIgnoreCase);
         public readonly Dictionary<Guid, Entity> RetrieveById = new Dictionary<Guid, Entity>();
         public readonly Dictionary<string, List<Entity>> QueryResults = new Dictionary<string, List<Entity>>(StringComparer.OrdinalIgnoreCase);
+        public readonly List<QueryBase> Queried = new List<QueryBase>();
         public readonly Dictionary<string, EntityMetadata> Metadata = new Dictionary<string, EntityMetadata>(StringComparer.OrdinalIgnoreCase);
         public bool ThrowOnCreate;
 
@@ -64,6 +65,7 @@ namespace EDP.RuleRuntime.Crm.Tests
         public void Disassociate(string entityName, Guid entityId, Relationship relationship, EntityReferenceCollection relatedEntities) => throw new NotImplementedException();
         public EntityCollection RetrieveMultiple(QueryBase query)
         {
+            Queried.Add(query);
             var entityName = (query as QueryExpression)?.EntityName;
             if (entityName != null && QueryResults.TryGetValue(entityName, out var seeded))
                 return new EntityCollection(seeded);

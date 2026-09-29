@@ -1,0 +1,114 @@
+[
+  {
+    "@odata.etag": "W/\"187048200\"",
+    "createdon": "2026-07-04T02:25:53Z",
+    "modifiedon": "2026-07-04T02:25:53Z",
+    "qdb_edp_ruleid": "c9f1a5a9-4f77-f111-ab0e-70a8a55bc6a5",
+    "qdb_edp_rulename": "Loan Approval — Sample",
+    "qdb_edp_rulekey": null
+  },
+  {
+    "@odata.etag": "W/\"187048253\"",
+    "createdon": "2026-07-04T02:41:14Z",
+    "modifiedon": "2026-07-04T02:41:14Z",
+    "qdb_edp_ruleid": "113121d0-5177-f111-ab0e-000d3abcff60",
+    "qdb_edp_rulename": "All Node Types — Sample",
+    "qdb_edp_rulekey": null
+  },
+  {
+    "@odata.etag": "W/\"187100487\"",
+    "createdon": "2026-07-04T14:10:32Z",
+    "modifiedon": "2026-07-04T14:10:32Z",
+    "qdb_edp_ruleid": "da1bd318-b277-f111-ab0e-000d3abcff60",
+    "qdb_edp_rulename": "All Node Types — Sample",
+    "qdb_edp_rulekey": null
+  },
+  {
+    "@odata.etag": "W/\"187100992\"",
+    "createdon": "2026-07-04T15:17:30Z",
+    "modifiedon": "2026-07-04T15:17:30Z",
+    "qdb_edp_ruleid": "9ac69f74-bb77-f111-ab0e-70a8a55bc6a5",
+    "qdb_edp_rulename": "Governance Test Rule",
+    "qdb_edp_rulekey": null
+  },
+  {
+    "@odata.etag": "W/\"187101071\"",
+    "createdon": "2026-07-04T15:39:25Z",
+    "modifiedon": "2026-07-04T15:39:25Z",
+    "qdb_edp_ruleid": "23f45b83-be77-f111-ab0e-000d3abcff60",
+    "qdb_edp_rulename": "Two-Stage Gov Test",
+    "qdb_edp_rulekey": null
+  },
+  {
+    "@odata.etag": "W/\"187101121\"",
+    "createdon": "2026-07-04T15:45:07Z",
+    "modifiedon": "2026-07-04T15:45:07Z",
+    "qdb_edp_ruleid": "82f6944e-bf77-f111-ab0e-000d3abcff60",
+    "qdb_edp_rulename": "Two-Stage Gov Test",
+    "qdb_edp_rulekey": null
+  },
+  {
+    "@odata.etag": "W/\"187622479\"",
+    "createdon": "2026-07-08T20:49:12Z",
+    "modifiedon": "2026-07-08T20:49:12Z",
+    "qdb_edp_ruleid": "20398577-0e7b-f111-ab0e-70a8a55bc6a5",
+    "qdb_edp_rulename": "All Node Types — Sample",
+    "qdb_edp_rulekey": null
+  },
+  {
+    "@odata.etag": "W/\"187623946\"",
+    "createdon": "2026-07-08T22:53:20Z",
+    "modifiedon": "2026-07-08T22:53:20Z",
+    "qdb_edp_ruleid": "cd0591cd-1f7b-f111-ab0e-70a8a55bc6a5",
+    "qdb_edp_rulename": "Credit vs Revenue",
+    "qdb_edp_rulekey": null
+  },
+  {
+    "@odata.etag": "W/\"188305265\"",
+    "createdon": "2026-07-12T10:13:28Z",
+    "modifiedon": "2026-07-12T10:13:28Z",
+    "qdb_edp_ruleid": "ade7ce50-da7d-f111-ab0e-000d3abd8313",
+    "qdb_edp_rulename": "Demo — Underwriting Decision (chained)",
+    "qdb_edp_rulekey": null
+  },
+  {
+    "@odata.etag": "W/\"188305261\"",
+    "createdon": "2026-07-12T10:13:28Z",
+    "modifiedon": "2026-07-12T10:13:28Z",
+    "qdb_edp_ruleid": "f35c2e51-da7d-f111-ab0e-70a8a55bc6a5",
+    "qdb_edp_rulename": "Demo — Risk Tier (AND/OR)",
+    "qdb_edp_rulekey": null
+  },
+  {
+    "@odata.etag": "W/\"188817389\"",
+    "createdon": "2026-07-14T02:07:03Z",
+    "modifiedon": "2026-07-14T02:07:03Z",
+    "qdb_edp_ruleid": "6b0ab9af-287f-f111-ab0e-70a8a55bc6a5",
+    "qdb_edp_rulename": "All Node Types — Sample",
+    "qdb_edp_rulekey": null
+  },
+  {
+    "@odata.etag": "W/\"188817394\"",
+    "createdon": "2026-07-14T02:07:23Z",
+    "modifiedon": "2026-07-14T02:07:23Z",
+    "qdb_edp_ruleid": "16cb42bf-287f-f111-ab0e-70a8a55bc6a5",
+    "qdb_edp_rulename": "All Node Types — Sample",
+    "qdb_edp_rulekey": null
+  },
+  {
+    "@odata.etag": "W/\"192324307\"",
+    "createdon": "2026-07-19T12:03:01Z",
+    "modifiedon": "2026-07-19T12:03:01Z",
+    "qdb_edp_ruleid": "4383e6c8-6983-f111-ab0f-000d3abd8313",
+    "qdb_edp_rulename": "Underwriting Decision — Full Engine (demo)",
+    "qdb_edp_rulekey": null
+  },
+  {
+    "@odata.etag": "W/\"194495974\"",
+    "createdon": "2026-07-21T21:12:47Z",
+    "modifiedon": "2026-07-21T21:12:47Z",
+    "qdb_edp_ruleid": "965efceb-4885-f111-ab0f-70a8a55bc6a5",
+    "qdb_edp_rulename": "Account Credit Tier",
+    "qdb_edp_rulekey": null
+  }
+]

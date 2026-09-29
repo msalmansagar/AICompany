@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
+using EDP.RuleRuntime.Contract;
 using EDP.RuleRuntime.Crm.Metadata;
 using EDP.RuleRuntime.Crm.Sinks;
+using EDP.RuleRuntime.Hashing;
 
 namespace EDP.RuleRuntime.Crm
 {
@@ -20,10 +23,20 @@ namespace EDP.RuleRuntime.Crm
     ///   RuleVersionId (string, GUID) — a saved rule version to resolve the PCRM from.
     ///   InputsJson    (string) — input values as JSON (test without a record).
     ///   TargetRef     (EntityReference) — a record supplying input field values.
+    ///   CorrelationId (string, 1–100 chars) — caller-owned, echoed verbatim, never interpreted (FR-B4-01).
     /// Output parameters:
+    ///   Outcome (string) — MATCHED | NO_MATCH | INPUT_REJECTED | ENGINE_ERROR, the value callers
+    ///     branch on (FR-B2-06). Success = MATCHED or NO_MATCH; Matched = MATCHED; both are kept.
     ///   Success (bool), Matched (bool), OutputsJson (string), ReasonCodesJson (string),
     ///   TraceJson (string), DiagnosticsJson (string), ElapsedMs (int),
-    ///   ExecutionId (string) — the execution-log id this decision was traced to.
+    ///   ExecutionId (string) — the execution-log id this decision was traced to; empty when the
+    ///     best-effort trace was dropped, so it is not a correlation key (CorrelationId is).
+    ///   ProvenanceJson (string) — what ran: executionId, ruleId, ruleKey, ruleVersionId,
+    ///     versionNumber, contentHash, evaluatedOnUtc, correlationId (FR-B4-02, ADR-20). One JSON
+    ///     envelope because an on-prem Process Action cannot reuse a request argument name
+    ///     (RuleVersionId, CorrelationId) as a response argument.
+    /// A malformed request (bad JSON, missing or conflicting parameters) fails as HTTP 400;
+    /// a rejected input is a result (HTTP 200, Outcome INPUT_REJECTED).
     /// </summary>
     public sealed class EvaluateDecisionPlugin : IPlugin
     {
@@ -41,6 +54,8 @@ namespace EDP.RuleRuntime.Crm
                 var ruleVersionIdStr = Param(context, "RuleVersionId");
                 var inputsJson = Param(context, "InputsJson");
                 var targetRef = context.InputParameters.Contains("TargetRef") ? context.InputParameters["TargetRef"] as EntityReference : null;
+                var correlationId = ReadCorrelationId(context);
+                var nowUtc = DateTime.UtcNow;
 
                 Guid? ruleVersionId = string.IsNullOrWhiteSpace(ruleVersionIdStr) ? (Guid?)null : Guid.Parse(ruleVersionIdStr);
 
@@ -54,18 +69,33 @@ namespace EDP.RuleRuntime.Crm
                 var decisionService = new RuleDecisionService(service, metadata, new DataverseTraceSink(service));
 
                 // PCRM source: explicit PcrmJson (live canvas) wins; else resolve the saved version (Published-gated).
-                var pcrm = !string.IsNullOrWhiteSpace(pcrmJson)
-                    ? pcrmJson!
-                    : decisionService.ResolvePcrm(ruleVersionId ?? throw new InvalidPluginExecutionException("Provide PcrmJson or RuleVersionId."));
+                var executable = !string.IsNullOrWhiteSpace(pcrmJson)
+                    ? ExecutableRuleVersion.AdHoc(pcrmJson!)
+                    : decisionService.ResolveExecutable(ruleVersionId ?? throw new InvalidPluginExecutionException("Provide PcrmJson or RuleVersionId."));
+                var pcrm = executable.Pcrm;
+                var contentHash = ContentHash.Compute(pcrm);
 
                 var outcome = !string.IsNullOrWhiteSpace(inputsJson)
-                    ? decisionService.EvaluateInputs(pcrm, RuleDecisionService.ParseInputsJson(inputsJson), ruleVersionId, context.InitiatingUserId, DateTime.UtcNow)
-                    : decisionService.Evaluate(pcrm, service.Retrieve(targetRef!.LogicalName, targetRef.Id, new ColumnSet(true)), ruleVersionId, context.InitiatingUserId, DateTime.UtcNow);
+                    ? decisionService.EvaluateInputs(pcrm, RuleDecisionService.ParseInputsJson(inputsJson), ruleVersionId, context.InitiatingUserId, nowUtc)
+                    : decisionService.Evaluate(pcrm, service.Retrieve(targetRef!.LogicalName, targetRef.Id, new ColumnSet(true)), ruleVersionId, context.InitiatingUserId, nowUtc);
                 var result = outcome.Result;
 
                 // Addresses this decision for a later ExplainDecision call. Empty when the
                 // best-effort trace was dropped — the decision itself is unaffected (ADR-13).
-                context.OutputParameters["ExecutionId"] = outcome.ExecutionLogId?.ToString() ?? string.Empty;
+                var executionId = outcome.ExecutionLogId?.ToString() ?? string.Empty;
+                context.OutputParameters["ExecutionId"] = executionId;
+                context.OutputParameters["Outcome"] = result.OutcomeCode;
+                context.OutputParameters["ProvenanceJson"] = JsonSerializer.Serialize(new
+                {
+                    executionId,
+                    ruleId = executable.RuleId,
+                    ruleKey = executable.RuleKey,
+                    ruleVersionId = executable.RuleVersionId,
+                    versionNumber = executable.VersionNumber,
+                    contentHash,
+                    evaluatedOnUtc = nowUtc.ToString("o", CultureInfo.InvariantCulture),
+                    correlationId
+                });
                 context.OutputParameters["Success"] = result.Success;
                 context.OutputParameters["Matched"] = result.Matched;
                 context.OutputParameters["OutputsJson"] = JsonSerializer.Serialize(result.Outputs);
@@ -74,7 +104,7 @@ namespace EDP.RuleRuntime.Crm
                 context.OutputParameters["TraceJson"] = JsonSerializer.Serialize(
                     result.Trace.Steps.Select(s => new { kind = s.Kind, description = s.Description, result = s.Result }));
                 context.OutputParameters["DiagnosticsJson"] = JsonSerializer.Serialize(
-                    result.Diagnostics.Select(d => new { code = d.Code, message = d.Message, severity = d.Severity.ToString() }));
+                    result.Diagnostics.Select(d => new { code = d.Code, message = d.Message, severity = d.Severity.ToString(), location = d.Location }));
 
                 // Per-child detail is ADDITIVE (ADR-17): the anchor outputs above are the mandatory
                 // half and render on a stock form; this is the optional half a capable surface may
@@ -86,7 +116,7 @@ namespace EDP.RuleRuntime.Crm
                     var fanOut = decisionService.EvaluateForEachChild(pcrm, new FanOutRequest(
                         RuleDecisionService.ParseInputsJson(inputsJson),
                         childCollectionName!,
-                        DateTime.UtcNow)
+                        nowUtc)
                     {
                         RuleVersionId = ruleVersionId,
                         ActorId = context.InitiatingUserId
@@ -101,6 +131,7 @@ namespace EDP.RuleRuntime.Crm
                         {
                             index = c.Index,
                             id = c.Id,
+                            outcome = c.Result.OutcomeCode,
                             success = c.Result.Success,
                             matched = c.Result.Matched,
                             outputs = c.Result.Outputs,
@@ -117,6 +148,18 @@ namespace EDP.RuleRuntime.Crm
             {
                 throw new InvalidPluginExecutionException($"EDP decision evaluation failed: {ex.Message}", ex);
             }
+        }
+
+        /// <summary>The caller's CorrelationId, or null when absent; out of bounds is a malformed request.</summary>
+        private static string? ReadCorrelationId(IPluginExecutionContext context)
+        {
+            var correlationId = Param(context, "CorrelationId");
+            if (string.IsNullOrEmpty(correlationId)) return null;
+            var contract = EngineContract.Current;
+            if (correlationId!.Length < contract.CorrelationIdMinLength || correlationId.Length > contract.CorrelationIdMaxLength)
+                throw new InvalidPluginExecutionException(
+                    $"CorrelationId must be {contract.CorrelationIdMinLength} to {contract.CorrelationIdMaxLength} characters.");
+            return correlationId;
         }
 
         private static string? Param(IPluginExecutionContext context, string name)
