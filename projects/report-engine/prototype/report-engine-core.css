@@ -291,25 +291,6 @@ tr.grand-total td { font-weight: 700; background: var(--acb2); border-top: 2px s
 .cv-field[draggable="true"], .report-paper th.cv-col[draggable="true"], .cv-slot[draggable="true"] { cursor:grab; }
 .cv-field.col-over, .cv-slot.col-over, .report-paper th.cv-col.col-over { box-shadow:inset 3px 0 0 var(--primary); }
 .report-paper { padding: 16px 14px; }
-paper.querySelectorAll("[data-slice]").forEach(elc => elc.onclick = () => { r._chartDrill = elc.dataset.slice; renderPaper(host, r); });
-const rows = synthRows(filled.map(c=>({name:c.name,key:c.attr,type:c.type})), t.entity||r.mainEntity).slice(0,3);
-host.querySelectorAll("[data-adddt]").forEach(b=>b.onclick=()=>{ const rel=rels.find(x=>x.entity===b.dataset.adddt); const cat=ATTR_CATALOG[rel.entity]||[]; d.detailTables.push({entity:rel.entity,label:rel.label,columns:cat.slice(0,3).map(a=>({name:a.n,attr:a.a,type:a.t})),showTotals:false}); wizDetails(host,d); });
-host.querySelectorAll("[data-slice]").forEach(elc => elc.onclick = () => { d._chartDrill = elc.dataset.slice; renderMiniPreview(host, d); });
-${data.map((d,i)=>`<text x="${x(i).toFixed(1)}" y="${H-pad+15}" font-size="9" fill="#605e5c" text-anchor="middle">${esc2(String(d.label).slice(0,9))}</text>`).join("")}
-return groups.slice(0,2).map(g => { const gr = rows.filter(r=>r[catCol.key]===g); const h = gr[0]||{};
-const bars = `<div style="display:flex;gap:20px;flex-wrap:wrap"><div style="flex:1;min-width:260px"><div style="font-size:12px;font-weight:600;margin-bottom:8px">${valCol?T("Total"):T("Count")} — ${esc(T(catCol.name))}</div>${barChart(groups.map(g=>({label:g,v:valCol?sum(rows.filter(r=>r[catCol.key]===g)):rows.filter(r=>r[catCol.key]===g).length})))}</div><div style="flex:1;min-width:220px"><div style="font-size:12px;font-weight:600;margin-bottom:8px">${T("Records")}</div><table class="rp-table"><thead><tr>${head}</tr></thead><tbody>${rows.slice(0,4).map(trow).join("")}</tbody></table></div></div>`;
-return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px">${rows.slice(0,6).map(r=>`<div style="border:1px solid #e1dfdd;border-radius:8px;padding:14px"><div style="font-weight:700;color:${acd};margin-bottom:8px">${esc(T(r[catCol.key]))}</div>${cols.filter(c=>c!==catCol).slice(0,4).map(c=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0"><span style="color:#605e5c">${esc(T(c.name))}</span><span style="font-weight:600">${esc(disp(c,r[c.key]))}</span></div>`).join("")}</div>`).join("")}</div>`;
-return `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">${rows.slice(0,6).map(r=>`<div style="border:1px dashed #a19f9d;border-radius:4px;padding:12px;min-height:82px"><div style="font-weight:700">${esc(T(r[catCol.key]))}</div><div style="font-size:12px;color:#323130;margin-top:4px">P.O. Box ${1000+String(r[catCol.key]).length*7}<br>Doha, Qatar<br>+974 4000 ${1000+(String(r[catCol.key]).length*137)%9000}</div></div>`).join("")}</div>`;
-return `<div style="margin-bottom:14px"><div style="font-size:16px;font-weight:700">Account Statement</div><div style="font-size:12px;color:#605e5c">${esc(T(txns[0][catCol.key]))} · Period 01–30 Jun 2026</div></div><table class="rp-table"><thead><tr><th>Date</th><th>Description</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th></tr></thead><tbody><tr><td colspan="4"><b>Opening balance</b></td><td class="num"><b>${money(bal)}</b></td></tr>${txns.map((r,i)=>{const amt=valCol?(+r[valCol.key]||0)/10:5000;const debit=i%2===0;bal+=debit?-amt:amt;return `<tr><td>${dateCol?fmt(dateCol,r[dateCol.key]):("0"+((i%28)+1)).slice(-2)+"/06/2026"}</td><td>${esc(T(r[catCol.key]))}</td><td class="num">${debit?money(amt):""}</td><td class="num">${debit?"":money(amt)}</td><td class="num">${money(bal)}</td></tr>`;}).join("")}<tr class="grand-total"><td colspan="4"><b>Closing balance</b></td><td class="num"><b>${money(bal)}</b></td></tr></tbody></table>`;
-return `<div style="padding-left:6px">${rows.slice(0,6).map((r,i)=>`<div style="position:relative;padding:0 0 16px 18px;border-left:2px solid ${acl}"><div style="position:absolute;left:-7px;top:2px;width:12px;height:12px;border-radius:50%;background:${ac};border:2px solid #fff"></div><div style="font-size:11px;color:#605e5c">${dateCol?fmt(dateCol,r[dateCol.key]):("0"+((i%28)+1)).slice(-2)+"/06/2026"}</div><div style="font-weight:600;font-size:13px">${esc(T(r[catCol.key]))}</div></div>`).join("")}</div>`;
-return `<div style="display:flex;flex-direction:column;gap:8px">${rows.slice(0,6).map((r,i)=>{const start=(i*12)%55;const width=15+((i*7)%30);return `<div style="display:flex;align-items:center;gap:10px"><div style="width:130px;font-size:12px">${esc(T(r[catCol.key]))}</div><div style="flex:1;position:relative;height:18px;background:#f3f2f1;border-radius:3px"><div style="position:absolute;left:${start}%;width:${width}%;height:18px;background:${ac};border-radius:3px"></div></div></div>`;}).join("")}<div style="display:flex;gap:10px;margin-top:2px"><div style="width:130px"></div><div style="flex:1;display:flex;justify-content:space-between;font-size:10px;color:#605e5c"><span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span></div></div></div>`;
-return `<div style="font-size:13px;line-height:1.9"><div>▾ <b>${esc(T(catCol.name))}</b></div>${groups.map(g=>{const gr=rows.filter(r=>r[catCol.key]===g);return `<div style="margin-left:18px">▾ ${esc(T(g))} <span style="color:#605e5c">(${gr.length})</span>${gr.slice(0,3).map(r=>`<div style="margin-left:26px;color:#323130">◦ ${esc(disp(child,r[child.key]))}</div>`).join("")}</div>`;}).join("")}</div>`;
-return `<div style="text-align:center"><div style="display:inline-block;border:1px solid ${ac};border-radius:6px;padding:8px 18px;background:${acb};font-weight:700;color:${acd}">Head Office</div><div style="height:16px;border-left:1px solid #a19f9d;width:1px;margin:0 auto"></div><div style="display:flex;justify-content:center;gap:20px;flex-wrap:wrap">${groups.slice(0,3).map(g=>`<div style="border:1px solid #e1dfdd;border-radius:6px;padding:8px 14px;font-size:12px"><b>${esc(T(g))}</b><div style="color:#605e5c">${rows.filter(r=>r[catCol.key]===g).length} staff</div></div>`).join("")}</div></div>`;
-return `<div style="display:flex;gap:12px;overflow-x:auto">${statuses.map((s,si)=>{const items=cat2?rows.filter(r=>r[cat2.key]===s):rows.filter((r,i)=>i%3===si);return `<div style="flex:1;min-width:150px;background:#f3f2f1;border-radius:6px;padding:8px"><div style="font-weight:700;font-size:12px;margin-bottom:8px;color:#323130">${esc(T(s))} <span style="color:#605e5c">(${items.length})</span></div>${items.slice(0,3).map(r=>`<div style="background:#fff;border:1px solid #e1dfdd;border-radius:4px;padding:8px;margin-bottom:6px;font-size:12px;border-top:2px solid ${ac}"><b>${esc(T(r[catCol.key]))}</b>${valCol?`<div style="color:#605e5c">${money(+r[valCol.key]||0)}</div>`:""}</div>`).join("")}</div>`;}).join("")}</div>`;
-return groups.slice(0,2).map(g=>{const gr=rows.filter(r=>r[catCol.key]===g);return `<div style="border-left:2px solid ${ac};padding-left:12px;margin-bottom:12px"><b style="color:${acd}">${esc(T(g))}</b>${["Account A","Account B"].map((acc,ai)=>`<div style="margin-left:14px;margin-top:6px;border-left:2px solid ${acl};padding-left:12px"><b>${acc}</b>${gr.slice(ai,ai+2).map(r=>`<div style="margin-left:12px;font-size:12px;color:#323130">${esc(cols[0]?disp(cols[0],r[cols[0].key]):g)}${valCol?` — ${money(+r[valCol.key]||0)}`:""}</div>`).join("")}</div>`).join("")}</div>`;}).join("");
-def.detailTables = (d.detailTables||[]).map(t=>({ entity:t.entity, label:t.label, showTotals:t.showTotals, columns:t.columns.slice() }));
-return `<table class="rp-table"><thead><tr>${cc.map(c=>`<th class="${numCell(c)?"num":""}">${esc(c.name)}</th>`).join("")}</tr></thead><tbody>${rows.slice(0,6).map(r=>`<tr>${cc.map(c=>`<td class="${numCell(c)?"num":""}">${esc(fmtDashCell(c, r[c.key]))}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
-return `<div class="w-profile">${cols.slice(0,6).map(c=>`<div class="w-prow"><span class="w-pk">${esc(c.name)}</span><span class="w-pv">${esc(fmtDashCell(c, r0[c.key]))}</span></div>`).join("")}</div>`;
 
   /* ---- conditional formatting (designer tab 10) ---- */
   td.cf-bold{font-weight:700;}
@@ -317,3 +298,50 @@ return `<div class="w-profile">${cols.slice(0,6).map(c=>`<div class="w-prow"><sp
   td.cf-green{background:#dff6dd; color:#0b5c0b;}
   td.cf-amber{background:#fff4ce; color:#8a5a00;}
   td.cf-strike{text-decoration:line-through; opacity:.75;}
+
+/* ---------- Document view (DV) — the print page on screen ---------- */
+.docviewer{ display:flex; flex-direction:column; border:1px solid var(--border-strong); border-radius:8px; overflow:hidden; background:var(--surface); }
+.doc-toolbar{ display:flex; align-items:center; gap:10px; padding:9px 14px; border-bottom:1px solid var(--border-strong); background:var(--surface); flex-wrap:wrap; }
+.doc-title{ font-size:14px; }
+.doc-mono{ font-family:"Consolas","SFMono-Regular",monospace; font-variant-numeric:tabular-nums; }
+.doc-ref{ color:var(--text-secondary); font-size:12px; }
+.doc-nav{ display:flex; align-items:center; gap:4px; border:1px solid var(--border-strong); border-radius:6px; padding:1px 4px; }
+.doc-nav .btn{ border:none; background:none; padding:2px 7px; font-size:15px; line-height:1; cursor:pointer; color:var(--text); }
+.doc-pageno{ font-size:12px; padding:0 4px; color:var(--text); }
+.doc-zoom-sel{ border:1px solid var(--border-strong); border-radius:6px; background:var(--surface); color:var(--text); font-family:inherit; font-size:12px; padding:4px 6px; }
+.doc-meta{ color:var(--text-secondary); font-size:12px; }
+.doc-body{ display:flex; min-height:320px; }
+.doc-rail{ width:132px; flex-shrink:0; overflow-y:auto; max-height:78vh; padding:16px 12px; border-right:1px solid var(--border-strong); background:var(--surface-alt); }
+.doc-thumb-cell{ margin-bottom:14px; cursor:pointer; text-align:center; }
+.doc-thumb{ margin:0 auto; background:#fff; border:1px solid var(--border-strong); overflow:hidden; }
+.doc-thumb-cell.sel .doc-thumb{ outline:2px solid var(--primary); outline-offset:1px; }
+.doc-thumb .doc-page{ pointer-events:none; box-shadow:none; margin:0; }
+.doc-thumb-no{ font-size:11px; color:var(--text-secondary); margin-top:5px; }
+.doc-thumb-cell.sel .doc-thumb-no{ color:var(--primary); font-weight:700; }
+.doc-canvas{ flex:1; overflow:auto; max-height:78vh; background:#e8eaed; padding:30px 20px; }
+:root[data-theme="dark"] .doc-canvas, [data-theme="dark"] .doc-canvas{ background:#141312; }
+.doc-pages{ width:max-content; margin:0 auto; }
+.doc-page{ position:relative; background:#fff; color:#201f1e; margin:0 auto 26px; box-shadow:0 2px 12px rgba(0,0,0,.22); display:flex; flex-direction:column; box-sizing:border-box; overflow:hidden; }
+.doc-page-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:16px; border-bottom:2px solid #201f1e; padding-bottom:8px; margin-bottom:14px; flex-shrink:0; }
+.doc-head-title{ font-size:16px; font-weight:800; }
+.doc-head-meta{ text-align:end; font-size:10.5px; color:#605e5c; line-height:1.55; white-space:nowrap; }
+.doc-page-body{ flex:1; overflow:hidden; min-height:0; font-size:13px; }
+.doc-page-foot{ display:flex; justify-content:space-between; gap:16px; border-top:1px solid #c8c6c4; padding-top:6px; margin-top:10px; font-size:10.5px; color:#605e5c; flex-shrink:0; }
+.doc-foot-page{ margin-left:auto; }
+.doc-watermark{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:64px; font-weight:800; color:#201f1e; opacity:.08; transform:rotate(-30deg); pointer-events:none; z-index:1; }
+.doc-continued{ margin-top:0; }
+.doc-measure{ background:#fff; color:#201f1e; font-size:13px; }
+[dir="rtl"] .doc-page-head, [dir="rtl"] .doc-page-foot{ flex-direction:row-reverse; }
+
+@media print{
+  body.doc-printing .app-header, body.doc-printing .nav, body.doc-printing .cmdbar,
+  body.doc-printing .crumb, body.doc-printing .panel, body.doc-printing .page > h2,
+  body.doc-printing .page > .meta-row, body.doc-printing #chartHost,
+  body.doc-printing .doc-toolbar, body.doc-printing .doc-rail{ display:none !important; }
+  body.doc-printing .page{ padding:0 !important; }
+  body.doc-printing .docviewer{ border:none; border-radius:0; }
+  body.doc-printing .doc-body{ display:block; }
+  body.doc-printing .doc-canvas{ overflow:visible; max-height:none; background:none; padding:0; }
+  body.doc-printing .doc-pages{ zoom:1 !important; }
+  body.doc-printing .doc-page{ box-shadow:none; margin:0; page-break-after:always; break-after:page; }
+}

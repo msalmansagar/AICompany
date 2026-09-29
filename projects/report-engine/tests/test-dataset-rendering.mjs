@@ -31,7 +31,9 @@ const { api } = loadEngine({
   enginePath: ENGINE,
   section: null,
   exports: ['renderGrid'],
-  seed: ['renderGrid'],
+  // gridBodyHtml split out of renderGrid for the document view (DV); seeding it and its heaviest
+  // dependencies keeps the on-demand lift chain under the harness's 30-attempt cap.
+  seed: ['renderGrid', 'gridBodyHtml', 'reportFootnoteHtml', 'datasetsOf', 'layoutBadges'],
   globals: {
     esc,
     state: new Proxy({}, { get: (_, k) => state[k] }),
