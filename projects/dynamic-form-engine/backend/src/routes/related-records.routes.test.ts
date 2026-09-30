@@ -7,6 +7,7 @@ import { PerUserRateLimiter } from '../utils/PerUserRateLimiter.js';
 import { NotFoundError } from '../utils/errors.js';
 import { errorMiddleware } from '../middleware/error.middleware.js';
 import { correlationMiddleware } from '../utils/correlation.js';
+import { logger } from '../utils/logger.js';
 
 const RECORD_ID = '09f1b2a3-436a-f111-a826-7ced8d96ec97';
 const PATH = `/api/related-records/demo/rb2_sponsor/${RECORD_ID}`;
@@ -39,6 +40,17 @@ describe('GET /api/related-records/:formCode/:fieldSchemaName/:recordId', () => 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ success: true, data: { industrycode: 6 } });
     expect(mockReadRuleAttributes).toHaveBeenCalledWith({ formCode: 'demo', fieldSchemaName: 'rb2_sponsor', recordId: RECORD_ID });
+  });
+
+  it('relatedRecords_Allowed_LogsWhoReadWhichColumnsButNotTheValues', async () => {
+    mockReadRuleAttributes.mockResolvedValue({ address1_country: 'United Arab Emirates' });
+    const info = vi.spyOn(logger, 'info');
+
+    await request(buildApp()).get(PATH);
+
+    const [entry] = info.mock.calls.find(([, message]) => message === 'related_record_read')!;
+    expect(entry).toMatchObject({ userOid: 'user-001', formCode: 'demo', recordId: RECORD_ID, columns: ['address1_country'] });
+    expect(JSON.stringify(entry)).not.toContain('United Arab Emirates');
   });
 
   it('relatedRecords_OutOfScopeRecord_Returns404', async () => {
