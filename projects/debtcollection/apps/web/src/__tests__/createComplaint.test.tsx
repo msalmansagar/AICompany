@@ -4,7 +4,7 @@ import { CreateComplaintPane, RaiseComplaintCard } from '../views/CreateComplain
 import { CrmSessionProvider } from '../shell/context.js';
 import { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import type { XrmLike } from '../platform/crmContext.js';
-import { readComplaintServiceUrl } from '../data/complaintService.js';
+import { readIntegrationServiceUrl } from '../data/integrationEndpoint.js';
 
 /**
  * "Create complaint" — the officer writes a description; the Integration Service does the rest.
@@ -33,7 +33,7 @@ function platform(featureFlags: string | null): XrmLike {
 }
 
 function renderPane(options: { flags?: string | null; token?: boolean } = {}) {
-  const adapter = new XrmCrmAdapter(platform(options.flags === undefined ? JSON.stringify({ caseManagementServiceUrl: SERVICE }) : options.flags));
+  const adapter = new XrmCrmAdapter(platform(options.flags === undefined ? JSON.stringify({ integrationServiceUrl: SERVICE }) : options.flags));
   const session = { adapter, context: {}, ...(options.token === false ? {} : { integrationServiceToken: async () => 'user-token' }) };
   return render(
     <CrmSessionProvider value={session as never}>
@@ -145,16 +145,16 @@ describe('Raise a complaint card', () => {
   });
 });
 
-describe('readComplaintServiceUrl', () => {
-  it('readComplaintServiceUrl_httpsAddress_returnsIt', () => {
-    expect(readComplaintServiceUrl(JSON.stringify({ caseManagementServiceUrl: SERVICE }))).toBe(SERVICE);
+describe('readIntegrationServiceUrl', () => {
+  it('readIntegrationServiceUrl_httpsAddress_returnsIt', () => {
+    expect(readIntegrationServiceUrl(JSON.stringify({ integrationServiceUrl: SERVICE }))).toBe(SERVICE);
   });
 
-  it('readComplaintServiceUrl_plainHttp_isRefused', () => {
-    expect(readComplaintServiceUrl(JSON.stringify({ caseManagementServiceUrl: 'http://insecure.example' }))).toBeUndefined();
+  it('readIntegrationServiceUrl_plainHttp_isRefused', () => {
+    expect(readIntegrationServiceUrl(JSON.stringify({ integrationServiceUrl: 'http://insecure.example' }))).toBeUndefined();
   });
 
-  it('readComplaintServiceUrl_unparseableFlags_returnsNothing', () => {
-    expect(readComplaintServiceUrl('{not json')).toBeUndefined();
+  it('readIntegrationServiceUrl_unparseableFlags_returnsNothing', () => {
+    expect(readIntegrationServiceUrl('{not json')).toBeUndefined();
   });
 });

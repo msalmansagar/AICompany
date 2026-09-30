@@ -1,56 +1,48 @@
 import { describe, expect, it } from 'vitest';
 import { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import type { XrmLike } from '../platform/crmContext.js';
-import { loadLitigation, toLitigationSummary } from '../data/legalQueries.js';
 import { loadCaseLegalTraces } from '../data/caseLegalTraces.js';
 import { isLegalRecommendationCode } from '../data/legalTraceRows.js';
+import type { ExternalRecordSummary, ReferenceSummariser } from '../data/externalReferenceService.js';
 
 /**
- * Reading Legal through the lookup, and only through the lookup.
+ * Reading Legal through the external process reference, and only through it.
  *
- * The assertions that matter are about what is *not* asked: no search of the Legal entity by
- * customer, name or date, and no collapsing of a refused read into an absent record.
+ * Legal lives in BFD CRM for HL and BFD customers alike, so a Collection Activity refers to a
+ * Litigation Request by organisation, type, id and number, and its current state is the Legal
+ * module's answer through the Integration Service. The assertions that matter are about what is
+ * *not* asked — no search of Legal, no read from the browser — and about never collapsing a refused
+ * or unavailable read into an absent record.
  */
 
-const FORMATTED = '@OData.Community.Display.V1.FormattedValue';
 const CASE = 'case-1';
-const LEGAL_ID = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
+const LEGAL_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const LEGAL_TYPE = 'type-legal';
 const OTHER_TYPE = 'type-call';
+const BFD = 100000141;
 
-/**
- * Records every request, and answers a single-record read with a scripted outcome.
- *
- * **This fake used to claim `Xrm.WebApi` rejects with a `status`, and it does not.** The real
- * client API rejects with a plain object carrying `errorCode` and no status at all, so a fake that
- * supplied one let `retrieveWithStatus` look correct while it could never classify a real failure.
- * A rejection is now described by what it *is* — `clientNotFound` for the observed `0x80040217`,
- * or a transport `status` — and the shape is produced accordingly.
- */
-function adapterReturning(options: {
-  rows?: Record<string, Record<string, unknown>[]>;
-  legalRead?: { status?: number; clientNotFound?: true; record?: Record<string, unknown> };
-}) {
+function adapterReturning(rows: Record<string, Record<string, unknown>[]>) {
   const requested: string[] = [];
   const xrm = {
     WebApi: {
       retrieveMultipleRecords: async (logicalName: string, query: string) => {
         requested.push(decodeURIComponent(`${logicalName}${query}`));
-        return { entities: options.rows?.[logicalName] ?? [] };
+        return { entities: rows[logicalName] ?? [] };
       },
-      retrieveRecord: async (logicalName: string, id: string, query: string) => {
-        requested.push(decodeURIComponent(`GET ${logicalName}(${id})${query}`));
-        const answer = options.legalRead ?? { clientNotFound: true as const };
-        // The client API's own shape: a plain object, not an Error, with no status.
-        if (answer.clientNotFound) throw { errorCode: 2147746327, message: 'The requested record was not found.' };
-        if (answer.status !== undefined && answer.status >= 400) {
-          throw Object.assign(new Error('refused'), { status: answer.status });
-        }
-        return answer.record ?? {};
+      retrieveRecord: async (logicalName: string, id: string) => {
+        requested.push(`GET ${logicalName}(${id})`);
+        throw { errorCode: 2147746327, message: 'not expected' };
       },
     },
   } as unknown as XrmLike;
   return { adapter: new XrmCrmAdapter(xrm), requested };
+}
+
+function summariserAnswering(answer: Partial<ExternalRecordSummary>): ReferenceSummariser {
+  return async references => new Map(references.map(reference => [reference.recordId, {
+    process: reference.process, organization: reference.organization, recordId: reference.recordId,
+    availability: 'found', openUrl: 'https://bfd.example/legal', ...answer,
+  } as ExternalRecordSummary]));
 }
 
 const activityType = (id: string, code: string) => ({
@@ -65,7 +57,11 @@ const recommendation = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-// ── The type is identified by code, not by name ──────────────────────────────
+/** A recommendation whose hand-off produced a Litigation Request in BFD CRM's Legal module. */
+const handedOff = (overrides: Record<string, unknown> = {}) => recommendation({
+  qdb_relatedrecordtype: 'qdb_qdblegal', qdb_relatedrecordorganization: BFD, qdb_relatedrecordid: LEGAL_ID, qdb_relatedrecordnumber: 'LEG-9',
+  ...overrides,
+});
 
 describe('a Legal Recommendation type is recognised by its code', () => {
   it('accepts the configured code suffix whatever the prefix', () => {
@@ -81,113 +77,38 @@ describe('a Legal Recommendation type is recognised by its code', () => {
   });
 });
 
-// ── A refused read is not an absent record ───────────────────────────────────
-
-describe('the Litigation Request read reports why it failed', () => {
-  it('returns the record when it can be read', async () => {
-    const { adapter } = adapterReturning({
-      legalRead: { status: 200, record: { qdb_name: 'LEG-1', [`statuscode${FORMATTED}`]: 'Closed' } },
-    });
-
-    const fetch = await loadLitigation(adapter, LEGAL_ID);
-
-    expect(fetch.kind).toBe('found');
-    expect(fetch.kind === 'found' && fetch.record.reference).toBe('LEG-1');
-  });
-
-  it('reports a refusal as forbidden, never as not found', async () => {
-    // On this organisation no DCP role can read the Legal entity, so this is the ordinary case.
-    const { adapter } = adapterReturning({ legalRead: { status: 403 } });
-
-    expect((await loadLitigation(adapter, LEGAL_ID)).kind).toBe('forbidden');
-  });
-
-  it('reports a genuinely missing record as not found', async () => {
-    const { adapter } = adapterReturning({ legalRead: { clientNotFound: true } });
-
-    expect((await loadLitigation(adapter, LEGAL_ID)).kind).toBe('notFound');
-  });
-
-  it('reports a server failure as unavailable rather than as either of those', async () => {
-    const { adapter } = adapterReturning({ legalRead: { status: 503 } });
-
-    expect((await loadLitigation(adapter, LEGAL_ID)).kind).toBe('unavailable');
-  });
-
-  it('reads the record by id, and issues no query against the Legal entity', async () => {
-    const { adapter, requested } = adapterReturning({
-      legalRead: { status: 200, record: { qdb_name: 'LEG-1' } },
-    });
-    await loadLitigation(adapter, LEGAL_ID);
-
-    expect(requested).toHaveLength(1);
-    expect(requested[0]).toContain(`GET qdb_qdblegal(${LEGAL_ID})`);
-    expect(requested[0], 'no filter means no search').not.toContain('$filter');
-  });
-});
-
-describe('the Legal status is the platform’s own label', () => {
-  it('takes the formatted value and maps nothing', () => {
-    const summary = toLitigationSummary({
-      qdb_name: 'LEG-1',
-      statuscode: 751090003,
-      [`statuscode${FORMATTED}`]: 'Pending with Legal (First Instance Court)',
-    });
-
-    expect(summary.status).toBe('Pending with Legal (First Instance Court)');
-  });
-
-  it('leaves the status absent rather than showing a raw code', () => {
-    const summary = toLitigationSummary({ qdb_name: 'LEG-1', statuscode: 751090003 });
-
-    expect(summary.status).toBeUndefined();
-  });
-});
-
-// ── The case read ────────────────────────────────────────────────────────────
-
 describe('a case’s Legal picture is narrowed by the platform', () => {
-  const rows = {
-    qdb_collectionactivitytype: [activityType(LEGAL_TYPE, 'P6-LEGALREC'), activityType(OTHER_TYPE, 'P6-CALL')],
-    qdb_collectionactivity: [recommendation()],
-  };
+  const types = [activityType(LEGAL_TYPE, 'P6-LEGALREC'), activityType(OTHER_TYPE, 'P6-CALL')];
+  const rowsWith = (...activities: Record<string, unknown>[]) => ({ qdb_collectionactivitytype: types, qdb_collectionactivity: activities });
 
-  it('asks the source for linked OR Legal-typed activities, not for the whole case', async () => {
-    const { adapter, requested } = adapterReturning({ rows });
-    await loadCaseLegalTraces(adapter, CASE);
+  it('asks the source for Legal hand-offs OR Legal-typed activities, not for the whole case', async () => {
+    const { adapter, requested } = adapterReturning(rowsWith(recommendation()));
+    await loadCaseLegalTraces(adapter, { caseId: CASE });
 
     const activityRead = requested.find(r => r.startsWith('qdb_collectionactivity?'));
     expect(activityRead).toContain('_qdb_collectioncaseid_value eq case-1');
-    expect(activityRead).toContain('_qdb_legalrequestid_value ne null');
+    expect(activityRead).toContain("qdb_relatedrecordtype eq 'qdb_qdblegal'");
     expect(activityRead).toContain(`_qdb_activitytypeid_value eq ${LEGAL_TYPE}`);
     expect(activityRead, 'the non-Legal type is not asked for').not.toContain(OTHER_TYPE);
   });
 
-  it('reads no Legal record at all when nothing is linked', async () => {
-    const { adapter, requested } = adapterReturning({ rows });
-    const { rows: traces } = await loadCaseLegalTraces(adapter, CASE);
+  it('asks nothing of the Legal module when nothing was handed off', async () => {
+    const { adapter, requested } = adapterReturning(rowsWith(recommendation()));
+    let asked = 0;
+    const summarise: ReferenceSummariser = async () => { asked++; return new Map(); };
 
-    /*
-     * Since WP14 the state is DERIVED rather than passed in, so an unlinked recommendation on this
-     * organisation resolves to *awaiting legal authorisation*: no qualification rule is configured
-     * (KI-109) and an empty policy keeps hand-off closed. That is the honest answer, and it is why
-     * no officer is offered a hand-off anywhere in this build.
-     */
+    const { rows: traces } = await loadCaseLegalTraces(adapter, { caseId: CASE, summarise });
+
     expect(traces[0]!.trace.state).toBe('QualificationPending');
     expect(traces[0]!.trace.handoffAvailable, 'fail-closed').toBe(false);
-    expect(requested.filter(r => r.includes('qdb_qdblegal')), 'no link, no lookup').toHaveLength(0);
+    expect(asked, 'no reference, no read').toBe(0);
+    expect(requested.filter(r => r.includes('qdb_qdblegal') && r.startsWith('GET')), 'nothing read from the browser').toHaveLength(0);
   });
 
-  it('reads the linked Litigation Request and shows it', async () => {
-    const { adapter } = adapterReturning({
-      rows: {
-        ...rows,
-        qdb_collectionactivity: [recommendation({ '_qdb_legalrequestid_value': LEGAL_ID })],
-      },
-      legalRead: { status: 200, record: { qdb_name: 'LEG-9', [`statuscode${FORMATTED}`]: 'Closed' } },
-    });
+  it('shows the Legal module’s own reference and status for a handed-off recommendation', async () => {
+    const { adapter } = adapterReturning(rowsWith(handedOff()));
 
-    const { rows: traces } = await loadCaseLegalTraces(adapter, CASE);
+    const { rows: traces } = await loadCaseLegalTraces(adapter, { caseId: CASE, summarise: summariserAnswering({ recordNumber: 'LEG-9', statusReason: 'Closed' }) });
 
     expect(traces[0]!.trace.state).toBe('LitigationVisible');
     expect(traces[0]!.trace.litigation?.reference).toBe('LEG-9');
@@ -195,44 +116,37 @@ describe('a case’s Legal picture is narrowed by the platform', () => {
   });
 
   it('says the request exists when the officer may not read it', async () => {
-    const { adapter } = adapterReturning({
-      rows: {
-        ...rows,
-        qdb_collectionactivity: [recommendation({ '_qdb_legalrequestid_value': LEGAL_ID })],
-      },
-      legalRead: { status: 403 },
-    });
+    const { adapter } = adapterReturning(rowsWith(handedOff()));
 
-    const { rows: traces } = await loadCaseLegalTraces(adapter, CASE);
+    const { rows: traces } = await loadCaseLegalTraces(adapter, { caseId: CASE, summarise: summariserAnswering({ availability: 'forbidden' }) });
 
     expect(traces[0]!.trace.state).toBe('LitigationNotVisible');
     expect(traces[0]!.trace.label).toMatch(/raised/i);
     expect(traces[0]!.trace.label).not.toMatch(/no legal/i);
   });
 
-  it('includes a linked activity even when its type is not a Legal type', async () => {
-    // Traceability follows the link. A type that was later changed must not hide the litigation.
-    const { adapter } = adapterReturning({
-      rows: {
-        ...rows,
-        qdb_collectionactivity: [recommendation({
-          '_qdb_activitytypeid_value': OTHER_TYPE, '_qdb_legalrequestid_value': LEGAL_ID,
-        })],
-      },
-      legalRead: { status: 200, record: { qdb_name: 'LEG-9' } },
-    });
+  it('says the request exists when the Integration Service is not reachable', async () => {
+    const { adapter } = adapterReturning(rowsWith(handedOff()));
 
-    expect((await loadCaseLegalTraces(adapter, CASE)).rows[0]!.trace.state).toBe('LitigationVisible');
+    const { rows: traces } = await loadCaseLegalTraces(adapter, { caseId: CASE });
+
+    expect(traces[0]!.trace.label).not.toMatch(/no legal/i);
   });
 
-  it('falls back to the link clause alone when no Legal type is configured', async () => {
-    const { adapter, requested } = adapterReturning({
-      rows: { ...rows, qdb_collectionactivitytype: [activityType(OTHER_TYPE, 'P6-CALL')] },
-    });
-    await loadCaseLegalTraces(adapter, CASE);
+  it('includes a Legal hand-off even when its activity type is not a Legal type', async () => {
+    const { adapter } = adapterReturning(rowsWith(handedOff({ '_qdb_activitytypeid_value': OTHER_TYPE })));
+
+    const { rows } = await loadCaseLegalTraces(adapter, { caseId: CASE, summarise: summariserAnswering({ recordNumber: 'LEG-9' }) });
+
+    expect(rows[0]!.trace.state).toBe('LitigationVisible');
+  });
+
+  it('falls back to the hand-off clause alone when no Legal type is configured', async () => {
+    const { adapter, requested } = adapterReturning({ qdb_collectionactivitytype: [activityType(OTHER_TYPE, 'P6-CALL')], qdb_collectionactivity: [] });
+    await loadCaseLegalTraces(adapter, { caseId: CASE });
 
     const activityRead = requested.find(r => r.startsWith('qdb_collectionactivity?'));
-    expect(activityRead).toContain('_qdb_legalrequestid_value ne null');
+    expect(activityRead).toContain("qdb_relatedrecordtype eq 'qdb_qdblegal'");
     expect(activityRead, 'nothing is guessed about which type is Legal').not.toContain('LEGALREC');
   });
 });

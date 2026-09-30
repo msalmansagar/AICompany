@@ -161,7 +161,7 @@ export function buildComplaintCreate(
 /**
  * Whether a lookup is allowed to answer "has a Complaint already been raised?".
  *
- * **It is not**, and this exists to say so where a test can see it. `qdb_complaintcaseid` is
+ * **It is not**, and this exists to say so where a test can see it. The external process reference is
  * traceability: it records which Case an activity produced, after the fact. It cannot make a
  * create safe, because two workers racing on the same intent both read it empty and both proceed.
  *

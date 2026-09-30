@@ -1,10 +1,10 @@
 import {
-  dedupeWork, toWorkCount,
+  externalProcessOf, dedupeWork, toWorkCount,
   type ContinuationToken, type OperationalBucket, type Page, type WorkCount, type WorkItem,
   type WorkType,
 } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
-import { ACTIVITY_COLUMNS, ENTITY_SETS, NAVIGATION_PROPERTIES } from './schema.js';
+import { ACTIVITY_COLUMNS, ENTITY_SETS } from './schema.js';
 import { escapeOData, mapPage } from './collectionQueries.js';
 import { isLegalRecommendationCode } from './legalTraceRows.js';
 import { isConcernTypeCode } from './caseConcerns.js';
@@ -20,18 +20,17 @@ import { readFormatted, readNumber, readText, type CrmRow } from './rowReaders.j
  * and stale-response suppression. A queue that filtered client-side would look identical on a demo
  * case and fall over on the book — which is the whole reason the rule exists.
  *
- * **Downstream state costs no extra requests.** A row that carries a Litigation Request or a
- * Complaint brings that record's own reference and status back in the **same** read, through
- * `$expand` on the navigation property. Fifty rows is one request, not fifty-one. That was
- * verified against the organisation, together with a filter and an order-by, because `$expand` on
- * the *attribute* name is rejected with 400 while the navigation property works.
+ * **Hand-offs are open work only while their record is being created.** A Complaint or a Legal
+ * hand-off records its request as an In Progress activity and completes it once BFD CRM's Case
+ * Management or Legal module holds the record (docs/ExternalProcessReference.md). So a queue of open
+ * work shows the activity's own state; the owning module's status is shown on the case, read
+ * through the Integration Service, and never copied into a row here.
  */
 
-/** The single-valued navigation properties that carry downstream state. */
-const DOWNSTREAM_EXPANSION = [
-  `${NAVIGATION_PROPERTIES.activityToLegalRequest}($select=qdb_name,statuscode)`,
-  `${NAVIGATION_PROPERTIES.activityToComplaintCase}($select=ticketnumber,statuscode)`,
-] as const;
+/** A hand-off to Case Management: the reference names an incident, whatever the activity's type. */
+const COMPLAINT_HAND_OFF = "qdb_relatedrecordtype eq 'incident'";
+const LEGAL_HAND_OFF = "qdb_relatedrecordtype eq 'qdb_qdblegal'";
+const NO_COMPLAINT_HAND_OFF = "(qdb_relatedrecordtype eq null or qdb_relatedrecordtype ne 'incident')";
 
 export interface WorkQueueRequest {
   bucket: OperationalBucket;
@@ -77,15 +76,15 @@ export function bucketFilter(
     case 'Escalated':
       return `${openWork} and qdb_supervisorescalated eq true`;
     case 'Legal':
-      return typeClause(openWork, context.typeIds.legal, '_qdb_legalrequestid_value ne null');
+      return typeClause(openWork, context.typeIds.legal, LEGAL_HAND_OFF);
     case 'Disputes':
-      // A dispute is a concern activity with NO complaint behind it — the authoritative
+      // A dispute is a concern activity with NO complaint hand-off — the authoritative
       // distinction, sent to the platform rather than decided here.
       return context.typeIds.concern.length > 0
-        ? `${openWork} and _qdb_complaintcaseid_value eq null and (${orOnType(context.typeIds.concern)})`
+        ? `${openWork} and ${NO_COMPLAINT_HAND_OFF} and (${orOnType(context.typeIds.concern)})`
         : null;
     case 'Complaints':
-      return `${openWork} and _qdb_complaintcaseid_value ne null`;
+      return `${openWork} and ${COMPLAINT_HAND_OFF}`;
     case 'DeceasedReview':
       // Actual review work only. The 724 QCB indications are not review tasks and are never
       // turned into any.
@@ -177,7 +176,6 @@ export function createWorkQueue(adapter: XrmCrmAdapter, typeIds: TypeIds) {
 
     const page = await adapter.retrievePage(ENTITY_SETS.collectionActivity, {
       select: [...ACTIVITY_COLUMNS],
-      expand: [...DOWNSTREAM_EXPANSION],
       pageSize: request.pageSize,
       sort: [{ field: 'createdon', descending: true }],
       filter: clauses.join(' and '),
@@ -200,21 +198,17 @@ function emptyPage(): Page<WorkItem> {
 /**
  * One activity as a work item.
  *
- * The downstream state comes from the expanded record and is passed through untouched — Legal's
- * status is Legal's, a Complaint's is Case Management's. Nothing here maps or re-interprets it.
+ * The state is the activity's own, passed through untouched. An open hand-off is a request still
+ * being created, and that is what its own status says.
  */
 export function toWorkItem(row: CrmRow, typeIds: TypeIds): WorkItem {
   const typeId = readText(row, '_qdb_activitytypeid_value');
-  const legal = row[NAVIGATION_PROPERTIES.activityToLegalRequest] as CrmRow | null | undefined;
-  const complaint = row[NAVIGATION_PROPERTIES.activityToComplaintCase] as CrmRow | null | undefined;
-
-  const domainState = complaint
-    ? readFormatted(complaint, 'statuscode')
-    : legal ? readFormatted(legal, 'statuscode') : readFormatted(row, 'statuscode');
+  const handOff = externalProcessOf(readText(row, 'qdb_relatedrecordtype'));
+  const domainState = readFormatted(row, 'statuscode');
 
   return {
     id: String(row['activityid']),
-    type: workTypeFor(typeId, Boolean(complaint), typeIds),
+    type: workTypeFor(typeId, handOff === 'Complaint', typeIds),
     title: readText(row, 'subject') ?? '—',
     caseId: readText(row, '_qdb_collectioncaseid_value') ?? '',
     ...optional('caseNumber', readFormatted(row, '_qdb_collectioncaseid_value')),
@@ -234,7 +228,7 @@ function workTypeFor(
   hasComplaint: boolean,
   typeIds: TypeIds,
 ): WorkType {
-  // A Complaint link is authoritative: it says a formal Complaint was raised, whatever the type.
+  // A complaint hand-off is authoritative: it says a formal Complaint was raised, whatever the type.
   if (hasComplaint) return 'CustomerComplaint';
   if (typeId && typeIds.legal.includes(typeId)) return 'LegalRecommendation';
   if (typeId && typeIds.deceased.includes(typeId)) return 'DeceasedReview';

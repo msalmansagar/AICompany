@@ -6,13 +6,15 @@ import { fileURLToPath } from 'node:url';
 /**
  * WP7 — the cross-process boundary, enforced on the source rather than trusted to review.
  *
- * Legal and Case Management own their records. The workspace reads Litigation Requests and
- * Complaint cases; it must never create, change or link one from an officer's session:
+ * Legal and Case Management own their records, and both live in BFD CRM for HL and BFD customers
+ * alike. The workspace never addresses either table from the browser: a Complaint is raised, and
+ * either record's status is read, only through the Integration Service, which acts as the user in
+ * the owning organisation (docs/ExternalProcessReference.md). So:
  *
- * - an officer hand-off to Legal is closed until QDB sets a qualification rule (KI-109);
- * - raising a Complaint needs security QDB has not granted (KI-120);
- * - linking an activity to either is how those records would be raised, so binding the lookups is
- *   the same act by another route.
+ * - no browser source names the Legal or Case Management table;
+ * - no browser source writes the external process reference — the service records it after the
+ *   owning module has created the record, so the browser cannot claim a hand-off that did not happen;
+ * - an officer hand-off to Legal stays closed until QDB sets a qualification rule (KI-109).
  *
  * Each rule below says what it would catch, and is shown to recognise it, so a clean sweep means a
  * clean source rather than a pattern that could never match.
@@ -31,12 +33,11 @@ const sourceFiles = (directory: string): string[] =>
 const files = sourceFiles(SOURCE_ROOT).map(path => ({ path, text: readFileSync(path, 'utf8') }));
 const relative = (path: string) => path.slice(SOURCE_ROOT.length + 1).replace(/\\/g, '/');
 
-/** A lookup to Legal or a Complaint, bound in a write payload. */
-const BINDS_LEGAL_OR_COMPLAINT =
-  /(qdb_legalrequestid|qdb_complaintcaseid|activityToLegalRequest|activityToComplaintCase)[^\n]{0,80}@odata\.bind/;
+/** An external process reference column written as a payload key. */
+const WRITES_REFERENCE = /['"]qdb_relatedrecord(?:id|number|organization|type)['"]\s*:/;
 
-/** A reference to the Legal or Complaint entity set. */
-const NAMES_LEGAL_OR_COMPLAINT_SET = /ENTITY_SETS\.(litigationRequest|complaintCase)\b/;
+/** The Legal or Case Management table, addressed as an entity set or an entity set name. */
+const NAMES_LEGAL_OR_COMPLAINT_SET = /ENTITY_SETS\.(litigationRequest|complaintCase)\b|\bqdb_qdblegals\b|['"`/]incidents\b/;
 
 /** Any write the adapter or a service offers. */
 const WRITES = /\.(createIdempotent|createOnly|create|patch|post|update)\(/;
@@ -55,9 +56,10 @@ describe('the sweep itself', () => {
   });
 
   it.each([
-    ['a bound Legal lookup', BINDS_LEGAL_OR_COMPLAINT, "'qdb_legalrequestid@odata.bind': `/qdb_qdblegals(${id})`"],
-    ['a bound navigation property', BINDS_LEGAL_OR_COMPLAINT, '[`${NAVIGATION_PROPERTIES.activityToComplaintCase}@odata.bind`]: ref'],
+    ['a written reference id', WRITES_REFERENCE, "{ 'qdb_relatedrecordid': caseId }"],
+    ['a written reference number', WRITES_REFERENCE, '{ "qdb_relatedrecordnumber": number }'],
     ['a Legal set reference', NAMES_LEGAL_OR_COMPLAINT_SET, '{ entity: ENTITY_SETS.litigationRequest, id }'],
+    ['a Case Management set path', NAMES_LEGAL_OR_COMPLAINT_SET, "retrieveRecord('/incidents', id)"],
     ['a write', WRITES, 'await adapter.createIdempotent(set, id, body)'],
     ['a hand-off helper call', USES_HANDOFF_WRITE, 'const id = litigationRequestId(activityId);'],
     ['a hand-off helper import', USES_HANDOFF_WRITE, "import { decideLegalHandoff, interpretHandoffWrite } from '@dcp/domain';"],
@@ -66,26 +68,25 @@ describe('the sweep itself', () => {
   });
 
   it('does not mistake the read link property for the hand-off helper', () => {
-    expect(USES_HANDOFF_WRITE.test('{ litigationRequestId: activity.legalRequestId }')).toBe(false);
+    expect(USES_HANDOFF_WRITE.test('{ litigationRequestId: reference.recordId }')).toBe(false);
+  });
+
+  it('does not mistake a filter on the reference type for a write', () => {
+    expect(WRITES_REFERENCE.test("qdb_relatedrecordtype eq 'incident'")).toBe(false);
   });
 });
 
 describe('the workspace and the processes it does not own', () => {
-  it('binds no activity to a Litigation Request or a Complaint', () => {
-    expect(files.filter(file => BINDS_LEGAL_OR_COMPLAINT.test(file.text)).map(file => relative(file.path)))
-      .toEqual([]);
+  it('never writes an external process reference from the browser', () => {
+    expect(files.filter(file => WRITES_REFERENCE.test(file.text)).map(file => relative(file.path))).toEqual([]);
   });
 
-  it('only ever reads where it names the Legal or Complaint entity set', () => {
-    const writers = files.filter(file => NAMES_LEGAL_OR_COMPLAINT_SET.test(file.text) && WRITES.test(file.text));
-
-    expect(writers.map(file => relative(file.path))).toEqual([]);
+  it('never addresses the Legal or Case Management table from the browser', () => {
+    expect(files.filter(file => NAMES_LEGAL_OR_COMPLAINT_SET.test(file.text)).map(file => relative(file.path))).toEqual([]);
   });
 
-  it('is asserting about real readers, not an empty set', () => {
-    const readers = files.filter(file => NAMES_LEGAL_OR_COMPLAINT_SET.test(file.text)).map(file => relative(file.path));
-
-    expect(readers).toEqual(expect.arrayContaining(['data/legalQueries.ts', 'data/complaintQueries.ts']));
+  it('does read the reference, so the sweep is about real code', () => {
+    expect(files.some(file => file.text.includes('qdb_relatedrecordtype'))).toBe(true);
   });
 
   it('uses none of the domain’s write-side Legal hand-off helpers', () => {

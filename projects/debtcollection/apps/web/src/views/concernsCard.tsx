@@ -8,6 +8,7 @@ import { useActivityTypeId, useConcludability } from '../data/useConcludability.
 import { Card, Icon } from '../components/primitives.js';
 import { MoreOnActionsNotice } from './moreOnActionsNotice.js';
 import { useCrmSession } from '../shell/context.js';
+import { useReferenceSummariser } from '../data/useReferenceSummariser.js';
 
 /**
  * Collection Disputes and formal Customer Complaints, on one screen and never in one list.
@@ -23,8 +24,9 @@ import { useCrmSession } from '../shell/context.js';
  * recording either concern changes no collection behaviour, because no QDB policy says it should
  * (KI-119).
  */
-export function CaseConcerns({ caseId }: { caseId: string }) {
+export function CaseConcerns({ caseId, organization }: { caseId: string; organization?: string | undefined }) {
   const { adapter } = useCrmSession();
+  const { summarise, isResolved } = useReferenceSummariser(organization);
   const [concerns, setConcerns] = useState<CaseConcernsData | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState('');
@@ -32,9 +34,10 @@ export function CaseConcerns({ caseId }: { caseId: string }) {
 
   useEffect(() => {
     let cancelled = false;
+    if (!isResolved) return;
     setState('loading');
     setConcerns(null);
-    loadCaseConcerns(adapter, caseId)
+    loadCaseConcerns(adapter, caseId, summarise)
       .then(result => { if (!cancelled) { setConcerns(result); setState('ready'); } })
       .catch((failure: unknown) => {
         if (cancelled) return;
@@ -44,7 +47,7 @@ export function CaseConcerns({ caseId }: { caseId: string }) {
     // Cancelling on a case change is what stops a slow read painting the previous case's
     // complaints over the new one.
     return () => { cancelled = true; };
-  }, [adapter, caseId]);
+  }, [adapter, caseId, summarise, isResolved]);
 
   if (state === 'loading') {
     return <div className="empty-state" data-testid="concerns-loading">Loading disputes…</div>;
@@ -134,7 +137,9 @@ function ConcernTable({ rows, firstHeading, secondHeading, testId }: {
       <tbody>
         {rows.map(row => (
           <tr key={row.key} data-testid={`concern-${row.concern}`} data-concern={row.concern}>
-            <td>{row.heading}</td>
+            <td>{'openUrl' in row && typeof row.openUrl === 'string'
+              ? <a href={row.openUrl} target="_blank" rel="noopener noreferrer" data-testid="concern-open">{row.heading}</a>
+              : row.heading}</td>
             <td>{row.detail}</td>
             <td>{row.recordedOn}</td>
             <td><span className={concernTone(row.concern)}>{row.status}</span></td>

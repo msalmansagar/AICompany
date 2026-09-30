@@ -1,5 +1,6 @@
 import {
-  originFromCode, type ActivityOrigin, type ContinuationToken, type Page,
+  externalProcessOf, originFromCode, readExternalReference,
+  type ActivityOrigin, type ContinuationToken, type ExternalProcess, type ExternalProcessReference, type OrganizationCode, type Page,
 } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import {
@@ -161,19 +162,15 @@ export interface ActivityRow {
   /** Read from the platform. An escalation is an action that happened, not a deadline that passed. */
   supervisorEscalated?: boolean;
   /**
-   * The Litigation Request this recommendation was handed to, where one was.
-   *
-   * Absent means no hand-off was **recorded**. It does not mean no litigation exists — the Legal
-   * record may be present and simply unreadable by this officer.
+   * The centralised process this activity handed off to (Complaint or Legal, both in BFD CRM), even
+   * while the record is still being created. Absent means no hand-off was recorded.
    */
-  legalRequestId?: string;
+  handOff?: ExternalProcess;
   /**
-   * The formal Complaint this activity raised, where one was raised.
-   *
-   * Absent means no Complaint was recorded from this activity. It is traceability after the fact,
-   * never the thing that decides whether another may be created.
+   * The record the hand-off produced: organisation, id and the owning system's number. Absent while
+   * the hand-off is pending. Status is never stored — it is read from the owning module.
    */
-  complaintCaseId?: string;
+  externalReference?: ExternalProcessReference;
   createdOn?: string;
   caseId?: string;
   caseNumber?: string;
@@ -218,6 +215,17 @@ function readExpandedCase(row: CrmRow): Record<string, Partial<PtpRow>[keyof Ptp
   };
 }
 
+/** The stored reference columns, read into the shared model; undefined when the activity carries none. */
+function readActivityReference(row: CrmRow): ExternalProcessReference | undefined {
+  const organization = ORG_LABELS[readNumber(row, 'qdb_relatedrecordorganization') ?? -1];
+  return readExternalReference({
+    ...optional('recordType', readText(row, 'qdb_relatedrecordtype')),
+    ...optional('recordId', readText(row, 'qdb_relatedrecordid')),
+    ...optional('recordNumber', readText(row, 'qdb_relatedrecordnumber')),
+    ...(organization === 'HL' || organization === 'BFD' ? { organization: organization as OrganizationCode } : {}),
+  });
+}
+
 export function toActivityRow(row: CrmRow): ActivityRow {
   return {
     id: String(row['activityid']),
@@ -235,8 +243,8 @@ export function toActivityRow(row: CrmRow): ActivityRow {
     ...optional('status', readChoice(row, 'statuscode')),
     ...optional('stateCode', readNumber(row, 'statecode')),
     ...optional('supervisorEscalated', readBoolean(row, 'qdb_supervisorescalated')),
-    ...optional('legalRequestId', readText(row, '_qdb_legalrequestid_value')),
-    ...optional('complaintCaseId', readText(row, '_qdb_complaintcaseid_value')),
+    ...optional('handOff', externalProcessOf(readText(row, 'qdb_relatedrecordtype'))),
+    ...optional('externalReference', readActivityReference(row)),
     ...optional('createdOn', readText(row, 'createdon')),
     ...optional('caseId', readText(row, '_qdb_collectioncaseid_value')),
     ...optional('caseNumber', readLookupName(row, '_qdb_collectioncaseid_value')),

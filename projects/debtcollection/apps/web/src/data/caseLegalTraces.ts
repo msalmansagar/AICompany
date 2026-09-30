@@ -8,6 +8,7 @@ import { CASE_CARD_PAGE_SIZE, escapeOData, mapPage } from './collectionQueries.j
 import { toActivityRow, type ActivityRow } from './caseQueries.js';
 import { loadActivityTypes } from './configurationCatalog.js';
 import { isLegalRecommendationCode, loadLegalTraces, type LegalTraceRow } from './legalTraceRows.js';
+import type { ReferenceSummariser } from './externalReferenceService.js';
 
 export type { LegalTraceRow } from './legalTraceRows.js';
 
@@ -30,31 +31,34 @@ export const LEGAL_QUALIFICATION_POLICY: LegalQualificationPolicy = {};
 /**
  * Reading one case's Legal picture.
  *
- * Three bounded reads and then, at most, one Legal record per linked recommendation — each by id,
- * through the `qdb_legalrequestid` lookup. **No Legal query is ever issued**: there is no search of
- * `qdb_qdblegal` by customer, name or date, so nothing on this path can return a list that grows
- * with the book, and nothing can return somebody else's matter.
+ * Bounded reads of this case's activities and then, when the Integration Service is reachable, one
+ * summary call for the Legal records the activities refer to — each by the id its reference holds.
+ * **No Legal query is ever issued**: there is no search of the Legal module by customer, name or
+ * date, so nothing on this path can return a list that grows with the book, or somebody else's matter.
  *
  * The activity read is narrowed by the platform to the recommendations that could be Legal at all,
  * rather than fetching the case's activities and sifting them here.
  */
-export async function loadCaseLegalTraces(
-  adapter: XrmCrmAdapter,
-  caseId: string,
-  episodeNumber?: number,
-  customer: { table?: CustomerTable; id?: string } = {},
-): Promise<CaseLegalPicture> {
+export interface CaseLegalRequest {
+  caseId: string;
+  episodeNumber?: number;
+  customer?: { table?: CustomerTable; id?: string };
+  summarise?: ReferenceSummariser;
+}
+
+export async function loadCaseLegalTraces(adapter: XrmCrmAdapter, request: CaseLegalRequest): Promise<CaseLegalPicture> {
+  const { caseId, episodeNumber, customer = {}, summarise } = request;
   const legalTypeIds = await readLegalTypeIds(adapter);
   const page = await readLegalCandidates(adapter, caseId, legalTypeIds);
 
-  const rows = await loadLegalTraces(adapter, page.items, {
+  const rows = await loadLegalTraces(page.items, {
     legalTypeIds,
     episodeIsCurrent: activity => isCurrentEpisode(activity, caseId, episodeNumber),
     formatDate: iso => iso.slice(0, 10),
     customer,
     policy: LEGAL_QUALIFICATION_POLICY,
     describeOrigin: activity => describeOriginLabel(activity.origin),
-  });
+  }, summarise);
   return { rows, hasMore: page.hasMore };
 }
 
@@ -86,9 +90,8 @@ async function readLegalCandidates(
   const typeClause = [...legalTypeIds]
     .map(id => `_qdb_activitytypeid_value eq ${escapeOData(id)}`)
     .join(' or ');
-  const legalSide = typeClause
-    ? `(_qdb_legalrequestid_value ne null or (${typeClause}))`
-    : '_qdb_legalrequestid_value ne null';
+  const legalHandOff = "qdb_relatedrecordtype eq 'qdb_qdblegal'";
+  const legalSide = typeClause ? `(${legalHandOff} or (${typeClause}))` : legalHandOff;
 
   return mapPage(
     await adapter.retrievePage(ENTITY_SETS.collectionActivity, {

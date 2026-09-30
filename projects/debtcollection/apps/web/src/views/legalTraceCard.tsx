@@ -8,6 +8,7 @@ import { useActivityTypeId, useConcludability } from '../data/useConcludability.
 import { Card, Icon } from '../components/primitives.js';
 import { MoreOnActionsNotice } from './moreOnActionsNotice.js';
 import { useCrmSession } from '../shell/context.js';
+import { useReferenceSummariser } from '../data/useReferenceSummariser.js';
 
 /**
  * What QDB's Legal process says about this case.
@@ -24,13 +25,16 @@ import { useCrmSession } from '../shell/context.js';
  * Request you cannot see*. On this organisation the second is what a real Collection Officer gets,
  * because no DCP security role holds read permission on the Legal entity.
  */
-export function CaseLegalTrace({ caseId, episodeNumber, customer }: {
+export function CaseLegalTrace({ caseId, organization, episodeNumber, customer }: {
   caseId: string;
+  /** The case's organisation, whose Integration Service reads the Legal module's current status. */
+  organization?: string | undefined;
   episodeNumber?: number | undefined;
   /** The case's own customer. An account resolves for Legal; a contact does not (KI-108). */
   customer?: { table?: 'account' | 'contact'; id?: string } | undefined;
 }) {
   const { adapter } = useCrmSession();
+  const { summarise, isResolved } = useReferenceSummariser(organization);
   const [rows, setRows] = useState<readonly LegalTraceRow[]>([]);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState('');
@@ -39,10 +43,13 @@ export function CaseLegalTrace({ caseId, episodeNumber, customer }: {
 
   useEffect(() => {
     let cancelled = false;
+    if (!isResolved) return;
     setState('loading');
     setRows([]);
     setHasMore(false);
-    loadCaseLegalTraces(adapter, caseId, episodeNumber, customer ?? {})
+    loadCaseLegalTraces(adapter, {
+      caseId, ...(episodeNumber !== undefined ? { episodeNumber } : {}), customer: customer ?? {}, ...(summarise ? { summarise } : {}),
+    })
       .then(result => {
         if (!cancelled) { setRows(result.rows); setHasMore(result.hasMore); setState('ready'); }
       })
@@ -54,7 +61,7 @@ export function CaseLegalTrace({ caseId, episodeNumber, customer }: {
     // Cancelling on a case change is what stops a slow read painting the previous case's Legal
     // information over the new one.
     return () => { cancelled = true; };
-  }, [adapter, caseId, episodeNumber, customer?.table, customer?.id]);
+  }, [adapter, caseId, episodeNumber, customer?.table, customer?.id, summarise, isResolved]);
 
   if (state === 'loading') {
     return <div className="empty-state" data-testid="legal-loading">Loading Legal…</div>;
