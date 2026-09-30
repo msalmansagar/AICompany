@@ -34,6 +34,11 @@ Claude Code questions.
   is never sufficient for work that reaches CRM.
 - `code-reviewer` runs after every code-producing agent.
 - Live-org schema provisioning requires explicit user go-ahead, every time.
+- Create and change files with the Write and Edit tools, never through Bash
+  (heredocs, `cat >`, `sed -i`, or scratchpad edit scripts). The permission
+  checker cannot analyse those commands, so each one stops for approval.
+  Keep Bash commands simple for the same reason: no leading `cd … &&` (use
+  `git -C <dir>` or absolute paths) and no piping into `head`.
 
 ## Stay in the project the user is working in
 
