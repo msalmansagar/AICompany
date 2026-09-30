@@ -31,6 +31,7 @@ const GRID_MODE_ENTRY = 100000001;
 const RADIO_STYLE_RATING = 100000002;
 const SECTION_TWO_COLUMNS = 100000002;
 const COLUMN_SPAN_ONE = 100000001;
+const COLUMN_SPAN_TWO = 100000002;
 const STATUS_ACTIVE = 100000001;
 const RULE_TYPE_CROSS_FIELD = 100000011;
 const ACTION_CALCULATE_VALUE = 100000013;
@@ -242,7 +243,7 @@ async function seed(accounts) {
 
   const grid = await makeField(secGrid.qdb_form_sectionid, {
     qdb_schema_name: 'rb2_items', qdb_label: 'Line items',
-    qdb_field_type: FIELD_TYPE.interactiveGrid, qdb_display_order: 2, qdb_column_span: 2,
+    qdb_field_type: FIELD_TYPE.interactiveGrid, qdb_display_order: 2, qdb_column_span: COLUMN_SPAN_TWO,
     qdb_grid_mode: GRID_MODE_ENTRY, qdb_max_rows: 10, qdb_grid_min_rows: 0,
     qdb_grid_entity_name: 'qdb_demo_document',
   });
