@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import type { FastifyInstance } from 'fastify';
 import { buildTestApp, makeAuthAdapter, makeUserClaims } from './test-app.js';
 import {
-  BFD_URL, BFD_USER_ID, COLLECTION_CASE_ID, DEPARTMENT_ID, HL_URL, HL_USER_ID, MANAGER_ID, NON_CUSTOMER_ID, PRODUCT_ID,
+  BFD_URL, BFD_USER_ID, COLLECTION_CASE_ID, CONCERN_TYPE_ID, DEPARTMENT_ID, HL_URL, HL_USER_ID, MANAGER_ID, NON_CUSTOMER_ID, PRODUCT_ID,
   defaultCrmState, fakeCrmFetch, type FakeCrmState, type RecordedRequest,
 } from './helpers/fakeCaseManagementCrm.js';
 
@@ -19,6 +19,9 @@ function submit(app: FastifyInstance, body: Record<string, unknown> = { requestI
 const createRequest = () => requests.find(r => r.method === 'PATCH' && r.url.includes('/incidents('));
 const createdId = () => /incidents\(([^)]+)\)/.exec(createRequest()?.url ?? '')?.[1];
 const hlWrites = () => requests.filter(r => r.url.startsWith(HL_URL) && r.method !== 'GET');
+const activityCreate = () => requests.find(r => r.method === 'PATCH' && r.url.includes('/qdb_collectionactivities(') && r.headers['If-None-Match'] === '*');
+const activityUpdates = () => requests.filter(r => r.method === 'PATCH' && r.url.includes('/qdb_collectionactivities(') && r.headers['If-None-Match'] !== '*');
+const activityId = () => /qdb_collectionactivities\(([^)]+)\)/.exec(activityCreate()?.url ?? '')?.[1];
 
 describe('POST /collection-cases/:id/complaints', () => {
   let app: FastifyInstance;
@@ -268,20 +271,92 @@ describe('POST /collection-cases/:id/complaints', () => {
     });
   });
 
-  describe('failure isolation', () => {
-    it('should_never_write_to_hl_crm', async () => {
+  describe('originating collection activity', () => {
+    it('should_record_the_request_on_the_collection_case_before_creating_the_case', async () => {
       await submit(app);
 
-      expect(hlWrites()).toHaveLength(0);
+      const order = requests.filter(r => r.method === 'PATCH').map(r => (r.url.includes('/incidents(') ? 'case' : 'activity'));
+      expect(order.slice(0, 2)).toEqual(['activity', 'case']);
     });
 
-    it('should_leave_the_collection_case_untouched_when_case_management_fails', async () => {
+    it('should_open_the_activity_as_a_complaint_hand_off_to_bfd_in_progress', async () => {
+      await submit(app);
+
+      expect(activityCreate()?.body).toMatchObject({
+        qdb_relatedrecordtype: 'incident', qdb_relatedrecordorganization: 100000141, statuscode: 100000641,
+        'qdb_activitytypeid_qdb_collectionactivity@odata.bind': `/qdb_collectionactivitytypes(${CONCERN_TYPE_ID})`,
+        'qdb_collectioncaseid_qdb_collectionactivity@odata.bind': `/qdb_collectioncases(${COLLECTION_CASE_ID})`,
+      });
+    });
+
+    it('should_complete_the_activity_with_the_case_id_and_number', async () => {
+      await submit(app);
+
+      expect(activityUpdates()[0]?.body).toMatchObject({
+        qdb_relatedrecordid: createdId(), qdb_relatedrecordnumber: 'BFD-25600-A1B2', statecode: 1, statuscode: 100000644,
+      });
+    });
+
+    it('should_write_the_activity_as_the_signed_in_hl_user', async () => {
+      await submit(app);
+
+      expect(activityCreate()?.headers['MSCRMCallerID']).toBe(HL_USER_ID);
+    });
+
+    it('should_never_change_the_collection_case_itself', async () => {
+      await submit(app);
+
+      expect(hlWrites().every(r => r.url.includes('/qdb_collectionactivities('))).toBe(true);
+    });
+
+    it('should_cancel_the_request_when_case_management_refuses_it', async () => {
+      state.createOutcome = 'forbidden';
+
+      await submit(app);
+
+      expect(activityUpdates()[0]?.body).toMatchObject({ statecode: 2, statuscode: 100000645 });
+    });
+
+    it('should_leave_the_request_open_for_a_retry_when_the_outcome_is_uncertain', async () => {
       state.createOutcome = 'serverError';
 
       const response = await submit(app);
 
       expect(response.statusCode).toBe(500);
+      expect(activityUpdates()).toHaveLength(0);
+    });
+
+    it('should_report_an_already_completed_request_without_creating_again', async () => {
+      state.existingActivityState = 1;
+
+      const response = await submit(app);
+
+      expect(response.json()).toMatchObject({ isRepeatSubmission: true });
+      expect(createRequest()).toBeUndefined();
+    });
+
+    it('should_refuse_a_request_that_was_closed_after_a_refusal', async () => {
+      state.existingActivityState = 2;
+
+      const response = await submit(app);
+
+      expect(response.statusCode).toBe(409);
+      expect(createRequest()).toBeUndefined();
+    });
+
+    it('should_refuse_when_no_single_concern_activity_type_is_configured', async () => {
+      state.activityTypes = [{ qdb_collectionactivitytypeid: 'call-type', qdb_code: 'P6-CALL' }];
+
+      const response = await submit(app);
+
+      expect(response.statusCode).toBe(503);
       expect(hlWrites()).toHaveLength(0);
+    });
+
+    it('should_return_the_target_organization_and_the_activity_id', async () => {
+      const response = await submit(app);
+
+      expect(response.json()).toMatchObject({ targetOrganization: 'BFD', collectionActivityId: activityId() });
     });
   });
 });

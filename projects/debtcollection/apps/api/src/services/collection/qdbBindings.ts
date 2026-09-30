@@ -135,6 +135,9 @@ export const ACTIVITY = {
   brokenReason: 'qdb_brokenreason',
   relatedRecordType: 'qdb_relatedrecordtype',
   relatedRecordId: 'qdb_relatedrecordid',
+  relatedRecordOrganization: 'qdb_relatedrecordorganization',
+  relatedRecordNumber: 'qdb_relatedrecordnumber',
+  origin: 'qdb_origin',
   statusCode: 'statuscode',
   stateCode: 'statecode',
 } as const;

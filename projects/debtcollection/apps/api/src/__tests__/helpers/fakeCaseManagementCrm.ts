@@ -15,6 +15,9 @@ export const DEPARTMENT_ID = '66666666-6666-4666-8666-666666666666';
 export const MANAGER_ID = '77777777-7777-4777-8777-777777777777';
 export const PRODUCT_ID = '88888888-8888-4888-8888-888888888888';
 export const HL_ORGANIZATION_CODE = 100000140;
+export const MISSING_RECORD_ID = 'dead0000-0000-4000-8000-000000000404';
+export const FORBIDDEN_RECORD_ID = 'dead0000-0000-4000-8000-000000000403';
+export const CONCERN_TYPE_ID = '99990000-0000-4000-8000-000000000001';
 
 type Row = Record<string, unknown>;
 
@@ -28,6 +31,9 @@ export interface FakeCrmState {
   products: Row[];
   options: Record<string, Array<{ Value: number; label: string }>>;
   createOutcome: 'created' | 'duplicate' | 'forbidden' | 'serverError';
+  activityTypes: Row[];
+  /** The originating activity, when a previous attempt already created it: its statecode. */
+  existingActivityState: number | null;
   createdIncident: Row;
 }
 
@@ -56,6 +62,8 @@ export function defaultCrmState(): FakeCrmState {
       qdb_businessunit: [{ Value: 100000000, label: 'Housing Loan' }, { Value: 100000001, label: 'Financing' }],
     },
     createOutcome: 'created',
+    activityTypes: [{ qdb_collectionactivitytypeid: CONCERN_TYPE_ID, qdb_code: 'P6-DISPUTE' }, { qdb_collectionactivitytypeid: 'call-type', qdb_code: 'P6-CALL' }],
+    existingActivityState: null,
     createdIncident: {
       ticketnumber: 'BFD-25600-A1B2', createdon: '2026-09-29T12:00:00Z',
       'statuscode@OData.Community.Display.V1.FormattedValue': 'In Progress',
@@ -83,11 +91,13 @@ export function fakeCrmFetch(state: FakeCrmState, requests: RecordedRequest[]): 
     const method = init?.method ?? 'GET';
     const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as Row) : undefined;
     requests.push({ method, url, headers: (init?.headers ?? {}) as Record<string, string>, ...(body ? { body } : {}) });
-    return url.startsWith(HL_URL) ? answerHl(state, url) : answerBfd(state, url, method);
+    return url.startsWith(HL_URL) ? answerHl(state, url, method, init) : answerBfd(state, url, method);
   };
 }
 
-function answerHl(state: FakeCrmState, url: string): Response {
+function answerHl(state: FakeCrmState, url: string, method: string, init?: RequestInit): Response {
+  if (url.includes('/qdb_collectionactivitytypes')) return json(200, { value: state.activityTypes });
+  if (url.includes('/qdb_collectionactivities(')) return answerActivity(state, method, init);
   if (url.includes('/systemusers')) return json(200, { value: state.hlUsers });
   if (url.includes(`/contacts(${CONTACT_ID})`)) return json(200, state.contact);
   if (url.includes(`/qdb_collectioncases(`)) {
@@ -100,7 +110,10 @@ function answerHl(state: FakeCrmState, url: string): Response {
 
 function answerBfd(state: FakeCrmState, url: string, method: string): Response {
   if (method === 'PATCH' && url.includes('/incidents(')) return answerCreate(state);
+  if (url.includes(MISSING_RECORD_ID)) return refusal(404, '0x80040217');
+  if (url.includes(FORBIDDEN_RECORD_ID)) return refusal(403, '0x80040220');
   if (url.includes('/incidents(')) return json(200, state.createdIncident);
+  if (url.includes('/qdb_qdblegals(')) return json(200, { qdb_name: 'LEG-0007', 'statecode@OData.Community.Display.V1.FormattedValue': 'Active', 'statuscode@OData.Community.Display.V1.FormattedValue': 'Under Review' });
   if (url.includes('/systemusers')) return json(200, { value: state.bfdUsers });
   if (url.includes('/accounts(')) return state.nonCustomer === 'notFound' ? refusal(404, '0x80040217') : json(200, state.nonCustomer);
   if (url.includes('/businessunits')) return json(200, { value: state.departments });
@@ -109,6 +122,13 @@ function answerBfd(state: FakeCrmState, url: string, method: string): Response {
   const option = /Attributes\(LogicalName='(\w+)'\)/.exec(url);
   if (option) return json(200, { OptionSet: { Options: (state.options[option[1]!] ?? []).map(o => ({ Value: o.Value, Label: { UserLocalizedLabel: { Label: o.label } } })) } });
   return refusal(404, 'unexpected_bfd_url');
+}
+
+function answerActivity(state: FakeCrmState, method: string, init?: RequestInit): Response {
+  const isCreateOnly = (init?.headers as Record<string, string> | undefined)?.['If-None-Match'] === '*';
+  if (method === 'PATCH' && isCreateOnly) return state.existingActivityState === null ? new Response(null, { status: 204 }) : refusal(412, '0x80060882');
+  if (method === 'PATCH') return new Response(null, { status: 204 });
+  return json(200, { statecode: state.existingActivityState ?? 0 });
 }
 
 function answerCreate(state: FakeCrmState): Response {

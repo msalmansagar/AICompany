@@ -637,3 +637,8 @@ export {
 export type {
   DrillDownTarget, MeasureClassification, MeasureEntry, ReportDefinitionEntry, ReportingAudience, ReportingGrain,
 } from './reporting/reportingCatalogue.js';
+export {
+  EXTERNAL_PROCESS_HOSTS, EXTERNAL_PROCESS_RECORD_TYPES,
+  externalProcessOf, isConcernTypeCode, isHandOffTo, readExternalReference,
+} from './externalProcessReference.js';
+export type { ExternalProcess, ExternalProcessReference, StoredRelatedRecord } from './externalProcessReference.js';

@@ -227,10 +227,17 @@ async function send(cfg, token, method, path, body, extra = {}, attempt = 1) {
   return text ? JSON.parse(text) : {};
 }
 
+/**
+ * Columns being retired: never placed on a generated form, because a form is the one dependency that
+ * blocks removing a column. The two same-organisation links were replaced by the external process
+ * reference (docs/ExternalProcessReference.md).
+ */
+const RETIRED_COLUMNS = new Set(['qdb_complaintcaseid', 'qdb_legalrequestid']);
+
 async function readEntity(cfg, token, logicalName) {
   const def = await apiGet(cfg, token, null, `/EntityDefinitions(LogicalName='${logicalName}')?$select=LogicalName,DisplayName,PrimaryNameAttribute,PrimaryIdAttribute,IsActivity,ObjectTypeCode,IconVectorName`);
   const raw = await apiGet(cfg, token, null, `/EntityDefinitions(LogicalName='${logicalName}')/Attributes?$select=LogicalName,AttributeTypeName,IsCustomAttribute,IsValidForRead,DisplayName,IsLogical,AttributeOf`);
-  const attrs = raw.value.filter(a => a.IsValidForRead && !a.IsLogical && !a.AttributeOf)
+  const attrs = raw.value.filter(a => a.IsValidForRead && !a.IsLogical && !a.AttributeOf && !RETIRED_COLUMNS.has(a.LogicalName))
     .map(a => ({ name: a.LogicalName, type: a.AttributeTypeName?.Value, label: a.DisplayName?.UserLocalizedLabel?.Label ?? a.LogicalName, custom: a.IsCustomAttribute }));
   return { def, attrs };
 }

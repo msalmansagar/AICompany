@@ -147,6 +147,10 @@ const activityAttrs = [
   strAttr('qdb_formsubmissionref',       'Form Submission Ref',        100),
   strAttr('qdb_relatedrecordtype',       'Related Record Type',        50),
   strAttr('qdb_relatedrecordid',         'Related Record ID',          50),
+  // External process reference (docs/ExternalProcessReference.md): with the two columns above, where
+  // the related record lives and the number its own system gave it. Blank organisation = this one.
+  picklistAttr('qdb_relatedrecordorganization', 'Related Record Organization', 'qdb_organization_code'),
+  strAttr('qdb_relatedrecordnumber',     'Related Record Number',      100),
   dtAttr('qdb_misrevalidatedon',         'MIS Revalidated On'),
 
   // PTP core (physical because the lifecycle is evaluated by rules and background sync).

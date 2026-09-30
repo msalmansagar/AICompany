@@ -46,3 +46,13 @@ export class CollectionCaseNotFoundError extends ComplaintError {
     this.name = 'CollectionCaseNotFoundError';
   }
 }
+
+/** This submission was refused earlier and closed; the officer starts a new one. */
+export class ComplaintRequestClosedError extends ComplaintError {
+  readonly httpStatus = 409;
+  readonly code = 'complaint_request_closed';
+  constructor() {
+    super('This complaint request was refused earlier and is closed. Start a new complaint.');
+    this.name = 'ComplaintRequestClosedError';
+  }
+}
