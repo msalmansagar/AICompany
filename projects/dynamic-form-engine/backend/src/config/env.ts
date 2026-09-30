@@ -59,6 +59,9 @@ const envSchema = z.object({
   API_LOOKUP_CACHE_TTL_MS: z.coerce.number().default(60_000),
   // Per-endpointKey + form-code rate limit (calls per minute).
   API_LOOKUP_RATE_LIMIT_PER_MIN: z.coerce.number().default(30),
+  // DFE-RULES-002: related-record reads per portal user per minute. A rule re-reads a record
+  // only when the lookup selection changes, so an honest form stays far below this.
+  RELATED_RECORD_RATE_LIMIT_PER_MIN: z.coerce.number().default(60),
 });
 
 const parsed = envSchema.safeParse(process.env);

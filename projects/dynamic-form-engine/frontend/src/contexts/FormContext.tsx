@@ -17,6 +17,8 @@ import type {
 } from '@qdb/shared';
 import { resolveFieldDefaultValue } from '@qdb/shared';
 import { formApi } from '../api/formApi';
+import { lookupApi } from '../api/lookupApi';
+import { createRelatedFactResolver } from '../engine/relatedRecordFacts';
 import { ruleEngine } from '../engine/RuleEngine';
 import { validationEngine } from '../engine/ValidationEngine';
 import { isFieldVisible } from '../engine/fieldVisibility';
@@ -129,6 +131,20 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
   // Debounce timer ref for rule evaluation
   const ruleDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // DFE-RULES-002 item 2: reads the columns of lookup-selected records that rule conditions
+  // name. One resolver per loaded form, so its record cache lives as long as the form does.
+  const resolveRelatedFacts = useMemo(() => {
+    if (!formDefinition) return async () => ({});
+    return createRelatedFactResolver({
+      rules: collectAllRules(formDefinition),
+      fields: getAllFormFields(formDefinition),
+      read: async (request) => {
+        const response = await lookupApi.getRelatedRecord(formCode, request);
+        return response.data ?? {};
+      },
+    });
+  }, [formDefinition, formCode]);
+
   // Track whether this is the first load for the current formCode so we apply
   // initial field values on first fetch but preserve them on language switches.
   const isFirstLoadRef = useRef(true);
@@ -215,18 +231,23 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
       clearTimeout(ruleDebounceTimer.current);
     }
 
+    // A related-record read can outlive this evaluation's values. When the values change first,
+    // its late result must not overwrite the newer rule state.
+    let isSuperseded = false;
+
     ruleDebounceTimer.current = setTimeout(() => {
       const allRules = collectAllRules(formDefinition);
       const allButtons = collectAllButtons(formDefinition);
 
-      void Promise.all([
-        ruleEngine.evaluate(allRules, fieldValues, {
-          atLoad: valuesAtLoad,
-          atLastBlur: valuesAtLastBlur,
-          atSave: valuesAtSave,
+      void resolveRelatedFacts(fieldValues).then((relatedFacts) => Promise.all([
+        ruleEngine.evaluate(allRules, { ...fieldValues, ...relatedFacts }, {
+          atLoad: withRelatedFacts(valuesAtLoad, relatedFacts),
+          atLastBlur: withRelatedFacts(valuesAtLastBlur, relatedFacts),
+          atSave: withRelatedFacts(valuesAtSave, relatedFacts),
         }),
-        ruleEngine.evaluateButtons(allButtons, fieldValues),
-      ]).then(([fieldResult, buttonResult]) => {
+        ruleEngine.evaluateButtons(allButtons, { ...fieldValues, ...relatedFacts }),
+      ])).then(([fieldResult, buttonResult]) => {
+        if (isSuperseded) return;
         // DFE-CBTN-001: fold per-button conditional state into the rule state so
         // ScopedButtonBar reads visibility/enablement from a single source.
         const result: RuleEvaluationResult = {
@@ -259,11 +280,12 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
     }, 150);
 
     return () => {
+      isSuperseded = true;
       if (ruleDebounceTimer.current) {
         clearTimeout(ruleDebounceTimer.current);
       }
     };
-  }, [fieldValues, formDefinition, valuesAtLoad, valuesAtLastBlur, valuesAtSave]);
+  }, [fieldValues, formDefinition, valuesAtLoad, valuesAtLastBlur, valuesAtSave, resolveRelatedFacts]);
 
   // on_blur rules read the values as at the last time focus left a control. Listening for
   // focusout at the document keeps that out of every individual control: blur does not
@@ -434,6 +456,18 @@ export function useFormContext(): FormContextValue {
 }
 
 // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+/**
+ * A snapshot with the related-record facts added. Related facts always describe the record
+ * selected now, so every trigger moment reads the same ones; an absent snapshot stays absent.
+ */
+function withRelatedFacts<T extends FormFieldValues | null | undefined>(
+  snapshot: T,
+  relatedFacts: Record<string, unknown>,
+): T {
+  if (!snapshot) return snapshot;
+  return { ...snapshot, ...relatedFacts } as T;
+}
 
 function buildInitialValues(formDefinition: FormDefinition): FormFieldValues {
   const values: FormFieldValues = {};

@@ -288,6 +288,9 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("operator")] public string Operator { get; set; }
         [JsonProperty("value")] public object Value { get; set; }
         [JsonProperty("logicalOperator")] public string LogicalOperator { get; set; }
+        // A column of the record the lookup FieldId has selected; the condition reads it instead
+        // of the lookup's own value (DFE-RULES-002 item 2).
+        [JsonProperty("relatedAttribute")] public string RelatedAttribute { get; set; }
     }
 
     /// <summary>Configuration for file upload fields.</summary>

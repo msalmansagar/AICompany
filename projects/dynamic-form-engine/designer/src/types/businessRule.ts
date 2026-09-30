@@ -62,6 +62,11 @@ export interface RuleCondition {
   operator: ConditionOperator;
   /** null is valid only for is_empty and is_not_empty operators */
   value: string | null;
+  /**
+   * A column of the record the lookup field_code has selected. When set, the condition reads
+   * that column instead of the lookup itself (DFE-RULES-002 item 2).
+   */
+  related_attribute?: string;
 }
 
 export interface RuleConditionGroup {

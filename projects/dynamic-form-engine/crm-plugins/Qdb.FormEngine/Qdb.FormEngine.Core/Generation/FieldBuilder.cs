@@ -552,7 +552,8 @@ namespace Qdb.FormEngine.Core.Generation
                     {
                         FieldId = (string)c["field_code"],
                         Operator = mappedOp,
-                        Value = c["value"] == null || c["value"].Type == JTokenType.Null ? null : (object)(string)c["value"]
+                        Value = c["value"] == null || c["value"].Type == JTokenType.Null ? null : (object)(string)c["value"],
+                        RelatedAttribute = string.IsNullOrWhiteSpace((string)c["related_attribute"]) ? null : (string)c["related_attribute"]
                     });
                 }
             }

@@ -45,6 +45,9 @@ export {
   isGridValid,
 } from './validation/gridCellValidation.js';
 export type { GridRowErrors } from './validation/gridCellValidation.js';
+// Related-record conditions: one fact name and one allowlist for runtime and backend.
+export { relatedFactName, collectRelatedAttributes, isLogicalName } from './rules/relatedFacts.js';
+export type { RelatedRecordQuery } from './rules/relatedFacts.js';
 // Validation rule JSON: the designer writes it, both publishers read it.
 export {
   RULE_JSON_SCHEMA_VERSION,

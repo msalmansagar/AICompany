@@ -1,6 +1,6 @@
 # DFE-RULES-002 — Architecture (items 1, 2, 7)
 
-Status: accepted for items 1 and 7. Item 2 blocked on one CEO decision (§2.2).
+Status: accepted for items 1, 2 and 7. Item 2 reading C chosen by the CEO on 2026-09-30.
 Inputs: brd-rules-batch-2.md (approved 2026-09-29), code as of `9b67b3a2`.
 
 ## 1. Corrections to the BRD's data model
@@ -42,8 +42,32 @@ There are three readings, and each is different work:
 | B. The record the form is **editing** (portal `?recordId=`) | Already present, portal only | Already loaded as form values — conditions work today |
 | C. A record **selected in a lookup** on the form (e.g. Sponsor → its Industry) | The lookup's current value | Retrieve on each lookup change |
 
-"Advanced find like BPM" reads most like C, where a condition reaches through a lookup to the
-selected record's columns. The client's words also fit A. B needs nothing new. **CEO to choose.**
+**CEO decision 2026-09-30: C, the record selected in a lookup.**
+
+Design:
+- Condition: `{ field_code: <lookup>, related_attribute: <column>, operator, value }` in the designer;
+  `relatedAttribute` on the published `RuleCondition`. No new CRM column.
+- Runtime: before each evaluation the form reads the named columns of each selected record,
+  once per record id, into facts named `<lookup>-><column>`. Every expected fact is always
+  present (null when nothing is selected or the read fails), because the rule engine rejects
+  unknown facts. Equality on related values compares as text, so a picklist's 6 matches "6".
+- In CRM: `Xrm.WebApi.retrieveRecord` as the signed-in user; CRM security applies.
+- Portal: `GET /api/related-records/:formCode/:field/:recordId`. The service principal reads only
+  the columns the form's own published rules name for that lookup, from its configured entity.
+  The caller cannot choose columns. The record id must be a GUID and column names must be logical names.
+- Designer: a "Related column" picker appears for lookup fields, offering scalar columns only
+  (OQ-002). Related-entity joins beyond one hop are out of scope.
+
+Security review (2026-09-30) and what was done:
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| SEC-RR-001 any record of the entity readable by GUID | High | **Fixed.** The read is a collection query that applies the lookup's own `filterExpression`, so only records the lookup would offer can be read. A lookup with **no** filter still exposes the rule-named columns of any record of its entity to any signed-in portal user. Makers must not point related conditions at personal-data columns of an unfiltered lookup. |
+| SEC-RR-002 Dataverse error text reaches the client | Medium | **Fixed for this route**: any Dataverse failure becomes a plain 404. The same leak exists in `CrmBaseService` for **every** portal route; that is pre-existing and left for the audit to schedule. |
+| SEC-RR-003 no rate limit | Medium | **Fixed.** Per-user sliding window, `RELATED_RECORD_RATE_LIMIT_PER_MIN` (default 60). Per backend instance, not global. |
+| SEC-RR-004 in-CRM path skipped the logical-name check | Low | **Fixed** in the shared allowlist, so both paths drop malformed column names; the in-CRM read also checks the entity name. |
+| SEC-RR-005 cached form keeps a removed column readable until TTL | Low | Accepted. The window cannot widen beyond what was legitimate. After removing a sensitive related condition, clear the metadata cache. |
+| PDPPL | — | Handed to the audit: whether rule-named columns are personal data, and the portal region. |
 
 ### 2.3 Item 7 — rating style
 
@@ -52,7 +76,7 @@ selected record's columns. The client's words also fit A. B needs nothing new. *
 - Star N = the Nth active option by display order. Selecting it stores that option's value.
 - Readonly: `RatingDisplay`-style non-interactive stars. RTL follows the document direction,
   which Fluent handles.
-- Clicking the selected star clears the value unless the field is required (OQ-003).
+- A "Clear" button empties an optional rating (OQ-003); Fluent does not report a click on the selected star.
 - Designer: a "Display style" select (List, Cards, Rating) on radio and dropdown fields,
   saved to `qdb_radio_render_style`, following the Number display style pattern.
 

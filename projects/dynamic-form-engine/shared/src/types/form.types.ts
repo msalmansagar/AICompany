@@ -361,6 +361,11 @@ export interface ValidationRule {
 export interface RuleCondition {
   fieldId: string;
   operator: ConditionOperator;
+  /**
+   * A column of the record selected in the lookup fieldId names. When set, the condition
+   * reads that column instead of the lookup's own value (see rules/relatedFacts).
+   */
+  relatedAttribute?: string;
   value?: string | number | boolean | string[];
   logicalOperator?: LogicalOperator; // connector to the NEXT condition in the list
 }

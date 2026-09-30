@@ -1,4 +1,4 @@
-﻿import type { LookupResult } from '@qdb/shared';
+﻿import type { LookupResult, RelatedRecordQuery } from '@qdb/shared';
 import apiClient from './apiClient';
 
 export interface LookupSearchParams {
@@ -28,6 +28,12 @@ export interface ApiLookupSearchParams {
 }
 
 export const lookupApi = {
+  // The backend decides which columns it will serve — only those the form's published rules
+  // name — so the requested attribute list is not sent.
+  getRelatedRecord: (formCode: string, query: RelatedRecordQuery) =>
+    apiClient.get<Record<string, unknown>>(
+      `/related-records/${encodeURIComponent(formCode)}/${encodeURIComponent(query.fieldSchemaName)}/${encodeURIComponent(query.recordId)}`,
+    ),
   search: (entityName: string, params: LookupSearchParams, signal?: AbortSignal) =>
     apiClient.get<LookupResult[]>(`/lookups/${entityName}`, { params, signal }),
   searchApi: (params: ApiLookupSearchParams, signal?: AbortSignal) =>

@@ -37,6 +37,7 @@ import { TAB_ACTION_TYPES, SECTION_ACTION_TYPES, COLUMN_ACTION_TYPES } from '@/t
 import { buildDefaultDefinition, TRIGGER_EVENT_OPTIONS, type RuleCreationTarget } from '@/screens/ruleDefaults';
 import { ActionValueEditor, type RuleOptionChoice } from '@/screens/rules/ActionValueEditor';
 import { GridColumnTargetPicker, type GridColumnTarget } from '@/screens/rules/GridColumnTargetPicker';
+import { AttributeCombobox } from '@/components/AttributeCombobox';
 import type { RuleTriggerEvent } from '@qdb/shared';
 
 const useStyles = makeStyles({
@@ -186,6 +187,15 @@ const ACTION_TYPES: Array<{ value: RuleActionType; label: string }> = [
   { value: 'show_message', label: 'Show Message' },
 ];
 
+/**
+ * Column types a related-record condition may read. Lookups, owners and files are excluded:
+ * the runtime compares plain values, and those columns hold references.
+ */
+const RELATED_ATTRIBUTE_TYPES: readonly string[] = [
+  'String', 'Memo', 'Integer', 'BigInt', 'Decimal', 'Double', 'Money',
+  'Picklist', 'State', 'Status', 'Boolean', 'DateTime',
+];
+
 const VALUE_OPERATORS = new Set<ConditionOperator>([
   'equals', 'not_equals', 'contains', 'not_contains', 'greater_than', 'less_than',
 ]);
@@ -276,6 +286,8 @@ interface RuleEditorProps {
   fieldOptions: Record<string, RuleOptionChoice[]>;
   /** Entry grids and their saved columns, for grid-column actions. */
   grids: GridColumnTarget[];
+  /** Each lookup field's target entity by field code, for related-record conditions. */
+  lookupEntities: Record<string, string>;
   tabs: RuleTarget[];
   sections: RuleTarget[];
   onSave: (updated: DesignerBusinessRule) => void;
@@ -295,7 +307,7 @@ function normaliseDefinition(raw: BusinessRuleDefinition | null | undefined): Bu
   };
 }
 
-function RuleEditor({ rule, fieldCodes, fieldOptions, grids, tabs, sections, onSave, onCancel, onDelete }: RuleEditorProps): React.ReactElement {
+function RuleEditor({ rule, fieldCodes, fieldOptions, grids, lookupEntities, tabs, sections, onSave, onCancel, onDelete }: RuleEditorProps): React.ReactElement {
   const styles = useStyles();
   const [name, setName] = useState(rule.name ?? '');
   const [definition, setDefinition] = useState<BusinessRuleDefinition>(() => normaliseDefinition(rule.definition));
@@ -456,12 +468,27 @@ function RuleEditor({ rule, fieldCodes, fieldOptions, grids, tabs, sections, onS
         {definition.condition_group.conditions.map((condition, idx) => (
           <div key={idx} className={styles.conditionRow}>
             <Field label="Field" style={{ flex: 1 }}>
-              <Select value={condition.field_code} onChange={(_, d) => updateCondition(idx, { field_code: d.value })}>
+              <Select value={condition.field_code} onChange={(_, d) => updateCondition(idx, { field_code: d.value, related_attribute: undefined })}>
                 {fieldCodes.map(code => (
                   <option key={code} value={code}>{code}</option>
                 ))}
               </Select>
             </Field>
+            {lookupEntities[condition.field_code] && (
+              <Field
+                label="Related column"
+                hint="Optional. Compare a column of the selected record instead of the lookup itself."
+                style={{ flex: 1 }}
+              >
+                <AttributeCombobox
+                  entityLogicalName={lookupEntities[condition.field_code] ?? ''}
+                  value={condition.related_attribute ?? ''}
+                  onChange={logicalName => updateCondition(idx, { related_attribute: logicalName || undefined })}
+                  attributeTypes={RELATED_ATTRIBUTE_TYPES}
+                  ariaLabel="Related column"
+                />
+              </Field>
+            )}
             <Field label="Operator" style={{ flex: 1 }}>
               <Select
                 value={condition.operator}
@@ -592,6 +619,16 @@ export function RuleConfigScreen(): React.ReactElement {
           .sort((a, b) => a.displayOrder - b.displayOrder)
           .map(column => ({ id: column.id, label: column.columnLabel || column.targetAttribute })),
       })),
+    [fields],
+  );
+
+  const lookupEntities = useMemo<Record<string, string>>(
+    () => Object.fromEntries(
+      Object.values(fields).flatMap(f => {
+        const entity = f.lookupConfig?.targetEntity;
+        return f.code && entity ? [[f.code, entity] as const] : [];
+      }),
+    ),
     [fields],
   );
 
@@ -841,6 +878,7 @@ export function RuleConfigScreen(): React.ReactElement {
               fieldCodes={fieldCodes.length > 0 ? fieldCodes : ['(no fields)']}
               fieldOptions={fieldOptions}
               grids={gridTargets}
+              lookupEntities={lookupEntities}
               tabs={tabTargets}
               sections={sectionTargets}
               onSave={handleSaveRule}

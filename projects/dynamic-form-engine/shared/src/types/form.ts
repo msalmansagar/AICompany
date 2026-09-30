@@ -387,6 +387,8 @@ export type ConditionOperator =
 export interface RuleCondition {
   fieldId: string;
   operator: ConditionOperator;
+  /** A column of the record the lookup fieldId has selected (DFE-RULES-002 item 2). */
+  relatedAttribute?: string;
   value?: string | number | boolean | string[];
   logicalOperator?: LogicalOperator; // connector to the NEXT condition in the list
 }

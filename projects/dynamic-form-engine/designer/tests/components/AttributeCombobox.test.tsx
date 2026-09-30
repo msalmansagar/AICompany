@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
 
 const getAttributes = vi.fn();
@@ -75,5 +75,30 @@ describe('AttributeCombobox', () => {
     expect(input.hasAttribute('disabled')).toBe(true);
     expect(input.getAttribute('placeholder')).toMatch(/target entity first/i);
     expect(getAttributes).not.toHaveBeenCalled();
+  });
+});
+
+describe('AttributeCombobox type filter', () => {
+  beforeEach(() => {
+    clearAttributeCache();
+    getAttributes.mockReset();
+    getAttributes.mockResolvedValue([
+      { logicalName: 'industrycode', displayName: 'Industry', attributeType: 'Picklist' },
+      { logicalName: 'parentaccountid', displayName: 'Parent Account', attributeType: 'Lookup' },
+    ]);
+  });
+
+  it('AttributeCombobox_PicklistOnlyFilter_HidesLookupAttribute', async () => {
+    render(
+      <FluentProvider theme={webLightTheme}>
+        <AttributeCombobox entityLogicalName="account" value="" onChange={() => {}} ariaLabel="Related column" attributeTypes={['Picklist']} />
+      </FluentProvider>,
+    );
+    await waitFor(() => expect(getAttributes).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Related column' }));
+
+    await waitFor(() => expect(screen.getByText('industrycode')).toBeInTheDocument());
+    expect(screen.queryByText('parentaccountid')).toBeNull();
   });
 });

@@ -165,3 +165,22 @@ describe('radio render style (DFE-RULES-002 item 7)', () => {
     },
   );
 });
+
+describe('related-record conditions (DFE-RULES-002 item 2)', () => {
+  it('should_publish_the_related_column_of_a_lookup_condition', () => {
+    const row = {
+      qdb_form_business_ruleid: 'r-rel', qdb_name: 'Sponsor industry', qdb_priority: 10,
+      qdb_conditions_json: JSON.stringify({
+        version: '1.0', trigger_field_code: 'quantity', trigger_event: 'on_change',
+        condition_group: { logical_operator: 'AND', conditions: [
+          { field_code: 'quantity', operator: 'equals', value: '6', related_attribute: 'industrycode' },
+        ] },
+        actions: [{ action_type: 'hide_field', target_field_code: 'total' }],
+      }),
+    };
+
+    const { rules } = service().convertDesignerRule(row, SCHEMA_TO_GUID);
+
+    expect(rules[0].conditions[0]).toMatchObject({ fieldId: 'quantity', relatedAttribute: 'industrycode' });
+  });
+});

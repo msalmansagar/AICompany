@@ -48,6 +48,9 @@ import {
   MockDesignService,
 } from './services/MockCrmService.js';
 import { createLookupsRouter } from './routes/lookups.routes.js';
+import { createRelatedRecordsRouter } from './routes/related-records.routes.js';
+import { RelatedRecordService } from './services/RelatedRecordService.js';
+import { PerUserRateLimiter } from './utils/PerUserRateLimiter.js';
 import { createFormsRouter } from './routes/forms.routes.js';
 import { createLanguagesRouter } from './routes/languages.routes.js';
 import { createInternalCacheRouter } from './routes/internal-cache.routes.js';
@@ -225,6 +228,13 @@ async function bootstrap(): Promise<void> {
 
   app.use('/api', authMiddleware);
   app.use('/api/lookups', createLookupsRouter(lookupService, apiLookupService));
+  // Mock mode has no CRM to read related records from, so the route is simply absent there.
+  if (!config.MOCK_CRM) {
+    app.use('/api/related-records', createRelatedRecordsRouter(
+      new RelatedRecordService(authService, metadataService),
+      new PerUserRateLimiter(config.RELATED_RECORD_RATE_LIMIT_PER_MIN, 'Too many related-record reads — slow down'),
+    ));
+  }
   app.use('/api/forms', createFormsRouter(
     metadataService,
     dataService,

@@ -13,6 +13,8 @@ export interface AttributeComboboxProps {
   disabled?: boolean;
   placeholder?: string;
   ariaLabel: string;
+  /** Offer only attributes of these metadata types. Absent offers every attribute. */
+  attributeTypes?: readonly string[];
 }
 
 /**
@@ -58,6 +60,7 @@ export function AttributeCombobox({
   disabled,
   placeholder,
   ariaLabel,
+  attributeTypes,
 }: AttributeComboboxProps): React.ReactElement {
   const crmService = useContext(CrmContext);
   const metadata = useMemo(() => (crmService ? new MetadataService(crmService) : null), [crmService]);
@@ -78,12 +81,14 @@ export function AttributeCombobox({
   }, [metadata, entityLogicalName]);
 
   const items = useMemo<ComboItem[]>(
-    () => attributes.map(a => ({
-      value: a.logicalName,
-      secondary: a.displayName,
-      tertiary: a.attributeType,
-    })),
-    [attributes],
+    () => attributes
+      .filter(a => !attributeTypes || attributeTypes.includes(a.attributeType))
+      .map(a => ({
+        value: a.logicalName,
+        secondary: a.displayName,
+        tertiary: a.attributeType,
+      })),
+    [attributes, attributeTypes],
   );
 
   const hasEntity = entityLogicalName.length > 0;

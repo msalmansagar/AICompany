@@ -909,6 +909,7 @@ export class CrmMetadataService extends CrmBaseService {
         fieldId: c.field_code, // schema code — the runtime keys form data by schema name
         operator,
         value: c.value != null ? this.parseConditionValue(c.value) : undefined,
+        ...(c.related_attribute ? { relatedAttribute: c.related_attribute } : {}),
       });
     }
     const conditionsLogic: LogicalOperator = def.condition_group?.logical_operator === 'OR' ? 'OR' : 'AND';
@@ -1606,7 +1607,7 @@ interface RawDesignerRuleDefinition {
   trigger_event?: string;
   condition_group?: {
     logical_operator?: 'AND' | 'OR';
-    conditions?: Array<{ field_code: string; operator: string; value?: string | null }>;
+    conditions?: Array<{ field_code: string; operator: string; value?: string | null; related_attribute?: string }>;
   };
   actions: Array<{
     action_type: string;

@@ -128,6 +128,27 @@ namespace Qdb.FormEngine.Tests
         }
 
         [Fact]
+        public void Generate_PublishesTheRelatedColumnOfALookupCondition()
+        {
+            var ruleJson = "{\"version\":\"1.0\",\"trigger_field_code\":\"" + TriggerCode + "\",\"trigger_event\":\"on_change\","
+                + "\"condition_group\":{\"logical_operator\":\"AND\",\"conditions\":"
+                + "[{\"field_code\":\"" + TriggerCode + "\",\"operator\":\"equals\",\"value\":\"6\",\"related_attribute\":\"industrycode\"}]},"
+                + "\"actions\":[{\"action_type\":\"hide_field\",\"target_field_code\":\"" + TargetCode + "\"}]}";
+
+            var condition = Assert.Single(SingleBusinessRule(ruleJson).Conditions);
+
+            Assert.Equal("industrycode", condition.RelatedAttribute);
+        }
+
+        [Fact]
+        public void Generate_LeavesAPlainConditionWithoutARelatedColumn()
+        {
+            var condition = Assert.Single(SingleBusinessRule(BuildRuleJson("hide_field", "")).Conditions);
+
+            Assert.Null(condition.RelatedAttribute);
+        }
+
+        [Fact]
         public void Generate_DropsAColumnAction_WithNoColumnId()
         {
             var fields = Generate(BuildColumnRuleJson("hide_column", "\"target_column_id\":\"\""), null);

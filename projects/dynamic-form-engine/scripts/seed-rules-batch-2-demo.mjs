@@ -8,6 +8,8 @@
  *   6. Event end date: the same window, and never before the start date.
  *   1. Grid column rules: an Import shipment shows and requires the HS code column and makes
  *      Country of origin read-only; any other shipment type hides the HS code column.
+ *   2. Related-record condition: the UAE declaration shows only when the selected Sponsor's own
+ *      Country column is United Arab Emirates.
  *   7. Rating style: a five-option dropdown drawn as stars (needs the Rating option in the org).
  *
  * Then publishes the form and checks the published JSON carries every rule.
@@ -29,6 +31,8 @@ const FIELD_TYPE = {
 };
 const GRID_MODE_ENTRY = 100000001;
 const RADIO_STYLE_RATING = 100000002;
+/** The Sponsor country the related-record rule looks for. */
+const RELATED_COUNTRY = 'United Arab Emirates';
 const SECTION_TWO_COLUMNS = 100000002;
 const COLUMN_SPAN_ONE = 100000001;
 const COLUMN_SPAN_TWO = 100000002;
@@ -285,6 +289,27 @@ async function seed(accounts) {
     actions: [columnAction('hide_column', hsCode.qdb_grid_column_configid)],
   });
 
+  // ── 2. Condition on the record selected in a lookup ─────────────────────
+  // Reads the Sponsor's own Country column. The demo accounts carry little data and this is a
+  // shared org, so the seed does not edit accounts: one of them already has a country set.
+  const secRelated = await makeSection('2 · Condition on the selected sponsor record', 6);
+  await makeField(secRelated.qdb_form_sectionid, {
+    qdb_schema_name: 'rb2_uae_declaration', qdb_label: 'UAE sponsor declaration (shown when the sponsor is in the UAE)',
+    qdb_field_type: FIELD_TYPE.text, qdb_display_order: 1, qdb_column_span: COLUMN_SPAN_TWO,
+  });
+  const sponsorCountryRule = (name, operator, actionType) => designerRule(formId, name, {
+    version: '1.0',
+    trigger_field_code: 'rb2_sponsor',
+    trigger_event: 'on_change',
+    condition_group: {
+      logical_operator: 'AND',
+      conditions: [{ field_code: 'rb2_sponsor', related_attribute: 'address1_country', operator, value: RELATED_COUNTRY }],
+    },
+    actions: [{ action_type: actionType, target_field_code: 'rb2_uae_declaration' }],
+  });
+  await sponsorCountryRule('Show the UAE declaration for a UAE sponsor', 'equals', 'show_field');
+  await sponsorCountryRule('Hide the UAE declaration otherwise', 'not_equals', 'hide_field');
+
   // ── 7. Dropdown drawn as a rating ───────────────────────────────────────
   const secRating = await makeSection('7 · Rating style', 5);
   const ratingStyle = await ratingOptionExists() ? { qdb_radio_render_style: RADIO_STYLE_RATING } : {};
@@ -356,6 +381,9 @@ function verify(json, accounts) {
     check('1. grid column rules published with grid + column targets',
       ['showColumn', 'makeColumnRequired', 'makeColumnReadonly', 'hideColumn'].every((action) =>
         rules.some((r) => r.action === action && r.targetFieldId === byCode.rb2_items.id && r.targetColumnId))),
+    check('2. declaration rules read the sponsor record country',
+      ['showField', 'hideField'].every((action) => rules.some((r) => r.action === action
+        && r.conditions.some((c) => c.fieldId === 'rb2_sponsor' && c.relatedAttribute === 'address1_country')))),
     check('7. satisfaction field draws as a rating', byCode.rb2_satisfaction.radioRenderStyle === 'rating',
       `radioRenderStyle=${byCode.rb2_satisfaction.radioRenderStyle}`),
   ].every(Boolean);

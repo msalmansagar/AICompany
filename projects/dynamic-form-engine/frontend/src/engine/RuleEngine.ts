@@ -11,7 +11,7 @@ import type {
   RuleTriggerEvent,
   GridColumnRuleState,
 } from '@qdb/shared';
-import { DEFAULT_RULE_TRIGGER_EVENT } from '@qdb/shared';
+import { DEFAULT_RULE_TRIGGER_EVENT, relatedFactName } from '@qdb/shared';
 import { ExpressionEngine, type ExpressionContext } from '@qdb/shared';
 import { logger } from '../utils/logger';
 
@@ -124,11 +124,29 @@ function describeFailure(error: unknown): string {
  * Matching is case-SENSITIVE, consistent with `equals` and every other operator here.
  */
 function registerTextOperators(engine: Engine): void {
+  // A related record's option or number column arrives as a number while the maker typed a
+  // string; these compare the two as text so "6" matches 6.
+  engine.addOperator('looseEqual', (factValue: unknown, compareValue: unknown) =>
+    isLooselyEqual(factValue, compareValue));
+  engine.addOperator('looseNotEqual', (factValue: unknown, compareValue: unknown) =>
+    !isLooselyEqual(factValue, compareValue));
   engine.addOperator('textContains', (factValue: unknown, compareValue: unknown) =>
     containsValue(factValue, compareValue));
   engine.addOperator('textNotContains', (factValue: unknown, compareValue: unknown) =>
     !containsValue(factValue, compareValue));
 }
+
+function isLooselyEqual(factValue: unknown, compareValue: unknown): boolean {
+  if (factValue === null || factValue === undefined) return compareValue === null || compareValue === undefined;
+  return String(factValue) === String(compareValue);
+}
+
+/** Operators a related-record condition uses in place of the strict ones. */
+const RELATED_OPERATOR_MAP: Record<string, string> = {
+  ...OPERATOR_MAP,
+  equals: 'looseEqual',
+  notEquals: 'looseNotEqual',
+};
 
 function containsValue(factValue: unknown, compareValue: unknown): boolean {
   if (factValue === null || factValue === undefined) return false;
@@ -404,6 +422,8 @@ export class RuleEngine {
   }
 
   private convertCondition(condition: RuleCondition): ConditionProperties {
+    if (condition.relatedAttribute) return this.convertRelatedCondition(condition, condition.relatedAttribute);
+
     // Emptiness is a property of the value itself, so the id fact answers it alone —
     // pairing here would make "is empty" true whenever EITHER half was blank.
     if (condition.operator === 'isEmpty') {
@@ -441,6 +461,20 @@ export class RuleEngine {
     return (NEGATIVE_OPERATORS.has(condition.operator)
       ? { all: [onId, onDisplay] }
       : { any: [onId, onDisplay] }) as unknown as ConditionProperties;
+  }
+
+  /**
+   * A condition on a column of the record a lookup has selected. It reads the one related fact
+   * the form resolved for that column; the lookup's own id and display name play no part.
+   */
+  private convertRelatedCondition(condition: RuleCondition, relatedAttribute: string): ConditionProperties {
+    const fact = relatedFactName(condition.fieldId, relatedAttribute);
+    if (condition.operator === 'isEmpty') return { fact, operator: 'equal', value: null } as ConditionProperties;
+    if (condition.operator === 'isNotEmpty') return { fact, operator: 'notEqual', value: null } as ConditionProperties;
+
+    const engineOperator = RELATED_OPERATOR_MAP[condition.operator];
+    if (!engineOperator) throw new Error(`Unsupported condition operator: ${condition.operator}`);
+    return { fact, operator: engineOperator, value: condition.value ?? null } as ConditionProperties;
   }
 
   private buildEvent(rule: BusinessRule): Event {

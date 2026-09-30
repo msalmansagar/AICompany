@@ -1,6 +1,7 @@
 // Xrm-backed replacement for src/api/lookupApi.ts. Searches a target entity directly via
 // the CRM Web API for lookup fields.
-import type { LookupResult } from '@qdb/shared';
+import type { LookupResult, RelatedRecordQuery } from '@qdb/shared';
+import { isLogicalName } from '@qdb/shared';
 import { webApi, cleanGuid } from './xrmClient';
 
 export interface LookupSearchParams {
@@ -14,6 +15,22 @@ export interface LookupSearchParams {
 }
 
 export const lookupApi = {
+  // Runs as the signed-in user, so CRM's own security decides what the rule may read.
+  getRelatedRecord: async (
+    _formCode: string,
+    query: RelatedRecordQuery,
+  ): Promise<{ data: Record<string, unknown> }> => {
+    // Column names were already filtered by the shared allowlist; the entity is checked here
+    // because it is spliced into the request path.
+    if (!isLogicalName(query.entityLogicalName)) throw new Error('Lookup entity name is invalid');
+    const record = await webApi().retrieveRecord(
+      query.entityLogicalName,
+      cleanGuid(query.recordId),
+      `?$select=${query.attributes.join(',')}`,
+    );
+    const data = Object.fromEntries(query.attributes.map((attribute) => [attribute, record[attribute] ?? null]));
+    return { data };
+  },
   // The AbortSignal is accepted for API parity but Xrm.WebApi has no cancellation.
   search: async (
     entityName: string,
