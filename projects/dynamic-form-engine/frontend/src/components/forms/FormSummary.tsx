@@ -17,6 +17,7 @@ import type { FieldDefinition, GridColumnConfig } from '@qdb/shared';
 import { getTabZoneFields } from './tabFields';
 import { visibleGridColumns } from './gridColumns';
 import { isFieldVisible } from '../../engine/fieldVisibility';
+import { applyGridColumnRuleState } from '../../engine/gridColumnRuleState';
 
 interface FormSummaryProps {
   onEditTab: (tabIndex: number) => void;
@@ -335,6 +336,8 @@ const MAX_GRID_ROWS = 5;
 const MAX_GRID_COLS = 5;
 
 function GridMiniTable({ field, value, styles }: GridMiniTableProps) {
+  // The summary shows the columns the user saw: a column a rule hid stays hidden here too.
+  const { ruleState } = useFormContext();
   const rows = Array.isArray(value) ? (value as Array<unknown>) : [];
   const isSelection = field.gridConfig?.mode === 'selection';
   const rowWord = isSelection ? 'record' : 'row';
@@ -347,7 +350,11 @@ function GridMiniTable({ field, value, styles }: GridMiniTableProps) {
     );
   }
 
-  const cols: GridColumnConfig[] = visibleGridColumns(field.gridConfig?.columnConfigs ?? [])
+  const ruleAdjustedColumns = applyGridColumnRuleState(
+    field.gridConfig?.columnConfigs ?? [],
+    ruleState?.gridColumnState?.[field.id],
+  );
+  const cols: GridColumnConfig[] = visibleGridColumns(ruleAdjustedColumns)
     .slice(0, MAX_GRID_COLS);
 
   if (cols.length === 0) {

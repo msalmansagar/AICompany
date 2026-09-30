@@ -113,3 +113,55 @@ describe('validation rule JSON (qdb_rule_json)', () => {
     expect(rule).not.toHaveProperty('crossFieldOperator');
   });
 });
+
+describe('grid column actions (DFE-RULES-002 item 1)', () => {
+  const GRID_SCHEMA = new Map([['items', 'guid-grid'], ['quantity', 'guid-quantity']]);
+
+  function columnRow(action: Record<string, unknown>) {
+    return {
+      qdb_form_business_ruleid: 'r-col', qdb_name: 'Column rule', qdb_priority: 10,
+      qdb_conditions_json: JSON.stringify({
+        version: '1.0', trigger_field_code: 'quantity', trigger_event: 'on_change',
+        condition_group: { logical_operator: 'AND', conditions: [{ field_code: 'quantity', operator: 'is_not_empty', value: null }] },
+        actions: [action],
+      }),
+    };
+  }
+
+  it('should_publish_the_grid_and_column_targets', () => {
+    const row = columnRow({ action_type: 'hide_column', target_field_code: 'items', target_column_id: 'col-1' });
+
+    const { rules } = service().convertDesignerRule(row, GRID_SCHEMA);
+
+    expect(rules).toEqual([expect.objectContaining({ action: 'hideColumn', targetFieldId: 'guid-grid', targetColumnId: 'col-1' })]);
+  });
+
+  it.each([
+    ['show_column', 'showColumn'], ['make_column_required', 'makeColumnRequired'],
+    ['make_column_optional', 'makeColumnOptional'], ['make_column_readonly', 'makeColumnReadonly'],
+    ['make_column_editable', 'makeColumnEditable'],
+  ])('should_map_%s_to_%s', (designerAction, runtimeAction) => {
+    const row = columnRow({ action_type: designerAction, target_field_code: 'items', target_column_id: 'col-1' });
+
+    const { rules } = service().convertDesignerRule(row, GRID_SCHEMA);
+
+    expect(rules[0].action).toBe(runtimeAction);
+  });
+
+  it('should_drop_a_column_action_without_a_column', () => {
+    const row = columnRow({ action_type: 'hide_column', target_field_code: 'items' });
+
+    const { rules } = service().convertDesignerRule(row, GRID_SCHEMA);
+
+    expect(rules).toHaveLength(0);
+  });
+});
+
+describe('radio render style (DFE-RULES-002 item 7)', () => {
+  it.each([[100000000, 'list'], [100000001, 'cards'], [100000002, 'rating'], [undefined, 'list']])(
+    'should_map_option_%s_to_%s',
+    (code, style) => {
+      expect(service().mapRadioRenderStyle(code)).toBe(style);
+    },
+  );
+});

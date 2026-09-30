@@ -97,6 +97,13 @@ export type BusinessRuleAction =
   | 'filterLookup'
   // Keeps the named options visible but unselectable; filterOptions removes the rest.
   | 'disableOptions'
+  // Grid-column targets: targetFieldId names the grid, targetColumnId the column.
+  | 'showColumn'
+  | 'hideColumn'
+  | 'makeColumnRequired'
+  | 'makeColumnOptional'
+  | 'makeColumnReadonly'
+  | 'makeColumnEditable'
   | 'validateField'
   | 'validateForm';
 
@@ -387,6 +394,8 @@ export interface BusinessRule {
   targetFieldId?: string;
   targetSectionId?: string;
   targetTabId?: string;
+  /** The grid column a column action targets; targetFieldId then names the grid. */
+  targetColumnId?: string;
   actionValue?: string;             // for setValue / calculateValue / filterOptions / disableOptions
   priority: number;
   isActive: boolean;
@@ -510,7 +519,8 @@ export interface FieldDefinition {
   multiselectRenderStyle?: 'dropdown' | 'checkboxes';
 
   // Radio render style (list = vertical radio buttons, cards = selectable card grid)
-  radioRenderStyle?: 'list' | 'cards';
+  // 'rating' draws the options as stars (option N = N stars); honoured for dropdowns too.
+  radioRenderStyle?: 'list' | 'cards' | 'rating';
 
   // Option source from CRM optionset — when set, options come from the CRM attribute's OptionSet
   // instead of qdb_form_option_value records. Falls back to manual options when not set.
@@ -687,6 +697,8 @@ export interface GridColumnConfig {
   // out of the query, so a hidden column vanished from the JSON entirely and its value
   // could not round-trip. Absent ⇒ visible, so forms published before this stay unchanged.
   isVisible?: boolean;
+  // Set only by a rule at runtime; a published column never carries it.
+  isReadonly?: boolean;
   // Per-column validation. All optional and all default to off, so a grid published before
   // these existed validates exactly as it did. See validateGridCell for how they combine.
   isRequired?: boolean;
@@ -708,6 +720,13 @@ export interface GridColumnConfig {
   lookupSort?: GridLookupSort;
   // Options for dropdown-type columns within a grid.
   options?: GridColumnOptionValue[];
+}
+
+/** What rules have set on one grid column. An absent key leaves the column's own setting. */
+export interface GridColumnRuleState {
+  isVisible?: boolean;
+  isRequired?: boolean;
+  isReadonly?: boolean;
 }
 
 export interface GridFieldConfig {
@@ -959,6 +978,8 @@ export interface RuleEvaluationResult {
   filteredOptions: Record<string, OptionValue[]>;
   // Option values (or lookup record ids) a rule has made unselectable, keyed by field id.
   disabledOptions: Record<string, string[]>;
+  // Column states rules have set, keyed by grid field id then column id.
+  gridColumnState: Record<string, Record<string, GridColumnRuleState>>;
   // DFE-CBTN-001: per-button conditional state, keyed by button id. A button id
   // is present only when that button declares the corresponding condition set;
   // absent ⇒ the button's static isVisible / isActive flag applies (legacy).

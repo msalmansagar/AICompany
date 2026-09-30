@@ -33,9 +33,10 @@ import type {
   RuleActionType,
   RuleCondition,
 } from '@/types/businessRule';
-import { TAB_ACTION_TYPES, SECTION_ACTION_TYPES } from '@/types/businessRule';
+import { TAB_ACTION_TYPES, SECTION_ACTION_TYPES, COLUMN_ACTION_TYPES } from '@/types/businessRule';
 import { buildDefaultDefinition, TRIGGER_EVENT_OPTIONS, type RuleCreationTarget } from '@/screens/ruleDefaults';
 import { ActionValueEditor, type RuleOptionChoice } from '@/screens/rules/ActionValueEditor';
+import { GridColumnTargetPicker, type GridColumnTarget } from '@/screens/rules/GridColumnTargetPicker';
 import type { RuleTriggerEvent } from '@qdb/shared';
 
 const useStyles = makeStyles({
@@ -176,6 +177,12 @@ const ACTION_TYPES: Array<{ value: RuleActionType; label: string }> = [
   { value: 'set_value', label: 'Set Value' },
   { value: 'calculate_value', label: 'Calculate Value' },
   { value: 'disable_options', label: 'Disable Options' },
+  { value: 'show_column', label: 'Show Grid Column' },
+  { value: 'hide_column', label: 'Hide Grid Column' },
+  { value: 'make_column_required', label: 'Make Grid Column Required' },
+  { value: 'make_column_optional', label: 'Make Grid Column Optional' },
+  { value: 'make_column_readonly', label: 'Make Grid Column Read-only' },
+  { value: 'make_column_editable', label: 'Make Grid Column Editable' },
   { value: 'show_message', label: 'Show Message' },
 ];
 
@@ -198,6 +205,7 @@ interface ActionTargetPickerProps {
   fieldCodes: string[];
   tabs: RuleTarget[];
   sections: RuleTarget[];
+  grids: GridColumnTarget[];
   onChange: (patch: Partial<RuleAction>) => void;
 }
 
@@ -209,8 +217,12 @@ interface ActionTargetPickerProps {
  * code alongside the tab it now targets.
  */
 function ActionTargetPicker({
-  action, fieldCodes, tabs, sections, onChange,
+  action, fieldCodes, tabs, sections, grids, onChange,
 }: ActionTargetPickerProps): React.ReactElement {
+  if (COLUMN_ACTION_TYPES.has(action.action_type)) {
+    return <GridColumnTargetPicker action={action} grids={grids} onChange={onChange} />;
+  }
+
   if (TAB_ACTION_TYPES.has(action.action_type)) {
     return (
       <Field label="Target Tab" style={{ flex: 1 }}>
@@ -262,6 +274,8 @@ interface RuleEditorProps {
   fieldCodes: string[];
   /** Each field's options keyed by field code, for actions that pick among them. */
   fieldOptions: Record<string, RuleOptionChoice[]>;
+  /** Entry grids and their saved columns, for grid-column actions. */
+  grids: GridColumnTarget[];
   tabs: RuleTarget[];
   sections: RuleTarget[];
   onSave: (updated: DesignerBusinessRule) => void;
@@ -281,7 +295,7 @@ function normaliseDefinition(raw: BusinessRuleDefinition | null | undefined): Bu
   };
 }
 
-function RuleEditor({ rule, fieldCodes, fieldOptions, tabs, sections, onSave, onCancel, onDelete }: RuleEditorProps): React.ReactElement {
+function RuleEditor({ rule, fieldCodes, fieldOptions, grids, tabs, sections, onSave, onCancel, onDelete }: RuleEditorProps): React.ReactElement {
   const styles = useStyles();
   const [name, setName] = useState(rule.name ?? '');
   const [definition, setDefinition] = useState<BusinessRuleDefinition>(() => normaliseDefinition(rule.definition));
@@ -505,6 +519,7 @@ function RuleEditor({ rule, fieldCodes, fieldOptions, tabs, sections, onSave, on
               fieldCodes={fieldCodes}
               tabs={tabs}
               sections={sections}
+              grids={grids}
               onChange={patch => updateAction(idx, patch)}
             />
             <ActionValueEditor
@@ -561,6 +576,22 @@ export function RuleConfigScreen(): React.ReactElement {
 
   const fieldCodes = useMemo(
     () => Object.values(fields).map(f => f.code).filter(Boolean),
+    [fields],
+  );
+
+  // A column still waiting to be saved has a tmp_ id the runtime cannot match, so it is not
+  // offered: a rule pointing at one would publish as a rule pointing at nothing.
+  const gridTargets = useMemo<GridColumnTarget[]>(
+    () => Object.values(fields)
+      .filter(f => f.code && (f.gridColumns?.length ?? 0) > 0)
+      .map(f => ({
+        gridCode: f.code,
+        gridLabel: f.label || f.code,
+        columns: f.gridColumns
+          .filter(column => !column.id.startsWith('tmp_'))
+          .sort((a, b) => a.displayOrder - b.displayOrder)
+          .map(column => ({ id: column.id, label: column.columnLabel || column.targetAttribute })),
+      })),
     [fields],
   );
 
@@ -809,6 +840,7 @@ export function RuleConfigScreen(): React.ReactElement {
               rule={selectedRule}
               fieldCodes={fieldCodes.length > 0 ? fieldCodes : ['(no fields)']}
               fieldOptions={fieldOptions}
+              grids={gridTargets}
               tabs={tabTargets}
               sections={sectionTargets}
               onSave={handleSaveRule}

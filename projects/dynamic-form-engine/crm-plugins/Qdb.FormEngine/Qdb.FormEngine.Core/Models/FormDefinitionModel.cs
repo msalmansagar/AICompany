@@ -272,6 +272,8 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("targetFieldId")] public Guid? TargetFieldId { get; set; }
         [JsonProperty("targetSectionId")] public Guid? TargetSectionId { get; set; }
         [JsonProperty("targetTabId")] public Guid? TargetTabId { get; set; }
+        // The grid column a column action targets; TargetFieldId then names the grid.
+        [JsonProperty("targetColumnId")] public Guid? TargetColumnId { get; set; }
         [JsonProperty("actionValue")] public string ActionValue { get; set; }
         [JsonProperty("priority")] public int Priority { get; set; }
         [JsonProperty("isActive")] public bool IsActive { get; set; }

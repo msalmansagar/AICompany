@@ -1094,7 +1094,8 @@ export class CrmMetadataService extends CrmBaseService {
     return code === 100000001 ? 'checkboxes' : 'dropdown';
   }
 
-  private mapRadioRenderStyle(code: number | undefined): 'list' | 'cards' {
+  private mapRadioRenderStyle(code: number | undefined): 'list' | 'cards' | 'rating' {
+    if (code === 100000002) return 'rating';
     return code === 100000001 ? 'cards' : 'list';
   }
 
@@ -1612,6 +1613,8 @@ interface RawDesignerRuleDefinition {
     target_field_code?: string;
     target_tab_id?: string;
     target_section_id?: string;
+    /** Grid column record id; target_field_code then names the grid. */
+    target_column_id?: string;
     value?: string;
   }>;
 }
@@ -1648,7 +1651,19 @@ const DESIGNER_ACTION_MAP: Record<string, BusinessRuleAction> = {
   // designer could not author one, and a hand-written rule was dropped here at publish.
   calculate_value: 'calculateValue',
   disable_options: 'disableOptions',
+  show_column: 'showColumn',
+  hide_column: 'hideColumn',
+  make_column_required: 'makeColumnRequired',
+  make_column_optional: 'makeColumnOptional',
+  make_column_readonly: 'makeColumnReadonly',
+  make_column_editable: 'makeColumnEditable',
 };
+
+/** Designer action types that name a grid column: the grid by code, the column by id. */
+const DESIGNER_COLUMN_ACTIONS = new Set([
+  'show_column', 'hide_column', 'make_column_required',
+  'make_column_optional', 'make_column_readonly', 'make_column_editable',
+]);
 
 /**
  * The structured half of a validation rule: the conditions of a conditional-required rule,
@@ -1676,9 +1691,19 @@ const DESIGNER_SECTION_ACTIONS = new Set(['show_section', 'hide_section']);
  * dropped tab- and section-targeted rules.
  */
 function resolveDesignerActionTarget(
-  action: { action_type: string; target_field_code?: string; target_tab_id?: string; target_section_id?: string },
+  action: { action_type: string; target_field_code?: string; target_tab_id?: string; target_section_id?: string; target_column_id?: string },
   schemaToGuid: Map<string, string>,
-): Pick<BusinessRule, 'targetFieldId' | 'targetTabId' | 'targetSectionId'> | null {
+): Pick<BusinessRule, 'targetFieldId' | 'targetTabId' | 'targetSectionId' | 'targetColumnId'> | null {
+  if (DESIGNER_COLUMN_ACTIONS.has(action.action_type)) {
+    // A column action with no grid or no column cannot be applied to anything.
+    if (!action.target_field_code || !action.target_column_id) return null;
+    return {
+      targetFieldId: schemaToGuid.get(action.target_field_code) ?? action.target_field_code,
+      targetColumnId: action.target_column_id,
+      targetTabId: undefined,
+      targetSectionId: undefined,
+    };
+  }
   if (DESIGNER_TAB_ACTIONS.has(action.action_type)) {
     return action.target_tab_id
       ? { targetFieldId: undefined, targetTabId: action.target_tab_id, targetSectionId: undefined }

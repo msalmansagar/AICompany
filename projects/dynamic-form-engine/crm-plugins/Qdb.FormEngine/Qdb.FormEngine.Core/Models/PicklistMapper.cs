@@ -67,6 +67,7 @@ namespace Qdb.FormEngine.Core.Models
         /// <summary>Maps qdb_radio_render_style option set values.</summary>
         public static string ToRadioRenderStyle(int? value)
         {
+            if (value == 100000002) return "rating";
             return value == 100000001 ? "cards" : "list";
         }
 

@@ -9,6 +9,7 @@ import type {
   ScopedButton,
   ButtonConditionSet,
   RuleTriggerEvent,
+  GridColumnRuleState,
 } from '@qdb/shared';
 import { DEFAULT_RULE_TRIGGER_EVENT } from '@qdb/shared';
 import { ExpressionEngine, type ExpressionContext } from '@qdb/shared';
@@ -142,6 +143,7 @@ interface RuleEvent {
     targetFieldId?: string;
     targetSectionId?: string;
     targetTabId?: string;
+    targetColumnId?: string;
     actionValue?: string;
   };
 }
@@ -186,6 +188,34 @@ function parseOptionValueList(actionValue: string): string[] {
   return trimmed.split(',').map((entry) => entry.trim()).filter((entry) => entry !== '');
 }
 
+/** What each grid-column action sets on its column. */
+const GRID_COLUMN_ACTION_FLAGS: Partial<Record<BusinessRuleAction, GridColumnRuleState>> = {
+  showColumn: { isVisible: true },
+  hideColumn: { isVisible: false },
+  makeColumnRequired: { isRequired: true },
+  makeColumnOptional: { isRequired: false },
+  makeColumnReadonly: { isReadonly: true },
+  makeColumnEditable: { isReadonly: false },
+};
+
+/**
+ * Records a column action's flags against its grid and column. An action that names no grid
+ * or no column cannot be applied to anything, so it changes nothing.
+ */
+function applyColumnFlags(
+  result: RuleEvaluationResult,
+  params: RuleEvent['params'],
+  flags: GridColumnRuleState,
+): void {
+  const { targetFieldId, targetColumnId } = params;
+  if (!targetFieldId || !targetColumnId) return;
+  const gridState = result.gridColumnState[targetFieldId] ?? {};
+  result.gridColumnState[targetFieldId] = {
+    ...gridState,
+    [targetColumnId]: { ...gridState[targetColumnId], ...flags },
+  };
+}
+
 function buildEmptyResult(): RuleEvaluationResult {
   return {
     fieldVisibility: {},
@@ -196,6 +226,7 @@ function buildEmptyResult(): RuleEvaluationResult {
     fieldValues: {},
     filteredOptions: {},
     disabledOptions: {},
+    gridColumnState: {},
     buttonVisibility: {},
     buttonEnabledState: {},
   };
@@ -418,6 +449,7 @@ export class RuleEngine {
       targetFieldId: rule.targetFieldId,
       targetSectionId: rule.targetSectionId,
       targetTabId: rule.targetTabId,
+      targetColumnId: rule.targetColumnId,
       actionValue: rule.actionValue,
     };
 
@@ -459,6 +491,12 @@ export class RuleEngine {
     for (const event of events) {
       const { action, targetFieldId, targetSectionId, targetTabId, actionValue } =
         event.params;
+
+      const columnFlags = GRID_COLUMN_ACTION_FLAGS[action];
+      if (columnFlags) {
+        applyColumnFlags(result, event.params, columnFlags);
+        continue;
+      }
 
       switch (action) {
         case 'showField':

@@ -100,6 +100,49 @@ namespace Qdb.FormEngine.Tests
             Assert.Null(rule.CrossFieldOperator);
         }
 
+        [Theory]
+        [InlineData("hide_column", "hideColumn")]
+        [InlineData("show_column", "showColumn")]
+        [InlineData("make_column_required", "makeColumnRequired")]
+        [InlineData("make_column_optional", "makeColumnOptional")]
+        [InlineData("make_column_readonly", "makeColumnReadonly")]
+        [InlineData("make_column_editable", "makeColumnEditable")]
+        public void Generate_PublishesAGridColumnAction_WithGridAndColumnTargets(string designerAction, string runtimeAction)
+        {
+            var columnId = Guid.NewGuid();
+            var rule = SingleBusinessRule(BuildColumnRuleJson(designerAction, "\"target_column_id\":\"" + columnId + "\""));
+
+            Assert.Equal(runtimeAction, rule.Action);
+            Assert.NotNull(rule.TargetFieldId);
+            Assert.Equal(columnId, rule.TargetColumnId);
+        }
+
+        [Theory]
+        [InlineData(100000000, "list")]
+        [InlineData(100000001, "cards")]
+        [InlineData(100000002, "rating")]
+        [InlineData(null, "list")]
+        public void ToRadioRenderStyle_MapsEachOption(int? optionValue, string expectedStyle)
+        {
+            Assert.Equal(expectedStyle, PicklistMapper.ToRadioRenderStyle(optionValue));
+        }
+
+        [Fact]
+        public void Generate_DropsAColumnAction_WithNoColumnId()
+        {
+            var fields = Generate(BuildColumnRuleJson("hide_column", "\"target_column_id\":\"\""), null);
+
+            Assert.Empty(fields.SelectMany(f => f.BusinessRules ?? new List<BusinessRule>()));
+        }
+
+        private static string BuildColumnRuleJson(string actionType, string columnJson)
+        {
+            return "{\"version\":\"1.0\",\"trigger_field_code\":\"" + TriggerCode + "\",\"trigger_event\":\"on_change\","
+                + "\"condition_group\":{\"logical_operator\":\"AND\",\"conditions\":"
+                + "[{\"field_code\":\"" + TriggerCode + "\",\"operator\":\"is_not_empty\",\"value\":null}]},"
+                + "\"actions\":[{\"action_type\":\"" + actionType + "\",\"target_field_code\":\"" + TargetCode + "\"," + columnJson + "}]}";
+        }
+
         private static string BuildRuleJson(string actionType, string value)
         {
             return "{\"version\":\"1.0\",\"trigger_field_code\":\"" + TriggerCode + "\",\"trigger_event\":\"on_change\","

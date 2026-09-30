@@ -30,7 +30,7 @@ export interface OptionValue {
 
 export type BooleanRenderStyle = 'toggle' | 'radio';
 export type MultiselectRenderStyle = 'dropdown' | 'checkboxes';
-export type RadioRenderStyle = 'list' | 'cards';
+export type RadioRenderStyle = 'list' | 'cards' | 'rating';
 export type GridSelectionMode = 'single' | 'multi';
 export type GridMode = 'selection' | 'entry';
 // DFE-GRIDSRC-001: grid data source + display configuration.

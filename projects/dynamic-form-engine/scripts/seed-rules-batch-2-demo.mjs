@@ -6,6 +6,9 @@
  *   4. Arithmetic set value: Total = Quantity x Unit price, recalculated as either changes.
  *   5. Event start date: today up to the end of this month ten years out.
  *   6. Event end date: the same window, and never before the start date.
+ *   1. Grid column rules: an Import shipment shows and requires the HS code column and makes
+ *      Country of origin read-only; any other shipment type hides the HS code column.
+ *   7. Rating style: a five-option dropdown drawn as stars (needs the Rating option in the org).
  *
  * Then publishes the form and checks the published JSON carries every rule.
  *
@@ -20,7 +23,12 @@ const API = `${DATAVERSE_URL}/api/data/v9.2`;
 const FORM_CODE = 'rules-batch-2-demo';
 const FORCE = process.argv.includes('--force');
 
-const FIELD_TYPE = { text: 100000001, number: 100000003, date: 100000004, dropdown: 100000006, lookup: 100000008, decimal: 100000012 };
+const FIELD_TYPE = {
+  text: 100000001, number: 100000003, date: 100000004, dropdown: 100000006,
+  lookup: 100000008, decimal: 100000012, interactiveGrid: 100000021,
+};
+const GRID_MODE_ENTRY = 100000001;
+const RADIO_STYLE_RATING = 100000002;
 const SECTION_TWO_COLUMNS = 100000002;
 const COLUMN_SPAN_ONE = 100000001;
 const STATUS_ACTIVE = 100000001;
@@ -223,7 +231,83 @@ async function seed(accounts) {
   await crossFieldRule(end.qdb_form_fieldid, '<=', WITHIN_TEN_YEARS, 'Event end date must be within 10 years from the current month.', 2);
   await crossFieldRule(end.qdb_form_fieldid, '>=', 'rb2_event_start', 'Event end date cannot be before the start date.', 3);
 
+  // ── 1. Business rules on grid columns ───────────────────────────────────
+  const secGrid = await makeSection('1 · Grid column rules', 4);
+  const shipment = await makeField(secGrid.qdb_form_sectionid, {
+    qdb_schema_name: 'rb2_shipment_type', qdb_label: 'Shipment type',
+    qdb_field_type: FIELD_TYPE.dropdown, qdb_display_order: 1,
+  });
+  await makeOption(shipment.qdb_form_fieldid, 'domestic', 'Domestic', 1);
+  await makeOption(shipment.qdb_form_fieldid, 'import', 'Import', 2);
+
+  const grid = await makeField(secGrid.qdb_form_sectionid, {
+    qdb_schema_name: 'rb2_items', qdb_label: 'Line items',
+    qdb_field_type: FIELD_TYPE.interactiveGrid, qdb_display_order: 2, qdb_column_span: 2,
+    qdb_grid_mode: GRID_MODE_ENTRY, qdb_max_rows: 10, qdb_grid_min_rows: 0,
+    qdb_grid_entity_name: 'qdb_demo_document',
+  });
+  const makeGridColumn = (attributes) => post('qdb_grid_column_configs', {
+    'qdb_form_field_id@odata.bind': `/qdb_form_fields(${grid.qdb_form_fieldid})`,
+    qdb_is_visible: true, qdb_is_editable: true, qdb_column_field_type: 'text', ...attributes,
+  });
+  await makeGridColumn({ qdb_column_label: 'Description', qdb_column_attribute: 'rb2_desc', qdb_display_order: 1 });
+  const hsCode = await makeGridColumn({ qdb_column_label: 'HS code (imports only)', qdb_column_attribute: 'rb2_hs_code', qdb_display_order: 2 });
+  const origin = await makeGridColumn({ qdb_column_label: 'Country of origin', qdb_column_attribute: 'rb2_origin', qdb_display_order: 3 });
+
+  const columnAction = (actionType, columnId) =>
+    ({ action_type: actionType, target_field_code: 'rb2_items', target_column_id: columnId });
+  await designerRule(formId, 'Imports show and require HS code; origin becomes read-only', {
+    version: '1.0',
+    trigger_field_code: 'rb2_shipment_type',
+    trigger_event: 'on_change',
+    condition_group: {
+      logical_operator: 'AND',
+      conditions: [{ field_code: 'rb2_shipment_type', operator: 'equals', value: 'import' }],
+    },
+    actions: [
+      columnAction('show_column', hsCode.qdb_grid_column_configid),
+      columnAction('make_column_required', hsCode.qdb_grid_column_configid),
+      columnAction('make_column_readonly', origin.qdb_grid_column_configid),
+    ],
+  });
+  await designerRule(formId, 'Domestic shipments hide HS code', {
+    version: '1.0',
+    trigger_field_code: 'rb2_shipment_type',
+    trigger_event: 'on_change',
+    condition_group: {
+      logical_operator: 'OR',
+      conditions: [
+        { field_code: 'rb2_shipment_type', operator: 'not_equals', value: 'import' },
+        { field_code: 'rb2_shipment_type', operator: 'is_empty', value: null },
+      ],
+    },
+    actions: [columnAction('hide_column', hsCode.qdb_grid_column_configid)],
+  });
+
+  // ── 7. Dropdown drawn as a rating ───────────────────────────────────────
+  const secRating = await makeSection('7 · Rating style', 5);
+  const ratingStyle = await ratingOptionExists() ? { qdb_radio_render_style: RADIO_STYLE_RATING } : {};
+  const satisfaction = await makeField(secRating.qdb_form_sectionid, {
+    qdb_schema_name: 'rb2_satisfaction', qdb_label: 'How satisfied are you with the venue?',
+    qdb_field_type: FIELD_TYPE.dropdown, qdb_display_order: 1, ...ratingStyle,
+  });
+  const ratingLabels = ['Very poor', 'Poor', 'Average', 'Good', 'Excellent'];
+  for (const [index, label] of ratingLabels.entries()) {
+    await makeOption(satisfaction.qdb_form_fieldid, String(index + 1), label, index + 1);
+  }
+  if (!ratingStyle.qdb_radio_render_style) {
+    console.log('  NOTE: the Rating option is not in this org yet, so "rb2_satisfaction" draws as a plain dropdown.');
+    console.log('        Run provision-rating-render-style.mjs, then reseed with --force.');
+  }
+
   return formId;
+}
+
+async function ratingOptionExists() {
+  const path = `EntityDefinitions(LogicalName='qdb_form_field')/Attributes(LogicalName='qdb_radio_render_style')`
+    + '/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$select=LogicalName&$expand=OptionSet($select=Options)';
+  const metadata = await get(path);
+  return metadata.OptionSet.Options.some((option) => option.Value === RADIO_STYLE_RATING);
 }
 
 async function publishAndRead() {
@@ -268,6 +352,11 @@ function verify(json, accounts) {
       calc.length === 2 && calc.every((r) => r.targetFieldId === byCode.rb2_total.id && r.actionValue === '{rb2_quantity} * {rb2_unit_price}')),
     check('5. start date bounds', ['>= @today', '<= @monthEnd+10y'].every((b) => startBounds.includes(b)), startBounds.join(', ')),
     check('6. end date bounds + not before start', ['>= @today', '<= @monthEnd+10y', '>= rb2_event_start'].every((b) => endBounds.includes(b)), endBounds.join(', ')),
+    check('1. grid column rules published with grid + column targets',
+      ['showColumn', 'makeColumnRequired', 'makeColumnReadonly', 'hideColumn'].every((action) =>
+        rules.some((r) => r.action === action && r.targetFieldId === byCode.rb2_items.id && r.targetColumnId))),
+    check('7. satisfaction field draws as a rating', byCode.rb2_satisfaction.radioRenderStyle === 'rating',
+      `radioRenderStyle=${byCode.rb2_satisfaction.radioRenderStyle}`),
   ].every(Boolean);
 }
 

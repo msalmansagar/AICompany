@@ -176,6 +176,8 @@ export interface DesignerFieldModel {
   decimalPlaces: number | null;
   // DFE-NUMBAR: number/decimal/currency display style + the fields providing the bar's value/max.
   numberDisplayStyle?: 'textbox' | 'bar' | null;
+  // How option fields draw: list (default), cards (radio only) or rating stars.
+  radioRenderStyle?: 'list' | 'cards' | 'rating' | null;
   barMaxFieldSchemaName?: string | null;
   barValueFieldSchemaName?: string | null;
   maxRows: number | null;

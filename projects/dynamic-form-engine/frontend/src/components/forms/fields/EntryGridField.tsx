@@ -33,6 +33,7 @@ import {
 import type { GridColumnConfig, GridColumnOptionValue, LookupResult } from '@qdb/shared';
 import { validateGridCell } from '@qdb/shared';
 import { useFormContext } from '../../../contexts/FormContext';
+import { applyGridColumnRuleState } from '../../../engine/gridColumnRuleState';
 import { useEntryGridRows, type GridRow } from '../../../hooks/useEntryGridRows';
 import { useLookupSearch } from '../../../hooks/useLookupSearch';
 import { filesApi, type UploadedFileReference } from '../../../api/filesApi';
@@ -118,10 +119,15 @@ export function EntryGridField({
   errorId,
 }: ControlProps) {
   const styles = useStyles();
-  const { validationErrors } = useFormContext();
+  const { validationErrors, ruleState } = useFormContext();
 
   const gridConfig = field.gridConfig;
-  const columnConfigs = gridConfig?.columnConfigs ?? [];
+  // Absent rule state (a form with no column rules, or a partial test context) changes nothing.
+  const columnRuleState = ruleState?.gridColumnState?.[field.id];
+  const columnConfigs = useMemo(
+    () => applyGridColumnRuleState(gridConfig?.columnConfigs ?? [], columnRuleState),
+    [gridConfig?.columnConfigs, columnRuleState],
+  );
 
   const { rows, addRow, updateCell, deleteRow, isAtMaxRows } =
     useEntryGridRows(field);
@@ -175,7 +181,7 @@ export function EntryGridField({
             col={col}
             rowIndex={row.index}
             value={rows[row.index]?.[col.targetAttribute]}
-            isReadonly={isReadonly}
+            isReadonly={isReadonly || col.isReadonly === true}
             onCellChange={handleCellChange}
             tableId={inputId}
             headerId={`${inputId}-col-${col.columnId}`}

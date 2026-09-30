@@ -21,6 +21,7 @@ import { ruleEngine } from '../engine/RuleEngine';
 import { validationEngine } from '../engine/ValidationEngine';
 import { isFieldVisible } from '../engine/fieldVisibility';
 import { mapRuleValuesToSchemaNames } from '../engine/ruleValueTargets';
+import { applyGridColumnRuleStateToForm } from '../engine/gridColumnRuleState';
 import { getAllFormFields, getAllTabFields, getTabZoneFields } from '../components/forms/tabFields';
 
 export interface FormContextValue {
@@ -75,6 +76,7 @@ const EMPTY_RULE_STATE: RuleEvaluationResult = {
   fieldValues: {},
   filteredOptions: {},
   disabledOptions: {},
+  gridColumnState: {},
   buttonVisibility: {},
   buttonEnabledState: {},
 };
@@ -344,7 +346,7 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
     const visibleFieldIds = computeVisibleFieldIds(formDefinition, ruleState);
 
     const errors = validationEngine.validateForm(
-      formDefinition,
+      applyGridColumnRuleStateToForm(formDefinition, ruleState.gridColumnState ?? {}),
       fieldValues,
       visibleFieldIds,
     );

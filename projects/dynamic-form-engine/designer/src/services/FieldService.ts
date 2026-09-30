@@ -18,6 +18,9 @@ import {
   PICKLIST_TO_GRID_SELECTION_MODE,
   NUMBER_DISPLAY_STYLE_TO_PICKLIST,
   PICKLIST_TO_NUMBER_DISPLAY_STYLE,
+  RADIO_RENDER_STYLE_TO_PICKLIST,
+  PICKLIST_TO_RADIO_RENDER_STYLE,
+  type RadioRenderStyle,
 } from '@/constants/attributeNames';
 import type { DesignerFieldModel } from '@/state/models/DesignerFormModel';
 import { withRetry } from './crmRetry';
@@ -59,6 +62,7 @@ export interface CreateFieldDto {
   currencyCode?: string | null;
   decimalPlaces?: number | null;
   numberDisplayStyle?: 'textbox' | 'bar' | null;
+  radioRenderStyle?: RadioRenderStyle | null;
   barMaxFieldSchemaName?: string | null;
   barValueFieldSchemaName?: string | null;
   maxRows?: number | null;
@@ -128,6 +132,7 @@ export interface UpdateFieldDto {
   currencyCode?: string | null;
   decimalPlaces?: number | null;
   numberDisplayStyle?: 'textbox' | 'bar' | null;
+  radioRenderStyle?: RadioRenderStyle | null;
   barMaxFieldSchemaName?: string | null;
   barValueFieldSchemaName?: string | null;
   maxRows?: number | null;
@@ -207,6 +212,7 @@ export class FieldService {
     if (dto.currencyCode != null) payload[FORM_FIELD_ATTRS.CURRENCY_CODE] = dto.currencyCode;
     if (dto.decimalPlaces != null) payload[FORM_FIELD_ATTRS.DECIMAL_PLACES] = dto.decimalPlaces;
     if (dto.numberDisplayStyle != null) payload[FORM_FIELD_ATTRS.NUMBER_DISPLAY_STYLE] = NUMBER_DISPLAY_STYLE_TO_PICKLIST[dto.numberDisplayStyle];
+    if (dto.radioRenderStyle != null) payload[FORM_FIELD_ATTRS.RADIO_RENDER_STYLE] = RADIO_RENDER_STYLE_TO_PICKLIST[dto.radioRenderStyle];
     if (dto.barMaxFieldSchemaName != null) payload[FORM_FIELD_ATTRS.BAR_MAX_FIELD_SCHEMA] = dto.barMaxFieldSchemaName;
     if (dto.barValueFieldSchemaName != null) payload[FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA] = dto.barValueFieldSchemaName;
     if (dto.maxRows != null) payload[FORM_FIELD_ATTRS.MAX_ROWS] = dto.maxRows;
@@ -278,6 +284,7 @@ export class FieldService {
     if (dto.currencyCode !== undefined) data[FORM_FIELD_ATTRS.CURRENCY_CODE] = dto.currencyCode;
     if (dto.decimalPlaces !== undefined) data[FORM_FIELD_ATTRS.DECIMAL_PLACES] = dto.decimalPlaces;
     if (dto.numberDisplayStyle !== undefined) data[FORM_FIELD_ATTRS.NUMBER_DISPLAY_STYLE] = dto.numberDisplayStyle != null ? NUMBER_DISPLAY_STYLE_TO_PICKLIST[dto.numberDisplayStyle] : null;
+    if (dto.radioRenderStyle !== undefined) data[FORM_FIELD_ATTRS.RADIO_RENDER_STYLE] = dto.radioRenderStyle != null ? RADIO_RENDER_STYLE_TO_PICKLIST[dto.radioRenderStyle] : null;
     if (dto.barMaxFieldSchemaName !== undefined) data[FORM_FIELD_ATTRS.BAR_MAX_FIELD_SCHEMA] = dto.barMaxFieldSchemaName;
     if (dto.barValueFieldSchemaName !== undefined) data[FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA] = dto.barValueFieldSchemaName;
     if (dto.maxRows !== undefined) data[FORM_FIELD_ATTRS.MAX_ROWS] = dto.maxRows;
@@ -470,6 +477,9 @@ export class FieldService {
         : null,
       numberDisplayStyle: record[FORM_FIELD_ATTRS.NUMBER_DISPLAY_STYLE] != null
         ? (PICKLIST_TO_NUMBER_DISPLAY_STYLE[Number(record[FORM_FIELD_ATTRS.NUMBER_DISPLAY_STYLE])] ?? null)
+        : null,
+      radioRenderStyle: record[FORM_FIELD_ATTRS.RADIO_RENDER_STYLE] != null
+        ? (PICKLIST_TO_RADIO_RENDER_STYLE[Number(record[FORM_FIELD_ATTRS.RADIO_RENDER_STYLE])] ?? null)
         : null,
       barMaxFieldSchemaName: (record[FORM_FIELD_ATTRS.BAR_MAX_FIELD_SCHEMA] as string) ?? null,
       barValueFieldSchemaName: (record[FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA] as string) ?? null,

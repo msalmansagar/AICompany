@@ -440,7 +440,17 @@ namespace Qdb.FormEngine.Core.Generation
             // The runtime has evaluated calculateValue since the expression engine shipped; the
             // designer could not author one, and a hand-written rule was dropped here at publish.
             { "calculate_value", "calculateValue" },
-            { "disable_options", "disableOptions" }
+            { "disable_options", "disableOptions" },
+            { "show_column", "showColumn" }, { "hide_column", "hideColumn" },
+            { "make_column_required", "makeColumnRequired" }, { "make_column_optional", "makeColumnOptional" },
+            { "make_column_readonly", "makeColumnReadonly" }, { "make_column_editable", "makeColumnEditable" }
+        };
+
+        /// <summary>Designer action types that name a grid column: the grid by code, the column by id.</summary>
+        private static readonly HashSet<string> ColumnActions = new HashSet<string>
+        {
+            "show_column", "hide_column", "make_column_required",
+            "make_column_optional", "make_column_readonly", "make_column_editable"
         };
 
         /// <summary>Designer action types that name a tab rather than a field.</summary>
@@ -450,6 +460,13 @@ namespace Qdb.FormEngine.Core.Generation
         /// <summary>Designer action types that name a section rather than a field.</summary>
         private static readonly HashSet<string> SectionActions =
             new HashSet<string> { "show_section", "hide_section" };
+
+        private Guid? ResolveFieldCode(string code)
+        {
+            EnsureFieldMaps();
+            Guid fieldId;
+            return code != null && _schemaToGuid.TryGetValue(code, out fieldId) ? (Guid?)fieldId : null;
+        }
 
         private Dictionary<string, Guid> _schemaToGuid;
         private Dictionary<Guid, string> _guidToSchema;
@@ -551,7 +568,7 @@ namespace Qdb.FormEngine.Core.Generation
                 // A tab or section action names a record id directly; only a field action
                 // names a schema code that has to be resolved to one. Resolving every action
                 // as a field is what dropped tab-targeted rules on the floor.
-                Guid? targetField = null, targetTab = null, targetSection = null;
+                Guid? targetField = null, targetTab = null, targetSection = null, targetColumn = null;
                 if (TabActions.Contains(actionType))
                 {
                     targetTab = ParseGuid((string)action["target_tab_id"]);
@@ -561,6 +578,13 @@ namespace Qdb.FormEngine.Core.Generation
                 {
                     targetSection = ParseGuid((string)action["target_section_id"]);
                     if (targetSection == null) continue;
+                }
+                else if (ColumnActions.Contains(actionType))
+                {
+                    // A column action with no resolvable grid or column targets nothing.
+                    targetField = ResolveFieldCode((string)action["target_field_code"]);
+                    targetColumn = ParseGuid((string)action["target_column_id"]);
+                    if (targetField == null || targetColumn == null) continue;
                 }
                 else
                 {
@@ -582,6 +606,7 @@ namespace Qdb.FormEngine.Core.Generation
                     TargetFieldId = targetField,
                     TargetTabId = targetTab,
                     TargetSectionId = targetSection,
+                    TargetColumnId = targetColumn,
                     ActionValue = (string)action["value"],
                     Priority = priority,
                     IsActive = true

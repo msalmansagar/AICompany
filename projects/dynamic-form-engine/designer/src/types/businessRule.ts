@@ -34,10 +34,23 @@ export type RuleActionType =
   | 'calculate_value'
   // Keeps the named options visible but unselectable. Value = JSON array of option values.
   | 'disable_options'
+  // Grid-column targets: target_field_code names the grid, target_column_id the column.
+  | 'show_column'
+  | 'hide_column'
+  | 'make_column_required'
+  | 'make_column_optional'
+  | 'make_column_readonly'
+  | 'make_column_editable'
   | 'show_message';
 
 /** Action types that act on a tab rather than a field. */
 export const TAB_ACTION_TYPES: ReadonlySet<RuleActionType> = new Set(['show_tab', 'hide_tab']);
+
+/** Action types that act on one column of an entry grid. */
+export const COLUMN_ACTION_TYPES: ReadonlySet<RuleActionType> = new Set([
+  'show_column', 'hide_column', 'make_column_required',
+  'make_column_optional', 'make_column_readonly', 'make_column_editable',
+]);
 
 /** Action types that act on a section rather than a field. */
 export const SECTION_ACTION_TYPES: ReadonlySet<RuleActionType> =
@@ -67,6 +80,8 @@ export interface RuleAction {
   target_tab_id?: string;
   /** Record id of the section this action targets. Required for show_section / hide_section. */
   target_section_id?: string;
+  /** Record id of the grid column a column action targets; target_field_code names the grid. */
+  target_column_id?: string;
   /** Required for set_value and show_message action types */
   value?: string;
 }

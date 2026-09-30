@@ -97,6 +97,19 @@ export const PICKLIST_TO_NUMBER_DISPLAY_STYLE: Record<number, 'textbox' | 'bar'>
   100000002: 'bar',
 };
 
+// qdb_radio_render_style picklist. Rating is honoured for dropdown fields as well as radios.
+export type RadioRenderStyle = 'list' | 'cards' | 'rating';
+export const RADIO_RENDER_STYLE_TO_PICKLIST: Record<RadioRenderStyle, number> = {
+  list: 100000000,
+  cards: 100000001,
+  rating: 100000002,
+};
+export const PICKLIST_TO_RADIO_RENDER_STYLE: Record<number, RadioRenderStyle> = {
+  100000000: 'list',
+  100000001: 'cards',
+  100000002: 'rating',
+};
+
 export const FORM_SECTION_ATTRS = {
   ID: 'qdb_form_sectionid',
   TAB_ID: 'qdb_form_tab_id',               // use for create/update
@@ -136,6 +149,7 @@ export const FORM_FIELD_ATTRS = {
   CURRENCY_CODE: 'qdb_currency_code',
   DECIMAL_PLACES: 'qdb_decimal_places',
   NUMBER_DISPLAY_STYLE: 'qdb_number_display_style',  // DFE-NUMBAR
+  RADIO_RENDER_STYLE: 'qdb_radio_render_style',  // List / Cards / Rating (DFE-RULES-002)
   BAR_MAX_FIELD_SCHEMA: 'qdb_bar_max_field_schema',  // DFE-NUMBAR
   BAR_VALUE_FIELD_SCHEMA: 'qdb_bar_value_field_schema',  // DFE-NUMBAR
   MAX_ROWS: 'qdb_max_rows',
