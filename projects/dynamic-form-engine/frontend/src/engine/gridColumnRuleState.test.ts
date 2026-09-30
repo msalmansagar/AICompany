@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyGridColumnRuleState, applyGridColumnRuleStateToForm } from './gridColumnRuleState';
+import { applyGridColumnRuleState, applyGridColumnRuleStateToForm, findUnknownRuleColumns } from './gridColumnRuleState';
 import type { FieldDefinition, FormDefinition, GridColumnConfig } from '@qdb/shared';
 
 function column(columnId: string, overrides: Partial<GridColumnConfig> = {}): GridColumnConfig {
@@ -59,6 +59,16 @@ describe('applyGridColumnRuleState', () => {
     const columns = [column('a')];
 
     expect(applyGridColumnRuleState(columns, { missing: { isVisible: false } })).toEqual(columns);
+  });
+});
+
+describe('findUnknownRuleColumns', () => {
+  it('should_list_rule_targets_the_grid_does_not_have', () => {
+    expect(findUnknownRuleColumns([column('a')], { a: { isVisible: false }, gone: { isVisible: false } })).toEqual(['gone']);
+  });
+
+  it('should_list_nothing_without_rule_state', () => {
+    expect(findUnknownRuleColumns([column('a')], undefined)).toEqual([]);
   });
 });
 

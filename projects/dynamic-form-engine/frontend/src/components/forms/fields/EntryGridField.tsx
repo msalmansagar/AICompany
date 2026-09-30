@@ -4,7 +4,7 @@
 // BC-009: Warning banner when approaching 450-operation ceiling.
 // BC-010: Required validation applies even if tab was never visited.
 
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -33,7 +33,8 @@ import {
 import type { GridColumnConfig, GridColumnOptionValue, LookupResult } from '@qdb/shared';
 import { validateGridCell } from '@qdb/shared';
 import { useFormContext } from '../../../contexts/FormContext';
-import { applyGridColumnRuleState } from '../../../engine/gridColumnRuleState';
+import { applyGridColumnRuleState, findUnknownRuleColumns } from '../../../engine/gridColumnRuleState';
+import { logger } from '../../../utils/logger';
 import { useEntryGridRows, type GridRow } from '../../../hooks/useEntryGridRows';
 import { useLookupSearch } from '../../../hooks/useLookupSearch';
 import { filesApi, type UploadedFileReference } from '../../../api/filesApi';
@@ -128,6 +129,15 @@ export function EntryGridField({
     () => applyGridColumnRuleState(gridConfig?.columnConfigs ?? [], columnRuleState),
     [gridConfig?.columnConfigs, columnRuleState],
   );
+
+  // A rule aimed at a column this grid no longer has changes nothing; say so, so the maker can
+  // find the rule (BRD FR-008).
+  useEffect(() => {
+    const unknownColumnIds = findUnknownRuleColumns(gridConfig?.columnConfigs ?? [], columnRuleState);
+    if (unknownColumnIds.length > 0) {
+      logger.warn('grid_column_rule_target_missing', { gridFieldId: field.id, unknownColumnIds });
+    }
+  }, [gridConfig?.columnConfigs, columnRuleState, field.id]);
 
   const { rows, addRow, updateCell, deleteRow, isAtMaxRows } =
     useEntryGridRows(field);

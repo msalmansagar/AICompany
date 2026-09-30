@@ -22,6 +22,19 @@ function applyColumnState(column: GridColumnConfig, state: GridColumnRuleState |
   return state.isVisible === false ? { ...merged, isRequired: false } : merged;
 }
 
+/**
+ * Column ids a rule targets that the grid does not have. Such a rule changes nothing (FR-008);
+ * the caller logs these so a maker can find a rule left pointing at a deleted column.
+ */
+export function findUnknownRuleColumns(
+  columns: GridColumnConfig[],
+  state: Record<string, GridColumnRuleState> | undefined,
+): string[] {
+  if (!state) return [];
+  const knownIds = new Set(columns.map((column) => column.columnId));
+  return Object.keys(state).filter((columnId) => !knownIds.has(columnId));
+}
+
 function definedFlags(state: GridColumnRuleState): GridColumnRuleState {
   return Object.fromEntries(
     Object.entries(state).filter(([, value]) => value !== undefined),

@@ -54,6 +54,12 @@ describe('RatingControl', () => {
     expect(context.update).not.toHaveBeenCalled();
   });
 
+  it('RatingControl_StoredValue_AnnouncesValueOutOfMax', () => {
+    renderRating({ satisfaction: '100000002' });
+
+    expect(screen.getByRole('radiogroup', { name: 'Satisfaction: 2 of 3 stars' })).toBeInTheDocument();
+  });
+
   it('RatingControl_ClickThirdStar_StoresThirdOptionInDisplayOrder', () => {
     renderRating({ satisfaction: null });
 

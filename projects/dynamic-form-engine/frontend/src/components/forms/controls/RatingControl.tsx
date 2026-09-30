@@ -42,11 +42,14 @@ export function RatingControl({ field, inputId, isRequired, isReadonly, errorId 
   const rawValue = fieldValues[field.schemaName];
   const selectedIndex = options.findIndex((option) => option.value === String(rawValue ?? ''));
   const starValue = selectedIndex + 1;
+  // The group's name carries the current value, so a screen reader announces "3 of 5 stars"
+  // on arrival, not only the question (BRD NFR-004).
+  const groupLabel = `${field.label}: ${starValue} of ${options.length} stars`;
 
   if (options.length < 2) return null;
 
   if (isReadonly) {
-    return <RatingDisplay id={inputId} value={starValue} max={options.length} color="marigold" aria-label={field.label} />;
+    return <RatingDisplay id={inputId} value={starValue} max={options.length} color="marigold" aria-label={groupLabel} />;
   }
 
   return (
@@ -64,7 +67,7 @@ export function RatingControl({ field, inputId, isRequired, isReadonly, errorId 
           if (!chosen || disabledOptions.has(chosen.value)) return;
           updateFieldValue(field.schemaName, chosen.value);
         }}
-        aria-label={field.label}
+        aria-label={groupLabel}
         aria-required={isRequired}
         aria-describedby={errorId}
         aria-invalid={!!errorId}
