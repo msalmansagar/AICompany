@@ -68,3 +68,44 @@ evidence above (no data, no plugin, no workflow, no view, no API contract).
   created on, modified on and an open link built from configuration. Missing → `unavailable`,
   refused → `forbidden`.
 - Legal creation: **not implemented** — the Legal field mapping has not been inspected and confirmed.
+
+## 4. What was done (2026-09-29 21:25 → 2026-09-30 09:35 Asia/Qatar, wall clock)
+
+| Step | Result | Evidence |
+|---|---|---|
+| Columns added | `qdb_relatedrecordorganization`, `qdb_relatedrecordnumber` on org5869857f, published | `provision-external-process-reference.mjs --add` |
+| Workspace moved off the lookups | Deployed before any column was removed (11/11 deploy checks); bundle contains neither lookup name | `deploy-workspace-webresource.mjs` |
+| Form regenerated | "Information" no longer shows the lookups; the two new columns appear | `provision-dcp-app-ux.mjs --only=qdb_collectionactivity` |
+| Lookups retired | Both deleted **after** the script re-proved 0 values and 0 dependencies at run time | `provision-external-process-reference.mjs --retire` |
+| Solution made portable | `incident`, `qdb_qdblegal`, `systemuser`, `team` unlinked from `qdb_debtcollection` (tables untouched); Case/Legal removed from the app's site map. Export now carries the **13 DCP tables only** | `make-solution-portable.mjs`; export check |
+| Linkage provisioning retired | `provision-complaint-linkage.mjs`, `provision-legal-linkage.mjs` removed — they would recreate the lookups | git |
+| Live checks | Case page Workout & Legal renders with no errors; queue filters on the reference return 200 (null-or-not-incident includes activities with no reference) | browser, System Administrator |
+
+## 5. Package dependency result
+
+The exported solution still requires, from outside itself:
+
+| Required | Why | HL CRM | BFD CRM |
+|---|---|---|---|
+| `qdb_qdblegal` (table) | The model-driven app "Debt Collection" still lists it. `RemoveAppComponents` returns 204 but the platform keeps the component; the app's internal state belongs to the app designer. **Remove Case and Legal from the app in the app designer (one step, the user's).** | blocker until removed | present |
+| `qdb_approval_status`, `qdb_priority`, `qdb_risk_level` (global choices) | DCP columns `qdb_collectionactivity.qdb_approvalstatus`, `qdb_collectioncase.qdb_priority`, `qdb_assignmentconfiguration.qdb_risklevel` use QDB-wide choices from another QDB solution | check with `onprem-hl-prerequisites-inspect.js` | expected present |
+
+The package is still stamped `SolutionPackageVersion="9.2"`; producing the 9.1 on-prem kit is the
+separate kit task.
+
+## 6. Pending / gaps
+
+- **Legal creation is not implemented**: the Legal field mapping has not been inspected and
+  confirmed. The reference, the summary read and the screens support Legal; the hand-off write does not.
+- **BFD complaints**: the reference and service contract are origin-neutral, but the BFD field
+  mapping is not approved, so the service still refuses non-HL Collection Cases.
+- **Consolidated HL + BFD workspace**: each organisation's workspace shows its own collection
+  data; a combined view must be designed on the Integration Service (decision gap).
+- **Not run end to end**: no hosted Integration Service and no browser sign-in yet (P11). The API
+  flow is proven against a fake of both organisations; the workspace is proven live in its
+  "service not configured" state.
+- Superseded evidence harnesses that still name the retired lookups (`smoke-legal-visibility.mts`,
+  `smoke-legal-handoff.mts`, `smoke-phase9-advanced.mts`, `smoke-deceased-review.mts`,
+  `qa-seed-concerns.mts`) are historical Phase 9 tooling and will fail if re-run.
+- The Legal summary returns the Legal module's number, status and dates; the lawyer name and
+  outstanding amount the old same-organisation read showed are no longer fetched.
