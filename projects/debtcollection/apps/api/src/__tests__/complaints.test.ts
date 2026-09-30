@@ -326,6 +326,21 @@ describe('POST /collection-cases/:id/complaints', () => {
       expect(activityUpdates()).toHaveLength(0);
     });
 
+    it('should_finish_on_retry_when_recording_the_case_failed_after_it_was_created', async () => {
+      state.activityUpdateFails = true;
+      const first = await submit(app);
+      state.activityUpdateFails = false;
+      state.existingActivityState = 0;
+      state.createOutcome = 'duplicate';
+      requests.length = 0;
+
+      const retry = await submit(app);
+
+      expect(first.statusCode).toBe(500);
+      expect(retry.json()).toMatchObject({ isRepeatSubmission: true });
+      expect(activityUpdates()[0]?.body).toMatchObject({ qdb_relatedrecordnumber: 'BFD-25600-A1B2', statecode: 1 });
+    });
+
     it('should_report_an_already_completed_request_without_creating_again', async () => {
       state.existingActivityState = 1;
 

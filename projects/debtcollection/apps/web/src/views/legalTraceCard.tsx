@@ -34,7 +34,7 @@ export function CaseLegalTrace({ caseId, organization, episodeNumber, customer }
   customer?: { table?: 'account' | 'contact'; id?: string } | undefined;
 }) {
   const { adapter } = useCrmSession();
-  const { summarise, isResolved } = useReferenceSummariser(organization);
+  const { summarise, isResolved, failure: statusFailure } = useReferenceSummariser(organization);
   const [rows, setRows] = useState<readonly LegalTraceRow[]>([]);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState('');
@@ -83,6 +83,12 @@ export function CaseLegalTrace({ caseId, organization, episodeNumber, customer }
       title="Legal"
       subtitle="What the Legal process records for this case. Legal owns these requests; this is a view of them."
     >
+      {statusFailure && (
+        <div className="info-banner warn" data-testid="legal-status-failure">
+          <Icon name="warn" />
+          <div><b>Current status could not be checked.</b><p>{statusFailure}</p></div>
+        </div>
+      )}
       <table className="grid" data-testid="case-legal">
         <thead>
           <tr>

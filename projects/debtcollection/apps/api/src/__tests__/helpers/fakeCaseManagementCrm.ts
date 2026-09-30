@@ -34,6 +34,8 @@ export interface FakeCrmState {
   activityTypes: Row[];
   /** The originating activity, when a previous attempt already created it: its statecode. */
   existingActivityState: number | null;
+  /** Completing or cancelling the activity fails with a server error. */
+  activityUpdateFails: boolean;
   createdIncident: Row;
 }
 
@@ -64,6 +66,7 @@ export function defaultCrmState(): FakeCrmState {
     createOutcome: 'created',
     activityTypes: [{ qdb_collectionactivitytypeid: CONCERN_TYPE_ID, qdb_code: 'P6-DISPUTE' }, { qdb_collectionactivitytypeid: 'call-type', qdb_code: 'P6-CALL' }],
     existingActivityState: null,
+    activityUpdateFails: false,
     createdIncident: {
       ticketnumber: 'BFD-25600-A1B2', createdon: '2026-09-29T12:00:00Z',
       'statuscode@OData.Community.Display.V1.FormattedValue': 'In Progress',
@@ -127,7 +130,7 @@ function answerBfd(state: FakeCrmState, url: string, method: string): Response {
 function answerActivity(state: FakeCrmState, method: string, init?: RequestInit): Response {
   const isCreateOnly = (init?.headers as Record<string, string> | undefined)?.['If-None-Match'] === '*';
   if (method === 'PATCH' && isCreateOnly) return state.existingActivityState === null ? new Response(null, { status: 204 }) : refusal(412, '0x80060882');
-  if (method === 'PATCH') return new Response(null, { status: 204 });
+  if (method === 'PATCH') return state.activityUpdateFails ? refusal(500, '0x80040216') : new Response(null, { status: 204 });
   return json(200, { statecode: state.existingActivityState ?? 0 });
 }
 

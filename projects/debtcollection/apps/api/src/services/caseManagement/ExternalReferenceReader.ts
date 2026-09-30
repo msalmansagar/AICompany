@@ -52,15 +52,25 @@ export async function summariseReferences(
   queries: readonly ReferenceQuery[],
   email: string | undefined,
 ): Promise<ExternalRecordSummary[]> {
+  const userIds = await resolveUsers(organisations, queries, email);
+  // One read per reference, all at once: a page is at most fifty, and serial reads would make the
+  // card wait fifty round trips.
+  return Promise.all(queries.map(query => summarise(organisations[query.organization]!, query, userIds.get(query.organization)!)));
+}
+
+/** The signed-in user's id in each organisation the page refers to — once per organisation. */
+async function resolveUsers(
+  organisations: Readonly<Partial<Record<OrganizationCode, ReferenceOrganisation>>>,
+  queries: readonly ReferenceQuery[],
+  email: string | undefined,
+): Promise<ReadonlyMap<OrganizationCode, string>> {
   const userIds = new Map<OrganizationCode, string>();
-  const summaries: ExternalRecordSummary[] = [];
-  for (const query of queries) {
-    const organisation = organisations[query.organization];
-    if (!organisation) throw new ComplaintConfigurationError(`Organisation ${query.organization} is not configured in this deployment`);
-    if (!userIds.has(query.organization)) userIds.set(query.organization, await resolveCrmUserId(organisation.client, email, query.organization));
-    summaries.push(await summarise(organisation, query, userIds.get(query.organization)!));
+  for (const code of new Set(queries.map(query => query.organization))) {
+    const organisation = organisations[code];
+    if (!organisation) throw new ComplaintConfigurationError(`Organisation ${code} is not configured in this deployment`);
+    userIds.set(code, await resolveCrmUserId(organisation.client, email, code));
   }
-  return summaries;
+  return userIds;
 }
 
 async function summarise(organisation: ReferenceOrganisation, query: ReferenceQuery, userId: string): Promise<ExternalRecordSummary> {

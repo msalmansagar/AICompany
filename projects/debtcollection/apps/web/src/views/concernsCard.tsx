@@ -26,7 +26,7 @@ import { useReferenceSummariser } from '../data/useReferenceSummariser.js';
  */
 export function CaseConcerns({ caseId, organization }: { caseId: string; organization?: string | undefined }) {
   const { adapter } = useCrmSession();
-  const { summarise, isResolved } = useReferenceSummariser(organization);
+  const { summarise, isResolved, failure: statusFailure } = useReferenceSummariser(organization);
   const [concerns, setConcerns] = useState<CaseConcernsData | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState('');
@@ -93,6 +93,12 @@ export function CaseConcerns({ caseId, organization }: { caseId: string; organiz
           title="Customer complaints"
           subtitle="Formal complaints raised for this customer. The complaints team owns these; this is a view of them."
         >
+          {statusFailure && (
+        <div className="info-banner warn" data-testid="complaint-status-failure">
+          <Icon name="warn" />
+          <div><b>Current status could not be checked.</b><p>{statusFailure}</p></div>
+        </div>
+      )}
           <ConcernTable
             rows={concerns.complaints}
             firstHeading="Complaint"

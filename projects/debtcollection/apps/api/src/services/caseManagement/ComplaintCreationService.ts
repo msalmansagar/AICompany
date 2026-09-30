@@ -112,7 +112,11 @@ export class ComplaintCreationService {
       return outcome === 'alreadyExists';
     } catch (error) {
       if (!isDefiniteRefusal(error)) throw error;
-      await cancelHandOff(this.dependencies.hlClient, prepared.activityId, prepared.hlUserId);
+      // If closing the request fails too, both failures travel together: the refusal is what the
+      // officer needs, the second is why the request still reads as open.
+      await cancelHandOff(this.dependencies.hlClient, prepared.activityId, prepared.hlUserId).catch((cancelError: unknown) => {
+        throw new AggregateError([error, cancelError], 'Case Management refused the complaint, and the request could not be closed');
+      });
       if (error.httpStatus === 403) throw new ComplaintAccessError('Case Management does not allow this user to create a Case');
       throw error;
     }
