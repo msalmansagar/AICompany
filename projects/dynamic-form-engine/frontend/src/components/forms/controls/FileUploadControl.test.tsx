@@ -59,6 +59,44 @@ function renderUpload(maxFiles: number) {
 
 const DROPZONE_TEXT = /drag and drop files here/i;
 
+function renderCameraUpload(allowedMimeTypes: string[]) {
+  mockFieldValues.current = {};
+  const field = makeUploadField(1);
+  const props: ControlProps = {
+    field: { ...field, fileUploadConfig: { ...field.fileUploadConfig!, allowedMimeTypes, captureMode: 'camera' } },
+    inputId: 'upload-zone',
+    isRequired: false,
+    isReadonly: false,
+  };
+  return render(
+    <FluentProvider theme={webLightTheme}>
+      <FileUploadControl {...props} />
+    </FluentProvider>,
+  );
+}
+
+describe('FileUploadControl camera mode (DFE-APIVAL-CAM-001)', () => {
+  it('FileUploadControl_CameraMode_AsksForTheRearCameraAndImagesOnly', () => {
+    renderCameraUpload(['application/pdf', 'image/jpeg']);
+
+    const input = screen.getByLabelText('Take a photo for Supporting Document');
+    expect(input).toHaveAttribute('capture', 'environment');
+    expect(input).toHaveAttribute('accept', 'image/jpeg');
+  });
+
+  it('FileUploadControl_CameraMode_SaysTapToTakeAPhoto', () => {
+    renderCameraUpload(['image/jpeg']);
+
+    expect(screen.getByText('Tap to take a photo')).toBeInTheDocument();
+  });
+
+  it('FileUploadControl_AnyMode_HasNoCaptureAttribute', () => {
+    renderUpload(1);
+
+    expect(screen.getByLabelText('Upload files for Supporting Document')).not.toHaveAttribute('capture');
+  });
+});
+
 describe('FileUploadControl', () => {
   it('showsDropzoneImmediately_whenSingleDocumentField', () => {
     renderUpload(1);

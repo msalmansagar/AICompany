@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { resolveFileCapture } from './fileCapture';
 import {
   Button,
   Text,
@@ -14,6 +15,7 @@ import {
   DocumentRegular,
   DeleteRegular,
   ArrowUploadRegular,
+  CameraRegular,
   ArrowDownloadRegular,
   DocumentAddRegular,
 } from '@fluentui/react-icons';
@@ -181,8 +183,11 @@ function FileUploadZone({
   const isMultiDocument = maxFiles > 1;
   const [isUploadZoneOpen, setIsUploadZoneOpen] = useState(!isMultiDocument);
   const maxSize = config?.maxFileSizeBytes ?? 10 * 1024 * 1024;
-  const accept = config?.allowedMimeTypes
-    ? Object.fromEntries(config.allowedMimeTypes.map((m) => [m, []]))
+  // DFE-APIVAL-CAM-001: camera mode narrows to images and asks a phone for the rear camera.
+  const fileCapture = resolveFileCapture(config?.captureMode, config?.allowedMimeTypes);
+  const isCameraCapture = fileCapture.capture !== undefined;
+  const accept = fileCapture.acceptedMimeTypes
+    ? Object.fromEntries(fileCapture.acceptedMimeTypes.map((m) => [m, []]))
     : undefined;
 
   const updateEntry = useCallback(
@@ -372,14 +377,19 @@ function FileUploadZone({
           role="button"
           tabIndex={0}
         >
-          <input {...getInputProps()} aria-label={`Upload files for ${field.label}`} />
+          <input
+            {...getInputProps()}
+            capture={fileCapture.capture}
+            aria-label={isCameraCapture ? `Take a photo for ${field.label}` : `Upload files for ${field.label}`}
+          />
           <div className={styles.uploadIcon}>
-            <ArrowUploadRegular />
+            {isCameraCapture ? <CameraRegular /> : <ArrowUploadRegular />}
           </div>
           <Text>
-            {isDragActive
+            {isCameraCapture && 'Tap to take a photo'}
+            {!isCameraCapture && (isDragActive
               ? 'Drop files here'
-              : 'Drag and drop files here, or click to browse'}
+              : 'Drag and drop files here, or click to browse')}
           </Text>
           <div className={styles.hint}>
             <Text>{allowedTypes} — max {formattedMaxSize} per file</Text>

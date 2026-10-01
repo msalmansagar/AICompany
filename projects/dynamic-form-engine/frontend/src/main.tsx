@@ -4,11 +4,15 @@ import { MsalProvider } from '@azure/msal-react';
 import { msalInstance } from './auth/msalConfig';
 import { App } from './App';
 import { AppearanceProvider } from './theme/AppearanceProvider';
+import { exposeApiValidatorRegistration } from './engine/apiValidators';
 // The token layer is shared with the designer, so the two cannot drift. The
 // '@qdb/shared' alias resolves to a single barrel file rather than a directory,
 // which is why this reaches for the stylesheet by path.
 import '../../shared/src/theme/tokens.css';
 import './styles/components.css';
+
+// DFE-APIVAL-CAM-001: lets page scripts register API validation handlers by key.
+exposeApiValidatorRegistration();
 
 const rootElement = document.getElementById('root');
 

@@ -4,6 +4,7 @@ export {
   RULE_JSON_SCHEMA_VERSION,
   encodeConditionalRequired,
   encodeCrossField,
+  encodeApiValidation,
   decodeRuleJson,
 } from '@qdb/shared';
-export type { DecodedConditionalRequired, DecodedCrossField, DecodeResult } from '@qdb/shared';
+export type { DecodedConditionalRequired, DecodedCrossField, DecodedApiValidation, DecodeResult } from '@qdb/shared';

@@ -1189,6 +1189,8 @@ export class CrmMetadataService extends CrmBaseService {
       maxFiles: field.qdb_max_files ?? 1,
       ...(field.qdb_document_type !== undefined && { documentType: field.qdb_document_type }),
       ...(extensionCodes.length > 0 && { allowedFileExtensions: extensionCodes }),
+      // Only Camera only is published; Any is the absent default, so existing fields are unchanged.
+      ...(field.qdb_file_capture_mode === FILE_CAPTURE_CAMERA_ONLY && { captureMode: 'camera' as const }),
     };
   }
 
@@ -1242,6 +1244,8 @@ export class CrmMetadataService extends CrmBaseService {
       100000004: 'minValue',          100000005: 'maxValue',        100000006: 'regex',
       100000007: 'email',             100000008: 'phone',           100000009: 'dateBefore',
       100000010: 'dateAfter',         100000011: 'crossField',      100000012: 'customExpression',
+      // 100000013 is Conditional Required in the designer; not in the org yet (open defect).
+      100000014: 'apiValidation',
     };
     return map[code] ?? 'required';
   }
@@ -1450,6 +1454,7 @@ interface RawField {
   qdb_max_file_size_mb?: number;
   qdb_max_files?: number;
   qdb_document_type?: number;
+  qdb_file_capture_mode?: number; // DFE-APIVAL-CAM-001: Any 100000000 / Camera only 100000001
   // Multiselect render style
   qdb_multiselect_render_style?: number;
   // Radio render style
@@ -1620,6 +1625,9 @@ interface RawDesignerRuleDefinition {
   }>;
 }
 
+/** qdb_file_capture_mode option that opens the camera (DFE-APIVAL-CAM-001). */
+const FILE_CAPTURE_CAMERA_ONLY = 100000001;
+
 // Designer snake_case operators/actions → runtime camelCase vocab. Unmapped entries
 // (e.g. not_contains, show_message) are dropped rather than passed through invalid.
 const DESIGNER_OPERATOR_MAP: Record<string, ConditionOperator> = {
@@ -1675,6 +1683,7 @@ function readStructuredRuleJson(ruleJson: string | undefined): Partial<Validatio
   const decoded = decodeRuleJson(ruleJson);
   if (!decoded) return {};
   if (decoded.kind === 'conditional_required') return { conditions: decoded.conditions };
+  if (decoded.kind === 'api_validation') return { validationKey: decoded.key };
   return { crossFieldOperator: decoded.operator, crossFieldTargetRef: decoded.targetFieldRef };
 }
 

@@ -38,6 +38,7 @@ import { InfoCardField } from './fields/InfoCardField';
 import { LabelField } from './fields/LabelField';
 import { InteractiveGridField } from './fields/InteractiveGridField';
 import { DynamicIcon } from './DynamicIcon';
+import { ApiCheckStatus } from './ApiCheckStatus';
 import { ComponentRegistry } from '../../registry/ComponentRegistry';
 
 const useStyles = makeStyles({
@@ -208,6 +209,8 @@ export function FieldRenderer({
       </div>
 
       {!isFloating && !tooltipElement && null}
+
+      <ApiCheckStatus fieldId={field.id} />
 
       {error && (
         <Text

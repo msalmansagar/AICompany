@@ -27,7 +27,13 @@ interface CrossFieldPayload {
   targetFieldRef: string;
 }
 
-type RuleJsonPayload = ConditionalRequiredPayload | CrossFieldPayload;
+interface ApiValidationPayload {
+  schemaVersion: typeof RULE_JSON_SCHEMA_VERSION;
+  type: 'api_validation';
+  key: string;
+}
+
+type RuleJsonPayload = ConditionalRequiredPayload | CrossFieldPayload | ApiValidationPayload;
 
 export function encodeConditionalRequired(conditions: StructuredCondition[]): string {
   const payload: ConditionalRequiredPayload = {
@@ -51,6 +57,16 @@ export function encodeCrossField(
   return JSON.stringify(payload);
 }
 
+/** DFE-APIVAL-CAM-001: the key naming which external check the front end runs (e.g. "IBAN"). */
+export function encodeApiValidation(key: string): string {
+  const payload: ApiValidationPayload = {
+    schemaVersion: RULE_JSON_SCHEMA_VERSION,
+    type: 'api_validation',
+    key,
+  };
+  return JSON.stringify(payload);
+}
+
 export interface DecodedConditionalRequired {
   kind: 'conditional_required';
   conditions: StructuredCondition[];
@@ -62,7 +78,12 @@ export interface DecodedCrossField {
   targetFieldRef: string;
 }
 
-export type DecodeResult = DecodedConditionalRequired | DecodedCrossField | null;
+export interface DecodedApiValidation {
+  kind: 'api_validation';
+  key: string;
+}
+
+export type DecodeResult = DecodedConditionalRequired | DecodedCrossField | DecodedApiValidation | null;
 
 /** Returns null when ruleJson is absent, empty, or not a recognised v2 payload. */
 export function decodeRuleJson(ruleJson: string | null | undefined): DecodeResult {
@@ -82,8 +103,15 @@ export function decodeRuleJson(ruleJson: string | null | undefined): DecodeResul
 
   if (parsed.type === 'conditional_required') return resolveConditionalRequired(parsed);
   if (parsed.type === 'cross_field')          return resolveCrossField(parsed);
+  if (parsed.type === 'api_validation')       return resolveApiValidation(parsed);
 
   return null;
+}
+
+/** A blank key names no check, so it reads as no payload at all. */
+function resolveApiValidation(parsed: RuleJsonPayload): DecodedApiValidation | null {
+  const key = String((parsed as ApiValidationPayload).key ?? '').trim();
+  return key ? { kind: 'api_validation', key } : null;
 }
 
 // The casts below are safe: decodeRuleJson dispatches here only after checking parsed.type.

@@ -53,7 +53,9 @@ export type ValidationRuleType =
   | 'crossField'
   | 'customExpression'
   // DFE-ENH-001 FR-006 — field becomes required when structured conditions are all true
-  | 'conditionalRequired';
+  | 'conditionalRequired'
+  // DFE-APIVAL-CAM-001 — the front end checks the value with an external API chosen by key
+  | 'apiValidation';
 
 // ── Cross-field comparison operator ──────────────────────────────
 // Used by both conditionalRequired rule conditions and cross-field rule comparisons.
@@ -354,6 +356,8 @@ export interface ValidationRule {
   // A field schema name, or a relative date token such as '@today' or '@monthEnd+10y'
   // (see engines/relativeDate) when the bound moves with the calendar.
   crossFieldTargetRef?: string;
+  // DFE-APIVAL-CAM-001 — which external check an apiValidation rule asks for (e.g. "IBAN").
+  validationKey?: string;
 }
 
 // ── Business rule condition ───────────────────────────────────
@@ -423,7 +427,14 @@ export interface FileUploadConfig {
    *  absent when only the legacy qdb_allowed_mime_types memo was used.
    *  The portal does not need to inspect these — use allowedMimeTypes instead. */
   allowedFileExtensions?: number[];
+  /**
+   * DFE-APIVAL-CAM-001: 'camera' opens the rear camera on phones; desktop browsers ignore it
+   * and show the file picker. Absent means 'any'.
+   */
+  captureMode?: FileCaptureMode;
 }
+
+export type FileCaptureMode = 'any' | 'camera';
 
 // ── Submission mapping ────────────────────────────────────────
 

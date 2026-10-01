@@ -3,6 +3,7 @@ import {
   Badge,
   Field,
   Input,
+  Select,
   Switch,
   Textarea,
   makeStyles,
@@ -128,6 +129,21 @@ export function FileUploadFieldPanel({ field }: Props): React.ReactElement {
           placeholder="1"
           onChange={(_, d) => updateField(field.id, { maxFiles: d.value ? parseInt(d.value, 10) : null })}
         />
+      </Field>
+
+      <Field
+        label="File Capture Mode"
+        hint={field.fileCaptureMode === 'camera'
+          ? 'On a phone the rear camera opens directly; computers keep the file picker. The field must allow at least one image type, or the camera is not offered.'
+          : 'How users add a file. Camera only opens the camera on phones.'}
+      >
+        <Select
+          value={field.fileCaptureMode ?? 'any'}
+          onChange={(_, d) => updateField(field.id, { fileCaptureMode: d.value === 'camera' ? 'camera' : 'any' })}
+        >
+          <option value="any">Any (file or camera)</option>
+          <option value="camera">Camera only</option>
+        </Select>
       </Field>
 
       <Field

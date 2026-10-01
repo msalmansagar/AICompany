@@ -7,6 +7,7 @@ import { DynamicFormRenderer } from '../src/components/forms/DynamicFormRenderer
 import { LanguageProvider } from '../src/i18n';
 import { webApi, cleanGuid } from './xrm/xrmClient';
 import { AppearanceProvider } from '../src/theme/AppearanceProvider';
+import { exposeApiValidatorRegistration } from '../src/engine/apiValidators';
 // Shared with the designer so the two cannot drift; the '@qdb/shared' alias
 // resolves to a barrel file rather than a directory, hence the path.
 import '../../shared/src/theme/tokens.css';
@@ -40,6 +41,10 @@ function FormHost() {
   if (!formCode) return <div style={{ padding: 24 }}><Spinner label="Loading form…" /></div>;
   return <DynamicFormRenderer formCode={formCode} />;
 }
+
+// DFE-APIVAL-CAM-001: a script on the hosting CRM page registers API validation handlers
+// through this frame's window.DynamicFormEngine.registerApiValidator.
+exposeApiValidatorRegistration();
 
 const rootElement = document.getElementById('root');
 if (rootElement) {

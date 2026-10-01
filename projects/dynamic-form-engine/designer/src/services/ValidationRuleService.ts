@@ -13,6 +13,7 @@ import { RULE_TYPE_TO_PICKLIST, PICKLIST_TO_RULE_TYPE } from '@/constants/attrib
 import {
   encodeConditionalRequired,
   encodeCrossField,
+  encodeApiValidation,
   decodeRuleJson,
 } from './ruleJsonCodec';
 import { toDataversePriority, fromDataversePriority } from './priorityCodec';
@@ -30,6 +31,8 @@ export interface CreateValidationRuleDto {
   // DFE-ENH-001 FR-007
   crossFieldOperator?: CrossFieldComparisonOperator | null;
   crossFieldTargetRef?: string | null;
+  // DFE-APIVAL-CAM-001
+  validationKey?: string | null;
 }
 
 export interface UpdateValidationRuleDto {
@@ -44,6 +47,8 @@ export interface UpdateValidationRuleDto {
   // DFE-ENH-001 FR-007
   crossFieldOperator?: CrossFieldComparisonOperator | null;
   crossFieldTargetRef?: string | null;
+  // DFE-APIVAL-CAM-001
+  validationKey?: string | null;
 }
 
 export class ValidationRuleService {
@@ -90,7 +95,8 @@ export class ValidationRuleService {
       dto.ruleType !== undefined ||
       dto.conditions !== undefined ||
       dto.crossFieldOperator !== undefined ||
-      dto.crossFieldTargetRef !== undefined;
+      dto.crossFieldTargetRef !== undefined ||
+      dto.validationKey !== undefined;
     if (hasStructuredFields) {
       // UpdateValidationRuleDto structurally satisfies RuleJsonSource — no cast needed.
       Object.assign(data, buildRuleJsonPayload(dto));
@@ -191,6 +197,7 @@ export class ValidationRuleService {
       conditions: decoded?.kind === 'conditional_required' ? decoded.conditions : [],
       crossFieldOperator: decoded?.kind === 'cross_field' ? decoded.operator : null,
       crossFieldTargetRef: decoded?.kind === 'cross_field' ? decoded.targetFieldRef : null,
+      validationKey: decoded?.kind === 'api_validation' ? decoded.key : null,
     };
   }
 }
@@ -212,6 +219,7 @@ function buildCreateDtoFromModel(
     conditions: rule.conditions,
     crossFieldOperator: rule.crossFieldOperator,
     crossFieldTargetRef: rule.crossFieldTargetRef,
+    validationKey: rule.validationKey,
   };
 }
 
@@ -226,6 +234,7 @@ function buildUpdateDtoFromModel(rule: DesignerValidationRule): UpdateValidation
     conditions: rule.conditions,
     crossFieldOperator: rule.crossFieldOperator,
     crossFieldTargetRef: rule.crossFieldTargetRef,
+    validationKey: rule.validationKey,
   };
 }
 
@@ -252,9 +261,14 @@ interface RuleJsonSource {
   conditions?: StructuredCondition[];
   crossFieldOperator?: CrossFieldComparisonOperator | null;
   crossFieldTargetRef?: string | null;
+  validationKey?: string | null;
 }
 
 function buildRuleJsonPayload(source: RuleJsonSource): Record<string, unknown> {
+  const validationKey = source.validationKey?.trim();
+  if (source.ruleType === 'api_validation' && validationKey) {
+    return { [FORM_VALIDATION_RULE_ATTRS.RULE_JSON]: encodeApiValidation(validationKey) };
+  }
   if (
     source.ruleType === 'conditional_required' &&
     source.conditions &&

@@ -104,6 +104,18 @@ export const RADIO_RENDER_STYLE_TO_PICKLIST: Record<RadioRenderStyle, number> = 
   cards: 100000001,
   rating: 100000002,
 };
+// qdb_file_capture_mode picklist (DFE-APIVAL-CAM-001). Camera only opens a phone's camera.
+import type { FileCaptureMode } from '@qdb/shared';
+export type { FileCaptureMode };
+export const FILE_CAPTURE_MODE_TO_PICKLIST: Record<FileCaptureMode, number> = {
+  any: 100000000,
+  camera: 100000001,
+};
+export const PICKLIST_TO_FILE_CAPTURE_MODE: Record<number, FileCaptureMode> = {
+  100000000: 'any',
+  100000001: 'camera',
+};
+
 export const PICKLIST_TO_RADIO_RENDER_STYLE: Record<number, RadioRenderStyle> = {
   100000000: 'list',
   100000001: 'cards',
@@ -150,6 +162,7 @@ export const FORM_FIELD_ATTRS = {
   DECIMAL_PLACES: 'qdb_decimal_places',
   NUMBER_DISPLAY_STYLE: 'qdb_number_display_style',  // DFE-NUMBAR
   RADIO_RENDER_STYLE: 'qdb_radio_render_style',  // List / Cards / Rating (DFE-RULES-002)
+  FILE_CAPTURE_MODE: 'qdb_file_capture_mode',  // Any / Camera only (DFE-APIVAL-CAM-001)
   BAR_MAX_FIELD_SCHEMA: 'qdb_bar_max_field_schema',  // DFE-NUMBAR
   BAR_VALUE_FIELD_SCHEMA: 'qdb_bar_value_field_schema',  // DFE-NUMBAR
   MAX_ROWS: 'qdb_max_rows',

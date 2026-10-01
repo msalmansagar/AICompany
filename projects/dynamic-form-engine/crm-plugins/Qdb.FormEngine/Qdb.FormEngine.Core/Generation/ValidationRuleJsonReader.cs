@@ -28,6 +28,14 @@ namespace Qdb.FormEngine.Core.Generation
             var type = (string)payload["type"];
             if (type == "conditional_required") rule.Conditions = ReadConditions(payload["conditions"] as JArray);
             else if (type == "cross_field") ApplyCrossField(rule, payload);
+            else if (type == "api_validation") ApplyApiValidation(rule, payload);
+        }
+
+        /// <summary>DFE-APIVAL-CAM-001: a blank key names no check, so it is not published.</summary>
+        private static void ApplyApiValidation(ValidationRule rule, JObject payload)
+        {
+            var key = ((string)payload["key"] ?? string.Empty).Trim();
+            if (key.Length > 0) rule.ValidationKey = key;
         }
 
         private static JObject Parse(string ruleJson)

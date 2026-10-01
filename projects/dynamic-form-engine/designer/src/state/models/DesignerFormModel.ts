@@ -178,6 +178,8 @@ export interface DesignerFieldModel {
   numberDisplayStyle?: 'textbox' | 'bar' | null;
   // How option fields draw: list (default), cards (radio only) or rating stars.
   radioRenderStyle?: 'list' | 'cards' | 'rating' | null;
+  // File fields: 'camera' opens a phone's rear camera; desktop keeps the file picker.
+  fileCaptureMode?: 'any' | 'camera' | null;
   barMaxFieldSchemaName?: string | null;
   barValueFieldSchemaName?: string | null;
   maxRows: number | null;

@@ -53,9 +53,15 @@ export {
   RULE_JSON_SCHEMA_VERSION,
   encodeConditionalRequired,
   encodeCrossField,
+  encodeApiValidation,
   decodeRuleJson,
 } from './validation/ruleJsonCodec.js';
-export type { DecodedConditionalRequired, DecodedCrossField, DecodeResult } from './validation/ruleJsonCodec.js';
+export type {
+  DecodedConditionalRequired,
+  DecodedCrossField,
+  DecodedApiValidation,
+  DecodeResult,
+} from './validation/ruleJsonCodec.js';
 export { createCssSanitiserPlugin } from './sanitizer/CssSanitiserPlugin.js';
 // Grid depends-on filter template: one parser, one emitter per query dialect, so the
 // portal (FetchXML) and the in-CRM engine (OData) read a maker's template the same way.

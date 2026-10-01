@@ -21,6 +21,9 @@ import {
   RADIO_RENDER_STYLE_TO_PICKLIST,
   PICKLIST_TO_RADIO_RENDER_STYLE,
   type RadioRenderStyle,
+  FILE_CAPTURE_MODE_TO_PICKLIST,
+  PICKLIST_TO_FILE_CAPTURE_MODE,
+  type FileCaptureMode,
 } from '@/constants/attributeNames';
 import type { DesignerFieldModel } from '@/state/models/DesignerFormModel';
 import { withRetry } from './crmRetry';
@@ -63,6 +66,7 @@ export interface CreateFieldDto {
   decimalPlaces?: number | null;
   numberDisplayStyle?: 'textbox' | 'bar' | null;
   radioRenderStyle?: RadioRenderStyle | null;
+  fileCaptureMode?: FileCaptureMode | null;
   barMaxFieldSchemaName?: string | null;
   barValueFieldSchemaName?: string | null;
   maxRows?: number | null;
@@ -133,6 +137,7 @@ export interface UpdateFieldDto {
   decimalPlaces?: number | null;
   numberDisplayStyle?: 'textbox' | 'bar' | null;
   radioRenderStyle?: RadioRenderStyle | null;
+  fileCaptureMode?: FileCaptureMode | null;
   barMaxFieldSchemaName?: string | null;
   barValueFieldSchemaName?: string | null;
   maxRows?: number | null;
@@ -213,6 +218,7 @@ export class FieldService {
     if (dto.decimalPlaces != null) payload[FORM_FIELD_ATTRS.DECIMAL_PLACES] = dto.decimalPlaces;
     if (dto.numberDisplayStyle != null) payload[FORM_FIELD_ATTRS.NUMBER_DISPLAY_STYLE] = NUMBER_DISPLAY_STYLE_TO_PICKLIST[dto.numberDisplayStyle];
     if (dto.radioRenderStyle != null) payload[FORM_FIELD_ATTRS.RADIO_RENDER_STYLE] = RADIO_RENDER_STYLE_TO_PICKLIST[dto.radioRenderStyle];
+    if (dto.fileCaptureMode != null) payload[FORM_FIELD_ATTRS.FILE_CAPTURE_MODE] = FILE_CAPTURE_MODE_TO_PICKLIST[dto.fileCaptureMode];
     if (dto.barMaxFieldSchemaName != null) payload[FORM_FIELD_ATTRS.BAR_MAX_FIELD_SCHEMA] = dto.barMaxFieldSchemaName;
     if (dto.barValueFieldSchemaName != null) payload[FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA] = dto.barValueFieldSchemaName;
     if (dto.maxRows != null) payload[FORM_FIELD_ATTRS.MAX_ROWS] = dto.maxRows;
@@ -285,6 +291,7 @@ export class FieldService {
     if (dto.decimalPlaces !== undefined) data[FORM_FIELD_ATTRS.DECIMAL_PLACES] = dto.decimalPlaces;
     if (dto.numberDisplayStyle !== undefined) data[FORM_FIELD_ATTRS.NUMBER_DISPLAY_STYLE] = dto.numberDisplayStyle != null ? NUMBER_DISPLAY_STYLE_TO_PICKLIST[dto.numberDisplayStyle] : null;
     if (dto.radioRenderStyle !== undefined) data[FORM_FIELD_ATTRS.RADIO_RENDER_STYLE] = dto.radioRenderStyle != null ? RADIO_RENDER_STYLE_TO_PICKLIST[dto.radioRenderStyle] : null;
+    if (dto.fileCaptureMode !== undefined) data[FORM_FIELD_ATTRS.FILE_CAPTURE_MODE] = dto.fileCaptureMode != null ? FILE_CAPTURE_MODE_TO_PICKLIST[dto.fileCaptureMode] : null;
     if (dto.barMaxFieldSchemaName !== undefined) data[FORM_FIELD_ATTRS.BAR_MAX_FIELD_SCHEMA] = dto.barMaxFieldSchemaName;
     if (dto.barValueFieldSchemaName !== undefined) data[FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA] = dto.barValueFieldSchemaName;
     if (dto.maxRows !== undefined) data[FORM_FIELD_ATTRS.MAX_ROWS] = dto.maxRows;
@@ -417,6 +424,15 @@ export class FieldService {
       FORM_FIELD_ATTRS.GRID_PAGING_STYLE,
     ];
 
+    // Newest columns, tried first and dropped first. An org that lacks one (on-prem before
+    // its manual schema step) then loses only these, not every extended setting above.
+    // RADIO_RENDER_STYLE was never read back: a saved Rating style showed as Dropdown on
+    // reopen, and the next save wrote that over it.
+    const NEWEST_SELECT = [
+      FORM_FIELD_ATTRS.RADIO_RENDER_STYLE,
+      FORM_FIELD_ATTRS.FILE_CAPTURE_MODE,
+    ];
+
     const filter = `${FORM_FIELD_ATTRS.SECTION_ID_VALUE} eq ${sectionId}`;
     const orderBy = `${FORM_FIELD_ATTRS.SORT_ORDER} asc`;
 
@@ -426,21 +442,29 @@ export class FieldService {
         `?$select=${columns.join(',')}&$filter=${filter}&$orderby=${orderBy}`
       );
 
-    let result;
-    try {
-      result = await withRetry(
-        () => buildQuery([...CORE_SELECT, ...EXTENDED_SELECT]),
-        'listFieldsForSection'
-      );
-    } catch {
-      // Extended columns not yet deployed to this environment — fall back to core only.
-      result = await withRetry(
-        () => buildQuery(CORE_SELECT),
-        'listFieldsForSection'
-      );
-    }
-
+    // Widest first; each step drops the newest tier this environment may not have yet.
+    const columnTiers = [
+      [...CORE_SELECT, ...EXTENDED_SELECT, ...NEWEST_SELECT],
+      [...CORE_SELECT, ...EXTENDED_SELECT],
+      CORE_SELECT,
+    ];
+    const result = await this.queryWithFirstAvailableColumns(columnTiers, buildQuery);
     return result.entities.map(record => this.mapRecordToModel(record));
+  }
+
+  /** Runs the query with the first column set this environment accepts. */
+  private async queryWithFirstAvailableColumns(
+    columnTiers: string[][],
+    buildQuery: (columns: string[]) => ReturnType<IWebApiAdapter['retrieveMultipleRecords']>,
+  ): ReturnType<IWebApiAdapter['retrieveMultipleRecords']> {
+    for (const columns of columnTiers.slice(0, -1)) {
+      try {
+        return await withRetry(() => buildQuery(columns), 'listFieldsForSection');
+      } catch {
+        // A column in this tier is not deployed here; try the next, narrower tier.
+      }
+    }
+    return withRetry(() => buildQuery(columnTiers[columnTiers.length - 1]!), 'listFieldsForSection');
   }
 
   private mapRecordToModel(record: Record<string, unknown>): DesignerFieldModel {
@@ -480,6 +504,9 @@ export class FieldService {
         : null,
       radioRenderStyle: record[FORM_FIELD_ATTRS.RADIO_RENDER_STYLE] != null
         ? (PICKLIST_TO_RADIO_RENDER_STYLE[Number(record[FORM_FIELD_ATTRS.RADIO_RENDER_STYLE])] ?? null)
+        : null,
+      fileCaptureMode: record[FORM_FIELD_ATTRS.FILE_CAPTURE_MODE] != null
+        ? (PICKLIST_TO_FILE_CAPTURE_MODE[Number(record[FORM_FIELD_ATTRS.FILE_CAPTURE_MODE])] ?? null)
         : null,
       barMaxFieldSchemaName: (record[FORM_FIELD_ATTRS.BAR_MAX_FIELD_SCHEMA] as string) ?? null,
       barValueFieldSchemaName: (record[FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA] as string) ?? null,

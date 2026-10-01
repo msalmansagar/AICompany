@@ -190,7 +190,8 @@ namespace Qdb.FormEngine.Core.Generation
                 Destination = "crmNotes",
                 MaxFiles = field.Contains("qdb_max_files") ? field.GetAttributeValue<int>("qdb_max_files") : 1,
                 DocumentType = EntityHelper.GetOptionSetValue(field, "qdb_document_type"),
-                AllowedFileExtensions = extensionCodes.Count > 0 ? extensionCodes : null
+                AllowedFileExtensions = extensionCodes.Count > 0 ? extensionCodes : null,
+                CaptureMode = PicklistMapper.ToFileCaptureMode(EntityHelper.GetOptionSetValue(field, "qdb_file_capture_mode"))
             };
         }
 

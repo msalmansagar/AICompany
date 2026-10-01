@@ -71,6 +71,15 @@ namespace Qdb.FormEngine.Core.Models
             return value == 100000001 ? "cards" : "list";
         }
 
+        /// <summary>
+        /// Maps qdb_file_capture_mode. Only Camera only (100000001) is published; Any and an
+        /// empty column publish nothing, so existing file fields keep identical JSON.
+        /// </summary>
+        public static string ToFileCaptureMode(int? value)
+        {
+            return value == 100000001 ? "camera" : null;
+        }
+
         /// <summary>Maps qdb_info_card_style option set values.</summary>
         public static string ToInfoCardStyle(int? value)
         {
@@ -158,6 +167,8 @@ namespace Qdb.FormEngine.Core.Models
                 case 100000010: return "dateAfter";
                 case 100000011: return "crossField";
                 case 100000012: return "customExpression";
+                // 100000013 is Conditional Required in the designer; not in the org yet (open defect).
+                case 100000014: return "apiValidation";
                 default: return "required";
             }
         }

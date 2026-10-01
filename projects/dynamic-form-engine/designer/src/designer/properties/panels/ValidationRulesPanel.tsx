@@ -24,7 +24,7 @@ import type {
 
 // ── Rule type registry ─────────────────────────────────────────────────────────
 
-type RuleUiMode = 'value' | 'expression' | 'conditions' | 'crossField' | 'none';
+type RuleUiMode = 'value' | 'expression' | 'conditions' | 'crossField' | 'apiKey' | 'none';
 
 interface RuleTypeDef {
   value: ValidationRuleType;
@@ -44,6 +44,8 @@ const RULE_TYPES: RuleTypeDef[] = [
   { value: 'conditional_required',  label: 'Conditional Required',  mode: 'conditions' },
   // DFE-ENH-001 FR-007
   { value: 'cross_field',           label: 'Cross-Field Comparison', mode: 'crossField' },
+  // DFE-APIVAL-CAM-001
+  { value: 'api_validation',        label: 'API Validation',        mode: 'apiKey'     },
 ];
 
 const CONDITION_OPERATORS: Array<{ value: StructuredConditionOperator; label: string }> = [
@@ -347,9 +349,12 @@ function AddRuleForm({
   const [conditions, setConditions] = useState<ConditionEntry[]>([]);
   const [crossFieldOperator, setCrossFieldOperator] = useState<CrossFieldComparisonOperator>('==');
   const [crossFieldTargetRef, setCrossFieldTargetRef] = useState(otherFieldCodes[0] ?? '');
+  const [validationKey, setValidationKey] = useState('');
 
   const selectedTypeDef = RULE_TYPES.find(rt => rt.value === ruleType);
   const mode = selectedTypeDef?.mode ?? 'none';
+  // An API rule without a key names no check, so it cannot be saved.
+  const isSaveBlocked = mode === 'apiKey' && validationKey.trim() === '';
 
   function handleRuleTypeChange(newType: ValidationRuleType): void {
     setRuleType(newType);
@@ -358,6 +363,7 @@ function AddRuleForm({
     setConditions([]);
     setCrossFieldOperator('==');
     setCrossFieldTargetRef(otherFieldCodes[0] ?? '');
+    setValidationKey('');
   }
 
   function handleSave(): void {
@@ -378,6 +384,7 @@ function AddRuleForm({
       conditions: mode === 'conditions' ? persistableConditions : [],
       crossFieldOperator: mode === 'crossField' ? crossFieldOperator : null,
       crossFieldTargetRef: mode === 'crossField' ? crossFieldTargetRef : null,
+      validationKey: mode === 'apiKey' ? validationKey.trim() : null,
     };
     onSave(newRule);
   }
@@ -409,6 +416,16 @@ function AddRuleForm({
             onChange={(_, d) => setRuleValue(d.value)}
             placeholder={ruleType === 'regex' ? 'e.g. ^[A-Z]+$' : 'Enter a number'}
           />
+        </Field>
+      )}
+
+      {mode === 'apiKey' && (
+        <Field
+          label="Validation key"
+          required
+          hint="The front end runs the check registered for this key, e.g. IBAN. The form itself calls no API."
+        >
+          <Input value={validationKey} onChange={(_, d) => setValidationKey(d.value)} placeholder="e.g. IBAN" />
         </Field>
       )}
 
@@ -454,7 +471,7 @@ function AddRuleForm({
         <Button appearance="subtle" size="small" icon={<DismissRegular />} onClick={onCancel}>
           Cancel
         </Button>
-        <Button appearance="primary" size="small" icon={<CheckmarkRegular />} onClick={handleSave}>
+        <Button appearance="primary" size="small" icon={<CheckmarkRegular />} onClick={handleSave} disabled={isSaveBlocked}>
           Add Rule
         </Button>
       </div>
@@ -539,6 +556,9 @@ export function ValidationRulesPanel({ fieldId }: ValidationRulesPanelProps): Re
           )}
           {rule.crossFieldTargetRef && (
             <Text size={200} font="monospace">{rule.crossFieldOperator} {rule.crossFieldTargetRef}</Text>
+          )}
+          {rule.validationKey && (
+            <Text size={200} font="monospace">key: {rule.validationKey}</Text>
           )}
           <span className={styles.ruleMessage} title={rule.errorMessage}>
             {rule.errorMessage}

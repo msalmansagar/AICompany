@@ -19,6 +19,7 @@ import { resolveFieldDefaultValue } from '@qdb/shared';
 import { formApi } from '../api/formApi';
 import { lookupApi } from '../api/lookupApi';
 import { createRelatedFactResolver } from '../engine/relatedRecordFacts';
+import { useApiValidation } from '../hooks/useApiValidation';
 import { ruleEngine } from '../engine/RuleEngine';
 import { validationEngine } from '../engine/ValidationEngine';
 import { isFieldVisible } from '../engine/fieldVisibility';
@@ -36,6 +37,8 @@ export interface FormContextValue {
   fieldValues: FormFieldValues;
   ruleState: RuleEvaluationResult;
   validationErrors: Record<string, string[]>;
+  /** DFE-APIVAL-CAM-001: fields whose API validation is still running, by field id. */
+  checkingFieldIds: ReadonlySet<string>;
   isDirty: boolean;
   isSubmitting: boolean;
   draftId: string | null;
@@ -63,7 +66,8 @@ export interface FormContextValue {
   // DFE-SUBMITCONFIRM-002: acknowledgement per tab, for tabs that require one.
   tabAcknowledgements: Record<string, boolean>;
   setTabAcknowledged: (tabId: string, acknowledged: boolean) => void;
-  updateFieldValue: (fieldId: string, value: unknown) => void;
+  /** Keyed by schema name, as fieldValues is. */
+  updateFieldValue: (fieldSchemaName: string, value: unknown) => void;
   saveDraft: () => Promise<void>;
   submitForm: (submitButtonId?: string) => Promise<void>;
   resetForm: () => void;
@@ -130,6 +134,20 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
 
   // Debounce timer ref for rule evaluation
   const ruleDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // DFE-APIVAL-CAM-001: the front end's external checks, run on leaving a field and on submit.
+  const visibleFieldIds = useMemo(
+    () => (formDefinition ? computeVisibleFieldIds(formDefinition, ruleState) : new Set<string>()),
+    [formDefinition, ruleState],
+  );
+  const apiValidation = useApiValidation({ formDefinition, formCode, fieldValues, visibleFieldIds });
+  const { clearFieldError: clearApiFieldError, checkFields: checkApiFields, apiFields } = apiValidation;
+
+  // API failures sit beside the ordinary ones, so every field and the error count see both.
+  const allValidationErrors = useMemo(
+    () => mergeApiErrors(validationErrors, apiValidation.apiErrors),
+    [validationErrors, apiValidation.apiErrors],
+  );
 
   // DFE-RULES-002 item 2: reads the columns of lookup-selected records that rule conditions
   // name. One resolver per loaded form, so its record cache lives as long as the form does.
@@ -299,11 +317,20 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
   }, [fieldValues]);
 
   // â”€â”€ Field value update â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const updateFieldValue = useCallback((fieldId: string, value: unknown) => {
-    setFieldValues((prev) => ({ ...prev, [fieldId]: value }));
+  // Values are keyed by schema name but errors by field id, so clearing an edited field's error
+  // needs the one translated to the other. Clearing by schema name never matched an error.
+  const fieldIdBySchemaName = useMemo(
+    () => new Map((formDefinition ? getAllFormFields(formDefinition) : []).map((field) => [field.schemaName, field.id])),
+    [formDefinition],
+  );
+
+  const updateFieldValue = useCallback((fieldSchemaName: string, value: unknown) => {
+    setFieldValues((prev) => ({ ...prev, [fieldSchemaName]: value }));
     setIsDirty(true);
+    clearApiFieldError(fieldSchemaName);
 
     // Clear validation error for this field when user edits it
+    const fieldId = fieldIdBySchemaName.get(fieldSchemaName) ?? fieldSchemaName;
     setValidationErrors((prev) => {
       if (!prev[fieldId]) return prev;
 
@@ -311,7 +338,7 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
       delete updated[fieldId];
       return updated;
     });
-  }, []);
+  }, [clearApiFieldError, fieldIdBySchemaName]);
 
   // â”€â”€ Save draft â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const saveDraft = useCallback(async () => {
@@ -382,6 +409,18 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
       return;
     }
 
+    // The front end's external checks run last and are awaited, so submit holds until every
+    // visible API-validated field has an answer.
+    const apiFailures = await checkApiFields(
+      apiFields.filter((field) => visibleFieldIds.has(field.id)),
+      fieldValues,
+    );
+    if (Object.keys(apiFailures).length > 0) {
+      const firstErrorTabIndex = findFirstErrorTabIndex(formDefinition, mergeApiErrors({}, apiFailures));
+      if (firstErrorTabIndex !== null) setActiveTabIndex(firstErrorTabIndex);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -397,7 +436,7 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
     } finally {
       setIsSubmitting(false);
     }
-  }, [formDefinition, ruleState, fieldValues, formCode]);
+  }, [formDefinition, ruleState, fieldValues, formCode, checkApiFields, apiFields]);
 
   // Memoize contextValue so consumers only re-render when something they
   // actually care about changes — not on every internal FormProvider re-render.
@@ -410,7 +449,8 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
       error,
       fieldValues,
       ruleState,
-      validationErrors,
+      validationErrors: allValidationErrors,
+      checkingFieldIds: apiValidation.checkingFieldIds,
       isDirty,
       isSubmitting,
       draftId,
@@ -432,7 +472,7 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
     }),
     [
       formCode, lang, formDefinition, isLoading, error, fieldValues, ruleState,
-      validationErrors, isDirty, isSubmitting, draftId, activeTabIndex, activeSectionIndex,
+      allValidationErrors, apiValidation.checkingFieldIds, isDirty, isSubmitting, draftId, activeTabIndex, activeSectionIndex,
       submissionReference, isSubmitted, submitAcknowledged, tabAcknowledgements,
       setTabAcknowledged, updateFieldValue, saveDraft, submitForm, resetForm,
     ],
@@ -443,6 +483,19 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
       {children}
     </FormContext.Provider>
   );
+}
+
+/** Adds each API failure to its field's error list, after any ordinary errors. */
+function mergeApiErrors(
+  errors: Record<string, string[]>,
+  apiErrors: Record<string, string>,
+): Record<string, string[]> {
+  if (Object.keys(apiErrors).length === 0) return errors;
+  const merged = { ...errors };
+  for (const [fieldId, message] of Object.entries(apiErrors)) {
+    merged[fieldId] = [...(merged[fieldId] ?? []), message];
+  }
+  return merged;
 }
 
 export function useFormContext(): FormContextValue {

@@ -244,6 +244,8 @@ namespace Qdb.FormEngine.Core.Models
         // token such as "@today" or "@monthEnd+10y" that the runtime resolves.
         [JsonProperty("crossFieldOperator")] public string CrossFieldOperator { get; set; }
         [JsonProperty("crossFieldTargetRef")] public string CrossFieldTargetRef { get; set; }
+        // DFE-APIVAL-CAM-001: which external check an apiValidation rule asks the front end for.
+        [JsonProperty("validationKey", NullValueHandling = NullValueHandling.Ignore)] public string ValidationKey { get; set; }
     }
 
     /// <summary>One condition of a conditional-required validation rule.</summary>
@@ -304,6 +306,10 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("maxFiles")] public int MaxFiles { get; set; }
         [JsonProperty("documentType")] public int? DocumentType { get; set; }
         [JsonProperty("allowedFileExtensions")] public List<int> AllowedFileExtensions { get; set; }
+        // DFE-APIVAL-CAM-001: "camera" opens the rear camera on phones; null means any source.
+        // Omitted when null so file fields that are not camera-only publish unchanged JSON,
+        // whatever serializer settings the caller uses (BRD AC-5).
+        [JsonProperty("captureMode", NullValueHandling = NullValueHandling.Ignore)] public string CaptureMode { get; set; }
     }
 
     /// <summary>Maps a form field value to a CRM entity attribute during submission.</summary>
