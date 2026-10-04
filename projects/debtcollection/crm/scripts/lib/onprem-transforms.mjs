@@ -108,7 +108,7 @@ export const KNOWN_SCHEMA_FINDINGS = [
 export function neutraliseAcceptedFindings(text) {
   return text
     .replace(/\s*<(IsSearchable|IsFilterable|IsSolutionAware)>[^<]*<\/\1>/g, '')
-    .replace(/\s*<Show(?:Home|Pinned|Recents)>[^<]*<\/Show(?:Home|Pinned|Recents)>/g, '')
+    .replace(/\s*<(Show(?:Home|Pinned|Recents))>[^<]*<\/\1>/g, '')
     .replace(/(<SdkMessageProcessingStep [^>]*>)(\s*<SdkMessageId>[^<]*<\/SdkMessageId>)([\s\S]*?<\/Rank>)/g, '$1$3$2')
     .replace(/<AppModule>[\s\S]*?<\/AppModule>/g, app => app
       .replace(/\s*<(statecode|statuscode|NavigationType)>[^<]*<\/\1>/g, '')

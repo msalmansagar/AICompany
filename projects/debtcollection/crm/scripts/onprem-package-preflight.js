@@ -36,6 +36,7 @@
     return JSON.parse(body);
   };
   const tryGet = async (path) => { try { return await get(path); } catch (error) { return { error: error.message }; } };
+  const quoted = (value) => "'" + String(value).replace(/'/g, "''") + "'";
   const isAbsent = (result) => Boolean(result.error) && /^404 /.test(result.error);
   for (const version of ['v9.1', 'v9.0']) {
     apiBase = clientUrl + '/api/data/' + version;
@@ -76,8 +77,8 @@
       solutions: choice.MetadataId ? await solutionsOf(choice.MetadataId, 9) : [] });
   }
   console.log('[preflight] tables and choices read');
-  report.collisions.roles = (await get('/roles?$select=name,_businessunitid_value&$filter=' + PACKAGE.roles.map(r => "name eq '" + r + "'").join(' or '))).value.map(r => r.name);
-  report.collisions.webResources = (await get('/webresourceset?$select=name&$filter=' + PACKAGE.webResources.map(w => "name eq '" + w + "'").join(' or '))).value.map(w => w.name);
+  report.collisions.roles = (await get('/roles?$select=name,_businessunitid_value&$filter=' + PACKAGE.roles.map(r => 'name eq ' + quoted(r)).join(' or '))).value.map(r => r.name);
+  report.collisions.webResources = (await get('/webresourceset?$select=name&$filter=' + PACKAGE.webResources.map(w => 'name eq ' + quoted(w)).join(' or '))).value.map(w => w.name);
   report.collisions.appModule = (await tryGet("/appmodules?$select=uniquename&$filter=uniquename eq '" + PACKAGE.appModule + "'")).value || [];
   report.collisions.siteMaps = (await tryGet('/sitemaps?$select=sitemapnameunique&$filter=' + PACKAGE.siteMaps.map(s => "sitemapnameunique eq '" + s + "'").join(' or '))).value || [];
   report.collisions.pluginAssembly = ((await get("/pluginassemblies?$select=name,version,publickeytoken,isolationmode&$filter=name eq '" + PACKAGE.pluginAssembly + "'")).value);

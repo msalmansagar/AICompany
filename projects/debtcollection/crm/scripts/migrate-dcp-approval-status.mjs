@@ -120,7 +120,7 @@ async function formulaColumnsUsing(table, column) {
   const hits = [];
   for (const name of formulas) {
     const formula = await tryGet(`${attributePath(table, name)}?$select=FormulaDefinition`);
-    if ((formula.FormulaDefinition ?? '').includes(column)) hits.push(name);
+    if (new RegExp(`(?<![a-z0-9_])${column}(?![a-z0-9_])`, 'i').test(formula.FormulaDefinition ?? '')) hits.push(name);
   }
   return hits;
 }
@@ -252,9 +252,9 @@ async function publishRebindTables() {
 async function restoreValue(record) {
   for (let attempt = 1; ; attempt += 1) {
     try {
-      return await call('PATCH', `/${record.entitySet}(${record.id})`, { qdb_approvalstatus: record.value });
+      return await call('PATCH', `/${record.entitySet}(${record.id})`, { [record.column]: record.value });
     } catch (error) {
-      if (!/Invalid property 'qdb_approvalstatus'/.test(error.message) || attempt === 12) throw error;
+      if (!error.message.includes(`Invalid property '${record.column}'`) || attempt === 12) throw error;
       await pause(10000);
     }
   }
