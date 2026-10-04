@@ -105,6 +105,16 @@ Lesson: the published schema had flagged this as "`ShowHome` invalid … expecte
 validator report had trimmed the expected-element list, so it was misfiled as advisory. The full
 messages for every remaining finding were re-read: none is a missing required element.
 
+## Import attempt 2 — HL CRM test, 2026-10-04 — SUCCEEDED
+
+Package SHA-256 `de1d31e4…c449` (commit `7c776e3e`). Workspace opens inside the Debt Collection app.
+Found after import: at the raw `/<org>/WebResources/qdb_dcp_workspace.html` URL the standalone host
+called `https://server/api/data/…` (no organisation) and the server answered **500** — it used the
+origin as the organisation URL, which is only true online. Fixed in `webApiHost.ts`
+(`organisationUrlOf`: organisation = path before `WebResources`, cache token dropped); deployed to
+the sandbox; package re-exported and rebuilt with it (SHA-256 in `package-manifest.json`). HL keeps
+the earlier build until the package is re-imported there; the in-app path is unaffected.
+
 ## Residual risk — stated precisely
 
 1. **Schema vocabulary.** Microsoft's published on-prem schema (`Schemas\9.0.0.2090`, the one the 9.1

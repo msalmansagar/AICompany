@@ -1,11 +1,11 @@
 {
-  "builtAt": "2026-10-04T17:37:28.357Z",
+  "builtAt": "2026-10-04T18:12:30.918Z",
   "package": "qdb_debtcollection_1_0_0_0_onprem_unmanaged.zip",
-  "sha256": "de1d31e4f91b413b057e9947ea086b79013ef58e532b7b2c753457ba7d74c449",
-  "bytes": 352589,
+  "sha256": "5b85a9629b69776b5bab7b7d5a4ce6da5af16be64b16d7c4a3ef8142a56cc4f0",
+  "bytes": 352730,
   "source": {
     "file": "source/qdb_debtcollection_cloud_unmanaged.zip",
-    "sha256": "c1a29d86a4ec97500ef58358bd6c484f07e57be4d7eb593f1c77691d2ceb4e37"
+    "sha256": "54ff5915a020b2cb11f66c2667d27fc085d33eb0b09d43afb5c90944e0c6bbf9"
   },
   "target": "Dynamics 365 CE 9.1 on-prem — HL CRM test and BFD CRM / QDB1 test (one package)",
   "manifest": {
@@ -249,7 +249,7 @@
       },
       {
         "file": "qdb_dcp_workspacehtml0BD4FEE5-97B3-F111-AAAC-000D3ABD8313",
-        "bytes": 762339
+        "bytes": 762602
       },
       {
         "file": "qdb_icon_activityoutcome544560BA-36BB-F111-AAAE-000D3ABD8313",
@@ -304,7 +304,7 @@
         "bytes": 301
       }
     ],
-    "largestWebResourceBytes": 762339
+    "largestWebResourceBytes": 762602
   },
   "entries": [
     "[Content_Types].xml",
