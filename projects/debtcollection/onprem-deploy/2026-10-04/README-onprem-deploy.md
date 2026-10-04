@@ -75,6 +75,22 @@ two site maps and the assembly, whether the org already has one — plus the 29 
 publisher, base language, upload limit and sandbox use. Import only when `verdict.readyForImport` is
 `true` in both files. Dry-run against the cloud sandbox: runs clean (reports DCP present, as expected).
 
+**Result, 2026-10-04 (run by the user; `docs/evidence/onprem/Preflight/`):**
+
+| Check | HL CRM test | QDB1 test |
+|---|---|---|
+| Version | 9.1.42.8 | 9.1.42.8 |
+| Existing DCP solution / tables / choices / roles / web resources / app / site maps / assembly | none | none |
+| Standard tables (29) | all present | all present |
+| Publisher `qdb` | prefix qdb, option prefix 10000 | prefix qdb, option prefix 10000 |
+| Upload limit vs 762 KB | 32 MB — fits | 117 MB — fits |
+| Languages | 1033 + **1025 (Arabic)** | 1033 |
+| Sandbox plugins in use | yes (e.g. Qdb.FormEngine.Plugins) | yes (e.g. Qdb.ReportEngine.CrmPlugin) |
+| **readyForImport** | **true** | **true** |
+
+Note: HL has Arabic provisioned; the package carries English (1033) labels only, so Arabic-UI users
+see English DCP labels — not an import issue.
+
 ## Residual risk — stated precisely
 
 1. **Schema vocabulary.** Microsoft's published on-prem schema (`Schemas\9.0.0.2090`, the one the 9.1

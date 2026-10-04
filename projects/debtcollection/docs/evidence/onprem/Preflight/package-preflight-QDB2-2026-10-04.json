@@ -1,0 +1,50 @@
+{
+  "inspectedAt": "2026-10-04T16:36:24.266Z",
+  "clientUrl": "https://mcdynccatdev01/QDB1",
+  "apiBase": "https://mcdynccatdev01/QDB1/api/data/v9.1",
+  "platform": {
+    "version": "9.1.42.8",
+    "baseLanguage": 1033,
+    "maxUploadFileSizeBytes": 122880000,
+    "webResourceFits": true,
+    "provisionedLanguages": [
+      1033
+    ],
+    "publisherQdb": {
+      "prefix": "qdb",
+      "optionValuePrefix": 10000
+    },
+    "sandboxAssembliesInUse": [
+      "QDB1.Solution.Plugins",
+      "QDB.Prod.AlDhameen.Plugins",
+      "Qdb.ReportEngine.CrmPlugin",
+      "Microsoft.Xrm.SolutionsFramework",
+      "Microsoft.Crm.Sandbox.WorkerProcess"
+    ]
+  },
+  "collisions": {
+    "solution": null,
+    "tables": [],
+    "choices": [],
+    "roles": [],
+    "webResources": [],
+    "appModule": [],
+    "siteMaps": [],
+    "pluginAssembly": []
+  },
+  "standardTablesMissing": [],
+  "verdict": {
+    "noExistingDcpSolution": true,
+    "noTableCollision": true,
+    "noChoiceCollision": true,
+    "noRoleNameCollision": true,
+    "noWebResourceCollision": true,
+    "noAppOrSiteMapCollision": true,
+    "noAssemblyCollision": true,
+    "allStandardTablesPresent": true,
+    "publisherCompatible": true,
+    "webResourceFits": true,
+    "readyForImport": true
+  },
+  "organisation": "QDB2"
+}
