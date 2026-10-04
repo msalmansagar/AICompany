@@ -60,7 +60,6 @@ every change is captured by native audit (FR-036/118). Entity = table heading.
 | Arrears To | qdb_arrearsto | money | — | O | — | C | Y | — | | Y | Y | CbD | CbD | totalArrears | new | |
 | Exposure From | qdb_exposurefrom | money | — | O | — | C | Y | — | Optional; unused by default (FR-034 vs MP §41) | Y | Y | CbD | CbD | loanBalance | new | See `KnownIssues.md` |
 | Exposure To | qdb_exposureto | money | — | O | — | C | Y | — | As above | Y | Y | CbD | CbD | loanBalance | new | |
-| Risk Level | qdb_risklevel | choice `qdb_risk_level` | — | O | — | C | Y | — | | Y | Y | CbD | CbD | — | new | |
 | NPL Only | qdb_nplflag | bool | — | O | — | C | Y | — | Null = any | Y | Y | CbD | CbD | — | new | |
 | Broken PTP Count From | qdb_brokenptpcountfrom | int | — | O | — | C | Y | — | | Y | Y | CbD | CbD | — | new | |
 | Legal Status | qdb_legalstatus | string | 50 | O | — | C | Y | — | Matches case status labels for legal states | Y | Y | CbD | CbD | — | new | |
@@ -109,7 +108,6 @@ every change is captured by native audit (FR-036/118). Entity = table heading.
 | DPD From / To | qdb_dpdfrom / qdb_dpdto | int | — | O | — | C | Y | — | | Y | Y | CbD | CbD | arrearDays | new | Two columns |
 | Arrears From / To | qdb_arrearsfrom / qdb_arrearsto | money | — | O | — | C | Y | — | | Y | Y | CbD | CbD | totalArrears | new | Two columns |
 | Exposure From / To | qdb_exposurefrom / qdb_exposureto | money | — | O | — | C | Y | — | Optional (see strategy note) | Y | Y | CbD | CbD | loanBalance | new | Two columns |
-| Risk Level | qdb_risklevel | choice `qdb_risk_level` | — | O | — | C | Y | — | | Y | Y | CbD | CbD | — | new | |
 | Region | qdb_region | string | 100 | O | — | C | Y | — | | Y | Y | CbD | CbD | — | new | Source of region `TBD — Requires QDB Confirmation` |
 | Legal Status | qdb_legalstatus | string | 50 | O | — | C | Y | — | | Y | Y | CbD | CbD | — | new | |
 | Target Team | qdb_targetteamid | lookup team | — | O | — | C | Y | — | | Y | Y | CbD | CbD | — | new | |
@@ -138,7 +136,7 @@ every change is captured by native audit (FR-036/118). Entity = table heading.
 | Activity Type | qdb_activitytypeid | lookup `qdb_collectionactivitytype` | — | O | — | C | Y | — | | Y | Y | CbD | CbD | — | new | |
 | Strategy | qdb_strategyid | lookup `qdb_collectionstrategy` | — | O | — | C | Y | — | | Y | Y | CbD | CbD | — | new | |
 | Effective From / To | qdb_effectivefrom / qdb_effectiveto | datetime | — | O | — | C | Y | — | | Y | Y | CbD | CbD | — | new | Two columns |
-| Approval Status | qdb_approvalstatus | choice `qdb_approval_status` | — | R | Pending | P | RO | — | Template approval workflow (FR-071/117) | Y | Y | CbD | CbD | — | new | |
+| Approval Status | qdb_approvalstatus | choice `qdb_dcp_approval_status` (0 Return · 1 Approve) | — | R | — | P | RO | — | Template approval workflow (FR-071/117) | Y | Y | CbD | CbD | — | new | |
 | Version | qdb_version | int | — | R | 1 | P | RO | — | | Y | Y | CbD | CbD | — | new | |
 | Free Text Allowed | qdb_freetextallowed | bool | — | R | false | C | Y | — | | Y | Y | CbD | CbD | — | new | |
 | Editing Allowed | qdb_editingallowed | bool | — | R | false | C | Y | — | | Y | Y | CbD | CbD | — | new | |

@@ -26,8 +26,6 @@ Legend and conventions: `FieldDictionary.md`. Entity = table heading.
 | Last MIS Sync | qdb_lastmissyncon | datetime | — | O | — | I | RO | — | When background sync last touched the case | Y | Y | CbD | CbD | — | new | Freshness metadata |
 | MIS As-Of Date | qdb_misasofdate | datetime | — | O | — | M | RO | — | As-of of the cached position | Y | Y | CbD | CbD | misAsOfDate | new | Shown in fallback banner |
 | Current Strategy | qdb_strategyid | lookup `qdb_collectionstrategy` | — | O | — | P/I | Y | — | Strategy currently applied | Y | Y | CbD | CbD | — | new | |
-| Risk Level | qdb_risklevel | choice `qdb_risk_level` | — | O | — | P/U | Y | — | Risk classification | Y | Y | CbD | CbD | — | new | |
-| Priority | qdb_priority | choice `qdb_priority` | — | O | Medium | P/U | Y | — | Work priority | Y | Y | CbD | CbD | — | new | |
 | Case Stage | qdb_casestage | choice `qdb_case_stage` | — | O | Early | P | RO | — | Coarse stage derived from statuscode | Y | Y | CbD | CbD | — | new | |
 | Status Reason | statuscode | status | — | S | New (200) | P/U | Y | — | 17 values — see table below | Y | Y | CbD | CbD | — | msst statuscodes 200–216 | Matrix enforced by `StatusTransitionValidator` |
 | Status | statecode | state | — | S | Active | S | Y | — | Active / Inactive | Y | Y | CbD | CbD | — | statecode | |
@@ -100,7 +98,7 @@ matrix is code in `StatusTransitionMatrix.cs` with a parity-tested TypeScript mi
 | Amount | qdb_amount | money | — | O | — | U | Y | — | Amount if applicable (payment request etc.) | Y | Y | CbD | CbD | — | new | Required when type.qdb_amountrequired |
 | Notes | description | memo | 100000 | O | — | U | Y | — | Notes / commitment notes | Y | Y | CbD | CbD | — | msst_notes | Required when type.qdb_notesrequired |
 | Requires Approval | qdb_requiresapproval | bool | — | O | from type | D | RO | — | | Y | Y | CbD | CbD | — | new | |
-| Approval Status | qdb_approvalstatus | choice `qdb_approval_status` | — | O | NotRequired | P (Process Engine) | RO | — | | Y | Y | CbD | CbD | — | new | |
+| Approval Status | qdb_approvalstatus | choice `qdb_dcp_approval_status` (0 Return · 1 Approve) | — | O | — | P (Process Engine) | RO | — | | Y | Y | CbD | CbD | — | new | |
 | Process Instance | qdb_processinstanceid | string | 100 | O | — | P | RO | — | Process Engine instance reference | Y | Y | CbD | CbD | — | new | Type `TBD — Requires QDB Confirmation` (Process Engine key) |
 | Form Submission Ref | qdb_formsubmissionref | string | 100 | O | — | P | RO | — | Form Engine submission holding the descriptive fields | Y | Y | CbD | CbD | — | new | Storage model `TBD — Requires QDB Confirmation` |
 | Related Record Type | qdb_relatedrecordtype | string | 50 | O | — | P | RO | — | `fax` / `email` when an activity mirrors a send | Y | Y | CbD | CbD | — | new | Only when a rule requires it (MP §40) |

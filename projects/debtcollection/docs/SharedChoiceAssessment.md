@@ -90,6 +90,26 @@ Naming carries the `dcp` segment because DCP's generic choice names collided wit
 QDB's current 0 / 1, so no code or data semantics change. **No** DCP Risk Level and **no** DCP
 Priority: both are unsupported (see 7–8).
 
+### Gate 2 — exact definition (approved target design, 2026-10-04)
+
+| Property | Value |
+|---|---|
+| Display Name | DCP Approval Status |
+| Logical Name | `qdb_dcp_approval_status` |
+| Type | Global choice (Picklist), not multi-select |
+| Option 1 | Value **0** · Label **Return** |
+| Option 2 | Value **1** · Label **Approve** |
+| Default | none (each column keeps its own default: none) |
+| Description | Approval decision on a DCP communication template or collection activity. Owned by DCP. |
+| Publisher | `qdb` (customization prefix `qdb`, option prefix 10000) — DCP's existing publisher |
+| Owning solution | `qdb_debtcollection` (unmanaged in the sandbox; shipped in the common on-prem package) |
+| Bound columns | `qdb_collectionactivity.qdb_approvalstatus` (Required: None) · `qdb_communicationtemplate.qdb_approvalstatus` (Required: ApplicationRequired) — logical and schema names unchanged |
+
+Values 0 and 1 are set explicitly, not taken from the publisher's 10000 range, so that stored
+integers and `APPROVAL_STATUS_CODES` stay identical. Executed by
+`crm/scripts/migrate-dcp-approval-status.mjs`; backup at
+`docs/evidence/migrations/2026-10-04-approval-status-backup.json`.
+
 ## 16. Column migration
 
 | Column | Action |

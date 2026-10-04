@@ -30,6 +30,8 @@ import { SOLUTION_NAME } from './lib/qdb-plugin-steps.mjs';
 const AUTHORISED_ORG = 'org5869857f';
 const DRY_RUN = process.argv.includes('--dry-run');
 const ONLY = (process.argv.find(a => a.startsWith('--only='))?.slice(7) ?? '').split(',').filter(Boolean);
+/** Columns left off forms and views for this run only — used while a column is being recreated. */
+const EXCLUDE = (process.argv.find(a => a.startsWith('--exclude='))?.slice(10) ?? '').split(',').filter(Boolean);
 
 // ── What each table shows first, and in its views ────────────────────────────
 
@@ -39,7 +41,7 @@ const ONLY = (process.argv.find(a => a.startsWith('--only='))?.slice(7) ?? '').s
  */
 const TABLES = {
   qdb_collectioncase: {
-    key: ['qdb_casenumber', 'qdb_customerid', 'qdb_facilitynumber', 'qdb_facilitysourcesystem', 'qdb_organizationcode', 'qdb_customertype', 'qdb_producttype', 'qdb_productdescription', 'qdb_strategyid', 'qdb_assignedteamid', 'qdb_priority', 'qdb_risklevel', 'qdb_casestage'],
+    key: ['qdb_casenumber', 'qdb_customerid', 'qdb_facilitynumber', 'qdb_facilitysourcesystem', 'qdb_organizationcode', 'qdb_customertype', 'qdb_producttype', 'qdb_productdescription', 'qdb_strategyid', 'qdb_assignedteamid', 'qdb_casestage'],
     view: ['qdb_casenumber', 'qdb_customerid', 'qdb_facilitynumber', 'qdb_organizationcode', 'qdb_currentarrearbucket', 'qdb_currentdpd', 'qdb_currenttotalarrears', 'qdb_currentloanbalance', 'statuscode', 'qdb_strategyid', 'ownerid', 'qdb_lastmissyncon'],
   },
   qdb_collectionactivity: {
@@ -61,8 +63,8 @@ const TABLES = {
     view: ['qdb_name', 'qdb_activitytypeid', 'qdb_code', 'qdb_category', 'qdb_requiresfollowup', 'qdb_followupdays', 'qdb_escalationrequired', 'qdb_closeactivity', 'qdb_isactive'],
   },
   qdb_collectionstrategy: {
-    key: ['qdb_name', 'qdb_code', 'qdb_priority', 'qdb_description', 'qdb_customertype', 'qdb_producttype', 'qdb_risklevel', 'qdb_rulecode'],
-    view: ['qdb_name', 'qdb_code', 'qdb_priority', 'qdb_dpdfrom', 'qdb_dpdto', 'qdb_arrearsfrom', 'qdb_arrearsto', 'qdb_customertype', 'qdb_producttype', 'qdb_risklevel', 'qdb_effectivefrom', 'qdb_effectiveto', 'qdb_isactive'],
+    key: ['qdb_name', 'qdb_code', 'qdb_priority', 'qdb_description', 'qdb_customertype', 'qdb_producttype', 'qdb_rulecode'],
+    view: ['qdb_name', 'qdb_code', 'qdb_priority', 'qdb_dpdfrom', 'qdb_dpdto', 'qdb_arrearsfrom', 'qdb_arrearsto', 'qdb_customertype', 'qdb_producttype', 'qdb_effectivefrom', 'qdb_effectiveto', 'qdb_isactive'],
     sections: [{ label: 'Criteria', fields: ['qdb_dpdfrom', 'qdb_dpdto', 'qdb_arrearsfrom', 'qdb_arrearsto', 'qdb_exposurefrom', 'qdb_exposureto', 'qdb_brokenptpcountfrom', 'qdb_legalstatus', 'qdb_restructurestatus', 'qdb_nplflag', 'qdb_noautomatedcontact'] }],
   },
   qdb_strategyaction: {
@@ -72,7 +74,7 @@ const TABLES = {
   qdb_assignmentconfiguration: {
     key: ['qdb_name', 'qdb_priority', 'qdb_assignmentmethod', 'qdb_targetteamid', 'qdb_defaultuserid', 'qdb_smartassignmentref', 'qdb_region', 'qdb_slahours'],
     view: ['qdb_name', 'qdb_priority', 'qdb_assignmentmethod', 'qdb_targetteamid', 'qdb_defaultuserid', 'qdb_dpdfrom', 'qdb_dpdto', 'qdb_customertype', 'qdb_producttype', 'qdb_effectivefrom', 'qdb_effectiveto', 'qdb_isactive'],
-    sections: [{ label: 'Criteria', fields: ['qdb_dpdfrom', 'qdb_dpdto', 'qdb_arrearsfrom', 'qdb_arrearsto', 'qdb_exposurefrom', 'qdb_exposureto', 'qdb_customertype', 'qdb_producttype', 'qdb_risklevel', 'qdb_legalstatus'] }],
+    sections: [{ label: 'Criteria', fields: ['qdb_dpdfrom', 'qdb_dpdto', 'qdb_arrearsfrom', 'qdb_arrearsto', 'qdb_exposurefrom', 'qdb_exposureto', 'qdb_customertype', 'qdb_producttype', 'qdb_legalstatus'] }],
   },
   qdb_communicationtemplate: {
     key: ['qdb_name', 'qdb_code', 'qdb_channel', 'qdb_language', 'qdb_customertype', 'qdb_producttype', 'qdb_activitytypeid', 'qdb_strategyid', 'qdb_version', 'qdb_approvalstatus', 'qdb_externaltemplateref'],
@@ -232,12 +234,22 @@ async function send(cfg, token, method, path, body, extra = {}, attempt = 1) {
  * blocks removing a column. The two same-organisation links were replaced by the external process
  * reference (docs/ExternalProcessReference.md).
  */
-const RETIRED_COLUMNS = new Set(['qdb_complaintcaseid', 'qdb_legalrequestid']);
+const RETIRED_COLUMNS = new Set(['qdb_complaintcaseid', 'qdb_legalrequestid', 'qdb_risklevel', 'qdb_priority@qdb_collectioncase']);
+const EXCLUDED = new Set([...RETIRED_COLUMNS, ...EXCLUDE]);
+
+/** Retired columns are named alone, or as column@table when another table keeps the same name. */
+const isExcluded = (table, column) => EXCLUDED.has(column) || EXCLUDED.has(`${column}@${table}`);
+
+/** The table's configured lists without the excluded columns. */
+function withoutExcluded(table, spec) {
+  const keep = list => list.filter(name => !isExcluded(table, name));
+  return { ...spec, key: keep(spec.key), view: keep(spec.view), ...(spec.sections ? { sections: spec.sections.map(s => ({ ...s, fields: keep(s.fields) })) } : {}) };
+}
 
 async function readEntity(cfg, token, logicalName) {
   const def = await apiGet(cfg, token, null, `/EntityDefinitions(LogicalName='${logicalName}')?$select=LogicalName,DisplayName,PrimaryNameAttribute,PrimaryIdAttribute,IsActivity,ObjectTypeCode,IconVectorName`);
   const raw = await apiGet(cfg, token, null, `/EntityDefinitions(LogicalName='${logicalName}')/Attributes?$select=LogicalName,AttributeTypeName,IsCustomAttribute,IsValidForRead,DisplayName,IsLogical,AttributeOf`);
-  const attrs = raw.value.filter(a => a.IsValidForRead && !a.IsLogical && !a.AttributeOf && !RETIRED_COLUMNS.has(a.LogicalName))
+  const attrs = raw.value.filter(a => a.IsValidForRead && !a.IsLogical && !a.AttributeOf && !isExcluded(logicalName, a.LogicalName))
     .map(a => ({ name: a.LogicalName, type: a.AttributeTypeName?.Value, label: a.DisplayName?.UserLocalizedLabel?.Label ?? a.LogicalName, custom: a.IsCustomAttribute }));
   return { def, attrs };
 }
@@ -268,7 +280,7 @@ const targets = Object.keys(TABLES).filter(t => ONLY.length === 0 || ONLY.includ
 const touched = { entities: [], webresources: [] };
 
 for (const logicalName of targets) {
-  const spec = TABLES[logicalName];
+  const spec = withoutExcluded(logicalName, TABLES[logicalName]);
   const { def, attrs } = await readEntity(cfg, token, logicalName);
   const byName = new Map(attrs.map(a => [a.name, a]));
   const missing = [...spec.key, ...spec.view, ...(spec.sections ?? []).flatMap(s => s.fields)].filter(n => !byName.has(n));
