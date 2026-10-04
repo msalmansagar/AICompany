@@ -91,6 +91,20 @@ publisher, base language, upload limit and sandbox use. Import only when `verdic
 Note: HL has Arabic provisioned; the package carries English (1033) labels only, so Arabic-UI users
 see English DCP labels — not an import issue.
 
+## Import attempt 1 — HL CRM test, 2026-10-04 — FAILED, fixed
+
+Log: `onprem-deploy/Error/ImportError.txt`. The server accepted the file (no schema refusal) and
+processed 28 choices, 13 tables with views/forms/ribbons/charts, relationships, 15 web resources, the
+plugin assembly and 12 roles, then failed on both site maps: **"The SiteMapName in the
+AppModuleSiteMap is null or empty" (0x80050109)**. The cloud export keeps a site map's name only in
+`LocalizedNames`; 9.1 requires `<SiteMapName>`. Never reached: the app, the 14 steps, root-component
+insertion, dependency calculation. Fix: transform `site-map-name` adds `<SiteMapName>` (localized
+English name, else the unique name) — package rebuilt, SHA-256 in `package-manifest.json`.
+
+Lesson: the published schema had flagged this as "`ShowHome` invalid … expected: SiteMapName"; the
+validator report had trimmed the expected-element list, so it was misfiled as advisory. The full
+messages for every remaining finding were re-read: none is a missing required element.
+
 ## Residual risk — stated precisely
 
 1. **Schema vocabulary.** Microsoft's published on-prem schema (`Schemas\9.0.0.2090`, the one the 9.1

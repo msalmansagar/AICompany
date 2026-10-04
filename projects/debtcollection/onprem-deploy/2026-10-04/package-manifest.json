@@ -1,8 +1,8 @@
 {
-  "builtAt": "2026-10-04T14:45:56.411Z",
+  "builtAt": "2026-10-04T17:37:28.357Z",
   "package": "qdb_debtcollection_1_0_0_0_onprem_unmanaged.zip",
-  "sha256": "1e297d08d3851accea49a9c419626d8f349e1c4a5a450e7033d25b4581867f69",
-  "bytes": 352574,
+  "sha256": "de1d31e4f91b413b057e9947ea086b79013ef58e532b7b2c753457ba7d74c449",
+  "bytes": 352589,
   "source": {
     "file": "source/qdb_debtcollection_cloud_unmanaged.zip",
     "sha256": "c1a29d86a4ec97500ef58358bd6c484f07e57be4d7eb593f1c77691d2ceb4e37"
@@ -76,6 +76,12 @@
       "removed": 1
     },
     {
+      "name": "site-map-name",
+      "why": "A 9.1 server refuses an AppModuleSiteMap without <SiteMapName> (\"The SiteMapName in the AppModuleSiteMap is null or empty\", 0x80050109 — HL CRM test import, 2026-10-04); the cloud export keeps the name only in LocalizedNames",
+      "removed": 0,
+      "added": 2
+    },
+    {
       "name": "foreign-regarding-relationships",
       "why": "Activity \"Regarding\" relationships to tables that exist only in the cloud sandbox; the target org generates Regarding relationships for its own activity-enabled tables",
       "removed": 458
@@ -117,7 +123,7 @@
         "message": "The element 'AppModuleSiteMap' has invalid child element 'ShowHome'.",
         "severity": "Error",
         "count": 2,
-        "firstLine": 36019,
+        "firstLine": 36020,
         "known": true,
         "reason": "Unified Interface site-map flags",
         "pass": 1
@@ -126,7 +132,7 @@
         "message": "The element 'AppModule' has invalid child element 'statecode'.",
         "severity": "Error",
         "count": 1,
-        "firstLine": 36079,
+        "firstLine": 36081,
         "known": true,
         "reason": "app state, role map and names — real app configuration (incomplete content is a probe artefact)",
         "pass": 1
@@ -144,7 +150,7 @@
         "message": "The element 'AppModule' has incomplete content.",
         "severity": "Error",
         "count": 1,
-        "firstLine": 34990,
+        "firstLine": 34992,
         "known": true,
         "reason": "app state, role map and names — real app configuration (incomplete content is a probe artefact)",
         "pass": 2

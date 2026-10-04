@@ -61,9 +61,28 @@ export const CUSTOMIZATION_TRANSFORMS = [
     text => removeMatches(text, /\s*<OptimizedFor>([^<]*)<\/OptimizedFor>/g, exactly(''), 'OptimizedFor')],
   ['app-settings', 'App settings (AppChannel) require the cloud-only msdyn_AppFrameworkInfraExtensions package',
     text => removeMatches(text, /\s*<appsettings>([\s\S]*?)<\/appsettings>/g, anything, 'appsettings')],
+  ['site-map-name', 'A 9.1 server refuses an AppModuleSiteMap without <SiteMapName> ("The SiteMapName in the AppModuleSiteMap is null or empty", 0x80050109 — HL CRM test import, 2026-10-04); the cloud export keeps the name only in LocalizedNames',
+    addSiteMapNames],
   ['foreign-regarding-relationships', 'Activity "Regarding" relationships to tables that exist only in the cloud sandbox; the target org generates Regarding relationships for its own activity-enabled tables',
     removeForeignRegardingRelationships],
 ];
+
+/**
+ * ADDS <SiteMapName> after <SiteMapUniqueName> where it is missing: the English localized name when
+ * the export has one, else the unique name. Nothing is removed; an existing SiteMapName is kept.
+ */
+export function addSiteMapNames(text) {
+  let added = 0;
+  const next = text.replace(/<AppModuleSiteMap>([\s\S]*?)<\/AppModuleSiteMap>/g, (block, body) => {
+    if (/<SiteMapName>/.test(body)) return block;
+    const uniqueName = /<SiteMapUniqueName>([^<]+)<\/SiteMapUniqueName>/.exec(body)?.[1];
+    if (!uniqueName) throw new UnsafeTransformError('AppModuleSiteMap without SiteMapUniqueName');
+    const englishName = /<LocalizedName description="([^"]+)" languagecode="1033"/.exec(body.slice(body.lastIndexOf('</SiteMap>')))?.[1];
+    added += 1;
+    return block.replace(/(<SiteMapUniqueName>[^<]+<\/SiteMapUniqueName>)/, `$1\n      <SiteMapName>${englishName ?? uniqueName}</SiteMapName>`);
+  });
+  return { text: next, removed: 0, added };
+}
 
 /**
  * Removes qdb_collectionactivity's Regarding relationships to prefixed, non-DCP tables. Any OTHER

@@ -8,7 +8,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  CUSTOMIZATION_TRANSFORMS, UnsafeTransformError, removeForeignRegardingRelationships, transformSolutionManifest,
+  CUSTOMIZATION_TRANSFORMS, UnsafeTransformError, addSiteMapNames, removeForeignRegardingRelationships, transformSolutionManifest,
 } from './onprem-transforms.mjs';
 
 const transform = name => CUSTOMIZATION_TRANSFORMS.find(([key]) => key === name)[2];
@@ -62,6 +62,27 @@ describe('removeForeignRegardingRelationships', () => {
   test('removeForeignRegardingRelationships_RealLookupToForeignTable_StopsTheBuild', () => {
     const xml = relationship({ name: 'qdb_qdblegal_qdb_collectionactivity', referencing: 'qdb_collectionactivity', referenced: 'qdb_qdblegal', attribute: 'qdb_legalrequestid' });
     assert.throws(() => removeForeignRegardingRelationships(xml), UnsafeTransformError);
+  });
+});
+
+describe('addSiteMapNames', () => {
+  const siteMap = names => `<AppModuleSiteMap>
+      <SiteMapUniqueName>qdb_debtcollection_sitemap</SiteMapUniqueName>
+      <SiteMap><Area Id="a"><Titles><Title LCID="1033" Title="Area1" /></Titles></Area></SiteMap>${names}
+    </AppModuleSiteMap>`;
+
+  test('addSiteMapNames_EnglishLocalizedName_BecomesTheSiteMapName', () => {
+    const xml = siteMap('<LocalizedNames><LocalizedName description="Debt Collection" languagecode="1033" /></LocalizedNames>');
+    assert.match(addSiteMapNames(xml).text, /<SiteMapUniqueName>qdb_debtcollection_sitemap<\/SiteMapUniqueName>\s*<SiteMapName>Debt Collection<\/SiteMapName>/);
+  });
+
+  test('addSiteMapNames_NoLocalizedName_FallsBackToTheUniqueName', () => {
+    assert.match(addSiteMapNames(siteMap('')).text, /<SiteMapName>qdb_debtcollection_sitemap<\/SiteMapName>/);
+  });
+
+  test('addSiteMapNames_ExistingSiteMapName_IsLeftUntouched', () => {
+    const xml = siteMap('').replace('</SiteMapUniqueName>', '</SiteMapUniqueName><SiteMapName>Kept</SiteMapName>');
+    assert.deepEqual([addSiteMapNames(xml).added, addSiteMapNames(xml).text === xml], [0, true]);
   });
 });
 

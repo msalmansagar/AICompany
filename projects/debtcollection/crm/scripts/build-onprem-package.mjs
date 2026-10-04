@@ -43,8 +43,8 @@ function applyCustomizationTransforms(workDir) {
   for (const [name, why, transform] of CUSTOMIZATION_TRANSFORMS) {
     const result = transform(text);
     text = result.text;
-    applied.push({ name, why, removed: result.removed });
-    console.log(`  ${String(result.removed).padStart(4)} × ${name}`);
+    applied.push({ name, why, removed: result.removed, ...(result.added === undefined ? {} : { added: result.added }) });
+    console.log(`  ${String(result.removed + (result.added ?? 0)).padStart(4)} × ${name}${result.added ? ' (added)' : ''}`);
   }
   writeFileSync(file, text);
   return applied;
