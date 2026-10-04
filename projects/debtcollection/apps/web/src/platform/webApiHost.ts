@@ -48,11 +48,26 @@ interface WebApiRejection {
 }
 
 /**
+ * The organisation's base URL for a page served as a web resource. Online it is the origin
+ * (`https://org.crm4.dynamics.com/WebResources/…`); on-premises the organisation is the first path
+ * segment (`https://server/HousingLoan/WebResources/…`), and calling the Web API at the bare origin
+ * answers 500 (HL CRM test, 2026-10-04). A cache token segment (`/%7b…%7d/`) is not part of it.
+ */
+export function organisationUrlOf(location: Pick<Location, 'origin' | 'pathname'>): string {
+  const segments = location.pathname.split('/').filter(Boolean);
+  const webResources = segments.findIndex(segment => segment.toLowerCase() === 'webresources');
+  if (webResources < 0) return location.origin;
+  const isCacheToken = (segment: string) => /^(%7b|\{).*(%7d|\})$/i.test(segment);
+  const organisation = segments.slice(0, webResources).filter(segment => !isCacheToken(segment));
+  return organisation.length > 0 ? `${location.origin}/${organisation.join('/')}` : location.origin;
+}
+
+/**
  * Builds the host. It asks the organisation who is signed in and which version it runs, and refuses
  * with a plain reason when the page is not on an organisation host or the session is not signed in.
  */
 export async function createWebApiHost(options: WebApiHostOptions = {}): Promise<XrmLike> {
-  const origin = (options.origin ?? window.location.origin).replace(/\/+$/, '');
+  const origin = (options.origin ?? organisationUrlOf(window.location)).replace(/\/+$/, '');
   // Called as a method of the client below, so the browser's fetch must keep the window as its receiver.
   const fetchImpl: typeof fetch = options.fetchImpl ?? ((input, init) => fetch(input, init));
   const client = new WebApiClient(origin, fetchImpl);

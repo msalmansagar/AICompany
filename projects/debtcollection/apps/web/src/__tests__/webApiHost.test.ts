@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { WebApiHostError, createWebApiHost } from '../platform/webApiHost.js';
+import { WebApiHostError, createWebApiHost, organisationUrlOf } from '../platform/webApiHost.js';
 import { readCrmContext } from '../platform/crmContext.js';
 
 /**
@@ -36,6 +36,31 @@ function organisation(answers: Partial<Record<string, (sent: Sent) => Response>>
   };
   return { sent, fetchImpl };
 }
+
+describe('which organisation the page belongs to', () => {
+  const at = (origin: string, pathname: string) => organisationUrlOf({ origin, pathname });
+
+  it('uses the origin online, where the organisation is the host', () => {
+    expect(at('https://org5869857f.crm4.dynamics.com', '/WebResources/qdb_dcp_workspace.html'))
+      .toBe('https://org5869857f.crm4.dynamics.com');
+  });
+
+  it('keeps the organisation path on-premises, where the bare origin answers 500', () => {
+    expect(at('https://mcdynccatdev01', '/HousingLoan/webresources/qdb_dcp_workspace.html'))
+      .toBe('https://mcdynccatdev01/HousingLoan');
+  });
+
+  it('drops the cache token segment, online and on-premises', () => {
+    expect(at('https://org5869857f.crm4.dynamics.com', '/%7b639123%7d/webresources/qdb_dcp_workspace.html'))
+      .toBe('https://org5869857f.crm4.dynamics.com');
+    expect(at('https://mcdynccatdev01', '/HousingLoan/%7b639123%7d/WebResources/qdb_dcp_workspace.html'))
+      .toBe('https://mcdynccatdev01/HousingLoan');
+  });
+
+  it('falls back to the origin when the page is not a web resource', () => {
+    expect(at('https://mcdynccatdev01', '/HousingLoan/main.aspx')).toBe('https://mcdynccatdev01');
+  });
+});
 
 describe('the context', () => {
   it('reads the version, the signed-in user and their name from the organisation, then composes the API base from them', async () => {
