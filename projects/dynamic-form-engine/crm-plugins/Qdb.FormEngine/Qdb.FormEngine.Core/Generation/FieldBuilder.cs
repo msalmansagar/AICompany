@@ -328,6 +328,7 @@ namespace Qdb.FormEngine.Core.Generation
                 TargetAttribute = column.GetAttributeValue<string>("qdb_column_attribute"),
                 ColumnFieldType = column.GetAttributeValue<string>("qdb_column_field_type"),
                 IsVisible = EntityHelper.GetBoolOrTrue(column, "qdb_is_visible"),
+                IsReadonly = EntityHelper.GetBoolOrTrue(column, "qdb_is_editable") ? (bool?)null : true,
                 IsRequired = column.GetAttributeValue<bool>("qdb_is_required"),
                 MaxLength = column.Contains("qdb_max_length")
                     ? column.GetAttributeValue<int>("qdb_max_length")

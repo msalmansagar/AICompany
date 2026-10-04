@@ -604,6 +604,9 @@ export class CrmMetadataService extends CrmBaseService {
         targetAttribute: col.qdb_column_attribute,
         columnFieldType,
         isVisible: col.qdb_is_visible !== false,
+        // Only an explicit No locks the column, so a grid published before this, or a column
+        // on an org without qdb_is_editable, stays editable and byte-identical.
+        ...(col.qdb_is_editable === false ? { isReadonly: true } : {}),
         isRequired: col.qdb_is_required === true,
         maxLength: col.qdb_max_length ?? undefined,
         validationFormat: normaliseValidationFormat(col.qdb_validation_format),

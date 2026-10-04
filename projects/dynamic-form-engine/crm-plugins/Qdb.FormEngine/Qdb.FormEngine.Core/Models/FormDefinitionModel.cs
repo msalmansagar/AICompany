@@ -418,6 +418,13 @@ namespace Qdb.FormEngine.Core.Models
         /// </summary>
         [JsonProperty("isVisible")] public bool IsVisible { get; set; }
 
+        /// <summary>
+        /// True when the column's Is Editable is No; null otherwise, and then omitted, so a grid
+        /// generated before this stays byte-identical. A rule can still make the column editable.
+        /// </summary>
+        [JsonProperty("isReadonly", NullValueHandling = NullValueHandling.Ignore)]
+        public bool? IsReadonly { get; set; }
+
         /// <summary>Whether every row must carry a value in this column.</summary>
         [JsonProperty("isRequired")] public bool IsRequired { get; set; }
 

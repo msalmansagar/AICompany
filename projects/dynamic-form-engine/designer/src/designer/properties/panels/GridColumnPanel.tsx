@@ -159,7 +159,8 @@ export function GridColumnPanel({ fieldId, showIsEditable = false }: Props): Rea
       columnFieldType: 'text',
       displayOrder: nextDisplayOrder(columns),
       isVisible: true,
-      isEditable: false,
+      // A new column is editable until the maker locks it; the setting is now honoured.
+      isEditable: true,
       isRequired: false,
       maxLength: null,
       validationFormat: 'none',

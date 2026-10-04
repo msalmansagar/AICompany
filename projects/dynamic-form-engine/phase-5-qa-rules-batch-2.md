@@ -22,6 +22,34 @@ ADDENDUM (orchestrator, 2026-09-30, after this document was written)
 - GAP-001, GAP-002, GAP-003, GAP-005 remain open, as listed below.
 - Frontend suite after the fixes: 72 files, 629 tests, all passing.
 
+DEF-002 — Grid column "Is Editable" saved but never honoured (bug-fix, 2026-10-04)
+───────────────────────────────────────────────────
+Symptom:      A grid column set to Is Editable = No in the designer stayed editable at runtime.
+Reproduction: feature-showcase / qdb_field_entries, column "Required": stored
+              qdb_is_editable = false, published JSON carried no read-only flag, cell editable.
+Expected:     The designer's Is Editable switch decides whether a column's cells can be edited.
+Violates:     The designer's Is Editable property (GridColumnPanel), which promised the behaviour.
+Root cause:   Neither publisher read qdb_is_editable. The runtime already honoured a published
+              column isReadonly, but only rules ever set it. Pre-dates this batch.
+Fix:          Both publishers emit isReadonly: true only when qdb_is_editable is explicitly
+              false; true or absent emits nothing, so older grids and on-prem orgs without the
+              column publish byte-identically. A rule's make-editable still overrides the lock.
+              The designer now defaults a new column to editable (it defaulted to No).
+Tests:        CrmMetadataService.gridColumnEditable.test.ts (3), GridColumnEditableTests.cs (3),
+              gridColumnRuleState.test.ts (+2 precedence). Backend 468, frontend 659,
+              designer 761, C# 124 — all passing.
+Live:         Plugin + designer deployed to org5869857f. feature-showcase republished: the
+              Required column publishes isReadonly: true and renders DISABLED in real Chrome
+              with the runtime bundle; the other three columns stay editable.
+              rules-batch-2-demo republished: no column carries the flag.
+Data check:   Of 85 columns on org5869857f, the only entry-grid column set to No is the one
+              above. Selection-grid columns set to No now carry the flag; selection grids never
+              edit cells, so nothing changes there. ON-PREM DATA NOT CHECKED: an on-prem entry
+              column saved with the old designer default (No) will lock after the new DLL.
+Open:         A column both Required and Is Editable = No blocks submit while empty, because grid
+              validation does not skip locked columns. Rule-locked columns already behave this
+              way. Not fixed here; follow-up.
+
 
 1. TEST STRATEGY SUMMARY
 ───────────────────────────────────────────────────

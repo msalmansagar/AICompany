@@ -60,6 +60,8 @@ export interface GridColumnConfig {
   // Hidden means "not drawn", NOT "not published" — see form.types.ts.
   // Absent ⇒ visible, so forms published before this stay unchanged.
   isVisible?: boolean;
+  // True when Is Editable is No; a rule can override it — see form.types.ts. Absent ⇒ editable.
+  isReadonly?: boolean;
   filterType?: GridColumnFilterType;
   lookupTargetEntity?: string;
   lookupDisplayAttribute?: string;

@@ -713,7 +713,8 @@ export interface GridColumnConfig {
   // out of the query, so a hidden column vanished from the JSON entirely and its value
   // could not round-trip. Absent ⇒ visible, so forms published before this stay unchanged.
   isVisible?: boolean;
-  // Set only by a rule at runtime; a published column never carries it.
+  // Published true when the column's Is Editable is No, and absent otherwise. A rule can
+  // override it at runtime in either direction. Absent ⇒ editable.
   isReadonly?: boolean;
   // Per-column validation. All optional and all default to off, so a grid published before
   // these existed validates exactly as it did. See validateGridCell for how they combine.

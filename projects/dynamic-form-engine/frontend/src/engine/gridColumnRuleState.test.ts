@@ -47,6 +47,21 @@ describe('applyGridColumnRuleState', () => {
     expect(result!.isReadonly).toBe(true);
   });
 
+  // DEF-002: a column whose Is Editable is No publishes isReadonly: true. A rule's
+  // "make editable" must still win over it, the same way a rule's "show" wins over a
+  // configured hide.
+  it('should_let_a_rule_make_editable_a_column_its_configuration_locks', () => {
+    const [result] = applyGridColumnRuleState([column('a', { isReadonly: true })], { a: { isReadonly: false } });
+
+    expect(result!.isReadonly).toBe(false);
+  });
+
+  it('should_keep_a_configured_lock_when_a_rule_changes_only_other_flags', () => {
+    const [result] = applyGridColumnRuleState([column('a', { isReadonly: true })], { a: { isRequired: true } });
+
+    expect(result!.isReadonly).toBe(true);
+  });
+
   it('should_not_mutate_the_published_columns', () => {
     const original = column('a', { isRequired: true });
 
