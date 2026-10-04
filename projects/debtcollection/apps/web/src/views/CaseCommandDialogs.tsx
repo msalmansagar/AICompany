@@ -8,15 +8,17 @@ import { PromiseDialog } from './PromiseDialog.js';
  */
 export type CaseCommandDialog = 'activity' | 'promise' | null;
 
-export function CaseCommandDialogs({ caseId, dialog, onClose, onSaved }: {
+export function CaseCommandDialogs({ caseId, dialog, onClose, onSaved, contextNote }: {
   caseId: string | undefined;
   dialog: CaseCommandDialog;
   onClose: () => void;
   onSaved: (message: string) => void;
+  /** Which unit and case the command was opened for, when the caller chose it on the officer's behalf. */
+  contextNote?: string | undefined;
 }) {
   if (!caseId || dialog === null) return null;
   if (dialog === 'activity') {
-    return <ActivityDialog mode="create" caseId={caseId} onClose={onClose} onSaved={() => onSaved('Action recorded.')} />;
+    return <ActivityDialog mode="create" caseId={caseId} onClose={onClose} onSaved={() => onSaved('Action recorded.')} contextNote={contextNote} />;
   }
   return <PromiseDialog mode="create" caseId={caseId} onClose={onClose} onSaved={() => onSaved('Promise recorded.')} />;
 }

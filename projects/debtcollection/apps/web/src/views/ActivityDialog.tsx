@@ -41,6 +41,8 @@ export interface ActivityDialogProps {
   onClose: () => void;
   /** Called after a successful write so the list behind the dialog re-reads. */
   onSaved: () => void;
+  /** Which unit and case the action was opened for, said at the top so it is never a surprise. */
+  contextNote?: string | undefined;
 }
 
 /** The record as the form holds it, with the version every write must carry. */
@@ -56,7 +58,7 @@ interface LoadedActivity {
   activityNumber: string;
 }
 
-export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: ActivityDialogProps) {
+export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved, contextNote }: ActivityDialogProps) {
   const { adapter } = useCrmSession();
   const service = useMemo(() => new ActivityService(adapter), [adapter]);
   const save = useSaveOperation<unknown>();
@@ -249,6 +251,7 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
         />
       }
     >
+      {contextNote && <div className="info-banner" data-testid="activity-dialog-context"><Icon name="info" /><div>{contextNote}</div></div>}
       {loadState === 'loading' && <div className="empty-state" data-testid="activity-dialog-loading">Loading the activity…</div>}
       {loadState === 'error' && (
         <div className="info-banner bad" data-testid="activity-dialog-load-error">

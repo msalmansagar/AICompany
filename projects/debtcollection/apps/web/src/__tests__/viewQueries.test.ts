@@ -323,7 +323,8 @@ describe('Customer 360 aggregates without creating a customer master', () => {
     const aggregate = await loadCustomerAggregate(adapter, '28912345678');
     expect(aggregate.cases.length).toBe(3);
     expect(aggregate.financialUnits).toHaveLength(2);
-    expect(aggregate.financialUnits.map(unit => unit.unitNumber)).toEqual(['HL-1', 'HL-2']);
+    // Most days past due first (HL-2 is 95 DPD), then by unit number.
+    expect(aggregate.financialUnits.map(unit => unit.unitNumber)).toEqual(['HL-2', 'HL-1']);
   });
 
   it('resolves the CRM customer from the case lookup annotation', async () => {

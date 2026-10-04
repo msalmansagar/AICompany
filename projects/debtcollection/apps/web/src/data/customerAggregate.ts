@@ -1,3 +1,4 @@
+import { countPortfolio } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import { CASE_LIST_COLUMNS, ENTITY_SETS, PTP_STATUS_LABELS } from './schema.js';
 import { buildCaseFilter, codeFor, escapeOData, mapPage, toCaseRow, type CaseRow } from './collectionQueries.js';
@@ -51,6 +52,7 @@ export interface UnitCase {
   strategyId?: string;
   strategyName?: string;
   ownerName?: string;
+  ownerId?: string;
 }
 
 export interface CustomerPosition {
@@ -76,6 +78,19 @@ export interface CustomerAggregate {
   lastMisSyncOn?: string;
   /** False when more cases exist than were read, which makes every row-derived figure a partial one. */
   isComplete: boolean;
+  /**
+   * Units, open cases, past-due and current units across the **whole** portfolio. Present only when
+   * the case read covered every case the customer has; a partial read offers no unit counts at all
+   * rather than counts of whatever was read.
+   */
+  portfolio?: PortfolioSummary;
+}
+
+export interface PortfolioSummary {
+  units: number;
+  openCases: number;
+  pastDue: number;
+  current: number;
 }
 
 export async function loadCustomerAggregate(adapter: XrmCrmAdapter, customerBusinessId: string): Promise<CustomerAggregate> {
@@ -92,17 +107,24 @@ export async function loadCustomerAggregate(adapter: XrmCrmAdapter, customerBusi
   );
   const cases = page.items;
   const [profile, position] = await Promise.all([profileOf(adapter, cases), loadPosition(adapter, customerBusinessId, cases)]);
+  const units = summariseUnits(cases);
   return {
     customerBusinessId,
     ...(profile ? { profile } : {}),
     segments: distinct(cases.map(c => c.customerType)),
     cases,
-    financialUnits: summariseUnits(cases),
+    financialUnits: units,
     position,
     ...optionalText('misAsOfDate', latest(cases.map(c => c.misAsOfDate))),
     ...optionalText('lastMisSyncOn', latest(cases.map(c => c.lastMisSyncOn))),
     isComplete: !page.hasMore,
+    ...(page.hasMore ? {} : { portfolio: summarisePortfolio(units) }),
   };
+}
+
+function summarisePortfolio(units: readonly FinancialUnit[]): PortfolioSummary {
+  const counts = countPortfolio(units.map(unit => unit.dpd));
+  return { units: counts.units, openCases: units.filter(unit => unit.case.isOpen).length, pastDue: counts.pastDue, current: counts.current };
 }
 
 /**
@@ -189,7 +211,13 @@ function summariseUnits(cases: readonly CaseRow[]): readonly FinancialUnit[] {
     if (existing && (existing.case.episodeNumber ?? 0) >= (row.episodeNumber ?? 0)) continue;
     byUnit.set(key, toUnit(row));
   }
-  return [...byUnit.values()];
+  return [...byUnit.values()].sort(byDpdThenNumber);
+}
+
+/** Deterministic: most days past due first, then by unit number; a unit with no DPD reported goes last. */
+function byDpdThenNumber(a: FinancialUnit, b: FinancialUnit): number {
+  const dpdOrder = (b.dpd ?? -1) - (a.dpd ?? -1);
+  return dpdOrder !== 0 ? dpdOrder : a.unitNumber.localeCompare(b.unitNumber);
 }
 
 function toUnit(row: CaseRow): FinancialUnit {
@@ -214,6 +242,7 @@ function toUnit(row: CaseRow): FinancialUnit {
       ...optionalText('strategyId', row.strategyId),
       ...optionalText('strategyName', row.strategyName),
       ...optionalText('ownerName', row.ownerName),
+      ...optionalText('ownerId', row.ownerId),
     },
   };
 }

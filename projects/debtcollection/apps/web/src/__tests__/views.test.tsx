@@ -291,7 +291,7 @@ describe('Customer 360 aggregates and admits what it cannot source', () => {
     await openView('customer', '28912345678');
     const view = await screen.findByTestId('view-customer');
     expect(view.getAttribute('data-customer-id')).toBe('28912345678');
-    expect(screen.getByTestId('c360-tags').textContent).toContain('Housing Loan · contact');
+    expect(screen.getByTestId('c360-tags').textContent).toContain('Housing Loan · Contact');
   });
 
   it('lists one card per loan account, named as a loan account and not a facility', async () => {

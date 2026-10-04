@@ -40,7 +40,20 @@ export interface HistoryEntry {
   detail?: string;
   /** Who owns the record, as the platform names them. */
   recordedBy?: string;
+  /** The owner's id, so an application user can be shown as the system rather than by its technical name. */
+  recordedById?: string;
+  /** The history category the record belongs to, decided by the reader from configuration codes. */
+  category?: HistoryCategory;
+  /** The amount the record itself carries — a promise's amount. */
+  amount?: number;
+  /** The recorded outcome — a promise's status, or the activity outcome — as the platform formats it. */
+  outcome?: string;
+  /** A hand-off to a centralised process: the owning module's own number. */
+  externalReference?: { process: 'Complaint' | 'Legal'; recordNumber?: string };
 }
+
+/** How Customer 360 groups collection history. */
+export type HistoryCategory = 'actions' | 'ptp' | 'communications' | 'complaint' | 'legal' | 'deceased';
 
 /** What one source has handed over, and whether it has more. */
 export interface HistoryBuffer {

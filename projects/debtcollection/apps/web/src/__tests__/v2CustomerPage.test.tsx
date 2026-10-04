@@ -122,7 +122,7 @@ describe('honesty', () => {
     await openCustomer();
 
     await screen.findByTestId('c360-prefs', {}, { timeout: 5000 });
-    expect(screen.getByText(/not a collections contact hold/)).toBeTruthy();
+    expect(screen.getByText(/Not a Collection Contact Hold decision/)).toBeTruthy();
   });
 });
 
@@ -157,6 +157,6 @@ describe('without a customer', () => {
   it('says so when the customer has no case', async () => {
     await openCustomer('#customer/000', { cases: [] });
 
-    expect(await screen.findByText(/No collection case names customer 000/, {}, { timeout: 5000 })).toBeTruthy();
+    expect(await screen.findByText(/No Collection Case names customer 000/, {}, { timeout: 5000 })).toBeTruthy();
   });
 });

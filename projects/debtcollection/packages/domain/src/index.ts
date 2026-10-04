@@ -388,7 +388,7 @@ export type {
 export { COMMUNICATION_NAMESPACE, communicationId, singleSendId, uuidV5 } from './communicationIdentity.js';
 
 export { historyComplete, mergeHistory } from './communicationHistory.js';
-export type { HistoryBuffer, HistoryEntry, MergedHistory } from './communicationHistory.js';
+export type { HistoryBuffer, HistoryCategory, HistoryEntry, MergedHistory } from './communicationHistory.js';
 
 export {
   APPROVAL_STATUS_CODES,
@@ -642,3 +642,5 @@ export {
   externalProcessOf, isConcernTypeCode, isHandOffTo, readExternalReference,
 } from './externalProcessReference.js';
 export type { ExternalProcess, ExternalProcessReference, StoredRelatedRecord } from './externalProcessReference.js';
+export { countPortfolio, dpdChange, pastDueStateOf } from './customerPortfolio.js';
+export type { PastDueState, PortfolioCounts } from './customerPortfolio.js';
