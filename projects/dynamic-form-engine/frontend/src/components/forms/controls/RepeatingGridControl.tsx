@@ -60,6 +60,12 @@ const useStyles = makeStyles({
 
 type GridRow = Record<string, unknown>;
 
+/**
+ * The rows of a grid with no value yet, shared and never mutated. A fresh `[]` per render
+ * looked like new data to the table library, which reset and re-rendered forever.
+ */
+const NO_ROWS: GridRow[] = [];
+
 export function RepeatingGridControl({
   field,
   inputId,
@@ -71,7 +77,7 @@ export function RepeatingGridControl({
   const { fieldValues, updateFieldValue } = useFormContext();
 
   const rawValue = fieldValues[field.schemaName];
-  const rows: GridRow[] = Array.isArray(rawValue) ? (rawValue as GridRow[]) : [];
+  const rows: GridRow[] = Array.isArray(rawValue) ? (rawValue as GridRow[]) : NO_ROWS;
 
   const childFields = field.childFields ?? [];
   const maxRows = field.maxRows ?? Infinity;

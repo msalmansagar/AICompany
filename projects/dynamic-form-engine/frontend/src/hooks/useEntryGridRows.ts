@@ -7,6 +7,13 @@ import type { FieldDefinition } from '@qdb/shared';
 
 export type GridRow = Record<string, unknown>;
 
+/**
+ * The rows of a grid with no value yet. One shared list, never mutated: a fresh `[]` on every
+ * render looked like new data to the table library, which reset its state, re-rendered, got
+ * another fresh `[]`, and froze the page as soon as any other field changed.
+ */
+const NO_ROWS: GridRow[] = [];
+
 export interface EntryGridRowsState {
   rows: GridRow[];
   addRow: () => void;
@@ -24,7 +31,7 @@ export function useEntryGridRows(field: FieldDefinition): EntryGridRowsState {
   const minRows = gridConfig?.minRows ?? 0;
 
   const rawValue = fieldValues[field.schemaName];
-  const rows: GridRow[] = Array.isArray(rawValue) ? (rawValue as GridRow[]) : [];
+  const rows: GridRow[] = Array.isArray(rawValue) ? (rawValue as GridRow[]) : NO_ROWS;
 
   const commitRows = useCallback(
     (newRows: GridRow[]) => {
