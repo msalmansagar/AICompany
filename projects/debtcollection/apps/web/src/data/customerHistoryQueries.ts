@@ -82,7 +82,8 @@ export function activityCategoryFilter(category: HistoryCategory, types: Categor
   const earlier = ACTIVITY_CATEGORIES.slice(0, index).map(c => ownPredicate(c, types)).filter((p): p is string => p !== undefined);
   const own = ownPredicate(category, types);
   if (category !== 'actions' && own === undefined) return undefined;
-  return [own, ...earlier.map(p => `not ${p}`)].filter((p): p is string => p !== undefined).join(' and ');
+  // Every negation is parenthesised: the platform reads "not a ne null" as "(not a) ne null" and refuses it.
+  return [own, ...earlier.map(p => `not (${p})`)].filter((p): p is string => p !== undefined).join(' and ');
 }
 
 /** The categories this organisation's configuration can serve. Deceased / Insurance needs its type. */

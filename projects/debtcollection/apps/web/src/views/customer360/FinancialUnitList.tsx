@@ -147,5 +147,6 @@ export function describeNext(next: NextPlannedAction | undefined, status: Sectio
   if (status === 'error' || !next) return 'Not available';
   if (next.kind === 'noPlan') return 'No Action Plan';
   if (next.kind === 'notConfigured') return 'Not configured';
-  return `${next.item.action} · due ${next.item.due}`;
+  // The plan gives a date, or a statement that there is none; only a date takes the word "due".
+  return /^\d/.test(next.item.due) ? `${next.item.action} · due ${next.item.due}` : `${next.item.action} · ${next.item.due}`;
 }

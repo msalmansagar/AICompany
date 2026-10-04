@@ -114,8 +114,8 @@ describe('the merged page', () => {
 
 describe('categories', () => {
   it('never overlap: each category excludes every earlier one', () => {
-    expect(activityCategoryFilter('legal', TYPES)).toBe("(qdb_relatedrecordtype eq 'qdb_qdblegal' or _qdb_activitytypeid_value eq t-legal) and not (qdb_relatedrecordtype eq 'incident' or _qdb_activitytypeid_value eq t-dispute)");
-    expect(activityCategoryFilter('actions', TYPES)).toContain('not qdb_ptpdate ne null');
+    expect(activityCategoryFilter('legal', TYPES)).toBe("(qdb_relatedrecordtype eq 'qdb_qdblegal' or _qdb_activitytypeid_value eq t-legal) and not ((qdb_relatedrecordtype eq 'incident' or _qdb_activitytypeid_value eq t-dispute))");
+    expect(activityCategoryFilter('actions', TYPES)).toContain('not (qdb_ptpdate ne null)');
   });
 
   it('offers Deceased / Insurance only when its activity type is configured', () => {
