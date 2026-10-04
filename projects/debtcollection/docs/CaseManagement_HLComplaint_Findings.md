@@ -42,9 +42,8 @@ The form marks five partner-bank fields ApplicationRequired; the Web API does no
 - Active on-create workflows include **"Case : SMS Alert to Customer"**, **"Case : Email Alert to
   Customer"**, "Case : Set Paramters", "Set Expected Closure date for Case Type Complaint",
   "Assign Case to Owner if Case Created From Middleware", "Case -onCreate: Extract HTML Description"
-  and the "Phone to Case Process" BPF. Their conditions are not yet read
-  (`onprem-case-workflows-inspect.js`). **Risk: a DCP-raised complaint may SMS/email the
-  customer.**
+  and the "Phone to Case Process" BPF. Their definitions were read on 2026-10-04 — see §7. **A
+  DCP-raised HL complaint WILL send the customer an SMS; it will not send an email.**
 - An existing Action "Case Management : Case Submit Action" and a "Case Creation" security role
   exist. Roles holding `prvCreateIncident` include "Case Creation", "Head of Collection" and
   "Relationship Manager/Colleciton Manager"; no DCP role exists on-prem.
@@ -61,7 +60,7 @@ The form marks five partner-bank fields ApplicationRequired; the Web API does no
 | D3 | Server-side boundary | **Integration Service** (user, 2026-09-29: QDB will host it, reachable from HL CRM and QDB1). |
 | D4 | Cross-CRM | **HL CRM is a separate organisation from QDB1** (user, 2026-09-29). No lookup to the HL contact; name and mobile travel as values. |
 | D5 | HL context on the Case | **Nothing beyond the approved fields.** Loan account, Collection Case number and source system are not written to the Case (no approved field; `qdb_qid` / `qdb_contact` not used). Open if Case Management users must see them. |
-| D6 | Customer SMS / email on create | **Open.** Read the workflow definitions with `onprem-case-workflows-inspect.js` before the first live complaint. |
+| D6 | Customer SMS / email on create | **Open — now a business decision, not an unknown.** The definitions were read (§7): QDB1 sends the HL customer an acknowledgement SMS for every complaint DCP raises (the same SMS a phone-raised complaint gets); no email is sent. Whether that is wanted is QDB's call. QDB1 workflows are not to be changed by DCP. |
 | D7 | Security | **CRM decides.** The service reads the Collection Case as the HL user and creates the Case as the QDB1 user (`MSCRMCallerID`); each must hold the privileges in their own organisation. |
 
 ## 4. What was built
@@ -103,7 +102,7 @@ The form marks five partner-bank fields ApplicationRequired; the Web API does no
    Role assignment is QDB's decision.
 4. Decide browser → service sign-in (AD FS on-prem; P11) and supply it to the workspace session.
 5. Set `caseManagementServiceUrl` in the HL `qdb_platformconfiguration.qdb_featureflags`.
-6. Run `onprem-case-workflows-inspect.js` and settle D6 before the first real complaint.
+6. Settle D6 (customer SMS, §7) before the first real complaint.
 
 ## 6. Remaining gaps
 
@@ -116,3 +115,46 @@ The form marks five partner-bank fields ApplicationRequired; the Web API does no
 - Users are matched by primary email in each organisation; a user without one, or with different
   emails in the two, is refused.
 - BFD complaints are not implemented (mapping not approved); the service refuses non-HL cases.
+
+## 7. What QDB1 does after DCP creates the Case (workflow inspection, 2026-10-04)
+
+Source: `docs/evidence/onprem/case-workflows-inspection-2026-10-04.json` (QDB1 test, 12 Case process
+definitions, XAML read statically — nothing was run). Plugin steps and SLAs: none on `incident`
+(inspection of 2026-09-29, §2). Activation state is not in the file; the 2026-09-29 inspection listed
+the on-create ones as active.
+
+### On create — runs for a DCP complaint
+
+| Automation | Mode | What it does with the approved mapping | Customer contact |
+|---|---|---|---|
+| **Case : SMS Alert to Customer** | background | Copies `qdb_customer_mobile_number` (= HL customer mobile) into `qdb_mobile_number`. If `qdb_isthisnfg` = true it sends the NFG text and stops; DCP leaves it unset. Otherwise, because `casetypecode` 2 (Complaint) is in its list {1, 2, 3, 751090000–751090002}, it **creates an outbound SMS (`fax`, `qdb_smssendto` 751090003) to that mobile**: *"This is to confirm that we received your [case type] [case number] and we will update you soon…"* plus the Arabic text. | **YES — SMS to the HL customer** |
+| Case : Set Expected Closure date for Case Type Complaint | background | `casetypecode` = 2 → custom activity `QDBDigital.CRM.Customization.Workflows.CaseSetExpectedClosureDate` sets the expected closure date (the SLA-like due date) | no |
+| Case : Set Paramters | background | Sets `qdb_lc_documents_link` (a SharePoint URL built from the title). Copies the account's name into `qdb_customer_name` **only when it is empty** — DCP fills it, so the HL customer's name stays. Sets `followupby` to now **only when empty** — DCP fills it, so the approved Received Date stays | no |
+| Case -onCreate: Extract HTML Description | real-time | Runs only when `caseorigincode` = 3986 (Twitter) and a specific owner — DCP sends 1 (Phone): **does not run** | no |
+| Phone to Case Process | BPF | default stage flow for the Case | no |
+
+### Not on create
+
+| Automation | Trigger | Relevance |
+|---|---|---|
+| Case : Email Alert to Customer | not on create (on demand / child) | **Stops immediately when `qdb_email` is empty** — DCP sends none, so no email even if started. Otherwise emails "Case Submission Alert" from a QDB queue |
+| Case : Update Customer Details | update of `customerid` | Only if someone changes the customer; would overwrite `qdb_customer_name` with the account name (for "Non Customer" that would replace the HL customer's name) |
+| Updating Non Customer (business rule) | form | When `casetypecode` is empty, sets it to 751090003 and `customerid` to account `9a50e4b2-743b-e511-8277-00155d780414` — the likely **Non Customer** account; DCP always sets the type, so it does not fire. Candidate value for `CASE_MANAGEMENT_NON_CUSTOMER_ACCOUNT_ID` (confirm) |
+| Case : Submit (dialog), Case Management : Case Submit Action (action) | user / action | Progression: creates `qdb_status_history` work items, sets state, assigns pending user, starts 3 child workflows (ids only — not in the file) |
+| Case : Assign Case, Case Assign to user | on demand | Assign to a fixed user (two hard-coded users) and set assigned/pending user |
+
+### Implications
+
+- **SMS:** every DCP-raised HL complaint sends the HL customer an acknowledgement SMS from QDB1 — the
+  same as a phone-raised complaint. Whether the SMS actually leaves depends on QDB1's SMS gateway
+  processing `fax` records (not inspected). Decision D6.
+- **Email:** none — `qdb_email` is not in the approved mapping.
+- **WhatsApp:** no WhatsApp step in any of the 12 definitions.
+- **Other:** expected closure date set; a SharePoint link field set; no assignment on create (owner and
+  Assigned To stay as DCP sets them); no plugin, SLA or integration call on create.
+- **Not covered by the file:** "Assign Case to Owner if Case Created From Middleware" appeared in the
+  2026-09-29 list of active on-create workflows but its definition is **not** in this file — unanalysed;
+  and the three child workflows of *Case : Submit*. Neither runs from DCP's create alone as far as the
+  read definitions show, but the first is named for exactly this path and must be read.
+- **Not validated end to end** until a real cross-organisation Case creation is run and its SMS,
+  closure date and assignment are observed.

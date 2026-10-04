@@ -1,9 +1,10 @@
 # DCP columns bound to QDB-wide choices — dependency and migration assessment
 
-2026-10-04 (Asia/Qatar). **Assessment only — no schema write, no package.** Evidence: cloud probe
-`crm/scripts/probe-shared-choices.mjs`; on-prem files `hl-prerequisites-inspection-2026-10-04.json`
-and `qdb1prerequisites-inspection-2026-10-04.json`. On-prem option values are **pending**
-(`crm/scripts/onprem-choice-inspect.js`, to run in HL CRM test and QDB1 test).
+2026-10-04 (Asia/Qatar). Assessment, then **executed on the cloud sandbox only** (see *Migration
+result* at the end). Evidence: cloud probe `crm/scripts/probe-shared-choices.mjs`; on-prem
+inspections `docs/evidence/onprem/choice-inspection-HousingLoan-2026-10-04.json` and
+`choice-inspection-QDB2-2026-10-04.json` (`crm/scripts/onprem-choice-inspect.js`, run by the user in
+HL CRM test and QDB1 test — the QDB1 organisation reports its name as "QDB2").
 
 ## Root cause
 
@@ -32,9 +33,17 @@ subcomponents); the choices are **not** in the DCP solution — they are externa
 
 | Choice | Cloud sandbox | HL CRM test | QDB1 test |
 |---|---|---|---|
-| qdb_approval_status | 0 = Return · 1 = Approve | **absent** | present — values pending |
-| qdb_risk_level | 751090000 Low · 751090001 Medium · 751090002 High | **absent** | present — values pending |
-| qdb_priority | 751090000 = "████" (one option, unreadable label) | present — values pending | present — values pending |
+| qdb_approval_status | 0 Return · 1 Approve | **absent** | 0 Return · 1 Approve — unmanaged; solutions WorkPackage09EntitiesOnly, WorkPackage09Minha, ExportTradeFinance (publisher `qdb`) + Default; used by `qdb_strategy_development_task`, `qdb_tasdeer_task` |
+| qdb_risk_level | 751090000 Low · 751090001 Medium · 751090002 High | **absent** | identical values and labels — unmanaged; Default only; used by `qdb_loan_application_credit_risk` |
+| qdb_priority | 751090000 = "████" | **751090000 High · 751090001 Medium · 751090002 Low** — unmanaged; CaseManagementChanges (publisher `qdb`) + Default; used by `incident.qdb_priority`, `qdb_case_task.qdb_priority` | 751090000 = "████" — unmanaged; Default; used by `qdb_customerfollowup`, `qdb_status_history` |
+
+**Gate 1 decision.** No conflict with the approved design: DCP's Approval Status integers 0/1 equal
+QDB1's and the cloud's; the target choice name `qdb_dcp_approval_status` is new; no DCP column is
+bound to any of the three choices after the migration, so HL's absent choices stop being import
+blockers. One finding strengthens the retirement: `qdb_priority` means **different things** in HL
+(751090000 = High) and QDB1/cloud (751090000 = "████") — had DCP kept Case Priority on that choice,
+the same stored integer would have read differently per organisation. HL also has a
+`CaseManagementChanges` solution and `incident.qdb_priority`; DCP touches neither.
 
 ## 5. Ownership (cloud)
 
@@ -149,17 +158,37 @@ code by `git revert`.
 - **QDB1:** the new DCP choice is created beside QDB's; QDB's choices and their other users untouched.
 - **Cloud sandbox:** six DCP columns change; QDB's choices and the five other modules' columns untouched.
 
-## 22–23. Case workflows and complaint side effects — **not yet known**
+## 22–23. Case workflows and complaint side effects
 
-`case-workflows-inspection-2026-10-04.json` cannot be read here: its folder is denied by this
-machine's permission settings. Known from the first QDB1 inspection: active on-create Case workflows
-include "SMS Alert to Customer", "Email Alert to Customer", "Set Paramters", "Set Expected Closure date
-for Case Type Complaint", "Assign Case to Owner if Case Created From Middleware" and "Extract HTML
-Description". Whether they would message a customer for a DCP-raised complaint is unresolved; it
-must be answered before complaint end-to-end validation. No QDB1 workflow is to be changed.
+Analysed from `docs/evidence/onprem/case-workflows-inspection-2026-10-04.json` — see
+`CaseManagement_HLComplaint_Findings.md` §6. In short: a DCP-raised HL complaint **will** trigger
+QDB1's "Case : SMS Alert to Customer" (an outbound SMS to the HL customer's mobile) and the expected
+closure date calculation; the Email alert stops because DCP sends no `qdb_email`. No QDB1 workflow was
+changed.
 
-## 24. Remaining blockers
+## 24. Migration result — cloud sandbox org5869857f, 2026-10-04
 
-1. Approval of this plan (and of the `qdb_dcp_` naming).
-2. On-prem option values: run `onprem-choice-inspect.js` in HL CRM test and QDB1 test.
-3. Workflow file access, before complaint end-to-end validation.
+| Item | Result | Evidence |
+|---|---|---|
+| `qdb_dcp_approval_status` | created, 0 Return · 1 Approve, global, unmanaged, in `qdb_debtcollection` | verification checks 1–5 |
+| Both Approval Status columns | rebound; schema name `qdb_approvalstatus`, display name and required level unchanged | checks 6–7 |
+| Template values | 4 before = 4 after, each 1 (Approve); 0 changed, 0 unexpected; P7-SMS-UNAPPROVED-EN still null | `2026-10-04-approval-status-restore-verification.json`, checks 26–32 |
+| Activity values | 0 before = 0 after | check 33 |
+| Retired | Case Risk Level, Case Priority, Strategy Risk Level, Assignment Risk Level — 404 | checks 20–23 |
+| Numeric Priority | strategy and assignment `qdb_priority` Integer, ApplicationRequired — unchanged | checks 24–25 |
+| QDB shared choices | values, labels and other users unchanged; none in `qdb_debtcollection`; no longer used by DCP | checks 8–19 |
+| Forms / views | regenerated; no retired column referenced; Approval Status back on both forms | checks 34–40 |
+| Solution dependencies | before: export required the 3 shared choices; after: `RetrieveMissingDependencies` = 0 and the export's `MissingDependencies` lists only 3 cloud-only AppSettings | check 41; `onprem-deploy/2026-10-04/source` |
+| Overall | **41/41** independent checks | `docs/evidence/migrations/2026-10-04-post-migration-verification.json` |
+
+The run stopped three times before completing — metadata read-back lag after create, a dropped
+connection after publish, and the Web API model lagging the recreated column. Each stop left the
+sandbox consistent and was fixed in the script (only a 404 means absent; read retries; wait for the
+recreated column and the published model; resumable from a partial state), then resumed forward.
+
+## 25. Remaining blockers
+
+1. Common on-prem package: built (`onprem-deploy/2026-10-04/`), import pending approval; run
+   `onprem-package-preflight.js` in both orgs first.
+2. HL complaint end-to-end: not validated until a real cross-organisation Case creation succeeds, and
+   the customer-SMS behaviour (§22) is decided.
