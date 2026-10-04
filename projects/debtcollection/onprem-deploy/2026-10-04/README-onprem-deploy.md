@@ -112,8 +112,16 @@ Found after import: at the raw `/<org>/WebResources/qdb_dcp_workspace.html` URL 
 called `https://server/api/data/…` (no organisation) and the server answered **500** — it used the
 origin as the organisation URL, which is only true online. Fixed in `webApiHost.ts`
 (`organisationUrlOf`: organisation = path before `WebResources`, cache token dropped); deployed to
-the sandbox; package re-exported and rebuilt with it (SHA-256 in `package-manifest.json`). HL keeps
-the earlier build until the package is re-imported there; the in-app path is unaffected.
+the sandbox; package re-exported and rebuilt with it (SHA-256 in `package-manifest.json`).
+
+## Import attempt 3 (update) — HL CRM test, 2026-10-04 — SUCCEEDED, VERIFIED
+
+Rebuilt package (`5b85a962…c4f0`, commit `aed091c4`) imported over attempt 2. Post-import check
+**16/16** (`onprem-deploy/Post Import/post-import-HousingLoan-2026-10-04.json`); QDB's shared choices
+identical to the pre-import inspection. Workspace loads inside the app **and** at the raw
+`https://mcdynccatdev01/HousingLoan/webresources/qdb_dcp_workspace.html` (confirmed by the user) —
+the standalone-host fix is proven on 9.1. HL app id `57c05de0-26d2-44ef-a6e5-df57801e9bb2`.
+Not yet done in HL: configuration row, reference data, role assignment, any runtime use.
 
 ## Residual risk — stated precisely
 
