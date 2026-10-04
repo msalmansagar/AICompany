@@ -1,0 +1,385 @@
+{
+  "verifiedAt": "2026-10-04T14:14:49.265Z",
+  "organisation": "https://org5869857f.crm4.dynamics.com",
+  "passed": 41,
+  "failed": 0,
+  "checks": [
+    {
+      "name": "DCP choice exists with exactly 0 Return / 1 Approve",
+      "passed": true,
+      "detail": [
+        [
+          0,
+          "Return"
+        ],
+        [
+          1,
+          "Approve"
+        ]
+      ]
+    },
+    {
+      "name": "DCP choice display name",
+      "passed": true,
+      "detail": "DCP Approval Status"
+    },
+    {
+      "name": "DCP choice is global and unmanaged",
+      "passed": true,
+      "detail": {
+        "isGlobal": true,
+        "isManaged": false
+      }
+    },
+    {
+      "name": "DCP choice belongs to qdb_debtcollection",
+      "passed": true,
+      "detail": [
+        "Default",
+        "qdb_debtcollection"
+      ]
+    },
+    {
+      "name": "DCP choice is used by exactly the two Approval Status columns",
+      "passed": true,
+      "detail": [
+        "qdb_collectionactivity.qdb_approvalstatus",
+        "qdb_communicationtemplate.qdb_approvalstatus"
+      ]
+    },
+    {
+      "name": "qdb_collectionactivity.qdb_approvalstatus rebound, name and settings unchanged",
+      "passed": true,
+      "detail": {
+        "schemaName": "qdb_approvalstatus",
+        "choice": "qdb_dcp_approval_status",
+        "requiredLevel": "None",
+        "displayName": "Approval Status"
+      }
+    },
+    {
+      "name": "qdb_communicationtemplate.qdb_approvalstatus rebound, name and settings unchanged",
+      "passed": true,
+      "detail": {
+        "schemaName": "qdb_approvalstatus",
+        "choice": "qdb_dcp_approval_status",
+        "requiredLevel": "ApplicationRequired",
+        "displayName": "Approval Status"
+      }
+    },
+    {
+      "name": "QDB qdb_approval_status option values unchanged",
+      "passed": true,
+      "detail": [
+        0,
+        1
+      ]
+    },
+    {
+      "name": "QDB qdb_approval_status labels unchanged",
+      "passed": true,
+      "detail": [
+        "Return",
+        "Approve"
+      ]
+    },
+    {
+      "name": "QDB qdb_approval_status still used by its other modules and no longer by DCP",
+      "passed": true,
+      "detail": [
+        "qdb_strategy_development_task.qdb_approval_status",
+        "qdb_tasdeer_task.qdb_approval_status"
+      ]
+    },
+    {
+      "name": "QDB qdb_approval_status not in qdb_debtcollection",
+      "passed": true,
+      "detail": [
+        "Default",
+        "GlobalOptionset"
+      ]
+    },
+    {
+      "name": "QDB qdb_risk_level option values unchanged",
+      "passed": true,
+      "detail": [
+        751090000,
+        751090001,
+        751090002
+      ]
+    },
+    {
+      "name": "QDB qdb_risk_level labels unchanged",
+      "passed": true,
+      "detail": [
+        "Low",
+        "Medium",
+        "High"
+      ]
+    },
+    {
+      "name": "QDB qdb_risk_level still used by its other modules and no longer by DCP",
+      "passed": true,
+      "detail": [
+        "qdb_loan_application_credit_risk.qdb_risk_level"
+      ]
+    },
+    {
+      "name": "QDB qdb_risk_level not in qdb_debtcollection",
+      "passed": true,
+      "detail": [
+        "Default",
+        "GlobalOptionset"
+      ]
+    },
+    {
+      "name": "QDB qdb_priority option values unchanged",
+      "passed": true,
+      "detail": [
+        751090000
+      ]
+    },
+    {
+      "name": "QDB qdb_priority labels unchanged",
+      "passed": true,
+      "detail": [
+        "████"
+      ]
+    },
+    {
+      "name": "QDB qdb_priority still used by its other modules and no longer by DCP",
+      "passed": true,
+      "detail": [
+        "qdb_customerfollowup.qdb_priority",
+        "qdb_status_history.qdb_work_item_priority"
+      ]
+    },
+    {
+      "name": "QDB qdb_priority not in qdb_debtcollection",
+      "passed": true,
+      "detail": [
+        "Default",
+        "GlobalOptionset"
+      ]
+    },
+    {
+      "name": "qdb_collectioncase.qdb_risklevel retired",
+      "passed": true
+    },
+    {
+      "name": "qdb_collectioncase.qdb_priority retired",
+      "passed": true
+    },
+    {
+      "name": "qdb_collectionstrategy.qdb_risklevel retired",
+      "passed": true
+    },
+    {
+      "name": "qdb_assignmentconfiguration.qdb_risklevel retired",
+      "passed": true
+    },
+    {
+      "name": "qdb_collectionstrategy.qdb_priority numeric and unchanged",
+      "passed": true,
+      "detail": {
+        "type": "Integer",
+        "required": "ApplicationRequired"
+      }
+    },
+    {
+      "name": "qdb_assignmentconfiguration.qdb_priority numeric and unchanged",
+      "passed": true,
+      "detail": {
+        "type": "Integer",
+        "required": "ApplicationRequired"
+      }
+    },
+    {
+      "name": "template rows unchanged in number",
+      "passed": true,
+      "detail": 5
+    },
+    {
+      "name": "4 templates hold a value before and after",
+      "passed": true,
+      "detail": {
+        "before": 4,
+        "after": 4
+      }
+    },
+    {
+      "name": "P7-SMS-OVERDUE-EN = 1 (Approve) before and after",
+      "passed": true,
+      "detail": {
+        "before": 1,
+        "after": 1,
+        "label": "Approve"
+      }
+    },
+    {
+      "name": "P7-SMS-FOLLOWUP-EN = 1 (Approve) before and after",
+      "passed": true,
+      "detail": {
+        "before": 1,
+        "after": 1,
+        "label": "Approve"
+      }
+    },
+    {
+      "name": "P7-SMS-OVERDUE-AR = 1 (Approve) before and after",
+      "passed": true,
+      "detail": {
+        "before": 1,
+        "after": 1,
+        "label": "Approve"
+      }
+    },
+    {
+      "name": "P7-EMAIL-OVERDUE-EN = 1 (Approve) before and after",
+      "passed": true,
+      "detail": {
+        "before": 1,
+        "after": 1,
+        "label": "Approve"
+      }
+    },
+    {
+      "name": "P7-SMS-UNAPPROVED-EN still has no approval (blocked by design)",
+      "passed": true,
+      "detail": null
+    },
+    {
+      "name": "collection activities with an approval value: 0 before and after",
+      "passed": true,
+      "detail": 0
+    },
+    {
+      "name": "qdb_collectioncase forms/views reference no retired column",
+      "passed": true,
+      "detail": {
+        "forms": [
+          "Information"
+        ],
+        "staleForms": [],
+        "staleViews": []
+      }
+    },
+    {
+      "name": "qdb_collectionactivity forms/views reference no retired column",
+      "passed": true,
+      "detail": {
+        "forms": [
+          "Information"
+        ],
+        "staleForms": [],
+        "staleViews": []
+      }
+    },
+    {
+      "name": "qdb_collectionactivity Information form shows Approval Status again",
+      "passed": true
+    },
+    {
+      "name": "qdb_collectionstrategy forms/views reference no retired column",
+      "passed": true,
+      "detail": {
+        "forms": [
+          "Information"
+        ],
+        "staleForms": [],
+        "staleViews": []
+      }
+    },
+    {
+      "name": "qdb_assignmentconfiguration forms/views reference no retired column",
+      "passed": true,
+      "detail": {
+        "forms": [
+          "Information"
+        ],
+        "staleForms": [],
+        "staleViews": []
+      }
+    },
+    {
+      "name": "qdb_communicationtemplate forms/views reference no retired column",
+      "passed": true,
+      "detail": {
+        "forms": [
+          "Information"
+        ],
+        "staleForms": [],
+        "staleViews": []
+      }
+    },
+    {
+      "name": "qdb_communicationtemplate Information form shows Approval Status again",
+      "passed": true
+    },
+    {
+      "name": "qdb_debtcollection has no missing dependency on QDB's shared choices",
+      "passed": true,
+      "detail": {
+        "totalMissing": 0,
+        "onSharedChoices": 0
+      }
+    }
+  ],
+  "templatesAfter": [
+    {
+      "@odata.etag": "W/\"213655067\"",
+      "qdb_code": "P7-SMS-OVERDUE-EN",
+      "qdb_approvalrequired@OData.Community.Display.V1.FormattedValue": "Yes",
+      "qdb_approvalrequired": true,
+      "qdb_approvalstatus@OData.Community.Display.V1.FormattedValue": "Approve",
+      "qdb_approvalstatus": 1,
+      "statecode@OData.Community.Display.V1.FormattedValue": "Active",
+      "statecode": 0,
+      "qdb_communicationtemplateid": "fd7d398c-d5b4-f111-aaac-000d3abd8313"
+    },
+    {
+      "@odata.etag": "W/\"213655069\"",
+      "qdb_code": "P7-SMS-FOLLOWUP-EN",
+      "qdb_approvalrequired@OData.Community.Display.V1.FormattedValue": "Yes",
+      "qdb_approvalrequired": true,
+      "qdb_approvalstatus@OData.Community.Display.V1.FormattedValue": "Approve",
+      "qdb_approvalstatus": 1,
+      "statecode@OData.Community.Display.V1.FormattedValue": "Active",
+      "statecode": 0,
+      "qdb_communicationtemplateid": "fe7d398c-d5b4-f111-aaac-000d3abd8313"
+    },
+    {
+      "@odata.etag": "W/\"210693135\"",
+      "qdb_code": "P7-SMS-UNAPPROVED-EN",
+      "qdb_approvalrequired@OData.Community.Display.V1.FormattedValue": "Yes",
+      "qdb_approvalrequired": true,
+      "qdb_approvalstatus": null,
+      "statecode@OData.Community.Display.V1.FormattedValue": "Active",
+      "statecode": 0,
+      "qdb_communicationtemplateid": "ff657792-d5b4-f111-aaac-000d3abd8313"
+    },
+    {
+      "@odata.etag": "W/\"213655072\"",
+      "qdb_code": "P7-SMS-OVERDUE-AR",
+      "qdb_approvalrequired@OData.Community.Display.V1.FormattedValue": "Yes",
+      "qdb_approvalrequired": true,
+      "qdb_approvalstatus@OData.Community.Display.V1.FormattedValue": "Approve",
+      "qdb_approvalstatus": 1,
+      "statecode@OData.Community.Display.V1.FormattedValue": "Active",
+      "statecode": 0,
+      "qdb_communicationtemplateid": "0f31b08f-d5b4-f111-aaac-70a8a55bc6a5"
+    },
+    {
+      "@odata.etag": "W/\"213655073\"",
+      "qdb_code": "P7-EMAIL-OVERDUE-EN",
+      "qdb_approvalrequired@OData.Community.Display.V1.FormattedValue": "Yes",
+      "qdb_approvalrequired": true,
+      "qdb_approvalstatus@OData.Community.Display.V1.FormattedValue": "Approve",
+      "qdb_approvalstatus": 1,
+      "statecode@OData.Community.Display.V1.FormattedValue": "Active",
+      "statecode": 0,
+      "qdb_communicationtemplateid": "1031b08f-d5b4-f111-aaac-70a8a55bc6a5"
+    }
+  ],
+  "missingDependencies": []
+}

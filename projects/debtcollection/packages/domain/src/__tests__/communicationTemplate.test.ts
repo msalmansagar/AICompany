@@ -58,6 +58,14 @@ describe('which templates may be offered', () => {
     expect(verdict.available).toBe(false);
   });
 
+  it('reads the stored integers of qdb_dcp_approval_status: 1 approves, 0 returns', () => {
+    // Raw literals on purpose: these are the values stored in Dataverse, preserved by the
+    // shared-choice migration (docs/SharedChoiceAssessment.md). Changing them breaks stored data.
+    expect(APPROVAL_STATUS_CODES).toEqual({ Return: 0, Approve: 1 });
+    expect(templateAvailability({ ...base, approvalStatus: 1 }).available).toBe(true);
+    expect(templateAvailability({ ...base, approvalStatus: 0 }).available).toBe(false);
+  });
+
   it('offers a template that does not require approval', () => {
     expect(templateAvailability({ ...base, approvalRequired: false, approvalStatus: null }).available)
       .toBe(true);

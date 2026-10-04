@@ -1,0 +1,47 @@
+{
+  "inspectedAt": "2026-10-04T10:46:06.763Z",
+  "clientUrl": "https://mcdynccatdev01/HousingLoan",
+  "organisation": "Housing Loan",
+  "choices": {
+    "qdb_approval_status": {
+      "exists": false
+    },
+    "qdb_risk_level": {
+      "exists": false
+    },
+    "qdb_priority": {
+      "exists": true,
+      "managed": false,
+      "options": [
+        {
+          "value": 751090000,
+          "label": "High"
+        },
+        {
+          "value": 751090001,
+          "label": "Medium"
+        },
+        {
+          "value": 751090002,
+          "label": "Low"
+        }
+      ],
+      "solutions": [
+        {
+          "solution": "CaseManagementChanges",
+          "managed": false,
+          "publisher": "qdb"
+        },
+        {
+          "solution": "Default",
+          "managed": false,
+          "publisher": "DefaultPublisherHousingLoan"
+        }
+      ],
+      "columns": [
+        "incident.qdb_priority",
+        "qdb_case_task.qdb_priority"
+      ]
+    }
+  }
+}

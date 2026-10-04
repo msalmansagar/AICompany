@@ -54,7 +54,19 @@ async function call(method, path, body) {
   if (!response.ok) throw new Error(`${method} ${path} → ${response.status}: ${text.slice(0, 400)}`);
   return text ? JSON.parse(text) : {};
 }
-const get = path => call('GET', path);
+/** Reads are idempotent, so a dropped connection (common right after a publish) is retried; writes never are. */
+async function get(path) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await call('GET', path);
+    } catch (error) {
+      const isNetworkFailure = error instanceof TypeError;
+      if (!isNetworkFailure || attempt === 4) throw error;
+      console.log(`  (read retry ${attempt} after: ${error.message})`);
+      await new Promise(done => setTimeout(done, 5000 * attempt));
+    }
+  }
+}
 const tryGet = path => get(path).catch(error => ({ error: error.message }));
 const label = text => ({ '@odata.type': 'Microsoft.Dynamics.CRM.Label', LocalizedLabels: [{ '@odata.type': 'Microsoft.Dynamics.CRM.LocalizedLabel', Label: text, LanguageCode: 1033 }] });
 const attributePath = (table, column) => `/EntityDefinitions(LogicalName='${table}')/Attributes(LogicalName='${column}')`;
@@ -64,7 +76,10 @@ const fail = message => { console.error(`\n[STOP] ${message}`); process.exit(2);
 
 async function definitionOf(table, column) {
   const a = await tryGet(`${attributePath(table, column)}/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$select=LogicalName,SchemaName,MetadataId,RequiredLevel,DisplayName,Description&$expand=GlobalOptionSet($select=Name,MetadataId)`);
-  if (a.error) return { exists: false };
+  // Only a 404 means "absent". Any other failure (throttling, a publish in progress) must stop the run:
+  // treating it as absent once made the migration skip a column it should have deleted.
+  if (a.error && /→ 404:/.test(a.error)) return { exists: false };
+  if (a.error) throw new Error(`could not read ${table}.${column}: ${a.error}`);
   return { exists: true, schemaName: a.SchemaName, metadataId: a.MetadataId, requiredLevel: a.RequiredLevel?.Value, displayName: a.DisplayName?.UserLocalizedLabel?.Label, description: a.Description?.UserLocalizedLabel?.Label ?? '', choice: a.GlobalOptionSet?.Name };
 }
 
@@ -163,9 +178,26 @@ function regenerate(exclude) {
   if (isExecute) execFileSync(process.execPath, args, { stdio: 'inherit', env: process.env });
 }
 
+const pause = milliseconds => new Promise(done => setTimeout(done, milliseconds));
+
+/** A just-created choice is not readable by name at once (metadata cache); poll for up to a minute. */
+async function readChoiceAfterCreate() {
+  for (let attempt = 1; attempt <= 12; attempt += 1) {
+    const choice = await tryGet(`/GlobalOptionSetDefinitions(Name='${NEW_CHOICE.name}')`);
+    if (!choice.error) return choice;
+    await pause(5000);
+  }
+  fail(`${NEW_CHOICE.name} was created but is still not readable after a minute`);
+}
+
+function assertChoiceOptions(choice) {
+  const actual = JSON.stringify(choice.Options.map(o => [o.Value, o.Label.UserLocalizedLabel.Label]));
+  if (actual !== JSON.stringify(NEW_CHOICE.options)) fail(`${NEW_CHOICE.name} has unexpected options ${actual}`);
+}
+
 async function ensureChoice() {
   const existing = await tryGet(`/GlobalOptionSetDefinitions(Name='${NEW_CHOICE.name}')`);
-  if (!existing.error) return existing.MetadataId;
+  if (!existing.error) { assertChoiceOptions(existing); return existing.MetadataId; }
   console.log(`  [CREATE] global choice ${NEW_CHOICE.name}`);
   if (!isExecute) return undefined;
   await call('POST', '/GlobalOptionSetDefinitions', {
@@ -174,8 +206,8 @@ async function ensureChoice() {
     IsGlobal: true, OptionSetType: 'Picklist',
     Options: NEW_CHOICE.options.map(([value, text]) => ({ Value: value, Label: label(text) })),
   });
-  const created = await get(`/GlobalOptionSetDefinitions(Name='${NEW_CHOICE.name}')`);
-  if (JSON.stringify(created.Options.map(o => [o.Value, o.Label.UserLocalizedLabel.Label])) !== JSON.stringify(NEW_CHOICE.options)) fail(`${NEW_CHOICE.name} was created with unexpected options`);
+  const created = await readChoiceAfterCreate();
+  assertChoiceOptions(created);
   return created.MetadataId;
 }
 
@@ -184,6 +216,16 @@ async function deleteColumn(table, column) {
   console.log(`  [DELETE] ${table}.${column}${isExecute ? '' : ` (${deps.length} form/view reference(s) today, cleared by regeneration first)`}`);
   if (isExecute && deps.length > 0) fail(`${table}.${column} still has ${deps.length} dependent component(s) after regeneration`);
   if (isExecute) await call('DELETE', attributePath(table, column));
+}
+
+/** Metadata reads lag a recreate and can still return the deleted column's definition; wait for the new one. */
+async function readColumnAfterCreate(table, column, expectedChoice) {
+  for (let attempt = 1; attempt <= 12; attempt += 1) {
+    const definition = await definitionOf(table, column);
+    if (definition.choice === expectedChoice) return definition;
+    await pause(5000);
+  }
+  fail(`${table}.${column} still does not report choice ${expectedChoice} after a minute`);
 }
 
 async function createChoiceColumn(definition, choiceName) {
@@ -196,14 +238,33 @@ async function createChoiceColumn(definition, choiceName) {
     RequiredLevel: { Value: definition.requiredLevel, CanBeChanged: true, ManagedPropertyLogicalName: 'canmodifyrequirementlevelsettings' },
     'GlobalOptionSet@odata.bind': `/GlobalOptionSetDefinitions(${choice.MetadataId})`,
   });
-  const created = await definitionOf(definition.table, definition.column);
+  const created = await readColumnAfterCreate(definition.table, definition.column, choiceName);
   if (created.schemaName !== definition.schemaName || created.choice !== choiceName) fail(`${definition.table}.${definition.column} was not recreated as defined`);
 }
 
+async function publishRebindTables() {
+  const entities = [...new Set(COLUMNS.filter(c => c[5] === 'rebind').map(c => `<entity>${c[0]}</entity>`))].join('');
+  console.log('  [PUBLISH] rebound tables, so the Web API model knows the recreated columns');
+  if (isExecute) await call('POST', '/PublishXml', { ParameterXml: `<importexportxml><entities>${entities}</entities></importexportxml>` });
+}
+
+/** Setting the same value twice is harmless, so only the "model not refreshed yet" refusal is retried. */
+async function restoreValue(record) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await call('PATCH', `/${record.entitySet}(${record.id})`, { qdb_approvalstatus: record.value });
+    } catch (error) {
+      if (!/Invalid property 'qdb_approvalstatus'/.test(error.message) || attempt === 12) throw error;
+      await pause(10000);
+    }
+  }
+}
+
 async function restoreAndVerify(saved, choiceName) {
+  await publishRebindTables();
   for (const record of saved.records.filter(r => r.column === 'qdb_approvalstatus')) {
     console.log(`  [RESTORE] ${record.table} ${record.businessId ?? record.id} = ${record.value}`);
-    if (isExecute) await call('PATCH', `/${record.entitySet}(${record.id})`, { qdb_approvalstatus: record.value });
+    if (isExecute) await restoreValue(record);
   }
   if (!isExecute) return;
   const after = [];
@@ -217,18 +278,37 @@ async function restoreAndVerify(saved, choiceName) {
   if (before.length !== after.length || changed.length || unexpected.length) fail('restored values differ from the backup — see the verification file');
 }
 
+/**
+ * Columns still on QDB's choice must hold exactly the backed-up values. Columns already deleted or
+ * rebound by an earlier, interrupted run are restored from the backup, so they are not compared.
+ */
+async function assertUnmigratedDataMatchesBackup(saved) {
+  for (const entry of COLUMNS.filter(c => c[5] === 'rebind')) {
+    const [table, , column] = entry;
+    const current = await definitionOf(table, column);
+    if (!current.exists || current.choice !== QDB_APPROVAL_CHOICE) { console.log(`  [RESUME] ${table}.${column} already migrated past its backup point`); continue; }
+    const live = (await valuesOf(entry)).map(r => [r.id, r.value]).sort();
+    const backedUp = saved.records.filter(r => r.table === table && r.column === column).map(r => [r.id, r.value]).sort();
+    if (JSON.stringify(live) !== JSON.stringify(backedUp)) fail(`${table}.${column} data changed since the backup; take a new backup`);
+  }
+}
+
 async function migrate() {
   if (!existsSync(BACKUP)) fail('no backup; run --backup first');
   const saved = JSON.parse(readFileSync(BACKUP, 'utf8'));
-  const current = [];
-  for (const entry of COLUMNS.filter(c => c[5] === 'rebind')) current.push(...(await valuesOf(entry)));
-  if (JSON.stringify(current.map(r => [r.id, r.value]).sort()) !== JSON.stringify(saved.records.filter(r => r.column === 'qdb_approvalstatus').map(r => [r.id, r.value]).sort())) fail('Approval Status data changed since the backup; take a new backup');
+  await assertUnmigratedDataMatchesBackup(saved);
   const problems = await check();
   if (problems.length) fail(`Gate 4 failed:\n  ${problems.join('\n  ')}`);
   await ensureChoice();
   regenerate('qdb_approvalstatus');
-  for (const [table, , column] of COLUMNS) if ((await definitionOf(table, column)).exists) await deleteColumn(table, column);
-  for (const definition of saved.definitions.filter(d => d.fate === 'rebind')) await createChoiceColumn(definition, NEW_CHOICE.name);
+  for (const [table, , column, , , fate] of COLUMNS) {
+    const current = await definitionOf(table, column);
+    if (current.exists && (fate === 'retire' || current.choice !== NEW_CHOICE.name)) await deleteColumn(table, column);
+  }
+  for (const definition of saved.definitions.filter(d => d.fate === 'rebind')) {
+    if ((await definitionOf(definition.table, definition.column)).choice === NEW_CHOICE.name) console.log(`  [KEEP] ${definition.table}.${definition.column} already → ${NEW_CHOICE.name}`);
+    else await createChoiceColumn(definition, NEW_CHOICE.name);
+  }
   await restoreAndVerify(saved, NEW_CHOICE.name);
   regenerate();
   if (isExecute) await call('POST', '/PublishXml', { ParameterXml: `<importexportxml><entities>${[...new Set(COLUMNS.map(c => `<entity>${c[0]}</entity>`))].join('')}</entities><optionsets><optionset>${NEW_CHOICE.name}</optionset></optionsets></importexportxml>` });
