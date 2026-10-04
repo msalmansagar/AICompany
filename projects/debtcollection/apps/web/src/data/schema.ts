@@ -214,7 +214,7 @@ export const STRATEGY_COLUMNS = [
   'qdb_collectionstrategyid', 'qdb_code', 'qdb_name', 'qdb_priority', 'qdb_isactive',
   'qdb_effectivefrom', 'qdb_effectiveto', 'qdb_rulecode', 'qdb_noautomatedcontact', 'qdb_description',
   'qdb_customertype', 'qdb_producttype', 'qdb_dpdfrom', 'qdb_dpdto', 'qdb_arrearsfrom', 'qdb_arrearsto',
-  'qdb_exposurefrom', 'qdb_exposureto', 'qdb_risklevel', 'qdb_nplflag', 'qdb_brokenptpcountfrom',
+  'qdb_exposurefrom', 'qdb_exposureto', 'qdb_nplflag', 'qdb_brokenptpcountfrom',
   'qdb_legalstatus', 'qdb_restructurestatus',
 ] as const;
 

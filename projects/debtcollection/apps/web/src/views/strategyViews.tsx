@@ -41,7 +41,6 @@ const STRATEGY_COLUMNS: readonly DataGridColumn<StrategyRow>[] = [
   { key: 'arrears', header: 'Arrears', width: '210px', render: r => RANGE(r.arrearsFrom, r.arrearsTo, formatMoney) },
   { key: 'exposure', header: 'Exposure', width: '210px', render: r => RANGE(r.exposureFrom, r.exposureTo, formatMoney) },
   { key: 'segment', header: 'Segment', width: '130px', render: r => r.customerType ?? 'any' },
-  { key: 'risk', header: 'Risk', width: '110px', render: r => r.riskLevel ?? 'any' },
   { key: 'rule', header: 'Gated on', width: '150px', render: r => r.ruleCode ?? '—' },
   { key: 'state', header: 'State', width: '90px', render: r => (r.isActive ? 'Active' : 'Inactive') },
 ];

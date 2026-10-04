@@ -41,7 +41,6 @@ export interface StrategyRow {
   arrearsTo?: number;
   exposureFrom?: number;
   exposureTo?: number;
-  riskLevel?: string;
   nplFlag?: boolean;
   brokenPtpCountFrom?: number;
   legalStatus?: string;
@@ -64,7 +63,6 @@ export function toStrategyRow(row: CrmRow): StrategyRow {
     // platform's own formatted value is the only label used for them.
     ...optional('customerType', readChoice(row, 'qdb_customertype', CUSTOMER_TYPE_LABELS)),
     ...optional('productType', readChoice(row, 'qdb_producttype')),
-    ...optional('riskLevel', readChoice(row, 'qdb_risklevel')),
     ...optional('dpdFrom', readNumber(row, 'qdb_dpdfrom')),
     ...optional('dpdTo', readNumber(row, 'qdb_dpdto')),
     ...optional('arrearsFrom', readNumber(row, 'qdb_arrearsfrom')),

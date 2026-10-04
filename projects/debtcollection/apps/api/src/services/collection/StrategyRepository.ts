@@ -23,7 +23,7 @@ const STRATEGY_COLUMNS = [
   STRATEGY.effectiveFrom, STRATEGY.effectiveTo, STRATEGY.ruleCode, STRATEGY.noAutomatedContact,
   STRATEGY.description, STRATEGY.customerType, STRATEGY.productType, STRATEGY.dpdFrom, STRATEGY.dpdTo,
   STRATEGY.arrearsFrom, STRATEGY.arrearsTo, STRATEGY.exposureFrom, STRATEGY.exposureTo,
-  STRATEGY.riskLevel, STRATEGY.nplFlag, STRATEGY.brokenPtpCountFrom, STRATEGY.legalStatus, STRATEGY.restructureStatus,
+  STRATEGY.nplFlag, STRATEGY.brokenPtpCountFrom, STRATEGY.legalStatus, STRATEGY.restructureStatus,
 ];
 
 const ACTION_COLUMNS = [
@@ -128,7 +128,6 @@ function toStrategy(row: CrmRecord, actions: StrategyAction[]): CollectionStrate
       ...optional('arrearsTo', asNumber(row[STRATEGY.arrearsTo])),
       ...optional('exposureFrom', asNumber(row[STRATEGY.exposureFrom])),
       ...optional('exposureTo', asNumber(row[STRATEGY.exposureTo])),
-      ...optional('riskLevel', asString(row[STRATEGY.riskLevel])),
       ...optional('nplFlag', typeof row[STRATEGY.nplFlag] === 'boolean' ? row[STRATEGY.nplFlag] : undefined),
       ...optional('brokenPtpCountFrom', asNumber(row[STRATEGY.brokenPtpCountFrom])),
       ...optional('legalStatus', asString(row[STRATEGY.legalStatus])),

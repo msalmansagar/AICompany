@@ -359,7 +359,6 @@ function describeConditions(strategy: StrategyRow): string {
     range(strategy.dpdFrom, strategy.dpdTo, formatCount) && `DPD ${range(strategy.dpdFrom, strategy.dpdTo, formatCount)}`,
     range(strategy.arrearsFrom, strategy.arrearsTo, formatMoney) && `arrears ${range(strategy.arrearsFrom, strategy.arrearsTo, formatMoney)}`,
     strategy.customerType && `customer type ${strategy.customerType}`,
-    strategy.riskLevel && `risk level ${strategy.riskLevel}`,
     strategy.nplFlag && 'NPL',
     strategy.brokenPtpCountFrom !== undefined && `broken promises ≥ ${strategy.brokenPtpCountFrom}`,
   ].filter((part): part is string => typeof part === 'string');
