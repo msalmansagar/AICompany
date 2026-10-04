@@ -124,7 +124,10 @@ messages for every remaining finding were re-read: none is a missing required el
 1. Run the preflight; stop on any collision.
 2. Settings → Solutions → Import `qdb_debtcollection_1_0_0_0_onprem_unmanaged.zip`. Publish All.
 3. Verify independently (do not trust the import dialog): tables, `qdb_dcp_approval_status` 0/1, 14 steps
-   enabled, app opens via `main.aspx?pagetype=webresource&webresourceName=qdb_dcp_workspace.html`.
+   enabled, and the workspace opens **inside the Debt Collection app** (site map). On 9.1 on-prem a
+   bare `main.aspx?pagetype=webresource&…` opens the classic client and does not work — a direct link
+   needs the app: `main.aspx?appid=<appid copied from the app's address bar>&pagetype=webresource&webresourceName=qdb_dcp_workspace.html`
+   (HL CRM test, 2026-10-04: import 2 succeeded; workspace works inside the app; the bare link does not).
 4. Configuration rows (data, not in the solution): one active `qdb_platformconfiguration`
    (`docs/ConfigurationGuide.md` §2 — HL vs BFD values; facility fields are `TBD — Requires QDB
    Confirmation`), its `qdb_platformmapping` rows, then reference data — activity types, outcomes,
