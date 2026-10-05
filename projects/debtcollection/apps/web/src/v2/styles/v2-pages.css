@@ -91,6 +91,9 @@
 }
 .dcp-v2 .v2-list-link:hover { background: var(--v2-hover); }
 .dcp-v2 .v2-list-count { font-size: var(--v2-fs-sm); font-weight: var(--v2-fw-semibold); font-variant-numeric: tabular-nums; }
+/* A queue known to be empty steps back; one holding work (or whose count is unknown) stays prominent. */
+.dcp-v2 .v2-list-row-quiet .v2-list-title,
+.dcp-v2 .v2-list-row-quiet .v2-list-count { color: var(--v2-text-muted); font-weight: var(--v2-fw-regular, 400); }
 
 /* ── Queue ──────────────────────────────────────────────────────────────── */
 .dcp-v2 .v2-queue { display: flex; flex-direction: column; gap: var(--v2-space-3); }

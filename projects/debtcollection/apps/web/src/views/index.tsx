@@ -6,7 +6,8 @@ import {
 import { createFollowUpQuery, type FollowUpQuery, type FollowUpWindow } from '../data/followUpQueries.js';
 import type { ActivityRow } from '../data/caseQueries.js';
 import { formatCountResult, useCounts, type CountRequest } from '../data/counts.js';
-import { loadOpenArrears, myDayCountRequests } from '../data/myDayOversight.js';
+import { casesTileFor, loadOpenArrears, myDayCountRequests, seesIdentityExceptions } from '../data/myDayOversight.js';
+import { describeRecorder, useApplicationUsers } from '../data/applicationUsers.js';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import type { ReportingScope } from '@dcp/domain';
 import { encodeScope, hasScope } from '../data/caseListScopeUrl.js';
@@ -16,7 +17,7 @@ import {
   BucketBar, BucketPill, Card, EmptyState, InfoBanner, KpiRow, OrgBadge, PendingPhaseNotice, StatusPill,
   formatCount, formatDate, formatMoney,
 } from '../components/primitives.js';
-import { useCrmSession, useOrg } from '../shell/context.js';
+import { useCrmSession, useOrg, useRole } from '../shell/context.js';
 import type { ViewDefinition } from '../shell/routes.js';
 import { ListToolbar, SplitLayout, useListLayout } from '../components/listLayout.js';
 import { AuditEntryPreview, CasePreview } from './previews.js';
@@ -309,6 +310,8 @@ export function MyDayView({ onOpenCase }: { onOpenCase?: (id: string) => void })
     [scopeFilter, context.userId, now]);
   const counts = useCounts(adapter, requests);
   const arrears = useOpenArrears(adapter, scopeFilter);
+  const { role } = useRole();
+  const casesTile = casesTileFor(role);
 
   return (
     <>
@@ -321,14 +324,17 @@ export function MyDayView({ onOpenCase }: { onOpenCase?: (id: string) => void })
         semantics are on the tile: what "overdue", "due" and "my" mean here is stated, not assumed.
       */}
       <KpiRow items={[
-        { label: 'Open cases', value: formatCountResult(counts['open']), hint: 'In the selected CRM scope' },
+        { label: casesTile.label, value: formatCountResult(counts[casesTile.key]), hint: casesTile.hint },
         { label: 'Current arrears', value: arrears.status === 'ready' ? formatMoney(arrears.value) : '—', hint: arrears.status === 'unknown' ? 'The platform could not sum the portfolio' : 'Stored MIS position over open cases' },
         { label: 'My open work', value: formatCountResult(counts['myOpenWork']), hint: 'Open activities owned by you' },
         { label: 'Follow-ups overdue', value: formatCountResult(counts['followUpsOverdue']), tone: 'warn', hint: 'Follow-up date before now' },
         { label: 'Follow-ups upcoming', value: formatCountResult(counts['followUpsUpcoming']), hint: 'Follow-up date from now on' },
-        { label: `Promises due, ${PROMISE_HORIZON_DAYS} days`, value: formatCountResult(counts['promisesDue']), hint: 'Recorded status Active; not a verified payment' },
+        { label: `Promises due, ${PROMISE_HORIZON_DAYS} days`, value: formatCountResult(counts['promisesDue']), hint: 'Promised for today onward' },
+        { label: 'Broken promises', value: formatCountResult(counts['brokenPromises']), tone: 'warn', hint: 'Recorded as broken' },
         { label: 'Awaiting assignment', value: formatCountResult(counts['awaitingAssignment']), hint: 'Open activities with no owner' },
-        { label: 'Identity exceptions', value: formatCountResult(counts['identityExceptions']), tone: 'warn', hint: 'Open, both CRMs' },
+        ...(seesIdentityExceptions(role)
+          ? [{ label: 'Identity exceptions', value: formatCountResult(counts['identityExceptions']), tone: 'warn' as const, hint: 'Open, both CRMs' }]
+          : []),
       ]} />
       <FollowUpsPanel {...(onOpenCase ? { onOpenCase } : {})} />
       <Card
@@ -343,14 +349,17 @@ export function MyDayView({ onOpenCase }: { onOpenCase?: (id: string) => void })
 
 // ── Follow-ups ───────────────────────────────────────────────────────────────
 
-const FOLLOW_UP_COLUMNS: readonly DataGridColumn<ActivityRow>[] = [
-  { key: 'due', header: 'Follow-up', width: '110px', render: r => formatDate(r.followUpDate) },
-  { key: 'case', header: 'Case', width: '160px', isLink: true, render: r => r.caseNumber ?? '—' },
-  { key: 'type', header: 'Type', width: '140px', render: r => r.activityType ?? '—' },
-  { key: 'subject', header: 'Subject', render: r => r.subject },
-  { key: 'owner', header: 'Owner', width: '150px', render: r => r.ownerName ?? '—' },
-  { key: 'status', header: 'Status', width: '120px', render: r => <StatusPill status={r.status} /> },
-];
+/** The follow-up columns; an integration-owned activity is shown as "System", never by its technical name. */
+function followUpColumns(applicationUsers: ReadonlySet<string>): readonly DataGridColumn<ActivityRow>[] {
+  return [
+    { key: 'due', header: 'Follow-up', width: '110px', render: r => formatDate(r.followUpDate) },
+    { key: 'case', header: 'Case', width: '160px', isLink: true, render: r => r.caseNumber ?? '—' },
+    { key: 'type', header: 'Type', width: '140px', render: r => r.activityType ?? '—' },
+    { key: 'subject', header: 'Subject', render: r => r.subject },
+    { key: 'owner', header: 'Owner', width: '150px', render: r => describeRecorder(r, applicationUsers) },
+    { key: 'status', header: 'Status', width: '120px', render: r => <StatusPill status={r.status} /> },
+  ];
+}
 
 /** The windows an officer works in. `all` is offered so nothing is hidden by a default. */
 const FOLLOW_UP_WINDOWS: readonly { id: FollowUpWindow; label: string }[] = [
@@ -385,6 +394,8 @@ function FollowUpsPanel({ onOpenCase }: { onOpenCase?: (id: string) => void }) {
   const query = useMemo<FollowUpQuery>(() => ({
     window, now, ...(scopeFilter ? { scopeFilter } : {}),
   }), [window, now, scopeFilter]);
+  const applicationUsers = useApplicationUsers(adapter);
+  const columns = useMemo(() => followUpColumns(applicationUsers), [applicationUsers]);
 
   return (
     <Card
@@ -407,7 +418,7 @@ function FollowUpsPanel({ onOpenCase }: { onOpenCase?: (id: string) => void }) {
       }
     >
       <DataGrid<ActivityRow, FollowUpQuery>
-        columns={FOLLOW_UP_COLUMNS} fetchPage={fetchPage} query={query}
+        columns={columns} fetchPage={fetchPage} query={query}
         rowKey={row => row.id} pageSize={50} height={320}
         {...(onOpenCase
           ? { onRowClick: (row: ActivityRow) => { if (row.caseId) onOpenCase(row.caseId); } }
@@ -481,7 +492,7 @@ export function PendingView({ view }: { view: ViewDefinition }) {
           icon={view.icon}
           message={view.isParked
             ? `${view.label} is parked by QDB. The screen is preserved here so the approved workspace is complete; nothing further arrives until QDB resumes it.`
-            : `${view.label} is part of Phase ${view.phase}. The screen is preserved here so the approved workspace is complete; its behaviour arrives with that phase.`}
+            : `${view.label} is not available yet. The screen is kept here so the workspace is complete.`}
         />
       </Card>
     </div>

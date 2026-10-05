@@ -228,13 +228,14 @@ describe('the Case Workspace keeps all seven approved tabs', () => {
     expect(within(notice).getByTestId('stored-asof').textContent).toContain('2026-09-17');
   });
 
-  it('names the owning phase on a tab a later phase owns', async () => {
+  it('says a tab is not available yet, without naming an internal delivery phase', async () => {
     await openView('case', 'c-1');
     await screen.findByTestId('view-case');
     await userEvent.click(screen.getByTestId('case-pivot-tab-comms'));
     const panel = await screen.findByTestId('pending-panel-7');
-    expect(panel.textContent).toContain('Phase 7');
-    expect(panel.textContent).toContain('no send is simulated');
+    expect(panel.textContent).toContain('Not available yet.');
+    expect(panel.textContent).toContain('Nothing is sent from this tab');
+    expect(panel.textContent).not.toMatch(/Phase \d/);
   });
 
   it('shows no data on a later-phase tab', async () => {
@@ -379,7 +380,8 @@ describe('a KPI is a platform count or an em dash, never an invention', () => {
   it('states what each My Day tile counts, and claims no SLA', async () => {
     await openView('myday');
     const labels = (await screen.findAllByText(/./, { selector: '.kpi-label' })).map(el => el.textContent);
-    expect(labels).toEqual(['Open cases', 'Current arrears', 'My open work', 'Follow-ups overdue', 'Follow-ups upcoming', 'Promises due, 7 days', 'Awaiting assignment', 'Identity exceptions']);
+    // The default role is officer: their own cases, and no identity exceptions (a manager's concern).
+    expect(labels).toEqual(['My open cases', 'Current arrears', 'My open work', 'Follow-ups overdue', 'Follow-ups upcoming', 'Promises due, 7 days', 'Broken promises', 'Awaiting assignment']);
     expect(document.body.textContent).not.toMatch(/SLA breached|Overdue balance/);
   });
 

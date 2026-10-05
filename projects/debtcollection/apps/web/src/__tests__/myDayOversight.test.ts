@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { loadOpenArrears, myDayCountRequests, openArrearsFetchXml } from '../data/myDayOversight.js';
+import {
+  casesTileFor, loadOpenArrears, myDayCountRequests, openArrearsFetchXml, seesIdentityExceptions,
+} from '../data/myDayOversight.js';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 
 /**
@@ -20,7 +22,7 @@ describe('My Day count requests', () => {
 
   it('scopes every activity count through the case, never on the activity (KI-147)', () => {
     const activityRequests = Object.values(byKey(HL, 'u-1')).filter(r => r.entitySet === 'qdb_collectionactivities');
-    expect(activityRequests.length).toBe(5);
+    expect(activityRequests.length).toBe(6);
     expect(activityRequests.every(r => r.filter!.startsWith('qdb_collectioncaseid_qdb_collectionactivity/qdb_organizationcode eq 100000140 and '))).toBe(true);
     expect(activityRequests.some(r => / and qdb_organizationcode eq/.test(r.filter!))).toBe(false);
   });
@@ -39,8 +41,35 @@ describe('My Day count requests', () => {
     expect(byKey()['myOpenWork']).toBeUndefined();
   });
 
+  it('counts broken promises by their recorded status, in scope through the case', () => {
+    expect(byKey(HL)['brokenPromises']!.filter).toBe('qdb_collectioncaseid_qdb_collectionactivity/qdb_organizationcode eq 100000140 and qdb_ptpdate ne null and qdb_ptpstatus eq 100000083');
+  });
+
+  it('counts the signed-in user\'s own open cases on the case, only when the user is known', () => {
+    expect(byKey(HL, 'u-1')['myOpenCases']).toEqual({ key: 'myOpenCases', entitySet: 'qdb_collectioncases', filter: `${HL} and statecode eq 0 and _ownerid_value eq u-1` });
+    expect(byKey(HL)['myOpenCases']).toBeUndefined();
+  });
+
   it('counts identity exceptions across both CRMs, because the exception carries no organisation', () => {
     expect(byKey(HL)['identityExceptions']).toEqual({ key: 'identityExceptions', entitySet: 'qdb_identityexceptions', filter: 'statecode eq 0' });
+  });
+});
+
+describe('what My Day shows each role', () => {
+  it('casesTileFor_officer_countsTheCasesTheyOwn', () => {
+    expect(casesTileFor('officer')).toEqual({ key: 'myOpenCases', label: 'My open cases', hint: 'Open cases you own' });
+  });
+
+  it('casesTileFor_manager_countsThePortfolioInScope', () => {
+    expect(casesTileFor('manager').key).toBe('open');
+  });
+
+  it('seesIdentityExceptions_manager_isTrue', () => {
+    expect(seesIdentityExceptions('manager')).toBe(true);
+  });
+
+  it('seesIdentityExceptions_officer_isFalse', () => {
+    expect(seesIdentityExceptions('officer')).toBe(false);
   });
 });
 

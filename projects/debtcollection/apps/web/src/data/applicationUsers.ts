@@ -19,8 +19,9 @@ const cache = new WeakMap<XrmCrmAdapter, Promise<ReadonlySet<string>>>();
 export function loadApplicationUserIds(adapter: XrmCrmAdapter): Promise<ReadonlySet<string>> {
   const remembered = cache.get(adapter);
   if (remembered) return remembered;
-  const loading = adapter
-    .retrieveMultiple('systemusers', { select: ['systemuserid'], filter: 'applicationid ne null' })
+  // Started inside the chain so a synchronous failure lands in the catch below instead of the render.
+  const loading = Promise.resolve()
+    .then(() => adapter.retrieveMultiple('systemusers', { select: ['systemuserid'], filter: 'applicationid ne null' }))
     .then(rows => new Set(rows.map(row => String(row['systemuserid']).toLowerCase())) as ReadonlySet<string>)
     .catch((): ReadonlySet<string> => new Set());
   cache.set(adapter, loading);
