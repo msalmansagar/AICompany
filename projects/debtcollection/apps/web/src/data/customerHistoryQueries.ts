@@ -52,15 +52,20 @@ export interface CustomerHistoryPage {
 const SOURCE_PAGE = 25;
 const ACTIVITY_CATEGORIES: readonly HistoryCategory[] = ['complaint', 'legal', 'deceased', 'ptp', 'actions'];
 
-/** Which tables a filter reads. Communications are the message table(s) and Email; the rest are activities. */
-function sourcesFor(filter: HistoryFilter, messaging: MessagingConfiguration): readonly SourceKey[] {
+/**
+ * Which tables a filter reads. Communications are the message table(s) and Email; the rest are
+ * activities. A chosen activity type narrows to collection activities only — a message has no
+ * activity type — except under Communications, where a type does not apply and is ignored.
+ */
+function sourcesFor(filter: HistoryFilter, messaging: MessagingConfiguration, activityTypeId?: string): readonly SourceKey[] {
   const communications: SourceKey[] = [...historyRoutes(messaging).map(route => route.table), 'email'];
-  if (filter === 'all') return [...communications, 'activity'];
-  return filter === 'communications' ? communications : ['activity'];
+  if (filter === 'communications') return communications;
+  if (filter === 'all' && !activityTypeId) return [...communications, 'activity'];
+  return ['activity'];
 }
 
-export function startCustomerHistory(messaging: MessagingConfiguration, filter: HistoryFilter = 'all'): CustomerHistoryCursor {
-  const keys = sourcesFor(filter, messaging);
+export function startCustomerHistory(messaging: MessagingConfiguration, filter: HistoryFilter = 'all', activityTypeId?: string): CustomerHistoryCursor {
+  const keys = sourcesFor(filter, messaging, activityTypeId);
   return { buffers: keys.map(key => ({ key, items: [], hasMore: true })), sources: keys.map(key => ({ key, exhausted: false })) };
 }
 
@@ -163,14 +168,17 @@ export interface CustomerHistoryRequest {
   filter: HistoryFilter;
   types: CategoryTypes;
   messaging: MessagingConfiguration;
+  /** A configured activity type to narrow to (Call, Visit, Official letter …), or undefined for all. */
+  activityTypeId?: string | undefined;
 }
 
-/** One filter per source: the customer's cases, narrowed to the category. */
+/** One filter per source: the customer's cases, narrowed to the category and, when chosen, the activity type. */
 export function customerHistoryReads(request: CustomerHistoryRequest): Partial<Record<SourceKey, SourceRead>> {
-  const { caseIds, filter, types, messaging } = request;
+  const { caseIds, filter, types, messaging, activityTypeId } = request;
   const anyOf = (column: string) => `(${caseIds.map(id => `${column} eq ${escapeOData(id)}`).join(' or ')})`;
   const activityNarrowing = filter === 'all' || filter === 'communications' ? undefined : activityCategoryFilter(filter, types);
-  const activityFilter = [anyOf('_qdb_collectioncaseid_value'), activityNarrowing].filter(Boolean).join(' and ');
+  const typeNarrowing = activityTypeId && filter !== 'communications' ? `_qdb_activitytypeid_value eq ${escapeOData(activityTypeId)}` : undefined;
+  const activityFilter = [anyOf('_qdb_collectioncaseid_value'), activityNarrowing, typeNarrowing].filter(Boolean).join(' and ');
   const reads: Partial<Record<SourceKey, SourceRead>> = {
     ...Object.fromEntries(historyRoutes(messaging).map(route => [route.table, {
       entitySet: route.entitySet, select: historyColumnsFor(messaging, route), filter: anyOf('_regardingobjectid_value'),
@@ -179,7 +187,7 @@ export function customerHistoryReads(request: CustomerHistoryRequest): Partial<R
     email: { entitySet: ENTITY_SETS.email, select: EMAIL_COLUMNS, filter: anyOf('_regardingobjectid_value'), toEntry: toEmail },
     activity: { entitySet: ENTITY_SETS.collectionActivity, select: HISTORY_ACTIVITY_COLUMNS, filter: activityFilter, toEntry: row => toActivity(row, types) },
   };
-  return Object.fromEntries(sourcesFor(filter, messaging).map(key => [key, reads[key]]));
+  return Object.fromEntries(sourcesFor(filter, messaging, activityTypeId).map(key => [key, reads[key]]));
 }
 
 /** The next page. Bounded by `attempts` so a category held in one table never keeps asking empty ones. */

@@ -24,14 +24,13 @@
 .c360-kpi.emphasis .c360-kpi-value { font-size: 22px; }
 .c360-kpi-hint { font-size: 11px; color: var(--text-secondary); }
 
-/* ── MIS strip ──────────────────────────────────────────────────────── */
-.c360-mis { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 12px; border: 1px solid var(--border); border-left: 3px solid var(--info); border-radius: 4px; background: var(--surface); font-size: 13px; }
-.c360-mis.stored { border-left-color: var(--info); }
-.c360-mis.live { border-left-color: var(--success); }
-.c360-mis.fallback { border-left-color: var(--warning); }
-.c360-mis.unavailable { border-left-color: var(--text-disabled); }
-.c360-mis-tag { font-weight: 600; }
-.c360-mis-text { color: var(--text-secondary); min-width: 0; overflow-wrap: anywhere; }
+/* ── History filters: category tabs, then the activity-type choice ─────── */
+.c360-history-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.c360-type-filter { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+.c360-type-filter select { min-width: 0; max-width: 220px; }
+
+/* ── Balances date — one quiet line under the figures, not a banner ─────── */
+.c360-balances-as-of { margin: -4px 0 0; text-align: right; }
 
 /* ── Layout ─────────────────────────────────────────────────────────── */
 .c360-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 12px; align-items: start; }

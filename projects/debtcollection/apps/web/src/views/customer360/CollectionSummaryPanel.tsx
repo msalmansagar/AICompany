@@ -4,7 +4,7 @@ import type { NextPlannedAction } from '../../data/customerNextActions.js';
 import { BucketBadge, StatusBadge, statusBadgeTone } from '../../components/StatusBadge.js';
 import { SectionBoundary, SkeletonLines, type SectionState } from '../../components/SectionBoundary.js';
 import { formatCount } from '../../components/primitives.js';
-import { describeNext, useUnitTerm } from './FinancialUnitList.js';
+import { describeDue, describeNext, useUnitTerm } from './FinancialUnitList.js';
 import { OwnerLabel } from './OwnerLabel.js';
 
 /**
@@ -51,7 +51,7 @@ function SummaryBody({ unit, nextAction, nextActionsStatus, openProcesses, onRet
         <Fact label="DPD" value={formatCount(unit.dpd)} />
         {unit.case.isOpen && <Fact label="Strategy" value={unit.case.strategyName ?? 'Not resolved'} testId="c360-summary-strategy" />}
         {unit.case.isOpen && <Fact label="Next Planned Action" value={describeNext(nextAction, nextActionsStatus)} testId="c360-summary-next" />}
-        {unit.case.isOpen && <Fact label="Due" value={nextAction?.kind === 'planned' ? nextAction.item.due : '—'} />}
+        {unit.case.isOpen && <Fact label="Due" value={describeDue(nextAction)} />}
       </dl>
       {unit.case.isOpen && <OpenProcesses state={openProcesses} onRetry={onRetryProcesses} />}
       {unit.case.isOpen && (

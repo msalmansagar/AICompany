@@ -114,6 +114,7 @@ function Workspace() {
         {...(route.recordId !== undefined ? { recordId: route.recordId } : {})}
         {...(route.tab !== undefined ? { tab: route.tab } : {})}
         onOpenCase={id => route.go('case', id)}
+        onOpenActionPlan={id => route.go('case', id, 'actions')}
         onOpenCases={scope => route.go('cases', SCOPE_SEGMENT, encodeScope(scope))}
         onOpenCustomer={customerBusinessId => route.go('customer', customerBusinessId)}
         onOpenComms={id => route.go('comms', id)}
@@ -131,12 +132,14 @@ function Workspace() {
  * nothing resolves to invented data.
  */
 function ViewHost({
-  view, recordId, tab, onOpenCase, onOpenCases, onOpenCustomer, onOpenComms, onNavigateComms,
+  view, recordId, tab, onOpenCase, onOpenActionPlan, onOpenCases, onOpenCustomer, onOpenComms, onNavigateComms,
 }: {
   view: ViewDefinition;
   recordId?: string | undefined;
   tab?: string | undefined;
   onOpenCase: (id: string) => void;
+  /** A case opened on its Action Plan. Each workspace knows which of its tabs that is. */
+  onOpenActionPlan: (id: string) => void;
   /** The Cases list in a reporting scope — a dashboard row's drill-down. */
   onOpenCases: (scope: ReportingScope) => void;
   onOpenCustomer: (customerBusinessId: string) => void;
@@ -150,7 +153,7 @@ function ViewHost({
     case 'queues': return <QueuesView onOpenCase={onOpenCase} />;
     case 'cases': return <CasesView onOpenCase={onOpenCase} scope={recordId === SCOPE_SEGMENT ? decodeScope(tab) : {}} />;
     case 'case': return <CaseWorkspaceView caseId={recordId} initialTab={tab} onOpenCustomer={onOpenCustomer} />;
-    case 'customer': return <Customer360View customerBusinessId={recordId} onOpenCase={onOpenCase} onOpenCustomer={onOpenCustomer} />;
+    case 'customer': return <Customer360View customerBusinessId={recordId} onOpenCase={onOpenCase} onOpenActionPlan={onOpenActionPlan} onOpenCustomer={onOpenCustomer} />;
     case 'intake': return <DelinquencyIntakeView />;
     case 'buckets': return <SegmentationView />;
     case 'rules': return <StrategyRulesView view={view} />;
@@ -191,8 +194,8 @@ function UnroutedView({ view }: { view: ViewDefinition }) {
     <div className="host-missing" data-testid="unrouted-view" data-view={view.id}>
       <h1>{view.label}</h1>
       <p>
-        This view is declared as Phase 5 in the route table but has no implementation bound to it.
-        That is a defect in the router, not a screen that is still to come.
+        This view is declared in the route table but has no screen bound to it. That is a defect in
+        the workspace, not a screen that is still to come.
       </p>
     </div>
   );

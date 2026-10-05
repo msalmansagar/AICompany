@@ -26,6 +26,8 @@ import { useCrmSession } from '../../shell/context.js';
 export interface HistoryContext {
   types: CategoryTypes;
   messaging: MessagingConfiguration;
+  /** The configured activity types an officer can narrow the history to, by name. */
+  activityTypes: readonly { id: string; name: string }[];
 }
 
 export interface Customer360Sections {
@@ -62,8 +64,12 @@ export function useCustomer360Sections(aggregate: CustomerAggregate, selected: F
 }
 
 async function loadHistoryContext(adapter: Parameters<typeof loadActivityTypes>[0], organization: string): Promise<HistoryContext> {
-  const [types, messaging] = await Promise.all([loadCategoryTypes(adapter), resolveMessagingConfiguration(adapter, organization)]);
-  return { types, messaging };
+  const [activityTypes, messaging] = await Promise.all([loadActivityTypes(adapter), resolveMessagingConfiguration(adapter, organization)]);
+  return {
+    types: categoryTypesOf(activityTypes),
+    messaging,
+    activityTypes: activityTypes.map(type => ({ id: type.id, name: type.name })),
+  };
 }
 
 /** A unit's snapshots, read once per unit and remembered for the life of the screen. */
@@ -82,8 +88,7 @@ function useUnitSnapshots(customerBusinessId: string, selected: FinancialUnit | 
 }
 
 /** The configured activity types each history category recognises, by code. */
-async function loadCategoryTypes(adapter: Parameters<typeof loadActivityTypes>[0]): Promise<CategoryTypes> {
-  const types = await loadActivityTypes(adapter);
+function categoryTypesOf(types: Awaited<ReturnType<typeof loadActivityTypes>>): CategoryTypes {
   const pick = (matches: (code: string | undefined) => boolean) => types.filter(type => matches(type.code)).map(type => type.id);
   return { legal: pick(isLegalRecommendationCode), deceased: pick(isDeceasedTypeCode), concern: pick(isConcernTypeCode) };
 }

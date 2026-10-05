@@ -15,7 +15,7 @@ export function V2CustomerPage({ request }: { request: ViewRequest }) {
   if (!customerId) return <V2CustomersList onOpenCustomer={request.onOpenCustomer} onOpenCase={request.onOpenCase} />;
   return (
     <div className="v2-bridged" data-testid="v2-customer">
-      <Customer360View customerBusinessId={customerId} onOpenCase={request.onOpenCase} onOpenCustomer={request.onOpenCustomer} />
+      <Customer360View customerBusinessId={customerId} onOpenCase={request.onOpenCase} onOpenActionPlan={request.onOpenActionPlan} onOpenCustomer={request.onOpenCustomer} />
     </div>
   );
 }

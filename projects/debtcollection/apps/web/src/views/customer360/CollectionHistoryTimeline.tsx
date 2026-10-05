@@ -35,26 +35,42 @@ export function CollectionHistoryTimeline({ caseIds, history, counts, contextOf 
   caseIds: readonly string[]; history: HistoryContext; counts: HistoryCounts | undefined; contextOf: CaseContextLookup;
 }) {
   const { adapter } = useCrmSession();
-  const { types, messaging } = history;
+  const { types, messaging, activityTypes } = history;
   const filters = FILTER_ORDER.filter(filter => filter === 'all' || supportedCategories(types).includes(filter as HistoryCategory));
   const [filter, setFilter] = useState<HistoryFilter>('all');
+  const [activityTypeId, setActivityTypeId] = useState('');
   const [state, setState] = useState<HistoryState>({ entries: [], cursor: startCustomerHistory(messaging, 'all'), complete: false, status: 'loading' });
   const request = useRef(0);
+  // A message has no activity type, so the type choice does not apply under Communications.
+  const typeApplies = filter !== 'communications';
+  const chosenType = typeApplies && activityTypeId ? activityTypeId : undefined;
 
   const load = useCallback((from: Loaded, chosen: HistoryFilter) => {
     const id = ++request.current;
     setState({ ...from, status: 'loading' });
-    nextCustomerHistoryPage(adapter, { caseIds, filter: chosen, types, messaging }, from.cursor, HISTORY_PAGE)
+    nextCustomerHistoryPage(adapter, { caseIds, filter: chosen, types, messaging, activityTypeId: chosenType }, from.cursor, HISTORY_PAGE)
       .then(page => { if (id === request.current) setState({ entries: [...from.entries, ...page.entries], cursor: page.cursor, complete: page.complete, status: 'ready' }); })
       .catch((error: unknown) => { if (id === request.current) setState({ ...from, status: 'error', error: describeFailure(error) }); });
-  }, [adapter, caseIds, types, messaging]);
+  }, [adapter, caseIds, types, messaging, chosenType]);
 
-  useEffect(() => { load({ entries: [], cursor: startCustomerHistory(messaging, filter), complete: false }, filter); }, [load, filter, messaging]);
+  useEffect(() => { load({ entries: [], cursor: startCustomerHistory(messaging, filter, chosenType), complete: false }, filter); }, [load, filter, messaging, chosenType]);
 
   return (
     <section className="section-card c360-history" aria-labelledby="c360-history-title" data-testid="c360-history-card">
       <h3 id="c360-history-title">Collection History</h3>
-      <FilterTabs filters={filters} active={filter} counts={counts} onChoose={setFilter} />
+      <div className="c360-history-controls">
+        <FilterTabs filters={filters} active={filter} counts={counts} onChoose={setFilter} />
+        <label className="c360-type-filter">
+          <span>Activity type</span>
+          <select
+            value={typeApplies ? activityTypeId : ''} disabled={!typeApplies} onChange={event => setActivityTypeId(event.target.value)}
+            title={typeApplies ? undefined : 'Messages have no activity type.'} data-testid="c360-history-type"
+          >
+            <option value="">All types</option>
+            {activityTypes.map(type => <option key={type.id} value={type.id}>{type.name}</option>)}
+          </select>
+        </label>
+      </div>
       <ol className="c360-timeline" data-testid="c360-history" aria-live="polite">
         {state.entries.map(entry => <HistoryRow key={entry.id} entry={entry} context={contextOf(entry.caseId)} />)}
       </ol>

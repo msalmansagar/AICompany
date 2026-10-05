@@ -33,7 +33,7 @@ export function CustomerHeader({ aggregate, actions }: { aggregate: CustomerAggr
   );
 }
 
-export const PTP_PERFORMANCE_HINT = 'Based on recorded Promise-to-Pay outcomes. Payment verification is not currently integrated.';
+export const PTP_PERFORMANCE_HINT = 'As recorded by officers. Payments are not verified against MIS.';
 
 /**
  * The customer's position across open cases, summed by the platform. The worst DPD carries the
@@ -50,7 +50,7 @@ export function CollectionKpiStrip({ aggregate, promises }: { aggregate: Custome
       <Kpi label={`Total Overdue${partial}`} value={formatMoney(aggregate.position.totalOverdue)} />
       <Kpi label="Worst DPD" value={formatCount(aggregate.position.worstDpd)} emphasis extra={worstBucket ? <BucketBadge bucket={worstBucket} /> : undefined} />
       <Kpi label="Open Cases" value={formatCount(aggregate.position.openCases)} />
-      <Kpi label="Recorded PTP Performance" value={describePromises(promises)} title={PTP_PERFORMANCE_HINT} testId="c360-kpi-ptp" />
+      <Kpi label="Promises kept" value={describePromises(promises)} hint="As recorded by officers" title={PTP_PERFORMANCE_HINT} testId="c360-kpi-ptp" />
     </section>
   );
 }
@@ -67,12 +67,12 @@ function Kpi({ label, value, hint, title, emphasis, extra, testId }: {
   );
 }
 
-/** "2 / 4 kept"; none recorded and unknown are said as themselves, never as zero. */
+/** "2 of 4"; none recorded and unknown are said as themselves, never as zero. */
 export function describePromises(state: SectionState<PromisePerformance>): string {
   if (state.status === 'loading') return '—';
   if (state.status === 'error' || state.data.recorded === undefined) return 'Not available';
   if (state.data.recorded === 0) return 'None recorded';
-  return `${formatCount(state.data.kept)} / ${formatCount(state.data.recorded)} kept`;
+  return `${formatCount(state.data.kept)} of ${formatCount(state.data.recorded)}`;
 }
 
 function initialsOf(name: string): string {

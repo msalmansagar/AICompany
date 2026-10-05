@@ -148,5 +148,18 @@ export function describeNext(next: NextPlannedAction | undefined, status: Sectio
   if (next.kind === 'noPlan') return 'No Action Plan';
   if (next.kind === 'notConfigured') return 'Not configured';
   // The plan gives a date, or a statement that there is none; only a date takes the word "due".
-  return /^\d/.test(next.item.due) ? `${next.item.action} · due ${next.item.due}` : `${next.item.action} · ${next.item.due}`;
+  return hasDueDate(next.item.due) ? `${next.item.action} · due ${next.item.due}` : `${next.item.action} (no due date)`;
+}
+
+/**
+ * The plan's due value is a formatted date, or a sentence saying none could be worked out (no start
+ * rule is configured yet, KI-101). Only a date is shown as one; the sentence becomes "Not set yet".
+ */
+export function hasDueDate(due: string): boolean {
+  return /^\d/.test(due);
+}
+
+export function describeDue(next: NextPlannedAction | undefined): string {
+  if (next?.kind !== 'planned') return '—';
+  return hasDueDate(next.item.due) ? next.item.due : 'Not set yet';
 }

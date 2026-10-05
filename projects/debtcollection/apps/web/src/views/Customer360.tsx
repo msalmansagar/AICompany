@@ -12,7 +12,7 @@ import { CollectionKpiStrip, CustomerHeader } from './customer360/CustomerHeader
 import { CustomerLogActionButton } from './customer360/CustomerLogAction.js';
 import { DelinquencyHistory } from './customer360/DelinquencyHistory.js';
 import { FinancialUnitList, unitKey } from './customer360/FinancialUnitList.js';
-import { MisPositionStrip, misStateFromStored } from './customer360/MisPositionStrip.js';
+import { BalancesAsOf } from './customer360/BalancesAsOf.js';
 import { useCustomer360Sections } from './customer360/useCustomer360Sections.js';
 
 /**
@@ -24,18 +24,30 @@ import { useCustomer360Sections } from './customer360/useCustomer360Sections.js'
  * a workflow or a Rule Engine decision, and nothing here writes: the figures are the last stored MIS
  * position, labelled as such, and viewing the screen changes no collection state.
  */
-export function Customer360View({ customerBusinessId, onOpenCase, onOpenCustomer }: {
+export function Customer360View({ customerBusinessId, onOpenCase, onOpenActionPlan, onOpenCustomer }: {
   customerBusinessId?: string | undefined;
   onOpenCase?: (caseId: string) => void;
+  /** Opens the case on its Action Plan; falls back to the case itself where a host has no such tab. */
+  onOpenActionPlan?: (caseId: string) => void;
   onOpenCustomer?: (customerBusinessId: string) => void;
 }) {
   if (!customerBusinessId) {
     return <CustomersView onOpenCustomer={id => onOpenCustomer?.(id)} onOpenCase={id => onOpenCase?.(id)} />;
   }
-  return <Customer360Page customerBusinessId={customerBusinessId} onOpenCase={id => onOpenCase?.(id)} />;
+  const navigation: CaseNavigation = {
+    onOpenCase: id => onOpenCase?.(id),
+    onOpenActionPlan: id => (onOpenActionPlan ?? onOpenCase)?.(id),
+  };
+  return <Customer360Page customerBusinessId={customerBusinessId} navigation={navigation} />;
 }
 
-function Customer360Page({ customerBusinessId, onOpenCase }: { customerBusinessId: string; onOpenCase: (caseId: string) => void }) {
+/** Where Customer 360 can send the officer: the case itself, or straight to its Action Plan. */
+interface CaseNavigation {
+  onOpenCase: (caseId: string) => void;
+  onOpenActionPlan: (caseId: string) => void;
+}
+
+function Customer360Page({ customerBusinessId, navigation }: { customerBusinessId: string; navigation: CaseNavigation }) {
   const { adapter } = useCrmSession();
   const [reloadKey, setReloadKey] = useState(0);
   const customer = useSectionData(() => loadCustomerAggregate(adapter, customerBusinessId), [adapter, customerBusinessId, reloadKey]);
@@ -44,15 +56,16 @@ function Customer360Page({ customerBusinessId, onOpenCase }: { customerBusinessI
       <SectionBoundary label="The customer" state={customer.state} onRetry={customer.retry} skeleton={<SkeletonLines lines={4} height={20} />} testId="c360-customer">
         {aggregate => aggregate.cases.length === 0
           ? <p className="c360-empty section-card" data-testid="c360-no-cases">No Collection Case names customer {customerBusinessId}, so there is nothing to show.</p>
-          : <Customer360Content aggregate={aggregate} reloadKey={reloadKey} onSaved={() => setReloadKey(key => key + 1)} onOpenCase={onOpenCase} />}
+          : <Customer360Content aggregate={aggregate} reloadKey={reloadKey} onSaved={() => setReloadKey(key => key + 1)} navigation={navigation} />}
       </SectionBoundary>
     </div>
   );
 }
 
-function Customer360Content({ aggregate, reloadKey, onSaved, onOpenCase }: {
-  aggregate: CustomerAggregate; reloadKey: number; onSaved: () => void; onOpenCase: (caseId: string) => void;
+function Customer360Content({ aggregate, reloadKey, onSaved, navigation }: {
+  aggregate: CustomerAggregate; reloadKey: number; onSaved: () => void; navigation: CaseNavigation;
 }) {
+  const { onOpenCase } = navigation;
   const [selectedKey, setSelectedKey] = useState<string | undefined>(() => (aggregate.financialUnits[0] ? unitKey(aggregate.financialUnits[0]) : undefined));
   const selected = aggregate.financialUnits.find(unit => unitKey(unit) === selectedKey);
   const sections = useCustomer360Sections(aggregate, selected, reloadKey);
@@ -73,7 +86,7 @@ function Customer360Content({ aggregate, reloadKey, onSaved, onOpenCase }: {
     <>
       <CustomerHeader aggregate={aggregate} actions={<CustomerLogActionButton openUnits={openUnits} onChosen={(unit, note) => setCommand({ kind: 'activity', caseId: unit.case.id, note })} />} />
       <CollectionKpiStrip aggregate={aggregate} promises={sections.promises} />
-      <MisPositionStrip state={misStateFromStored(aggregate.misAsOfDate, aggregate.lastMisSyncOn)} />
+      <BalancesAsOf asOf={aggregate.misAsOfDate} />
       <div className="c360-layout">
         <div className="c360-col-main">
           <div className="c360-slot-units">
@@ -90,7 +103,7 @@ function Customer360Content({ aggregate, reloadKey, onSaved, onOpenCase }: {
             <div className="c360-slot-summary">
               <CollectionSummaryPanel
                 unit={selected} nextAction={nextOf(selected)} nextActionsStatus={sections.nextActions.state.status}
-                openProcesses={sections.openProcesses.state} onRetryProcesses={sections.openProcesses.retry} onOpenActionPlan={onOpenCase}
+                openProcesses={sections.openProcesses.state} onRetryProcesses={sections.openProcesses.retry} onOpenActionPlan={navigation.onOpenActionPlan}
               />
             </div>
             <div className="c360-slot-delinquency">

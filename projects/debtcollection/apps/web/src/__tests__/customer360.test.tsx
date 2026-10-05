@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { App } from '../App.js';
 import { VERSION_STORAGE_KEY } from '../v2/version/workspaceVersion.js';
 import type { XrmLike } from '../platform/crmContext.js';
-import { MisPositionStrip } from '../views/customer360/MisPositionStrip.js';
+import { describeBalancesDate } from '../views/customer360/BalancesAsOf.js';
 import { communicationMappings, configurationRow, FAX_COLUMN_MAP, LETTER_COLUMN_MAP } from './messagingFixtures.js';
 
 /**
@@ -390,6 +390,32 @@ describe('Collection History', () => {
     expect(screen.queryByText('Stale entry')).toBeNull();
   });
 
+  it('offers every configured activity type as a filter, by name', async () => {
+    await open();
+
+    const select = await screen.findByTestId('c360-history-type', {}, { timeout: WAIT });
+    await waitFor(() => expect(within(select).getAllByRole('option').map(option => option.textContent))
+      .toEqual(['All types', 'Call', 'Complaint / Dispute', 'Deceased / Insurance', 'Legal Recommendation']));
+  });
+
+  it('narrows the history to the chosen activity type, on the server', async () => {
+    const probe = await open();
+
+    const select = await screen.findByTestId('c360-history-type', {}, { timeout: WAIT });
+    await waitFor(() => expect(within(select).getAllByRole('option')).toHaveLength(5));
+    fireEvent.change(select, { target: { value: TYPES.call } });
+
+    await waitFor(() => expect(probe.reads.some(read => read.startsWith('qdb_collectionactivity') && read.includes(`_qdb_activitytypeid_value eq ${TYPES.call}`))).toBe(true));
+  });
+
+  it('disables the type filter under Communications, because messages have no activity type', async () => {
+    await open();
+
+    fireEvent.click(await screen.findByTestId('c360-filter-communications', {}, { timeout: WAIT }));
+
+    expect((screen.getByTestId('c360-history-type') as HTMLSelectElement).disabled).toBe(true);
+  });
+
   it('keeps a history failure inside its section while units stay usable', async () => {
     await open({ failHistory: true });
 
@@ -399,35 +425,51 @@ describe('Collection History', () => {
   });
 });
 
-describe('position and MIS', () => {
-  it('shows recorded PTP performance as "N / M kept", with its caveat', async () => {
+describe('position and balances', () => {
+  it('shows promises kept as "N of M", as recorded by officers', async () => {
     await open();
 
     const tile = screen.getByTestId('c360-kpi-ptp');
-    await waitFor(() => expect(tile.textContent).toContain('2 / 4 kept'));
-    expect(tile.getAttribute('title')).toBe('Based on recorded Promise-to-Pay outcomes. Payment verification is not currently integrated.');
+    await waitFor(() => expect(tile.textContent).toContain('2 of 4'));
+    expect([tile.textContent, tile.getAttribute('title')]).toEqual([
+      expect.stringContaining('As recorded by officers'), 'As recorded by officers. Payments are not verified against MIS.',
+    ]);
     expect(document.body.textContent).not.toMatch(/Payment Performance|Verified/);
   });
 
-  it('says the stored position is stored, with its age, and offers no live retrieval', async () => {
+  it('says which date the balances are from, with no MIS position bar', async () => {
     await open();
 
-    const strip = screen.getByTestId('c360-mis');
-    expect(strip.getAttribute('role')).toBe('status');
-    expect(strip.textContent).toMatch(/As of 27 Sept 2026 \(\d+ days? ago\) · Recorded .* · Current MIS position has not been retrieved\./);
-    expect(screen.queryByTestId('c360-mis-retrieve')).toBeNull();
-    expect(strip.textContent).not.toMatch(/stale/i);
+    expect([screen.getByTestId('c360-balances-as-of').textContent, screen.queryByTestId('c360-mis')])
+      .toEqual(['Balances as of 27 Sept 2026', null]);
   });
 
-  it('renders each MIS state from its facts', () => {
-    const now = new Date('2026-10-04T08:00:00Z');
-    const { rerender } = render(<MisPositionStrip state={{ kind: 'live', retrievedOn: '2026-10-04T07:00:00Z' }} now={now} />);
-    expect(screen.getByTestId('c360-mis').textContent).toContain('Read-only retrieval. Cases, snapshots and activities are not updated.');
-    rerender(<MisPositionStrip state={{ kind: 'fallback', asOf: '2026-09-30T00:00:00Z', lastSuccessOn: '2026-10-01T02:00:00Z' }} now={now} />);
-    expect(screen.getByTestId('c360-mis').textContent).toContain('Live MIS unavailable');
-    expect(screen.getByTestId('c360-mis').textContent).toContain('(4 days ago)');
-    rerender(<MisPositionStrip state={{ kind: 'unavailable' }} now={now} />);
-    expect(screen.getByTestId('c360-mis').textContent).toContain('No stored MIS position');
+  it('describeBalancesDate_noDate_saysTheDateIsNotAvailable', () => {
+    expect(describeBalancesDate(undefined)).toBe('Balance date not available');
+  });
+
+  it('describeBalancesDate_unreadableDate_saysTheDateIsNotAvailable', () => {
+    expect(describeBalancesDate('not a date')).toBe('Balance date not available');
+  });
+});
+
+describe('Open Action Plan', () => {
+  const PLANNED = unitCase(1, { _qdb_strategyid_value: 'strat-1', [`_qdb_strategyid_value${F}`]: 'Early stage' });
+
+  it('opens the case on its Action Plan tab in V1', async () => {
+    await open({ cases: [PLANNED] });
+
+    fireEvent.click(screen.getByTestId('c360-open-plan'));
+
+    expect(window.location.hash).toBe('#case/c-1/actions');
+  });
+
+  it('opens the case on its Action Plan tab in V2', async () => {
+    await open({ cases: [PLANNED] }, 'v2');
+
+    fireEvent.click(screen.getByTestId('c360-open-plan'));
+
+    expect(window.location.hash).toBe('#case/c-1/plan');
   });
 });
 
