@@ -104,15 +104,16 @@ function buildRoute(source: RouteSource): { route?: MessageRoute; problem?: stri
 }
 
 const isMessageTable = (name: string): name is MessageTable => name === 'fax' || name === 'letter';
+const isMessageField = (name: string): name is MessageField => (MESSAGE_FIELDS as readonly string[]).includes(name);
 
 /** The canonical-to-column map for one table, from mapping rows naming that table. */
 function columnsFor(table: MessageTable, mappings: readonly CrmRow[]): Partial<Record<MessageField, string>> {
   const columns: Partial<Record<MessageField, string>> = {};
   for (const row of mappings) {
-    const field = String(row['qdb_canonicalfield'] ?? '').trim() as MessageField;
+    const field = String(row['qdb_canonicalfield'] ?? '').trim();
     const entity = String(row['qdb_crmentitylogicalname'] ?? '').trim().toLowerCase();
     const column = String(row['qdb_crmfieldlogicalname'] ?? '').trim().toLowerCase();
-    if (entity === table && column && MESSAGE_FIELDS.includes(field)) columns[field] = column;
+    if (entity === table && column && isMessageField(field)) columns[field] = column;
   }
   return columns;
 }

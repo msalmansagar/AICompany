@@ -68,6 +68,15 @@ describe('CommunicationService.send — Housing Loan Letter', () => {
   });
 });
 
+describe('CommunicationService.send — a field with no column', () => {
+  it('send_HousingLoanSmsWithSenderButNoSenderMapping_RefusesWithTheReasonAndWritesNothing', async () => {
+    const { adapter, creates } = recordingAdapter();
+    const outcome = await new CommunicationService(adapter).send('act-3', { ...SMS, senderCode: 100000001 }, context(LETTER_MESSAGING));
+    expect([outcome.status, outcome.status === 'refused' ? outcome.refusals[0]!.message : '', creates.length])
+      .toEqual(['refused', expect.stringContaining('no letter column mapped for sender'), 0]);
+  });
+});
+
 describe('CommunicationService.send — BFD Fax', () => {
   it('send_BfdSms_StillCreatesAFaxWithQdbsContract', async () => {
     const { adapter, creates } = recordingAdapter();

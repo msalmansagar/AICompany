@@ -53,7 +53,8 @@ async function assertColumnsExist() {
 }
 
 async function activeConfiguration() {
-  const rows = (await call('GET', `/qdb_platformconfigurations?$select=qdb_name,qdb_smsentity,qdb_whatsappentity&$filter=qdb_organizationcode eq ${ORG_CODES[organization]} and qdb_isactive eq true`)).value;
+  const filter = encodeURIComponent(`qdb_organizationcode eq ${ORG_CODES[organization]} and qdb_isactive eq true`);
+  const rows = (await call('GET', `/qdb_platformconfigurations?$select=qdb_platformconfigurationid,qdb_name,qdb_smsentity,qdb_whatsappentity&$filter=${filter}`)).value;
   if (rows.length !== 1) fail(`${organization} has ${rows.length} active platform configuration rows; exactly one is required`);
   return rows[0];
 }
@@ -66,7 +67,7 @@ async function setTables(configuration) {
 
 async function upsertMapping(configuration, field, column) {
   const filter = `_qdb_platformconfigurationid_value eq ${configuration.qdb_platformconfigurationid} and qdb_canonicalfield eq '${field}' and qdb_crmentitylogicalname eq '${table}'`;
-  const existing = (await call('GET', `/qdb_platformmappings?$select=qdb_crmfieldlogicalname&$filter=${encodeURIComponent(filter)}`)).value[0];
+  const existing = (await call('GET', `/qdb_platformmappings?$select=qdb_platformmappingid,qdb_crmfieldlogicalname&$filter=${encodeURIComponent(filter)}`)).value[0];
   if (existing?.qdb_crmfieldlogicalname === column) return console.log(`  [KEEP] ${field} → ${table}.${column}`);
   const row = {
     qdb_name: `${organization} ${table} ${field}`, qdb_businessobject: COMMUNICATION, qdb_canonicalfield: field,

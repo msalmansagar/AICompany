@@ -102,6 +102,14 @@ export class CommunicationService {
 
     const target = route ? messageTarget(route) : EMAIL_TARGET;
     const plan = planCommunication(routed);
+    const unmapped = unmappedFields(plan, target);
+    if (unmapped.length > 0) {
+      // A value with nowhere to go is a configuration gap: refuse with the reason, write nothing.
+      return { status: 'refused', refusals: [{
+        code: 'ChannelNotConfigured',
+        message: `This organisation has no ${plan.entity} column mapped for ${unmapped.join(', ')}, so nothing was sent. Add a Communication mapping for it.`,
+      }] };
+    }
     const result = await this.adapter.createIdempotent(target.entitySet, activityId, toNativePayload(plan, target));
 
     /**
@@ -196,6 +204,11 @@ export class CommunicationService {
  * through — the platform would reject it with a message about an undeclared property, which is a
  * slow way to learn about a typo.
  */
+/** The plan's fields this target has no column for. `send` refuses on any, before writing. */
+function unmappedFields(plan: CommunicationWritePlan, target: WriteTarget): readonly string[] {
+  return Object.keys(plan.fields).filter(name => !target.columns[name]);
+}
+
 export function toNativePayload(plan: CommunicationWritePlan, target: WriteTarget): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
 
