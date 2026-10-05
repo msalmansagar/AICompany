@@ -56,8 +56,8 @@ missing mandatory mapping) — never a silent default to HL or cloud.
 | `qdb_facilitylookupfield` | string | **optional.** Name of the per-deployment `qdb_facilityid` extension relationship, when one is deployed. Empty ⇒ no physical lookup exists and the canonical `facilityNumber` + `sourceSystem` carry the link. Never read by Collection business logic — only by the adapter that resolves `facilityRef`. See §4a |
 | `qdb_collectioncaseentity` | string | `qdb_collectioncase` |
 | `qdb_collectionactivityentity` | string | `qdb_collectionactivity` |
-| `qdb_smsentity` | string | `fax` |
-| `qdb_whatsappentity` | string | `fax` |
+| `qdb_smsentity` | string | the native table SMS is written to and read from: **`letter` on Housing Loan, `fax` on BFD** (user, 2026-10-05). Empty ⇒ SMS is unavailable for this organisation, never defaulted |
+| `qdb_whatsappentity` | string | the same for WhatsApp — `letter` (HL) · `fax` (BFD) |
 | `qdb_emailentity` | string | `email` |
 | `qdb_documentprovider` | choice (SharePoint · SharePointOnline · None) | document integration |
 | `qdb_misintegrationenabled` | bool | master switch for both MIS paths |
@@ -74,6 +74,25 @@ missing mandatory mapping) — never a silent default to HL or cloud.
 (MP §13). Those live in the Integration Service environment / secret store only.
 
 ---
+
+### 2a. SMS / WhatsApp columns — `qdb_platformmapping`, business object *Communication*
+
+The message table's columns come from mapping rows (`qdb_canonicalfield` → `qdb_crmentitylogicalname`.
+`qdb_crmfieldlogicalname`), read by `apps/web/src/data/messagingConfiguration.ts`. Seeded with
+`crm/scripts/seed-messaging-configuration.mjs` (dry run unless `--execute`; checks every column exists).
+
+| Canonical field | HL — `letter` | BFD — `fax` | Required |
+|---|---|---|---|
+| `recipientNumber` | `vrp_address` (cloud sandbox) — HL CRM test: confirm | `faxnumber` | yes |
+| `messageBody` | `vrp_descriptions` (cloud sandbox) · `vrp_description` per the user for HL — **confirm on HL** | `qdb_message_body` | yes |
+| `sender` | — | `qdb_sender` | no |
+| `language` · `whatsAppTemplate` · `otp` | — | `qdb_language` · `qdb_whatsapptemplate` · `qdb_otp` | no |
+
+The customer is linked to the message through the table's native **To** party (`letter_activity_parties` /
+`fax_activity_parties`); the case through `regardingobjectid`. The native preference that governs a
+message is the table's: **do not send postal mail** on HL, **do not fax** on BFD. Where SMS and WhatsApp
+share a table, `whatsAppTemplate` tells them apart; HL maps none, so its history labels such rows
+"SMS or WhatsApp" — **how HL marks a WhatsApp letter is still to be confirmed.**
 
 ## 3. `qdb_platformmapping` — normalised child rows (MP §14)
 
