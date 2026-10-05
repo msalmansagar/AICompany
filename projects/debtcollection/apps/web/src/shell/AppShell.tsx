@@ -246,7 +246,7 @@ export function Command({ icon, label, onClick, pendingPhase, disabledReason }: 
 }) {
   const disabled = pendingPhase !== undefined || disabledReason !== undefined;
   const title = pendingPhase !== undefined
-    ? `Phase ${pendingPhase} owns this — not yet implemented`
+    ? 'Not available yet'
     : disabledReason ?? label;
   return (
     <button

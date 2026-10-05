@@ -193,10 +193,9 @@ function DisabledCommands() {
         {commands.map(command => (
           <button
             key={command.label} type="button" className="btn" disabled
-            data-pending-phase={command.phase} title={`Phase ${command.phase} owns this`}
+            data-pending-phase={command.phase} title="Not available yet"
           >
             {command.label}
-            <span className="rel-tag">P{command.phase}</span>
           </button>
         ))}
       </div>

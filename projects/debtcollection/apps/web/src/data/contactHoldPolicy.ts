@@ -112,7 +112,7 @@ export async function resolveContactHoldPolicy(
 
   if (!ruleset) {
     return {
-      verdict: { available: false, reason: `No Contact Hold ruleset is configured for ${organization} (KI-79).` },
+      verdict: { available: false, reason: `No Contact Hold ruleset is configured for ${organization}.` },
       policy,
       blocked: policy === 'refuse-when-unverifiable',
       explanation: policy === 'refuse-when-unverifiable'

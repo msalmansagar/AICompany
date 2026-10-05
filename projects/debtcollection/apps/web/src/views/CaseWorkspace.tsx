@@ -110,13 +110,13 @@ function tabsFor(detail: CaseDetail): readonly PivotTab[] {
       render: () => (
         <PendingPhasePanel
           phase={7}
-          what={'SMS, WhatsApp, email and warning letters are Phase 7. Nothing here sends anything, and no send is simulated.'}
+          what={'Messages for this case are sent and listed in Communications. Nothing is sent from this tab.'}
         />
       ),
     },
     {
       id: 'documents', label: 'Documents', pendingPhase: 7,
-      render: () => <PendingPhasePanel phase={7} what="Document generation and storage arrive with the Communication Centre in Phase 7." />,
+      render: () => <PendingPhasePanel phase={7} what="Document generation and storage are not available in the workspace yet." />,
     },
     { id: 'workout', label: 'Workout & Legal', render: () => <WorkoutLegalTab detail={detail} /> },
     { id: 'audit', label: 'Audit', render: () => <CaseAuditTab detail={detail} /> },

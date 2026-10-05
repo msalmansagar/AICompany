@@ -66,10 +66,10 @@ export function SegmentationView() {
       </InfoBanner>
       <KpiRow items={[
         { label: 'Active strategies', value: '—', hint: 'Counted by the grid below' },
-        { label: 'Buckets in use', value: '—', hint: 'Derived from published criteria (Phase 8)' },
-        { label: 'Cases governed', value: '—', hint: 'Requires strategy resolution per case (Phase 8)' },
-        { label: 'Uncovered combinations', value: '—', hint: 'A published-matrix analysis (Phase 8)' },
-        { label: 'Last published', value: '—', hint: 'Publishing is Phase 8' },
+        { label: 'Buckets in use', value: '—', hint: 'Derived from published criteria — not available yet' },
+        { label: 'Cases governed', value: '—', hint: 'Needs strategy resolution per case — not available yet' },
+        { label: 'Uncovered combinations', value: '—', hint: 'A published-matrix analysis — not available yet' },
+        { label: 'Last published', value: '—', hint: 'Publishing is not available yet' },
       ]} />
       <Card
         title="Segmentation"
@@ -136,7 +136,7 @@ export function StrategyRulesView({ view }: { view: ViewDefinition }) {
 
       <Card
         title={selected ? `Actions — ${selected.name}` : 'Actions — all strategies'}
-        subtitle="What the strategy does once it applies. Authoring these is Phase 8."
+        subtitle="What the strategy plans once it applies. Actions are not created automatically yet: an officer carries out each one."
         actions={selected ? <button type="button" className="btn" onClick={() => setSelected(undefined)}>Show all</button> : undefined}
       >
         <DataGrid<StrategyActionRow, StrategyActionQuery>
@@ -176,7 +176,7 @@ function RuleBuilderPlaceholder() {
         </div>
       </fieldset>
       <p className="hint">
-        Authoring belongs to Phase 8. The thresholds a rule compares against live in the QDB Rule
+        Authoring is not available yet. The thresholds a rule compares against live in the QDB Rule
         Engine, never in this application.
       </p>
     </Card>
@@ -389,14 +389,14 @@ export function ActionPlanView({ view, onOpenCases }: {
     <div data-testid="view-actionplan">
       <PartialCapabilityNotice view={view} />
       <KpiRow items={[
-        { label: 'Cases with a plan', value: '—', hint: 'Needs per-case strategy resolution (Phase 8)' },
+        { label: 'Cases with a plan', value: '—', hint: 'Needs per-case strategy resolution — not available yet' },
         { label: 'Contact suppressed', value: '—', hint: 'Pending confirmation of the contact-hold source' },
-        { label: 'Escalation advised', value: '—', hint: 'Phase 8' },
-        { label: 'Reminders queued', value: '—', hint: 'Phase 6' },
+        { label: 'Escalation advised', value: '—', hint: 'Not automated yet' },
+        { label: 'Reminders queued', value: '—', hint: 'Not automated yet' },
       ]} />
       <Card
         title="Active plan actions"
-        subtitle="Every action an active strategy can resolve to. Open one to read its full definition. Accepting and executing one is Phase 8."
+        subtitle="Every action an active strategy can resolve to. Open one to read its full definition. Actions are not executed automatically yet."
       >
         <DataGrid<StrategyActionRow, StrategyActionQuery>
           columns={PLAN_COLUMNS} fetchPage={fetchPage} query={query}

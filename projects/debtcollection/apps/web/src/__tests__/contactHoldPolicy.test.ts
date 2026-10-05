@@ -94,7 +94,7 @@ describe('a decision recorded for one organisation does not reach the other', ()
     // Permission is not knowledge. The exception says "proceed anyway", never "we checked".
     const resolved = await resolveContactHoldPolicy(adapterFor(rows), 'HL');
     expect(resolved.verdict.available).toBe(false);
-    expect(resolved.verdict.reason).toMatch(/KI-79/);
+    expect(resolved.verdict.reason).toMatch(/No Contact Hold ruleset is configured/);
   });
 });
 
@@ -180,7 +180,7 @@ describe('a configured ruleset is reported differently from no ruleset at all', 
     const resolved = await resolveContactHoldPolicy(adapterFor(rows), 'HL');
 
     expect(resolved.verdict.reason).toMatch(/QDB-HOLD-V1/);
-    expect(resolved.verdict.reason).not.toMatch(/KI-79/);
+    expect(resolved.verdict.reason).not.toMatch(/No Contact Hold ruleset is configured/);
   });
 
   it('still refuses a configured ruleset when no exception is recorded', async () => {

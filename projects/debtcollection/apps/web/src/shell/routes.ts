@@ -58,17 +58,16 @@ export const VIEWS: readonly ViewDefinition[] = [
   },
   {
     id: 'ptp', label: 'Promise to Pay', icon: 'promise', group: 'Collection', badge: 'openPtps', phase: 5,
-    pendingSummary: 'Promises are captured and worked from the case. Reminders need the Phase 7 ' +
-      'communication transport, and automatic kept/broken evaluation needs the MIS payment contract.',
+    pendingSummary: 'Promises are captured and worked from the case. Automatic reminders are not ' +
+      'available yet, and automatic kept/broken evaluation needs the MIS payment contract.',
   },
   {
     id: 'comms', label: 'Communications', icon: 'send', group: 'Collection', phase: 7,
-    pendingSummary: 'SMS, WhatsApp, email and warning letters are Phase 7. Nothing here sends anything, ' +
-      'and no send is simulated.',
+    pendingSummary: 'SMS and email are sent from a case. Warning letters are not available yet.',
   },
   {
     id: 'templates', label: 'Template Library', icon: 'letter', group: 'Collection', phase: 7,
-    pendingSummary: 'Template management arrives with the Communication Centre in Phase 7.',
+    pendingSummary: 'Template management is not available in the workspace yet.',
   },
 
   // ── Resolution ─────────────────────────────────────────────────────────────
@@ -93,12 +92,11 @@ export const VIEWS: readonly ViewDefinition[] = [
   },
   {
     id: 'mis', label: 'Portfolio MIS', icon: 'trend', group: 'Strategy & Oversight', roles: ['manager', 'rm'], phase: 10,
-    pendingSummary: 'Portfolio MIS needs the QDB MIS transport contract, which does not yet exist (KI-53). ' +
-      'Phase 10 owns it.',
+    pendingSummary: 'Portfolio MIS needs the QDB MIS connection, which does not exist yet.',
   },
   {
     id: 'approvals', label: 'Approvals', icon: 'approve', group: 'Strategy & Oversight', badge: 'pendingApprovals', phase: 10,
-    pendingSummary: 'Approval routing is Phase 10. No entity exists for it yet.',
+    pendingSummary: 'Approval routing is not available yet.',
   },
 
   // ── Control ────────────────────────────────────────────────────────────────
@@ -108,13 +106,13 @@ export const VIEWS: readonly ViewDefinition[] = [
   { id: 'intake', label: 'Delinquency Intake', icon: 'refresh', group: 'Administration', roles: ['manager'], phase: 5 },
   {
     id: 'rules', label: 'Strategy Rules', icon: 'settings', group: 'Administration', roles: ['manager'], phase: 5,
-    pendingSummary: 'Rules are readable here. Authoring and publishing belong to Phase 8, and the ' +
+    pendingSummary: 'Rules are readable here; authoring and publishing are not available yet. The ' +
       'thresholds themselves live in the QDB Rule Engine rather than in this application.',
   },
   {
     id: 'admin', label: 'Configuration', icon: 'settings', group: 'Administration', roles: ['manager'], phase: 5,
     pendingSummary: 'Configuration is readable. Publishing, comparison, version history and export ' +
-      'belong to Phases 8-10.',
+      'are not available yet.',
   },
 ];
 

@@ -160,9 +160,10 @@ describe('the nav rail', () => {
 });
 
 describe('a future-phase screen is preserved, not faked', () => {
-  it('names the phase that owns it', () => {
+  it('says it is not available yet, without naming an internal delivery phase', () => {
     render(<PendingPhaseNotice view={findView('comms')!} />);
-    expect(screen.getByText(/Phase 7 owns this/)).toBeInTheDocument();
+    expect(screen.getByText('Not available yet.')).toBeInTheDocument();
+    expect(screen.getByTestId('pending-comms').textContent).not.toMatch(/Phase \d/);
   });
 
   it('says plainly that no data is shown because none would be real', () => {

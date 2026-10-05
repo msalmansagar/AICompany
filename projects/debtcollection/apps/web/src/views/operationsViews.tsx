@@ -70,7 +70,7 @@ export function DelinquencyIntakeView() {
         { label: 'Snapshots recorded', value: formatCountResult(counts['snapshots']) },
         { label: 'Open cases', value: formatCountResult(counts['openCases']) },
         { label: 'Identity exceptions', value: formatCountResult(counts['openExceptions']), tone: 'warn' },
-        { label: 'Read today', value: '—', hint: 'A synchronisation run report (Phase 4 service, not yet surfaced)' },
+        { label: 'Read today', value: '—', hint: 'A synchronisation run report — not available yet' },
         { label: 'Failed', value: '—', hint: 'A synchronisation run report' },
       ]} />
 

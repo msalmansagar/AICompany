@@ -108,7 +108,6 @@ export function Pivot({ tabs, activeId, onSelect, testId = 'pivot' }: {
             onClick={() => onSelect(tab.id)}
           >
             {tab.label}
-            {tab.pendingPhase !== undefined && <span className="badge">P{tab.pendingPhase}</span>}
           </button>
         ))}
       </div>
@@ -119,13 +118,16 @@ export function Pivot({ tabs, activeId, onSelect, testId = 'pivot' }: {
   );
 }
 
-/** A tab, section or screen whose functionality a later phase owns. */
+/**
+ * A tab, section or screen whose functionality is not built yet. The owning phase stays in the data
+ * attributes for the team; an officer is told only that it is not available, never a project phase.
+ */
 export function PendingPhasePanel({ phase, what }: { phase: number; what: string }) {
   return (
     <div className="phase-notice" data-testid={`pending-panel-${phase}`} data-owning-phase={phase}>
       <Icon name="info" />
       <div>
-        <strong>Phase {phase} owns this.</strong>
+        <strong>Not available yet.</strong>
         <p>{what}</p>
         <p className="hint">No data is shown here, because none would be real.</p>
       </div>
@@ -286,7 +288,7 @@ export function PendingPhaseNotice({ view }: { view: ViewDefinition }) {
         <strong>
           {view.isParked
             ? 'Parked by QDB — nothing is being built here until QDB resumes it.'
-            : `Not yet implemented — Phase ${view.phase} owns this.`}
+            : 'Not available yet.'}
         </strong>
         {view.pendingSummary && <p>{view.pendingSummary}</p>}
         <p className="hint">
