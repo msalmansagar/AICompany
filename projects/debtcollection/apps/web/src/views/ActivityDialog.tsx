@@ -8,7 +8,7 @@ import {
   type SelectChoice,
 } from '../components/forms.js';
 import { Icon, StatusPill, formatDate } from '../components/primitives.js';
-import { loadActivityTypes, loadOutcomes, type ActivityTypeOption, type OutcomeOption } from '../data/configurationCatalog.js';
+import { isPromiseTypeCode, loadActivityTypes, loadOutcomes, type ActivityTypeOption, type OutcomeOption } from '../data/configurationCatalog.js';
 import { ENTITY_SETS, ACTIVITY_COLUMNS } from '../data/schema.js';
 import { isConcernTypeCode } from '../data/caseConcerns.js';
 import { ActivityService } from '../services/activityService.js';
@@ -313,9 +313,9 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved, con
               // The type is what its outcomes hang off, so changing it on an existing activity would
               // orphan a recorded outcome. It is chosen once, when the action is logged.
               disabled={mode === 'edit' || save.busy}
-              choices={typeChoices(types)}
+              choices={mode === 'edit' ? typeChoices(types) : typeChoices(loggableTypes(types))}
               refusal={save.refusalFor('activityTypeId')}
-              hint={mode === 'edit' ? 'Set when the action was logged.' : 'From configuration.'}
+              hint={mode === 'edit' ? 'Set when the action was logged.' : 'From configuration. Record a promise with Capture PTP.'}
             />
 
 
@@ -392,8 +392,8 @@ function OutcomeEffects({ outcome }: { outcome: OutcomeOption }) {
       )}
       {outcome.closesActivity && <span className="chip">Closes the activity</span>}
       {outcome.escalationRequired && (
-        <span className="chip" title="Recorded as configuration. Automated escalation is Phase 8.">
-          Flagged for escalation — Phase 8 acts on it
+        <span className="chip" title="Recorded as configuration. Escalation is not automated yet.">
+          Flagged for escalation
         </span>
       )}
     </div>
@@ -461,6 +461,15 @@ function ActivityFooter({
       )}
     </>
   );
+}
+
+/**
+ * The types a new action may be logged as. Promise to Pay is left out: logged here it would be an
+ * activity with no amount, date or promise status — a promise nothing can track as kept or broken.
+ * Capture PTP is the one way a promise is recorded. An existing activity keeps showing its own type.
+ */
+function loggableTypes(types: readonly ActivityTypeOption[]): readonly ActivityTypeOption[] {
+  return types.filter(type => !isPromiseTypeCode(type.code));
 }
 
 function typeChoices(types: readonly ActivityTypeOption[]): readonly SelectChoice[] {

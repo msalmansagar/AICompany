@@ -37,6 +37,15 @@ export interface CatalogOption {
   isActive: boolean;
 }
 
+/**
+ * Whether an activity type is the Promise to Pay type, by its configured code (`P6-PTP`, `DEMO-PTP`, …)
+ * rather than a GUID that differs per organisation. A promise is recorded only through Capture PTP,
+ * which captures its amount, date and status — so Log action never offers this type.
+ */
+export function isPromiseTypeCode(code: string | undefined): boolean {
+  return (code ?? '').toUpperCase().includes('PTP');
+}
+
 export interface ActivityTypeOption extends CatalogOption {
   category?: string;
   /** The type's own requirement, separate from the outcome's. Surfaced so the form can mark the field. */

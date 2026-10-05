@@ -155,7 +155,15 @@ describe('logging a collection action', () => {
 
     const select = await screen.findByTestId('activity-type');
     await waitFor(() => expect(select).toHaveTextContent('Outbound call'));
-    expect(select).toHaveTextContent('Promise to pay');
+  });
+
+  it('leaves the promise type out, because a promise is recorded with Capture PTP', async () => {
+    renderDialog(
+      <ActivityDialog mode="create" caseId={CASE_ID} onClose={() => {}} onSaved={() => {}} />, new RecordingTransport());
+
+    const select = await screen.findByTestId('activity-type');
+    await waitFor(() => expect(select).toHaveTextContent('Outbound call'));
+    expect(select).not.toHaveTextContent('Promise to pay');
   });
 
   it('sends one create carrying the case binding, composed by the service and not the form', async () => {

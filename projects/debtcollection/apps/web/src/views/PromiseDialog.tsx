@@ -9,7 +9,7 @@ import {
   TextField,
 } from '../components/forms.js';
 import { Icon, StatusPill, formatDate, formatMoney } from '../components/primitives.js';
-import { loadActivityTypes, type ActivityTypeOption } from '../data/configurationCatalog.js';
+import { isPromiseTypeCode, loadActivityTypes, type ActivityTypeOption } from '../data/configurationCatalog.js';
 import { ENTITY_SETS, PTP_COLUMNS } from '../data/schema.js';
 import { ActivityService } from '../services/activityService.js';
 import { useSaveOperation } from '../services/useSaveOperation.js';
@@ -55,9 +55,6 @@ interface LoadedPromise {
   brokenReason: string;
   notes: string;
 }
-
-/** The code the PTP activity type carries, as seeded for Phase 6 and configured thereafter. */
-const PROMISE_TYPE_CODE_FRAGMENT = 'PTP';
 
 export function PromiseDialog({ mode, caseId, promiseId, onClose, onSaved }: PromiseDialogProps) {
   const { adapter } = useCrmSession();
@@ -128,7 +125,7 @@ export function PromiseDialog({ mode, caseId, promiseId, onClose, onSaved }: Pro
    * Found in configuration by its code rather than hard-coded as a GUID: the id differs between the
    * sandbox, on-premise and production, and a constant here would work in exactly one of them.
    */
-  const promiseTypeRow = types.find(type => (type.code ?? '').toUpperCase().includes(PROMISE_TYPE_CODE_FRAGMENT));
+  const promiseTypeRow = types.find(type => isPromiseTypeCode(type.code));
   const status = loaded?.status;
   const settled = status !== undefined && !['Active', 'Rescheduled'].includes(status);
   const allowedTransitions = status ? PTP_TRANSITIONS[status] : [];
