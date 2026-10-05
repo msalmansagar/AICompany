@@ -43,6 +43,7 @@ export {
   validateGridCell,
   validateGridRow,
   isGridValid,
+  isGridColumnRequired,
 } from './validation/gridCellValidation.js';
 export type { GridRowErrors } from './validation/gridCellValidation.js';
 // Related-record conditions: one fact name and one allowlist for runtime and backend.

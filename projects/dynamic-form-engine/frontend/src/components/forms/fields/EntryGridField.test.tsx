@@ -90,6 +90,46 @@ describe('EntryGridField', () => {
     vi.clearAllMocks();
   });
 
+  // DEF-003: a locked column is not required of the user, so its header must not say it is.
+  it('EntryGridField_requiredButLockedColumn_showsNoRequiredMark', () => {
+    const field = makeEntryGridField({
+      columnConfigs: [{
+        columnId: 'col-name', displayOrder: 1, columnLabel: 'Name', targetAttribute: 'qdb_name',
+        columnFieldType: 'text', isRequired: true, isReadonly: true,
+      }],
+    });
+
+    renderEntryGrid(field);
+
+    expect(screen.getByRole('columnheader', { name: 'Name' }).textContent).toBe('Name');
+  });
+
+  it('EntryGridField_requiredColumnInAReadonlyGrid_showsNoRequiredMark', () => {
+    const field = makeEntryGridField({
+      columnConfigs: [{
+        columnId: 'col-name', displayOrder: 1, columnLabel: 'Name', targetAttribute: 'qdb_name',
+        columnFieldType: 'text', isRequired: true,
+      }],
+    });
+
+    renderEntryGrid(field, true);
+
+    expect(screen.getByRole('columnheader', { name: 'Name' }).textContent).toBe('Name');
+  });
+
+  it('EntryGridField_requiredColumn_showsRequiredMark', () => {
+    const field = makeEntryGridField({
+      columnConfigs: [{
+        columnId: 'col-name', displayOrder: 1, columnLabel: 'Name', targetAttribute: 'qdb_name',
+        columnFieldType: 'text', isRequired: true,
+      }],
+    });
+
+    renderEntryGrid(field);
+
+    expect(screen.getByRole('columnheader', { name: /Name/ }).textContent).toBe('Name *');
+  });
+
   it('EntryGridField_rendersEmptyGrid_withAddRowButton', () => {
     // Arrange
     const field = makeEntryGridField();

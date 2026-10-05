@@ -48,7 +48,31 @@ Data check:   Of 85 columns on org5869857f, the only entry-grid column set to No
               column saved with the old designer default (No) will lock after the new DLL.
 Open:         A column both Required and Is Editable = No blocks submit while empty, because grid
               validation does not skip locked columns. Rule-locked columns already behave this
-              way. Not fixed here; follow-up.
+              way. Not fixed here; follow-up. -> Fixed as DEF-003 below.
+
+DEF-003 — Required cell in a locked grid column blocks submit (bug-fix, 2026-10-05)
+───────────────────────────────────────────────────
+Symptom:      An entry-grid column both Required and read-only failed submit with "<column> is
+              required" while its cell was empty, and the user could not type into it.
+Reproduction: feature-showcase / qdb_field_entries, the locked "Required" column marked
+              required in a test copy; row added, editable cells filled, Submit -> blocked.
+Expected:     A cell the user cannot fill is not required of the user. Precedent: a column a
+              rule hides is already made optional (gridColumnRuleState) for this reason.
+Root cause:   Grid validation and the header mark read isRequired alone. Three lock sources
+              were ignored: Is Editable = No (DEF-002), a column rule (make read-only), and the
+              whole grid made read-only by a field rule or its own setting (found in review).
+Fix:          shared isGridColumnRequired = isRequired and not locked, used by validateGridCell
+              and the header asterisk. At submit, lockColumnsOfReadonlyGrids marks every column
+              of a read-only grid locked (rule verdict ?? published setting, as the renderers
+              decide). A rule that unlocks the column restores the requirement. Grid cells are
+              validated only in the browser, so no backend or plugin change.
+Tests:        gridCellValidation.test.ts (+2), EntryGridField.test.tsx (+3),
+              gridColumnRuleState.test.ts (+5). Frontend 669 passing, tsc clean.
+Live:         Runtime deployed to org5869857f, hash matches the local build. Real Chrome with
+              the deployed bundle: locked + required + empty -> no error, header shows no "*".
+              Control (an editable required column left empty) -> "Row 1: ... is required".
+Not changed:  A top-level field that is required and read-only still blocks while empty. That
+              is long-standing engine-wide behaviour, not grid-specific.
 
 
 1. TEST STRATEGY SUMMARY

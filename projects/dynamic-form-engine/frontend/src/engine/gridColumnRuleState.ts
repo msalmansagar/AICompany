@@ -50,19 +50,43 @@ export function applyGridColumnRuleStateToForm(
   gridColumnState: Record<string, Record<string, GridColumnRuleState>>,
 ): FormDefinition {
   if (Object.keys(gridColumnState).length === 0) return formDefinition;
-  const applyToField = (field: FieldDefinition): FieldDefinition => {
+  return mapFormFields(formDefinition, (field) => {
     const state = gridColumnState[field.id];
     if (!state || !field.gridConfig) return field;
     const columnConfigs = applyGridColumnRuleState(field.gridConfig.columnConfigs ?? [], state);
     return { ...field, gridConfig: { ...field.gridConfig, columnConfigs } };
-  };
+  });
+}
+
+/**
+ * The form with every column of a read-only grid marked locked, for validation. The renderer
+ * already disables every cell of such a grid; without this, a required column in it would
+ * block submit with no way to fill it (DEF-003). A rule's verdict on the grid beats its
+ * published setting, exactly as the section and tab renderers decide it.
+ */
+export function lockColumnsOfReadonlyGrids(
+  formDefinition: FormDefinition,
+  fieldReadonly: Record<string, boolean>,
+): FormDefinition {
+  return mapFormFields(formDefinition, (field) => {
+    const isGridReadonly = fieldReadonly[field.id] ?? field.isReadonly;
+    if (!isGridReadonly || !field.gridConfig) return field;
+    const columnConfigs = (field.gridConfig.columnConfigs ?? []).map((column) => ({ ...column, isReadonly: true }));
+    return { ...field, gridConfig: { ...field.gridConfig, columnConfigs } };
+  });
+}
+
+function mapFormFields(
+  formDefinition: FormDefinition,
+  mapField: (field: FieldDefinition) => FieldDefinition,
+): FormDefinition {
   return {
     ...formDefinition,
     tabs: formDefinition.tabs.map((tab) => ({
       ...tab,
-      headerFields: tab.headerFields?.map(applyToField),
-      footerFields: tab.footerFields?.map(applyToField),
-      sections: tab.sections.map((section) => ({ ...section, fields: section.fields.map(applyToField) })),
+      headerFields: tab.headerFields?.map(mapField),
+      footerFields: tab.footerFields?.map(mapField),
+      sections: tab.sections.map((section) => ({ ...section, fields: section.fields.map(mapField) })),
     })),
   };
 }

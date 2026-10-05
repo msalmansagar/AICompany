@@ -31,7 +31,7 @@ import {
   DismissRegular,
 } from '@fluentui/react-icons';
 import type { GridColumnConfig, GridColumnOptionValue, LookupResult } from '@qdb/shared';
-import { validateGridCell } from '@qdb/shared';
+import { isGridColumnRequired, validateGridCell } from '@qdb/shared';
 import { useFormContext } from '../../../contexts/FormContext';
 import { applyGridColumnRuleState, findUnknownRuleColumns } from '../../../engine/gridColumnRuleState';
 import { logger } from '../../../utils/logger';
@@ -174,7 +174,7 @@ export function EntryGridField({
       header: () => (
         <span>
           {col.columnLabel}
-          {col.isRequired && (
+          {!isReadonly && isGridColumnRequired(col) && (
             <span aria-hidden="true" className={styles.requiredMark}> *</span>
           )}
         </span>

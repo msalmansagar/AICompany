@@ -24,7 +24,7 @@ import { ruleEngine } from '../engine/RuleEngine';
 import { validationEngine } from '../engine/ValidationEngine';
 import { isFieldVisible } from '../engine/fieldVisibility';
 import { mapRuleValuesToSchemaNames } from '../engine/ruleValueTargets';
-import { applyGridColumnRuleStateToForm } from '../engine/gridColumnRuleState';
+import { applyGridColumnRuleStateToForm, lockColumnsOfReadonlyGrids } from '../engine/gridColumnRuleState';
 import { getAllFormFields, getAllTabFields, getTabZoneFields } from '../components/forms/tabFields';
 
 export interface FormContextValue {
@@ -394,11 +394,11 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
     // Compute visible fields before validation
     const visibleFieldIds = computeVisibleFieldIds(formDefinition, ruleState);
 
-    const errors = validationEngine.validateForm(
+    const formAsRulesLeftIt = lockColumnsOfReadonlyGrids(
       applyGridColumnRuleStateToForm(formDefinition, ruleState.gridColumnState ?? {}),
-      fieldValues,
-      visibleFieldIds,
+      ruleState.fieldReadonly,
     );
+    const errors = validationEngine.validateForm(formAsRulesLeftIt, fieldValues, visibleFieldIds);
 
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);

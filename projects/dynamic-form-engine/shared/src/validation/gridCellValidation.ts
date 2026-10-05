@@ -87,13 +87,22 @@ function formatFailure(column: GridColumnConfig): string {
 }
 
 /**
+ * Whether the user must fill this column. A locked column is not required of the user: its
+ * cells cannot be typed into, so an empty one would block submit with no way to fix it. A
+ * column a rule hides is made optional for the same reason (see gridColumnRuleState).
+ */
+export function isGridColumnRequired(column: GridColumnConfig): boolean {
+  return column.isRequired === true && column.isReadonly !== true;
+}
+
+/**
  * Validates one cell against its column's rules.
  *
  * @returns the message to show, or null when the cell passes.
  */
 export function validateGridCell(column: GridColumnConfig, value: unknown): string | null {
   if (isEmptyCell(value)) {
-    return column.isRequired ? requiredFailure(column) : null;
+    return isGridColumnRequired(column) ? requiredFailure(column) : null;
   }
 
   const text = asText(value);

@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { applyGridColumnRuleState, applyGridColumnRuleStateToForm, findUnknownRuleColumns } from './gridColumnRuleState';
+import {
+  applyGridColumnRuleState,
+  applyGridColumnRuleStateToForm,
+  findUnknownRuleColumns,
+  lockColumnsOfReadonlyGrids,
+} from './gridColumnRuleState';
 import type { FieldDefinition, FormDefinition, GridColumnConfig } from '@qdb/shared';
 
 function column(columnId: string, overrides: Partial<GridColumnConfig> = {}): GridColumnConfig {
@@ -102,6 +107,53 @@ describe('applyGridColumnRuleStateToForm', () => {
     const result = applyGridColumnRuleStateToForm(form, { 'grid-1': { a: { isVisible: false } } });
 
     expect(result.tabs[0]!.sections[0]!.fields[0]!.gridConfig!.columnConfigs![0]).toMatchObject({ isVisible: false, isRequired: false });
+  });
+});
+
+// DEF-003: a grid that is read-only as a whole cannot have its cells filled, so for
+// validation every one of its columns counts as locked, whatever the column itself says.
+describe('lockColumnsOfReadonlyGrids', () => {
+  const grid = (overrides: Partial<FieldDefinition> = {}) => ({
+    id: 'grid-1', schemaName: 'items', fieldType: 'interactive-grid', isReadonly: false,
+    gridConfig: { gridMode: 'entry', targetEntity: 'x', maxRows: 5, columnConfigs: [column('a', { isRequired: true, isReadonly: false })] },
+    ...overrides,
+  }) as unknown as FieldDefinition;
+  const formWith = (field: FieldDefinition) =>
+    ({ tabs: [{ id: 't', sections: [{ id: 's', fields: [field] }], footerFields: [] }] }) as unknown as FormDefinition;
+  const firstColumn = (form: FormDefinition) => form.tabs[0]!.sections[0]!.fields[0]!.gridConfig!.columnConfigs![0]!;
+
+  it('should_lock_every_column_of_a_grid_a_rule_makes_readonly', () => {
+    const result = lockColumnsOfReadonlyGrids(formWith(grid()), { 'grid-1': true });
+
+    expect(firstColumn(result).isReadonly).toBe(true);
+  });
+
+  it('should_lock_every_column_of_a_grid_published_readonly', () => {
+    const result = lockColumnsOfReadonlyGrids(formWith(grid({ isReadonly: true })), {});
+
+    expect(firstColumn(result).isReadonly).toBe(true);
+  });
+
+  it('should_leave_the_columns_of_a_grid_a_rule_makes_editable', () => {
+    const result = lockColumnsOfReadonlyGrids(formWith(grid({ isReadonly: true })), { 'grid-1': false });
+
+    expect(firstColumn(result).isReadonly).toBe(false);
+  });
+
+  it('should_keep_the_field_object_of_an_editable_grid', () => {
+    const field = grid();
+
+    const result = lockColumnsOfReadonlyGrids(formWith(field), {});
+
+    expect(result.tabs[0]!.sections[0]!.fields[0]).toBe(field);
+  });
+
+  it('should_lock_a_readonly_grid_in_a_tab_footer', () => {
+    const form = { tabs: [{ id: 't', sections: [], footerFields: [grid()] }] } as unknown as FormDefinition;
+
+    const result = lockColumnsOfReadonlyGrids(form, { 'grid-1': true });
+
+    expect(result.tabs[0]!.footerFields![0]!.gridConfig!.columnConfigs![0]!.isReadonly).toBe(true);
   });
 });
 

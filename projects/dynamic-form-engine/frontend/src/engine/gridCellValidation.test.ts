@@ -34,6 +34,16 @@ describe('validateGridCell — required', () => {
     expect(validateGridCell(column({ isRequired: true }), undefined)).toBe('Reference is required');
   });
 
+  // DEF-003: a locked column's cells cannot be typed into, so requiring a value there would
+  // block submit with no way to fix it. Same reasoning as a column a rule hides.
+  it('passesBlankCell_whenRequiredButLocked', () => {
+    expect(validateGridCell(column({ isRequired: true, isReadonly: true }), '')).toBeNull();
+  });
+
+  it('failsBlankCell_whenRequiredAndARuleUnlockedIt', () => {
+    expect(validateGridCell(column({ isRequired: true, isReadonly: false }), '')).toBe('Reference is required');
+  });
+
   it('passesBlankCell_whenNotRequired', () => {
     expect(validateGridCell(column(), '')).toBeNull();
   });
