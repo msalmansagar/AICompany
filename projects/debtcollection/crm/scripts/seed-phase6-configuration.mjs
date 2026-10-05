@@ -166,7 +166,8 @@ async function seed(cfg, token) {
   for (const [index, type] of ACTIVITY_TYPES.entries()) {
     const result = await upsert(cfg, token, 'qdb_collectionactivitytypes', 'qdb_collectionactivitytypeid',
       'qdb_code', mark(type.code), {
-        qdb_name: `${type.name} (${PHASE6_MARKER}synthetic)`,
+        // Officers read this name. That the row is sandbox data is carried by its P6- code, not here.
+        qdb_name: type.name,
         // Explicit, because the first seeding omitted it and every type came out INACTIVE — so the
         // forms, which correctly refuse to offer retired configuration, offered nothing at all.
         // A column's documented default is not a substitute for writing the value you rely on.
@@ -191,7 +192,7 @@ async function seed(cfg, token) {
     if (!owningTypeId) throw new Error(`${outcome.code}: owning type ${outcome.typeCode} was not seeded`);
     const result = await upsert(cfg, token, 'qdb_activityoutcomes', 'qdb_activityoutcomeid',
       'qdb_code', mark(outcome.code), {
-        qdb_name: `${outcome.name} (${PHASE6_MARKER}synthetic)`,
+        qdb_name: outcome.name,
         qdb_sequence: outcome.sequence,
         qdb_isactive: true,
         qdb_requiresfollowup: outcome.requiresFollowUp,

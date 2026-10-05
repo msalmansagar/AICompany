@@ -50,7 +50,7 @@ interface SeedTemplate {
 const TEMPLATES: readonly SeedTemplate[] = [
   {
     code: 'P7-SMS-OVERDUE-EN',
-    name: 'P7 synthetic — overdue reminder (English)',
+    name: 'Overdue reminder (English)',
     channel: CHANNEL.SMS, language: LANGUAGE.English,
     subject: '',
     body: 'Dear {{customerName}}, your instalment of {{amount}} is overdue. Please contact QDB Collections.',
@@ -59,7 +59,7 @@ const TEMPLATES: readonly SeedTemplate[] = [
   },
   {
     code: 'P7-SMS-OVERDUE-AR',
-    name: 'P7 synthetic — overdue reminder (Arabic)',
+    name: 'Overdue reminder (Arabic)',
     channel: CHANNEL.SMS, language: LANGUAGE.Arabic,
     subject: '',
     body: 'عزيزي {{customerName}}، قسطك البالغ {{amount}} متأخر. يرجى التواصل مع تحصيل بنك قطر للتنمية.',
@@ -68,7 +68,7 @@ const TEMPLATES: readonly SeedTemplate[] = [
   },
   {
     code: 'P7-SMS-FOLLOWUP-EN',
-    name: 'P7 synthetic — follow-up call arranged (English)',
+    name: 'Follow-up call arranged (English)',
     channel: CHANNEL.SMS, language: LANGUAGE.English,
     subject: '',
     body: 'Dear {{customerName}}, we will call you on {{followUpDate}} about your account.',
@@ -77,7 +77,7 @@ const TEMPLATES: readonly SeedTemplate[] = [
   },
   {
     code: 'P7-EMAIL-OVERDUE-EN',
-    name: 'P7 synthetic — overdue notice (English)',
+    name: 'Overdue notice (English)',
     channel: CHANNEL.Email, language: LANGUAGE.English,
     subject: 'Overdue instalment — {{facilityNumber}}',
     body: 'Dear {{customerName}},\n\nYour instalment of {{amount}} on facility {{facilityNumber}} is '
@@ -95,7 +95,7 @@ const TEMPLATES: readonly SeedTemplate[] = [
      * the value that a careless `Number(...)` would turn into 0, which is the code for Return.
      */
     code: 'P7-SMS-UNAPPROVED-EN',
-    name: 'P7 synthetic — NOT approved, must never be offered',
+    name: 'Unapproved draft (English)',
     channel: CHANNEL.SMS, language: LANGUAGE.English,
     subject: '',
     body: 'This wording has not been approved and must not reach a customer. {{customerName}}',
