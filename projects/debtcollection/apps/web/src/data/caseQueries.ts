@@ -87,7 +87,7 @@ export interface CustomerProfile {
    * and the permissive reading. That is safe only because it is not the whole gate: the hold policy
    * fails closed separately.
    */
-  restrictions: { doNotFax: boolean; doNotEmail: boolean; doNotPhone: boolean };
+  restrictions: { doNotFax: boolean; doNotPostalMail: boolean; doNotEmail: boolean; doNotPhone: boolean };
 }
 
 /**
@@ -127,6 +127,7 @@ export async function retrieveCustomer(
     isActive: readNumber(row, 'statecode') === 0,
     restrictions: {
       doNotFax: row['donotfax'] === true,
+      doNotPostalMail: row['donotpostalmail'] === true,
       doNotEmail: row['donotemail'] === true,
       doNotPhone: row['donotphone'] === true,
     },

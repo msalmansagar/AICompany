@@ -8,6 +8,7 @@ import { loadActivityTypes } from '../../data/configurationCatalog.js';
 import { isLegalRecommendationCode } from '../../data/legalTraceRows.js';
 import { isDeceasedTypeCode } from '../../data/deceasedQueries.js';
 import { loadUnitSnapshots, type UnitSnapshots } from '../../data/unitSnapshots.js';
+import { resolveMessagingConfiguration, type MessagingConfiguration } from '../../data/messagingConfiguration.js';
 import { useSectionData, type SectionState } from '../../components/SectionBoundary.js';
 import { useCrmSession } from '../../shell/context.js';
 
@@ -17,10 +18,20 @@ import { useCrmSession } from '../../shell/context.js';
  * the selected unit's reads run only when the selection changes, and a unit's snapshots are kept
  * once read, so returning to a unit reads nothing again.
  */
+/**
+ * What the history needs to know about the customer's organisation: the configured activity type
+ * codes per category, and the table that organisation records SMS / WhatsApp in (Fax on BFD,
+ * Letter on Housing Loan).
+ */
+export interface HistoryContext {
+  types: CategoryTypes;
+  messaging: MessagingConfiguration;
+}
+
 export interface Customer360Sections {
   promises: SectionState<PromisePerformance>;
   nextActions: { state: SectionState<ReadonlyMap<string, NextPlannedAction>>; retry: () => void };
-  types: { state: SectionState<CategoryTypes>; retry: () => void };
+  history: { state: SectionState<HistoryContext>; retry: () => void };
   counts: SectionState<HistoryCounts | undefined>;
   snapshots: { state: SectionState<UnitSnapshots>; retry: () => void };
   openProcesses: { state: SectionState<readonly HistoryEntry[]>; retry: () => void };
@@ -35,17 +46,24 @@ export function useCustomer360Sections(aggregate: CustomerAggregate, selected: F
 
   const promises = useSectionData(() => loadPromisePerformance(adapter, caseIds), [adapter, caseIds, reloadKey]);
   const nextActions = useSectionData(() => loadNextPlannedActions(adapter, openCases), [adapter, openCases, reloadKey]);
-  const types = useSectionData(() => loadCategoryTypes(adapter), [adapter]);
-  const typeData = types.state.status === 'ready' ? types.state.data : undefined;
+  // A customer is a contact (HL) or an account (BFD), so every case they hold is in one organisation.
+  const organization = aggregate.financialUnits[0]?.organization ?? '';
+  const history = useSectionData(() => loadHistoryContext(adapter, organization), [adapter, organization]);
+  const context = history.state.status === 'ready' ? history.state.data : undefined;
   // Counts are shown only when exact. A refused count is not an error to report: the filters work
   // without them, and the timeline simply shows none.
-  const counts = useSectionData(typeData ? () => loadHistoryCounts(adapter, { caseIds, types: typeData }).catch(() => undefined) : undefined, [adapter, caseIds, typeData, reloadKey]);
+  const counts = useSectionData(context ? () => loadHistoryCounts(adapter, { caseIds, ...context }).catch(() => undefined) : undefined, [adapter, caseIds, context, reloadKey]);
   const snapshots = useUnitSnapshots(aggregate.customerBusinessId, selected);
   const openProcesses = useSectionData(
-    selected?.case.isOpen && typeData ? () => loadOpenProcesses(adapter, selected.case.id, typeData) : undefined,
-    [adapter, selected?.case.id, typeData, reloadKey],
+    selected?.case.isOpen && context ? () => loadOpenProcesses(adapter, selected.case.id, context.types) : undefined,
+    [adapter, selected?.case.id, context, reloadKey],
   );
-  return { promises: promises.state, nextActions, types, counts: counts.state, snapshots, openProcesses };
+  return { promises: promises.state, nextActions, history, counts: counts.state, snapshots, openProcesses };
+}
+
+async function loadHistoryContext(adapter: Parameters<typeof loadActivityTypes>[0], organization: string): Promise<HistoryContext> {
+  const [types, messaging] = await Promise.all([loadCategoryTypes(adapter), resolveMessagingConfiguration(adapter, organization)]);
+  return { types, messaging };
 }
 
 /** A unit's snapshots, read once per unit and remembered for the life of the screen. */

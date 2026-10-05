@@ -4,8 +4,11 @@ import {
 } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import {
-  ACTIVITY_COLUMNS, EMAIL_COLUMNS, ENTITY_SETS, FAX_COLUMNS, FORMATTED_VALUE_ANNOTATION,
+  ACTIVITY_COLUMNS, EMAIL_COLUMNS, ENTITY_SETS, FORMATTED_VALUE_ANNOTATION,
 } from './schema.js';
+import {
+  channelOfMessage, historyColumnsFor, historyRoutes, type MessageRoute, type MessagingConfiguration,
+} from './messagingConfiguration.js';
 
 /**
  * The unified communication history for one case.
@@ -25,9 +28,12 @@ import {
  * "Sent" label here would be the one thing the phase must not do.
  */
 
+/** A source: the organisation's message table(s) — `fax` or `letter` — plus email and activities. */
+type SourceKey = 'fax' | 'letter' | 'email' | 'activity';
+
 /** One source's paging state, kept opaque exactly as the platform issued it. */
 interface SourceState {
-  key: 'fax' | 'email' | 'activity';
+  key: SourceKey;
   continuation?: ContinuationToken;
   exhausted: boolean;
 }
@@ -40,18 +46,12 @@ export interface HistoryCursor {
 /** How many rows are asked of each source per round trip. */
 const SOURCE_PAGE = 25;
 
-export function startHistory(): HistoryCursor {
+/** Starts a history over the tables this organisation actually uses for messages. */
+export function startHistory(messaging: MessagingConfiguration): HistoryCursor {
+  const keys: SourceKey[] = [...historyRoutes(messaging).map(route => route.table), 'email', 'activity'];
   return {
-    buffers: [
-      { key: 'fax', items: [], hasMore: true },
-      { key: 'email', items: [], hasMore: true },
-      { key: 'activity', items: [], hasMore: true },
-    ],
-    sources: [
-      { key: 'fax', exhausted: false },
-      { key: 'email', exhausted: false },
-      { key: 'activity', exhausted: false },
-    ],
+    buffers: keys.map(key => ({ key, items: [], hasMore: true })),
+    sources: keys.map(key => ({ key, exhausted: false })),
   };
 }
 
@@ -72,21 +72,12 @@ function directionOf(row: Record<string, unknown>): HistoryEntry['direction'] {
   return 'unknown';
 }
 
-/**
- * The channel a Fax row represents.
- *
- * SMS and WhatsApp share the entity, and the discriminator is the presence of the WhatsApp-only
- * columns — QDB's own convention, confirmed in the Phase 7 contract. A row with a WhatsApp template
- * is WhatsApp; a row without one is SMS.
- */
-const faxChannel = (row: Record<string, unknown>): string =>
-  String(row['qdb_whatsapptemplate'] ?? '').trim() ? 'WhatsApp' : 'SMS';
-
-function faxEntry(row: Record<string, unknown>): HistoryEntry {
+/** A message row, labelled SMS / WhatsApp by the organisation's own discriminator. */
+function messageEntry(messaging: MessagingConfiguration, route: MessageRoute, row: Record<string, unknown>): HistoryEntry {
   return {
     id: String(row['activityid']),
-    source: 'fax',
-    channel: faxChannel(row),
+    source: route.table,
+    channel: channelOfMessage(messaging, route, row),
     occurredAt: String(row['createdon'] ?? ''),
     subject: String(row['subject'] ?? ''),
     status: formatted(row, 'statuscode'),
@@ -138,14 +129,15 @@ export interface SourceRead {
  * works in `$filter` — the KI-52 family again, where the storage name is accepted and returns
  * nothing.
  */
-export function readsFor(caseId: string): Record<SourceState['key'], SourceRead> {
+export function readsFor(caseId: string, messaging: MessagingConfiguration): Partial<Record<SourceKey, SourceRead>> {
+  const messageReads = Object.fromEntries(historyRoutes(messaging).map(route => [route.table, {
+    entitySet: route.entitySet,
+    select: historyColumnsFor(messaging, route),
+    filter: `_regardingobjectid_value eq ${caseId}`,
+    toEntry: (row: Record<string, unknown>) => messageEntry(messaging, route, row),
+  }]));
   return {
-    fax: {
-      entitySet: ENTITY_SETS.fax,
-      select: FAX_COLUMNS,
-      filter: `_regardingobjectid_value eq ${caseId}`,
-      toEntry: faxEntry,
-    },
+    ...messageReads,
     email: {
       entitySet: ENTITY_SETS.email,
       select: EMAIL_COLUMNS,
@@ -180,11 +172,11 @@ export interface HistoryPage {
  */
 export async function nextHistoryPage(
   adapter: XrmCrmAdapter,
-  caseId: string,
+  request: { caseId: string; messaging: MessagingConfiguration },
   cursor: HistoryCursor,
   pageSize: number,
 ): Promise<HistoryPage> {
-  const reads = readsFor(caseId);
+  const reads = readsFor(request.caseId, request.messaging);
   let state = cursor;
 
   // A merge cut short by the watermark still hands over the rows it could place. They are kept and
@@ -205,7 +197,7 @@ export async function nextHistoryPage(
 /** Reads one more page from each starved source, and records when a source is finished. */
 async function fillSources(
   adapter: XrmCrmAdapter,
-  reads: Record<SourceState['key'], SourceRead>,
+  reads: Partial<Record<SourceKey, SourceRead>>,
   cursor: HistoryCursor,
   starved: readonly string[],
 ): Promise<HistoryCursor> {
@@ -215,9 +207,9 @@ async function fillSources(
   for (const key of starved) {
     const index = sources.findIndex(source => source.key === key);
     const source = sources[index];
-    if (!source || source.exhausted) continue;
+    const read = source ? reads[source.key] : undefined;
+    if (!source || source.exhausted || !read) continue;
 
-    const read = reads[source.key];
     const page = await adapter.retrievePage(read.entitySet, {
       select: [...read.select],
       filter: read.filter,

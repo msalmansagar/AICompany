@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { CommunicationRequest, EligibilityContext } from '@dcp/domain';
+import type { CommunicationRequest } from '@dcp/domain';
 import { BulkCommunicationService } from '../services/bulkCommunicationService.js';
-import { CommunicationService, RECIPIENT_PARTY_MASK } from '../services/communicationService.js';
+import { CommunicationService, RECIPIENT_PARTY_MASK, type SendContext } from '../services/communicationService.js';
+import { FAX_MESSAGING } from './messagingFixtures.js';
 import { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import type { XrmLike } from '../platform/crmContext.js';
 import type { WriteResponse, WriteTransport } from '../platform/writeTransport.js';
@@ -191,9 +192,10 @@ function buildServices(store: FakeDataverse) {
   return { adapter, bulk: new BulkCommunicationService(adapter, communications, CAPACITY) };
 }
 
-const ELIGIBLE: EligibilityContext = {
+const ELIGIBLE: SendContext = {
   contactHold: { available: true, held: false },
   contactHoldPolicy: 'refuse-when-unverifiable',
+  messaging: FAX_MESSAGING,
 };
 
 const buildRequest = (recipientId: string): Promise<CommunicationRequest | null> =>
@@ -204,7 +206,7 @@ const buildRequest = (recipientId: string): Promise<CommunicationRequest | null>
     recipient: {
       table: 'contact', id: recipientId, displayName: 'Test Customer',
       mobile: '+97455500000',
-      restrictions: { doNotFax: false, doNotEmail: false, doNotPhone: false },
+      restrictions: { doNotFax: false, doNotPostalMail: false, doNotEmail: false, doNotPhone: false },
     },
   });
 
@@ -366,7 +368,7 @@ describe('crash windows', () => {
     const withRestriction = async (id: string) => {
       const request = await buildRequest(id);
       if (request && id === blocked) {
-        return { ...request, recipient: { ...request.recipient, restrictions: { doNotFax: true, doNotEmail: false, doNotPhone: false } } };
+        return { ...request, recipient: { ...request.recipient, restrictions: { doNotFax: true, doNotPostalMail: false, doNotEmail: false, doNotPhone: false } } };
       }
       return request;
     };

@@ -24,7 +24,7 @@
 export interface HistoryEntry {
   id: string;
   /** Which native table this came from — the UI labels by channel, never by table. */
-  source: 'fax' | 'email' | 'activity';
+  source: 'fax' | 'letter' | 'email' | 'activity';
   channel: string;
   occurredAt: string;
   subject: string;

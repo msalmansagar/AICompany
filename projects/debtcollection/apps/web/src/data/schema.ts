@@ -25,6 +25,7 @@ export const ENTITY_SETS = {
   communicationTemplate: 'qdb_communicationtemplates',
   communicationRun: 'qdb_communicationruns',
   fax: 'faxes',
+  letter: 'letters',
   activityParty: 'activityparties',
   email: 'emails',
   identityException: 'qdb_identityexceptions',
@@ -71,6 +72,7 @@ export const NAVIGATION_PROPERTIES = {
   outcomeToType: 'qdb_activitytypeid',
   runToTemplate: 'qdb_templateid',
   faxToCase: 'regardingobjectid_qdb_collectioncase_fax',
+  letterToCase: 'regardingobjectid_qdb_collectioncase_letter',
   emailToCase: 'regardingobjectid_qdb_collectioncase_email',
   snapshotToCase: 'qdb_collectioncaseid',
   caseToStrategy: 'qdb_strategyid',
@@ -109,6 +111,7 @@ export const NAVIGATION_PROPERTIES = {
  */
 export const PARTY_COLLECTIONS = {
   fax: 'fax_activity_parties',
+  letter: 'letter_activity_parties',
   email: 'email_activity_parties',
 } as const;
 
@@ -117,6 +120,7 @@ export const PARTY_COLLECTION_REGISTRY: readonly {
   entity: string; collection: string;
 }[] = [
   { entity: 'fax', collection: PARTY_COLLECTIONS.fax },
+  { entity: 'letter', collection: PARTY_COLLECTIONS.letter },
   { entity: 'email', collection: PARTY_COLLECTIONS.email },
 ];
 
@@ -132,6 +136,7 @@ export const NAVIGATION_REGISTRY: readonly {
   { entity: 'qdb_activityoutcome', attribute: 'qdb_activitytypeid', navigationProperty: NAVIGATION_PROPERTIES.outcomeToType },
   { entity: 'qdb_communicationrun', attribute: 'qdb_templateid', navigationProperty: NAVIGATION_PROPERTIES.runToTemplate },
   { entity: 'fax', attribute: 'regardingobjectid', navigationProperty: NAVIGATION_PROPERTIES.faxToCase },
+  { entity: 'letter', attribute: 'regardingobjectid', navigationProperty: NAVIGATION_PROPERTIES.letterToCase },
   { entity: 'email', attribute: 'regardingobjectid', navigationProperty: NAVIGATION_PROPERTIES.emailToCase },
   { entity: 'qdb_delinquencysnapshot', attribute: 'qdb_collectioncaseid', navigationProperty: NAVIGATION_PROPERTIES.snapshotToCase },
   { entity: 'qdb_collectioncase', attribute: 'qdb_strategyid', navigationProperty: NAVIGATION_PROPERTIES.caseToStrategy },
@@ -253,16 +258,14 @@ export const ACTIVITY_OUTCOME_COLUMNS = [
 ] as const;
 
 /**
- * A Fax row as the workspace reads one.
+ * The native activity context every message row is read with, whichever table carries it.
  *
- * Only the columns QDB's confirmed SMS/WhatsApp contract uses, plus the native activity context that
- * makes the row legible in a timeline. The other 25 qdb_ columns on fax belong to QDB's own
- * mechanism and other modules and are neither written nor read.
+ * Only columns every activity has. The organisation's own message columns (BFD Fax `qdb_…`, HL
+ * Letter `vrp_…`) come from its Communication mappings (`messagingConfiguration.ts`) — reading a
+ * fixed `qdb_message_body` is what failed on Housing Loan, whose SMS table is Letter.
  */
-export const FAX_COLUMNS = [
-  'activityid', 'subject', 'faxnumber', 'qdb_message_body', 'qdb_sender',
-  'qdb_language', 'qdb_whatsapptemplate', 'qdb_otp',
-  'statecode', 'statuscode', 'createdon', 'directioncode',
+export const MESSAGE_BASE_COLUMNS = [
+  'activityid', 'subject', 'statecode', 'statuscode', 'createdon', 'directioncode',
   '_regardingobjectid_value', '_ownerid_value',
 ] as const;
 
@@ -326,8 +329,13 @@ export const PLATFORM_CONFIGURATION_COLUMNS = [
   'qdb_environmentcode', 'qdb_customerentity', 'qdb_customerbusinessidfield', 'qdb_facilityentity',
   'qdb_facilitybusinessidfield', 'qdb_eligibilityrulesetcode', 'qdb_strategyrulesetcode',
   'qdb_contactholdrulesetcode', 'qdb_snapshotpolicy', 'qdb_customertype', 'qdb_featureflags',
-  'qdb_misintegrationenabled', 'qdb_misprovider', 'qdb_isactive',
+  'qdb_misintegrationenabled', 'qdb_misprovider', 'qdb_isactive', 'qdb_smsentity', 'qdb_whatsappentity',
 ] as const;
+
+/** `qdb_business_object` option values, read from the organisation's choice (2026-10-05). */
+export const BUSINESS_OBJECT_CODES = {
+  Customer: 100000380, Facility: 100000381, Case: 100000382, Activity: 100000383, Communication: 100000384, Document: 100000385,
+} as const;
 
 export const PLATFORM_MAPPING_COLUMNS = [
   'qdb_platformmappingid', 'qdb_name', 'qdb_businessobject', 'qdb_canonicalfield',
@@ -356,12 +364,13 @@ export const CONTACT_COLUMNS = [
   'emailaddress1', 'address1_city', 'statecode',
   // The native channel restrictions the eligibility gate reads. Dynamics contact PREFERENCES —
   // never relabelled as QDB Collection Contact Hold, which does not exist yet (KI-79).
-  'donotfax', 'donotemail', 'donotphone',
+  // `donotpostalmail` governs SMS / WhatsApp where the organisation sends them as Letter (HL).
+  'donotfax', 'donotpostalmail', 'donotemail', 'donotphone',
 ] as const;
 
 export const ACCOUNT_COLUMNS = [
   'accountid', 'name', 'accountnumber', 'telephone1', 'emailaddress1', 'address1_city', 'statecode',
-  'donotfax', 'donotemail', 'donotphone',
+  'donotfax', 'donotpostalmail', 'donotemail', 'donotphone',
 ] as const;
 
 // ── Choice labels, only where the values are already proven ──────────────────
@@ -473,7 +482,8 @@ export const READ_REGISTRY: readonly { entitySet: string; columns: readonly stri
   { entitySet: ENTITY_SETS.activityOutcome, columns: ACTIVITY_OUTCOME_COLUMNS },
   { entitySet: ENTITY_SETS.communicationTemplate, columns: COMMUNICATION_TEMPLATE_COLUMNS },
   { entitySet: ENTITY_SETS.communicationRun, columns: COMMUNICATION_RUN_COLUMNS },
-  { entitySet: ENTITY_SETS.fax, columns: FAX_COLUMNS },
+  { entitySet: ENTITY_SETS.fax, columns: MESSAGE_BASE_COLUMNS },
+  { entitySet: ENTITY_SETS.letter, columns: MESSAGE_BASE_COLUMNS },
   { entitySet: ENTITY_SETS.email, columns: EMAIL_COLUMNS },
   { entitySet: ENTITY_SETS.activityParty, columns: ACTIVITY_PARTY_COLUMNS },
   { entitySet: ENTITY_SETS.identityException, columns: IDENTITY_EXCEPTION_COLUMNS },

@@ -370,7 +370,7 @@ export type {
 
 export {
   CommunicationChannel,
-  CHANNEL_ENTITY,
+  MESSAGE_TABLE_RESTRICTION,
   CommunicationRequestSchema,
   evaluateEligibility,
   planCommunication,
@@ -379,6 +379,7 @@ export type {
   CommunicationRecipient,
   CommunicationRequest,
   CommunicationWritePlan,
+  MessageTable,
   EligibilityRefusal,
   CommunicationEligibilityOutcome,
   EligibilityContext,

@@ -15,6 +15,7 @@ import {
 } from '../data/communicationHistoryQueries.js';
 import { retrieveCase, retrieveCustomer, type CustomerProfile } from '../data/caseQueries.js';
 import { resolveContactHoldPolicy, type ContactHoldResolution } from '../data/contactHoldPolicy.js';
+import { resolveMessagingConfiguration, type MessagingConfiguration } from '../data/messagingConfiguration.js';
 import { CommunicationService } from '../services/communicationService.js';
 import { useCrmSession } from '../shell/context.js';
 import { CasesView } from './index.js';
@@ -25,7 +26,7 @@ import { CasesView } from './index.js';
  * Three rules shape every line of this file, and all three were paid for earlier in the programme.
  *
  * **React constructs nothing.** It never names a column, never composes a payload, never learns
- * that an SMS is a Fax row. It assembles a `CommunicationRequest` and hands it to
+ * which table an SMS is (Fax on BFD, Letter on Housing Loan). It assembles a `CommunicationRequest` and hands it to
  * `CommunicationService`, which is where the translation lives.
  *
  * **Nothing here claims a message was delivered.** DCP creates the native record; QDB's own
@@ -114,13 +115,17 @@ function SingleTab({ caseId, onSelectCase }: {
       </>
     );
   }
-  return <CaseCommunications caseId={caseId} />;
+  // Keyed by the case: a different case may belong to a different organisation, so its hold policy
+  // and messaging tables start empty rather than as the previous case's. Resetting state inside the
+  // component was not enough — the history's own effect runs first and read the old case's table.
+  return <CaseCommunications key={caseId} caseId={caseId} />;
 }
 
 function CaseCommunications({ caseId }: { caseId: string }) {
   const { adapter } = useCrmSession();
   const [recipient, setRecipient] = useState<CustomerProfile | null>(null);
   const [hold, setHold] = useState<ContactHoldResolution | null>(null);
+  const [messaging, setMessaging] = useState<MessagingConfiguration | null>(null);
   // Bumped after a send so the history re-reads. A counter rather than a boolean, so two sends
   // in a row both trigger a reload.
   const [historyToken, setHistoryToken] = useState(0);
@@ -137,8 +142,12 @@ function CaseCommunications({ caseId }: { caseId: string }) {
       // Keyed by the case's own organisation. HL and BFD share a Dataverse and each has its own
       // active configuration, so resolving without this key would let a decision recorded for one
       // organisation permit sending on the other's cases.
-      const resolved = await resolveContactHoldPolicy(adapter, detail.organization);
-      if (live) setHold(resolved);
+      const [resolved, channels] = await Promise.all([
+        resolveContactHoldPolicy(adapter, detail.organization),
+        // Which table carries SMS / WhatsApp in THIS organisation — Fax on BFD, Letter on HL.
+        resolveMessagingConfiguration(adapter, detail.organization),
+      ]);
+      if (live) { setHold(resolved); setMessaging(channels); }
 
       if (!detail.customerTable || !detail.customerId) return;
       const profile = await retrieveCustomer(adapter, detail.customerTable, detail.customerId);
@@ -157,8 +166,15 @@ function CaseCommunications({ caseId }: { caseId: string }) {
       {hold?.blocked && (
         <div className="field-error" data-testid="hold-blocked">{hold.explanation}</div>
       )}
-      {hold && <Composer caseId={caseId} recipient={recipient} hold={hold} onSent={refreshHistory} />}
-      <History caseId={caseId} reloadToken={historyToken} />
+      {messaging && !messaging.sms && (
+        <div className="field-error" data-testid="messaging-unconfigured">
+          SMS cannot be sent on this case: {messaging.problems.join(' ')}
+        </div>
+      )}
+      {hold && messaging && (
+        <Composer caseId={caseId} recipient={recipient} hold={hold} messaging={messaging} onSent={refreshHistory} />
+      )}
+      {messaging && <History caseId={caseId} messaging={messaging} reloadToken={historyToken} />}
     </div>
   );
 }
@@ -172,10 +188,11 @@ type SendState =
   | { kind: 'refused'; messages: readonly string[] }
   | { kind: 'failed'; message: string };
 
-function Composer({ caseId, recipient, hold, onSent }: {
+function Composer({ caseId, recipient, hold, messaging, onSent }: {
   caseId: string;
   recipient: CustomerProfile | null;
   hold: ContactHoldResolution;
+  messaging: MessagingConfiguration;
   onSent: () => void;
 }) {
   const { adapter } = useCrmSession();
@@ -234,6 +251,7 @@ function Composer({ caseId, recipient, hold, onSent }: {
       const outcome = await service.send(activityId, request, {
         contactHold: hold.verdict,
         contactHoldPolicy: hold.policy,
+        messaging,
       });
 
       if (outcome.status === 'refused') {
@@ -251,7 +269,7 @@ function Composer({ caseId, recipient, hold, onSent }: {
     } catch (error) {
       setState({ kind: 'failed', message: SEND_FAILED });
     }
-  }, [adapter, caseId, channel, hold, onSent, recipient, rendered, template]);
+  }, [adapter, caseId, channel, hold, messaging, onSent, recipient, rendered, template]);
 
   const unresolved = rendered && !rendered.rendered ? rendered.unresolved : [];
   // Blocked means blocked: the officer is told before composing, not after pressing Send.
@@ -404,10 +422,10 @@ function buildRequest(
  * rows another source could still displace, which is a correctness property rather than an
  * inconvenience.
  */
-function History({ caseId, reloadToken }: { caseId: string; reloadToken: number }) {
+function History({ caseId, messaging, reloadToken }: { caseId: string; messaging: MessagingConfiguration; reloadToken: number }) {
   const { adapter } = useCrmSession();
   const [entries, setEntries] = useState<readonly HistoryEntry[]>([]);
-  const [cursor, setCursor] = useState<HistoryCursor>(() => startHistory());
+  const [cursor, setCursor] = useState<HistoryCursor>(() => startHistory(messaging));
   const [complete, setComplete] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -416,7 +434,7 @@ function History({ caseId, reloadToken }: { caseId: string; reloadToken: number 
     setLoading(true);
     setError(null);
     try {
-      const page = await nextHistoryPage(adapter, caseId, from, HISTORY_PAGE);
+      const page = await nextHistoryPage(adapter, { caseId, messaging }, from, HISTORY_PAGE);
       setEntries(current => (reset ? page.entries : [...current, ...page.entries]));
       setCursor(page.cursor);
       setComplete(page.complete);
@@ -429,16 +447,16 @@ function History({ caseId, reloadToken }: { caseId: string; reloadToken: number 
     } finally {
       setLoading(false);
     }
-  }, [adapter, caseId]);
+  }, [adapter, caseId, messaging]);
 
   useEffect(() => {
-    const fresh = startHistory();
+    const fresh = startHistory(messaging);
     setEntries([]);
     setComplete(false);
     void more(fresh, true);
     // `reloadToken` is a dependency, not a wart: a send bumps it and the timeline re-reads from
     // the platform rather than being patched locally with what this screen believes it wrote.
-  }, [more, reloadToken]);
+  }, [messaging, more, reloadToken]);
 
   return (
     <Card title="Communication history" subtitle="SMS, WhatsApp, email and logged activity, in one timeline.">

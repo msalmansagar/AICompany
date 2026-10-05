@@ -80,8 +80,8 @@ function Customer360Content({ aggregate, reloadKey, onSaved, onOpenCase }: {
             <FinancialUnitList units={aggregate.financialUnits} portfolio={aggregate.portfolio} nextActions={sections.nextActions.state} selectedKey={selectedKey} commands={commands} />
           </div>
           <div className="c360-slot-history">
-            <SectionBoundary label="Collection History" state={sections.types.state} onRetry={sections.types.retry} skeleton={<SkeletonLines lines={5} height={18} />} testId="c360-history-section">
-              {types => <CollectionHistoryTimeline caseIds={caseIds} types={types} counts={sections.counts.status === 'ready' ? sections.counts.data : undefined} contextOf={contextOf} />}
+            <SectionBoundary label="Collection History" state={sections.history.state} onRetry={sections.history.retry} skeleton={<SkeletonLines lines={5} height={18} />} testId="c360-history-section">
+              {history => <CollectionHistoryTimeline caseIds={caseIds} history={history} counts={sections.counts.status === 'ready' ? sections.counts.data : undefined} contextOf={contextOf} />}
             </SectionBoundary>
           </div>
         </div>
@@ -101,7 +101,7 @@ function Customer360Content({ aggregate, reloadKey, onSaved, onOpenCase }: {
               )}
             </div>
           </div>
-          <div className="c360-slot-prefs"><ContactPreferences profile={aggregate.profile} /></div>
+          <div className="c360-slot-prefs"><ContactPreferences profile={aggregate.profile} messageTable={sections.history.state.status === 'ready' ? sections.history.state.data.messaging.sms?.table : undefined} /></div>
         </div>
       </div>
       <CaseCommandDialogs

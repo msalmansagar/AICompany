@@ -479,6 +479,7 @@ export const DEFAULT_LOGICAL_NAMES: Readonly<Record<string, string>> = {
   qdb_platformmappings: 'qdb_platformmapping',
   // Native activity sets whose logical name is not the set minus a trailing 's'.
   faxes: 'fax',
+  letters: 'letter',
   emails: 'email',
   activityparties: 'activityparty',
   qdb_communicationruns: 'qdb_communicationrun',

@@ -7,6 +7,7 @@ import { App } from '../App.js';
 import { VERSION_STORAGE_KEY } from '../v2/version/workspaceVersion.js';
 import type { XrmLike } from '../platform/crmContext.js';
 import { MisPositionStrip } from '../views/customer360/MisPositionStrip.js';
+import { communicationMappings, configurationRow, FAX_COLUMN_MAP, LETTER_COLUMN_MAP } from './messagingFixtures.js';
 
 /**
  * Customer 360 through the real App (V1 and V2 share one implementation), against a fake
@@ -20,6 +21,10 @@ const WAIT = 5000;
 const QID = '28912345678';
 const APP_USER = 'app-user-1';
 const TYPES = { call: 't-call', dispute: 't-dispute', legal: 't-legal', deceased: 't-deceased' };
+const HL_MESSAGING_ROW = { ...configurationRow('cfg-hl', 'letter', 'letter'), qdb_organizationcode: 100000140 };
+const BFD_MESSAGING_ROW = { ...configurationRow('cfg-bfd', 'fax', 'fax'), qdb_organizationcode: 100000141 };
+const HL_MAPPINGS = communicationMappings('cfg-hl', 'letter', LETTER_COLUMN_MAP);
+const BFD_MAPPINGS = communicationMappings('cfg-bfd', 'fax', FAX_COLUMN_MAP);
 
 type Row = Record<string, unknown>;
 
@@ -96,6 +101,9 @@ function install(fake: Fake = {}): Probe {
         if (logicalName === 'qdb_collectioncase') return { entities: cases, ...(fake.partialRead ? { nextLink: 'https://org/next' } : {}) };
         if (logicalName === 'systemuser') return { entities: [{ systemuserid: APP_USER }] };
         if (logicalName === 'qdb_collectionactivitytype') return { entities: types };
+        // Each organisation's messaging configuration, chosen by its code — HL records SMS as Letter, BFD as Fax.
+        if (logicalName === 'qdb_platformconfiguration') return { entities: query.includes('100000141') ? [BFD_MESSAGING_ROW] : [HL_MESSAGING_ROW] };
+        if (logicalName === 'qdb_platformmapping') return { entities: query.includes('cfg-bfd') ? BFD_MAPPINGS : HL_MAPPINGS };
         if (logicalName === 'qdb_strategyaction') return { entities: fake.strategyActions ?? [] };
         if (logicalName === 'qdb_delinquencysnapshot') {
           if (fake.failSnapshots) throw { errorCode: 0x80040216, message: 'Snapshots unavailable.' };
@@ -123,7 +131,7 @@ function install(fake: Fake = {}): Probe {
     const method = init?.method ?? 'GET';
     if (method !== 'GET') writes.push(`${method} ${url}`);
     const decoded = decodeURIComponent(String(url));
-    const count = decoded.includes('qdb_ptpstatus eq 100000081') ? 2 : decoded.includes('qdb_ptpdate ne null') && !decoded.includes('not ') ? 4 : decoded.includes('/fax') ? 3 : decoded.includes('/email') ? 1 : 0;
+    const count = decoded.includes('qdb_ptpstatus eq 100000081') ? 2 : decoded.includes('qdb_ptpdate ne null') && !decoded.includes('not ') ? 4 : decoded.includes('/letters') ? 3 : decoded.includes('/email') ? 1 : 0;
     return new Response(JSON.stringify({ '@odata.count': count, value: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   });
   return { reads, writes, releaseHeld: () => release() };

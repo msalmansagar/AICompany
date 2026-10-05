@@ -3,15 +3,19 @@ import {
   type ContinuationToken, type HistoryBuffer, type HistoryCategory, type HistoryEntry,
 } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
-import { EMAIL_COLUMNS, ENTITY_SETS, FAX_COLUMNS, FORMATTED_VALUE_ANNOTATION, HISTORY_ACTIVITY_COLUMNS } from './schema.js';
+import { EMAIL_COLUMNS, ENTITY_SETS, FORMATTED_VALUE_ANNOTATION, HISTORY_ACTIVITY_COLUMNS } from './schema.js';
 import { escapeOData } from './collectionQueries.js';
 import { countMatching } from './counts.js';
 import { formatDay, formatMoney } from '../components/primitives.js';
+import {
+  channelOfMessage, historyColumnsFor, historyRoutes, type MessageRoute, type MessagingConfiguration,
+} from './messagingConfiguration.js';
 
 /**
  * A customer's collection history across every case they hold, filtered and paged by the platform.
  *
- * Operational events only — actions, promises, SMS/WhatsApp (Fax), email, Complaint / Dispute,
+ * Operational events only — actions, promises, SMS/WhatsApp (the organisation's message table: Fax
+ * on BFD, Letter on Housing Loan), email, Complaint / Dispute,
  * Legal and Deceased / Insurance work — read from the native records they live in. Each source is
  * filtered to the customer's cases and to the chosen category, sorted newest first and bounded to a
  * page; `mergeHistory` merges them without ever emitting a row a source could still displace, and
@@ -23,7 +27,7 @@ import { formatDay, formatMoney } from '../components/primitives.js';
  */
 
 export type HistoryFilter = 'all' | HistoryCategory;
-type SourceKey = 'fax' | 'email' | 'activity';
+type SourceKey = 'fax' | 'letter' | 'email' | 'activity';
 
 /** The configured activity types each category recognises, by code (resolved once per screen). */
 export interface CategoryTypes {
@@ -48,14 +52,15 @@ export interface CustomerHistoryPage {
 const SOURCE_PAGE = 25;
 const ACTIVITY_CATEGORIES: readonly HistoryCategory[] = ['complaint', 'legal', 'deceased', 'ptp', 'actions'];
 
-/** Which tables a filter reads. Communications are Fax and Email; every other category is an activity. */
-function sourcesFor(filter: HistoryFilter): readonly SourceKey[] {
-  if (filter === 'all') return ['fax', 'email', 'activity'];
-  return filter === 'communications' ? ['fax', 'email'] : ['activity'];
+/** Which tables a filter reads. Communications are the message table(s) and Email; the rest are activities. */
+function sourcesFor(filter: HistoryFilter, messaging: MessagingConfiguration): readonly SourceKey[] {
+  const communications: SourceKey[] = [...historyRoutes(messaging).map(route => route.table), 'email'];
+  if (filter === 'all') return [...communications, 'activity'];
+  return filter === 'communications' ? communications : ['activity'];
 }
 
-export function startCustomerHistory(filter: HistoryFilter = 'all'): CustomerHistoryCursor {
-  const keys = sourcesFor(filter);
+export function startCustomerHistory(messaging: MessagingConfiguration, filter: HistoryFilter = 'all'): CustomerHistoryCursor {
+  const keys = sourcesFor(filter, messaging);
   return { buffers: keys.map(key => ({ key, items: [], hasMore: true })), sources: keys.map(key => ({ key, exhausted: false })) };
 }
 
@@ -127,10 +132,9 @@ function common(row: Record<string, unknown>, caseColumn: string): Pick<HistoryE
   };
 }
 
-/** SMS and WhatsApp share the Fax table; a WhatsApp template names WhatsApp, its absence SMS (Phase 7 contract). */
-const faxChannel = (row: Record<string, unknown>): string => (String(row['qdb_whatsapptemplate'] ?? '').trim() ? 'WhatsApp' : 'SMS');
-
-const toFax = (row: Record<string, unknown>): HistoryEntry => ({ ...common(row, '_regardingobjectid_value'), source: 'fax', channel: faxChannel(row), direction: directionOf(row), category: 'communications' });
+/** A message row, labelled SMS / WhatsApp by the organisation's own discriminator. */
+const toMessage = (messaging: MessagingConfiguration, route: MessageRoute, row: Record<string, unknown>): HistoryEntry =>
+  ({ ...common(row, '_regardingobjectid_value'), source: route.table, channel: channelOfMessage(messaging, route, row), direction: directionOf(row), category: 'communications' });
 const toEmail = (row: Record<string, unknown>): HistoryEntry => ({ ...common(row, '_regardingobjectid_value'), source: 'email', channel: 'Email', direction: directionOf(row), category: 'communications' });
 
 /** A collection activity with what the record itself carries: amount, recorded outcome, hand-off. */
@@ -153,28 +157,40 @@ function toActivity(row: Record<string, unknown>, types: CategoryTypes): History
 
 interface SourceRead { entitySet: string; select: readonly string[]; filter: string; toEntry: (row: Record<string, unknown>) => HistoryEntry }
 
+/** What a customer history read needs: the cases, the category, the type codes and the messaging tables. */
+export interface CustomerHistoryRequest {
+  caseIds: readonly string[];
+  filter: HistoryFilter;
+  types: CategoryTypes;
+  messaging: MessagingConfiguration;
+}
+
 /** One filter per source: the customer's cases, narrowed to the category. */
-export function customerHistoryReads(caseIds: readonly string[], filter: HistoryFilter, types: CategoryTypes): Partial<Record<SourceKey, SourceRead>> {
+export function customerHistoryReads(request: CustomerHistoryRequest): Partial<Record<SourceKey, SourceRead>> {
+  const { caseIds, filter, types, messaging } = request;
   const anyOf = (column: string) => `(${caseIds.map(id => `${column} eq ${escapeOData(id)}`).join(' or ')})`;
   const activityNarrowing = filter === 'all' || filter === 'communications' ? undefined : activityCategoryFilter(filter, types);
   const activityFilter = [anyOf('_qdb_collectioncaseid_value'), activityNarrowing].filter(Boolean).join(' and ');
-  const reads: Record<SourceKey, SourceRead> = {
-    fax: { entitySet: ENTITY_SETS.fax, select: FAX_COLUMNS, filter: anyOf('_regardingobjectid_value'), toEntry: toFax },
+  const reads: Partial<Record<SourceKey, SourceRead>> = {
+    ...Object.fromEntries(historyRoutes(messaging).map(route => [route.table, {
+      entitySet: route.entitySet, select: historyColumnsFor(messaging, route), filter: anyOf('_regardingobjectid_value'),
+      toEntry: (row: Record<string, unknown>) => toMessage(messaging, route, row),
+    }])),
     email: { entitySet: ENTITY_SETS.email, select: EMAIL_COLUMNS, filter: anyOf('_regardingobjectid_value'), toEntry: toEmail },
     activity: { entitySet: ENTITY_SETS.collectionActivity, select: HISTORY_ACTIVITY_COLUMNS, filter: activityFilter, toEntry: row => toActivity(row, types) },
   };
-  return Object.fromEntries(sourcesFor(filter).map(key => [key, reads[key]]));
+  return Object.fromEntries(sourcesFor(filter, messaging).map(key => [key, reads[key]]));
 }
 
 /** The next page. Bounded by `attempts` so a category held in one table never keeps asking empty ones. */
 export async function nextCustomerHistoryPage(
   adapter: XrmCrmAdapter,
-  request: { caseIds: readonly string[]; filter: HistoryFilter; types: CategoryTypes },
+  request: CustomerHistoryRequest,
   cursor: CustomerHistoryCursor,
   pageSize: number,
 ): Promise<CustomerHistoryPage> {
   if (request.caseIds.length === 0) return { entries: [], cursor, complete: true };
-  const reads = customerHistoryReads(request.caseIds, request.filter, request.types);
+  const reads = customerHistoryReads(request);
   let state = cursor;
   // A merge cut short by the watermark still hands over the rows it could place; they are kept,
   // and the next round asks only for what is still missing.
@@ -220,21 +236,21 @@ export type HistoryCounts = Readonly<Partial<Record<HistoryFilter, number>>>;
  */
 export async function loadHistoryCounts(
   adapter: XrmCrmAdapter,
-  request: { caseIds: readonly string[]; types: CategoryTypes },
+  request: Omit<CustomerHistoryRequest, 'filter'>,
 ): Promise<HistoryCounts | undefined> {
   if (request.caseIds.length === 0) return { all: 0 };
-  const categories = supportedCategories(request.types);
-  const reads = customerHistoryReads(request.caseIds, 'all', request.types);
+  const categories = supportedCategories(request.types).filter(c => c !== 'communications');
+  const reads = customerHistoryReads({ ...request, filter: 'all' });
   const caseFilter = reads.activity!.filter;
-  const [fax, email, ...activity] = await Promise.all([
-    countMatching(adapter, ENTITY_SETS.fax, reads.fax!.filter),
-    countMatching(adapter, ENTITY_SETS.email, reads.email!.filter),
-    ...categories.filter(c => c !== 'communications').map(c => countMatching(adapter, ENTITY_SETS.collectionActivity, `${caseFilter} and ${activityCategoryFilter(c, request.types)}`)),
+  const communicationReads = Object.entries(reads).filter(([key]) => key !== 'activity').map(([, read]) => read!);
+  const counts = await Promise.all([
+    ...communicationReads.map(read => countMatching(adapter, read.entitySet, read.filter)),
+    ...categories.map(c => countMatching(adapter, ENTITY_SETS.collectionActivity, `${caseFilter} and ${activityCategoryFilter(c, request.types)}`)),
   ]);
-  const results = [fax!, email!, ...activity];
-  if (results.some(result => result.value === undefined || result.atLeast)) return undefined;
-  const activityCounts = Object.fromEntries(categories.filter(c => c !== 'communications').map((c, i) => [c, activity[i]!.value!]));
-  const communications = fax!.value! + email!.value!;
+  if (counts.some(result => result.value === undefined || result.atLeast)) return undefined;
+  const activity = counts.slice(communicationReads.length);
+  const activityCounts = Object.fromEntries(categories.map((c, i) => [c, activity[i]!.value!]));
+  const communications = counts.slice(0, communicationReads.length).reduce((total, result) => total + result.value!, 0);
   const activityTotal = Object.values(activityCounts).reduce((total, count) => total + count, 0);
   return { ...activityCounts, communications, all: communications + activityTotal };
 }

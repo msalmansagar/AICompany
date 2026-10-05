@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 're
 import type { HistoryCategory, HistoryEntry } from '@dcp/domain';
 import {
   nextCustomerHistoryPage, startCustomerHistory, supportedCategories,
-  type CategoryTypes, type CustomerHistoryCursor, type HistoryCounts, type HistoryFilter,
+  type CustomerHistoryCursor, type HistoryCounts, type HistoryFilter,
 } from '../../data/customerHistoryQueries.js';
+import type { HistoryContext } from './useCustomer360Sections.js';
 import { StatusBadge, statusBadgeTone, type BadgeTone } from '../../components/StatusBadge.js';
 import { SkeletonLines } from '../../components/SectionBoundary.js';
 import { formatMoney } from '../../components/primitives.js';
@@ -30,24 +31,25 @@ export type CaseContextLookup = (caseId: string | undefined) => { unit: string; 
  * platform. Changing the filter starts a new request and resets the list; an answer to an earlier
  * request — a slower page, or a page for the filter just left — is dropped, never shown.
  */
-export function CollectionHistoryTimeline({ caseIds, types, counts, contextOf }: {
-  caseIds: readonly string[]; types: CategoryTypes; counts: HistoryCounts | undefined; contextOf: CaseContextLookup;
+export function CollectionHistoryTimeline({ caseIds, history, counts, contextOf }: {
+  caseIds: readonly string[]; history: HistoryContext; counts: HistoryCounts | undefined; contextOf: CaseContextLookup;
 }) {
   const { adapter } = useCrmSession();
+  const { types, messaging } = history;
   const filters = FILTER_ORDER.filter(filter => filter === 'all' || supportedCategories(types).includes(filter as HistoryCategory));
   const [filter, setFilter] = useState<HistoryFilter>('all');
-  const [state, setState] = useState<HistoryState>({ entries: [], cursor: startCustomerHistory('all'), complete: false, status: 'loading' });
+  const [state, setState] = useState<HistoryState>({ entries: [], cursor: startCustomerHistory(messaging, 'all'), complete: false, status: 'loading' });
   const request = useRef(0);
 
   const load = useCallback((from: Loaded, chosen: HistoryFilter) => {
     const id = ++request.current;
     setState({ ...from, status: 'loading' });
-    nextCustomerHistoryPage(adapter, { caseIds, filter: chosen, types }, from.cursor, HISTORY_PAGE)
+    nextCustomerHistoryPage(adapter, { caseIds, filter: chosen, types, messaging }, from.cursor, HISTORY_PAGE)
       .then(page => { if (id === request.current) setState({ entries: [...from.entries, ...page.entries], cursor: page.cursor, complete: page.complete, status: 'ready' }); })
       .catch((error: unknown) => { if (id === request.current) setState({ ...from, status: 'error', error: describeFailure(error) }); });
-  }, [adapter, caseIds, types]);
+  }, [adapter, caseIds, types, messaging]);
 
-  useEffect(() => { load({ entries: [], cursor: startCustomerHistory(filter), complete: false }, filter); }, [load, filter]);
+  useEffect(() => { load({ entries: [], cursor: startCustomerHistory(messaging, filter), complete: false }, filter); }, [load, filter, messaging]);
 
   return (
     <section className="section-card c360-history" aria-labelledby="c360-history-title" data-testid="c360-history-card">

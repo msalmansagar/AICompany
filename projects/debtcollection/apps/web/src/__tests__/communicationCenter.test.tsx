@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from '../App.js';
 import type { XrmLike } from '../platform/crmContext.js';
+import { communicationMappings, FAX_COLUMN_MAP, LETTER_COLUMN_MAP } from './messagingFixtures.js';
 
 /**
  * The Communication Centre, driven through the real application.
@@ -124,11 +125,16 @@ const permissiveConfiguration = {
   qdb_isactive: true,
   qdb_contactholdrulesetcode: null,
   qdb_featureflags: JSON.stringify({ contactHoldPolicy: 'allow-when-unverifiable' }),
+  // This organisation records SMS and WhatsApp as Fax with QDB's columns (the BFD contract).
+  qdb_smsentity: 'fax',
+  qdb_whatsappentity: 'fax',
 };
 
 interface Rows { [logicalName: string]: Record<string, unknown>[] }
 
 const queried: string[] = [];
+/** Each query with its options, so a test can see WHICH case a table was read for. */
+const queriedWith: string[] = [];
 
 function fakeXrm(rows: Rows): XrmLike {
   return {
@@ -145,13 +151,16 @@ function fakeXrm(rows: Rows): XrmLike {
       }),
     },
     WebApi: {
-      async retrieveRecord(logicalName: string) {
-        const row = rows[logicalName]?.[0];
+      async retrieveRecord(logicalName: string, id = '') {
+        // The row with this id when there is one, so a test can hold two cases; otherwise the first.
+        const all = rows[logicalName] ?? [];
+        const row = all.find(candidate => Object.values(candidate).includes(id)) ?? all[0];
         if (!row) throw { status: 404 };
         return row;
       },
       async retrieveMultipleRecords(logicalName: string, options = '') {
         queried.push(logicalName);
+        queriedWith.push(`${logicalName} ${decodeURIComponent(String(options))}`);
         const all = rows[logicalName] ?? [];
         // Honoured, not ignored: configuration is resolved BY organisation code, and a fake that
         // returned every row regardless would let a keyless resolver pass.
@@ -199,9 +208,10 @@ const baseRows = (templates: Record<string, unknown>[] = [approvedTemplate]): Ro
   email: [emailRow],
   qdb_collectionactivity: [],
   qdb_platformconfiguration: [permissiveConfiguration],
+  qdb_platformmapping: communicationMappings('cfg-1', 'fax', FAX_COLUMN_MAP),
 });
 
-beforeEach(() => { window.location.hash = ''; queried.length = 0; });
+beforeEach(() => { window.location.hash = ''; queried.length = 0; queriedWith.length = 0; });
 
 afterEach(() => {
   cleanup();
@@ -212,13 +222,14 @@ afterEach(() => {
 describe('choosing what to send', () => {
   it('offers an approved, active template', async () => {
     await open(baseRows());
-    const picker = await screen.findByTestId('composer-template');
+    // The composer appears once the organisation's hold policy AND messaging tables are read.
+    const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
     await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
   });
 
   it('never offers a template that has not been approved', async () => {
     await open(baseRows([approvedTemplate, unapprovedTemplate]));
-    const picker = await screen.findByTestId('composer-template');
+    const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
     await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
     // The column has no Draft value, so an untouched template carries null. Reading that as
     // anything but "unapproved" would put unreviewed wording in front of a customer.
@@ -227,7 +238,7 @@ describe('choosing what to send', () => {
 
   it('never offers an inactive template', async () => {
     await open(baseRows([approvedTemplate, inactiveTemplate]));
-    const picker = await screen.findByTestId('composer-template');
+    const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
     await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
     expect(picker.textContent).not.toContain('P7-SMS-OFF');
   });
@@ -242,7 +253,7 @@ describe('choosing what to send', () => {
 describe('an incomplete message cannot be sent', () => {
   it('refuses to enable Send while a placeholder is unresolved', async () => {
     await open(baseRows());
-    const picker = await screen.findByTestId('composer-template');
+    const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
     await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
 
     await userEvent.selectOptions(picker, 't-approved');
@@ -253,7 +264,7 @@ describe('an incomplete message cannot be sent', () => {
 
   it('enables Send once every placeholder has a value', async () => {
     await open(baseRows());
-    const picker = await screen.findByTestId('composer-template');
+    const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
     await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
     await userEvent.selectOptions(picker, 't-approved');
 
@@ -268,7 +279,7 @@ describe('sending, through the production composition path', () => {
   async function sendOne() {
     const sent = captureWrites();
     await open(baseRows());
-    const picker = await screen.findByTestId('composer-template');
+    const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
     await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
     await userEvent.selectOptions(picker, 't-approved');
     await userEvent.type(screen.getByTestId('placeholder-customerName'), 'Ahmed');
@@ -321,7 +332,7 @@ describe('sending, through the production composition path', () => {
     // it passed over the defect. Pressing twice is the whole test.
     const sent = captureWrites();
     await open(baseRows());
-    const picker = await screen.findByTestId('composer-template');
+    const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
     await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
     await userEvent.selectOptions(picker, 't-approved');
     await userEvent.type(screen.getByTestId('placeholder-customerName'), 'Ahmed');
@@ -343,7 +354,7 @@ describe('sending, through the production composition path', () => {
   it('derives a different id when the message changes, so an edited resend is a new message', async () => {
     const sent = captureWrites();
     await open(baseRows());
-    const picker = await screen.findByTestId('composer-template');
+    const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
     await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
     await userEvent.selectOptions(picker, 't-approved');
 
@@ -367,7 +378,7 @@ describe('sending, through the production composition path', () => {
   it('re-reads the history after a send, because the confirmation says it will appear there', async () => {
     const sent = captureWrites();
     await open(baseRows());
-    const picker = await screen.findByTestId('composer-template');
+    const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
     await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
     await userEvent.selectOptions(picker, 't-approved');
     await userEvent.type(screen.getByTestId('placeholder-customerName'), 'Ahmed');
@@ -418,7 +429,7 @@ describe('Contact Hold, which this organisation cannot establish', () => {
     const notice = await screen.findByTestId('hold-blocked');
     expect(notice.textContent).toMatch(/Contact Hold cannot be checked/i);
 
-    const picker = await screen.findByTestId('composer-template');
+    const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
     await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
     await userEvent.selectOptions(picker, 't-approved');
     await userEvent.type(screen.getByTestId('placeholder-customerName'), 'Ahmed');
@@ -458,7 +469,7 @@ describe('Contact Hold, which this organisation cannot establish', () => {
 
   it('permits sending only where the deployment recorded that choice', async () => {
     await open(baseRows());
-    await screen.findByTestId('composer-template');
+    await screen.findByTestId('composer-template', {}, { timeout: 5000 });
     expect(screen.queryByTestId('hold-blocked')).toBeNull();
   });
 });
@@ -474,7 +485,7 @@ describe('a customer who must not be contacted', () => {
     render(<App />);
     await screen.findByTestId('view-comms');
 
-    const picker = await screen.findByTestId('composer-template');
+    const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
     await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
     await userEvent.selectOptions(picker, 't-approved');
     await userEvent.type(screen.getByTestId('placeholder-customerName'), 'Ahmed');
@@ -525,6 +536,41 @@ describe('the unified history', () => {
 
     await waitFor(() => expect(screen.getByTestId('view-comms').textContent)
       .toMatch(/Nothing has been sent or logged/i));
+  });
+});
+
+describe('each organisation records SMS in its own table', () => {
+  const BFD_CASE_ID = '33333333-3333-3333-3333-333333333333';
+
+  /** HL records SMS as Letter, BFD as Fax — two configurations, one Dataverse, as on the sandbox. */
+  const twoOrganisations = (): Rows => ({
+    ...baseRows(),
+    qdb_collectioncase: [caseRow, { ...caseRow, qdb_collectioncaseid: BFD_CASE_ID, qdb_casenumber: 'COL-BFD-1', qdb_organizationcode: 100000141 }],
+    letter: [],
+    qdb_platformconfiguration: [
+      { ...permissiveConfiguration, qdb_smsentity: 'letter', qdb_whatsappentity: 'letter' },
+      { ...permissiveConfiguration, qdb_platformconfigurationid: 'cfg-2', qdb_organizationcode: 100000141 },
+    ],
+    qdb_platformmapping: [
+      ...communicationMappings('cfg-1', 'letter', LETTER_COLUMN_MAP),
+      ...communicationMappings('cfg-2', 'fax', FAX_COLUMN_MAP),
+    ],
+  });
+
+  it('reads an HL case\'s messages from Letter, never from Fax', async () => {
+    await open(twoOrganisations());
+    await screen.findByTestId('composer-template', {}, { timeout: 5000 });
+    await waitFor(() => expect(queriedWith.some(q => q.startsWith('letter ') && q.includes(CASE_ID))).toBe(true));
+    expect(queriedWith.filter(q => q.startsWith('fax ') && q.includes(CASE_ID))).toEqual([]);
+  });
+
+  it('never reads a BFD case\'s messages from the HL case\'s table when the officer moves between them', async () => {
+    // The defect found live: after an HL case, a BFD case's history first read Letter.
+    await open(twoOrganisations());
+    await screen.findByTestId('composer-template', {}, { timeout: 5000 });
+    window.location.hash = `#comms/${BFD_CASE_ID}`;
+    await waitFor(() => expect(queriedWith.some(q => q.startsWith('fax ') && q.includes(BFD_CASE_ID)), queriedWith.join('\n')).toBe(true), { timeout: 5000 });
+    expect(queriedWith.filter(q => q.startsWith('letter ') && q.includes(BFD_CASE_ID))).toEqual([]);
   });
 });
 

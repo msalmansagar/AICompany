@@ -89,7 +89,7 @@ export class FakePlatform {
     if (path.startsWith('/EntityDefinitions')) return this.metadata();
     if (path.includes('_activity_parties')) return this.partyRoute(method, path, body);
     if (path.startsWith('/qdb_communicationruns(')) return this.runRoute(method, path, body, headers);
-    if (path.startsWith('/faxes(') || path.startsWith('/emails(')) {
+    if (path.startsWith('/faxes(') || path.startsWith('/letters(') || path.startsWith('/emails(')) {
       return Promise.resolve(this.activityRoute(path, headers));
     }
     if (method === 'GET' && path.includes('$count=true')) return this.countRoute(path);
