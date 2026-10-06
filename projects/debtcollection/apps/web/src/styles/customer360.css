@@ -104,13 +104,25 @@
 .c360-processes h4 { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
 .c360-process-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 .c360-prefs .c360-fact dt, .c360-prefs .c360-fact dd { font-size: 13px; }
-.c360-movement { margin: 8px 0 0; display: grid; gap: 4px; }
-.c360-values { margin-top: 8px; width: 100%; }
-.c360-chart { width: 100%; height: auto; max-height: 140px; margin-top: 6px; }
+/* Delinquency History: figures first, then the line, then the stored values. */
+.c360-tiles { margin: 10px 0 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.c360-tile { background: var(--surface-alt); border-radius: var(--radius); padding: 8px 10px; min-width: 0; }
+.c360-tile dt { color: var(--text-secondary); font-size: 12px; }
+.c360-tile dd { margin: 0; }
+.c360-tile-value { font-size: 20px; font-weight: 600; line-height: 1.3; font-variant-numeric: tabular-nums; }
+.c360-tile-caption { color: var(--text-secondary); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c360-dpd-since { margin: 10px 0 0; font-size: 13px; }
+.c360-chart { display: block; width: 100%; height: auto; margin-top: 8px; }
 .c360-chart-line { stroke: var(--primary); stroke-width: 2; }
 .c360-chart-point { fill: var(--primary); }
-.c360-chart-label { font-size: 10px; fill: var(--text); }
-.c360-chart-axis { font-size: 9px; fill: var(--text-secondary); }
+.c360-chart-label { font-size: 11px; font-weight: 600; fill: var(--text); }
+.c360-chart-axis { font-size: 10px; fill: var(--text-secondary); }
+.c360-chart-baseline { stroke: var(--border); stroke-width: 1; }
+.c360-values-title { margin-top: 10px; }
+.c360-values { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.c360-values td { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.c360-values-dpd { font-weight: 600; text-align: center; }
+.c360-values-bucket { color: var(--text-secondary); text-align: right; }
 
 /* ── History ────────────────────────────────────────────────────────── */
 .c360-filters { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }

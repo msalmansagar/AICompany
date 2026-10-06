@@ -1,8 +1,8 @@
+import type { ReactNode } from 'react';
 import type { CaseDetail, CustomerProfile } from '../../../data/caseQueries.js';
 import { OrgBadge, StatusPill, formatCount, formatMoney } from '../../../components/primitives.js';
 import { BalancesAsOf } from '../../../components/BalancesAsOf.js';
-import { describeRecorder, useApplicationUsers } from '../../../data/applicationUsers.js';
-import { useCrmSession } from '../../../shell/context.js';
+import { OwnerLabel } from '../../../components/OwnerLabel.js';
 import { BucketBadge, CommandBar, CommandButton } from '../../components/primitives.js';
 
 /**
@@ -24,7 +24,6 @@ export function CaseHeader({ detail, customer, onBack, onLogAction, onCapturePro
 }) {
   const name = customer?.displayName ?? detail.customerBusinessId;
   const closedReason = detail.isOpen ? undefined : 'This case is closed.';
-  const applicationUsers = useApplicationUsers(useCrmSession().adapter);
 
   return (
     <div className="v2-case-head" data-testid="v2-case-header">
@@ -60,7 +59,7 @@ export function CaseHeader({ detail, customer, onBack, onLogAction, onCapturePro
         <Stat label="Loan balance" value={formatMoney(detail.loanBalance)} />
         <Stat label="DPD" value={formatCount(detail.dpd)} />
         <Stat label="Instalment" value={formatMoney(detail.installmentAmount)} />
-        <Stat label="Owner" value={describeRecorder(detail, applicationUsers)} />
+        <Stat label="Owner" value={<OwnerLabel ownerId={detail.ownerId} ownerName={detail.ownerName} />} />
         <Stat label="Strategy" value={detail.strategyName ?? '—'} />
       </dl>
       <div className="v2-case-freshness">
@@ -70,7 +69,7 @@ export function CaseHeader({ detail, customer, onBack, onLogAction, onCapturePro
   );
 }
 
-function Stat({ label, value, isEmphasised = false }: { label: string; value: string; isEmphasised?: boolean }) {
+function Stat({ label, value, isEmphasised = false }: { label: string; value: ReactNode; isEmphasised?: boolean }) {
   return (
     <div className="v2-stat">
       <dt className="v2-stat-label">{label}</dt>

@@ -1,18 +1,19 @@
-import { useMemo } from 'react';
 import { dpdChange } from '@dcp/domain';
 import type { SnapshotRow } from '../../data/caseQueries.js';
 import type { UnitSnapshots } from '../../data/unitSnapshots.js';
 import { BucketBadge } from '../../components/StatusBadge.js';
 import { formatCount } from '../../components/primitives.js';
+import { DpdChart } from './DpdChart.js';
+import { formatSnapshotDay } from './snapshotDates.js';
 
 /**
  * The selected unit's stored MIS observations — never live MIS, never written by viewing.
  *
  *   0 points — an empty state;
  *   1 point  — one observation, no line and no movement;
- *   2+       — a DPD line through the real points only (no interpolation, no smoothing), labelled,
- *              with a values table, and a factual movement row; 3+ also states the change since the
- *              first observation shown.
+ *   2+       — the figures first (current, previous, change), then the line through the real points
+ *              only, then the stored values newest first; 3+ also states the change since the first
+ *              observation shown.
  * No judgement words: the numbers are stated, not graded.
  */
 export function DelinquencyHistory({ unitNumber, snapshots }: { unitNumber: string; snapshots: UnitSnapshots }) {
@@ -29,12 +30,10 @@ export function DelinquencyHistory({ unitNumber, snapshots }: { unitNumber: stri
   );
 }
 
-const day = (iso: string | undefined) => (iso ? new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(iso)).replace(/ /g, '-') : '—');
-
 function SingleObservation({ point }: { point: SnapshotRow }) {
   return (
     <dl className="c360-facts" data-testid="c360-snapshot-single">
-      <div className="c360-fact"><dt>As of</dt><dd>{day(point.snapshotDate)}</dd></div>
+      <div className="c360-fact"><dt>As of</dt><dd>{formatSnapshotDay(point.snapshotDate)}</dd></div>
       <div className="c360-fact"><dt>DPD</dt><dd>{formatCount(point.dpd)}</dd></div>
       <div className="c360-fact"><dt>Bucket</dt><dd><BucketBadge bucket={point.bucket} /></dd></div>
     </dl>
@@ -49,60 +48,64 @@ export function describeChange(change: number | undefined): { text: string; labe
 }
 
 function Trend({ points }: { points: readonly SnapshotRow[] }) {
-  const latest = points[points.length - 1]!;
-  const previous = points[points.length - 2]!;
   const first = points[0]!;
-  const change = describeChange(dpdChange(previous.dpd, latest.dpd));
+  const latest = points[points.length - 1]!;
   const sinceFirst = describeChange(dpdChange(first.dpd, latest.dpd));
   return (
     <>
-      <DpdChart points={points} />
-      <dl className="c360-movement" data-testid="c360-movement">
-        <div className="c360-fact"><dt>Current DPD</dt><dd>{formatCount(latest.dpd)} · {day(latest.snapshotDate)}</dd></div>
-        <div className="c360-fact"><dt>Previous DPD</dt><dd>{formatCount(previous.dpd)} · {day(previous.snapshotDate)}</dd></div>
-        <div className="c360-fact"><dt>Change</dt><dd aria-label={change.label} data-testid="c360-dpd-change">{change.text}</dd></div>
-      </dl>
+      <Movement latest={latest} previous={points[points.length - 2]!} />
       {points.length >= 3 && sinceFirst.text !== '—' && (
-        <p className="c360-hint" data-testid="c360-dpd-since">{sinceFirst.text === 'No change' ? `No change in DPD since ${day(first.snapshotDate)}` : `${sinceFirst.text} DPD since ${day(first.snapshotDate)}`}</p>
+        <p className="c360-dpd-since" data-testid="c360-dpd-since">{sinceFirst.text === 'No change' ? `No change in DPD since ${formatSnapshotDay(first.snapshotDate)}` : `${sinceFirst.text} DPD since ${formatSnapshotDay(first.snapshotDate)}`}</p>
       )}
-      <table className="grid c360-values" data-testid="c360-snapshot-values">
-        <caption className="c360-visually-hidden">Stored DPD by date</caption>
-        <thead><tr><th scope="col">As of</th><th scope="col">DPD</th><th scope="col">Bucket</th></tr></thead>
-        <tbody>
-          {[...points].reverse().map(point => (
-            <tr key={point.id}><td>{day(point.snapshotDate)}</td><td>{formatCount(point.dpd)}</td><td><BucketBadge bucket={point.bucket} /></td></tr>
-          ))}
-        </tbody>
-      </table>
+      <DpdChart points={points} />
+      <StoredValues points={points} />
     </>
   );
 }
 
-const WIDTH = 300;
-const HEIGHT = 110;
-const PAD = 18;
-
-/** A line through the stored points only. A point with no DPD is left out, never invented. */
-function DpdChart({ points }: { points: readonly SnapshotRow[] }) {
-  const plotted = useMemo(() => {
-    const known = points.filter(point => point.dpd !== undefined);
-    const values = known.map(point => point.dpd!);
-    const top = Math.max(...values, 1);
-    const step = known.length > 1 ? (WIDTH - 2 * PAD) / (known.length - 1) : 0;
-    return known.map((point, index) => ({ point, x: PAD + index * step, y: HEIGHT - PAD - ((point.dpd! / top) * (HEIGHT - 2 * PAD)) }));
-  }, [points]);
-  const description = `Days past due by stored date: ${plotted.map(p => `${day(p.point.snapshotDate)} ${formatCount(p.point.dpd)}`).join(', ')}.`;
+/** Current, previous and the change between them — three tiles, each with what it is measured against. */
+function Movement({ latest, previous }: { latest: SnapshotRow; previous: SnapshotRow }) {
+  const change = describeChange(dpdChange(previous.dpd, latest.dpd));
   return (
-    <svg className="c360-chart" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={description} data-testid="c360-dpd-chart">
-      <polyline className="c360-chart-line" points={plotted.map(p => `${p.x},${p.y}`).join(' ')} fill="none" />
-      {plotted.map(p => (
-        <g key={p.point.id}>
-          <circle className="c360-chart-point" cx={p.x} cy={p.y} r={3} />
-          <text className="c360-chart-label" x={p.x} y={p.y - 6} textAnchor="middle">{formatCount(p.point.dpd)}</text>
-        </g>
-      ))}
-      <text className="c360-chart-axis" x={PAD} y={HEIGHT - 2}>{day(plotted[0]?.point.snapshotDate)}</text>
-      <text className="c360-chart-axis" x={WIDTH - PAD} y={HEIGHT - 2} textAnchor="end">{day(plotted[plotted.length - 1]?.point.snapshotDate)}</text>
-    </svg>
+    <dl className="c360-tiles" data-testid="c360-movement">
+      <Tile label="Current DPD" value={formatCount(latest.dpd)} caption={formatSnapshotDay(latest.snapshotDate)} />
+      <Tile label="Previous DPD" value={formatCount(previous.dpd)} caption={formatSnapshotDay(previous.snapshotDate)} />
+      <div className="c360-tile">
+        <dt>Change</dt>
+        <dd className="c360-tile-value" aria-label={change.label} data-testid="c360-dpd-change">{change.text}</dd>
+        <dd className="c360-tile-caption">vs previous</dd>
+      </div>
+    </dl>
+  );
+}
+
+function Tile({ label, value, caption }: { label: string; value: string; caption: string }) {
+  return (
+    <div className="c360-tile">
+      <dt>{label}</dt>
+      <dd className="c360-tile-value">{value}</dd>
+      <dd className="c360-tile-caption">{caption}</dd>
+    </div>
+  );
+}
+
+/** The stored values as plain rows, newest first. A table for assistive technology, quiet on screen. */
+function StoredValues({ points }: { points: readonly SnapshotRow[] }) {
+  return (
+    <>
+      <p className="c360-hint c360-values-title">Stored values, newest first</p>
+      <table className="c360-values" data-testid="c360-snapshot-values">
+        <thead className="c360-visually-hidden"><tr><th scope="col">As of</th><th scope="col">DPD</th><th scope="col">Bucket</th></tr></thead>
+        <tbody>
+          {[...points].reverse().map(point => (
+            <tr key={point.id}>
+              <td>{formatSnapshotDay(point.snapshotDate)}</td>
+              <td className="c360-values-dpd">{point.dpd === undefined ? '—' : `${formatCount(point.dpd)} DPD`}</td>
+              <td className="c360-values-bucket">{point.bucket ?? '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
   );
 }

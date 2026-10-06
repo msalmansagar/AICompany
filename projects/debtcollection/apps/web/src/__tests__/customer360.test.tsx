@@ -353,6 +353,28 @@ describe('Delinquency History', () => {
     expect(screen.getByTestId('c360-dpd-chart').getAttribute('aria-label')).toContain('30-Jun-2026 0');
   });
 
+  it('shows the figures before the chart, and the chart before the stored values', async () => {
+    await open({ snapshots: [snapshot('2026-08-31', 62), snapshot('2026-09-30', 92)] });
+
+    const panel = await screen.findByTestId('c360-delinquency', {}, { timeout: WAIT });
+    const order = ['c360-movement', 'c360-dpd-chart', 'c360-snapshot-values'].map(id => Array.from(panel.querySelectorAll('[data-testid]')).findIndex(el => el.getAttribute('data-testid') === id));
+    expect([order.every(index => index >= 0), order]).toEqual([true, [...order].sort((a, b) => a - b)]);
+  });
+
+  it('shows current and previous DPD as tiles with their dates, and the change against previous', async () => {
+    await open({ snapshots: [snapshot('2026-08-31', 62), snapshot('2026-09-30', 92)] });
+
+    const tiles = await screen.findByTestId('c360-movement', {}, { timeout: WAIT });
+    expect(tiles.textContent).toBe('Current DPD9230-Sep-2026Previous DPD6231-Aug-2026Change↑ 30vs previous');
+  });
+
+  it('lists the stored values newest first, as DPD and bucket range', async () => {
+    await open({ snapshots: [snapshot('2026-08-31', 62), snapshot('2026-09-30', 92)] });
+
+    const rows = (await screen.findByTestId('c360-snapshot-values', {}, { timeout: WAIT })).querySelectorAll('tbody tr');
+    expect(Array.from(rows).map(row => row.textContent)).toEqual(['30-Sep-202692 DPD1-30', '31-Aug-202662 DPD1-30']);
+  });
+
   it('keeps a snapshot failure inside its section, with Retry, and the summary working', async () => {
     await open({ failSnapshots: true });
 
