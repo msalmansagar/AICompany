@@ -14,6 +14,7 @@ import { readLayout, writeLayout, type ListLayout } from '../../../data/layoutPr
 import { rememberCaseListReturn } from '../../data/caseListFilterUrl.js';
 import { CasePreview } from '../cases/CasePreview.js';
 import { CaseCommandDialogs, type CaseCommandDialog } from '../../../views/CaseCommandDialogs.js';
+import { PromiseCustomer } from '../../../views/operationsViews.js';
 
 /**
  * Promise to Pay V2 — every promise, narrowed by its recorded status, in the same two layouts as
@@ -149,7 +150,7 @@ function promiseGridColumns(applicationUsers: ReadonlySet<string>): readonly V2C
   {
     key: 'customer', header: 'Customer', render: row => (
       <span className="v2-two-line">
-        <span className="v2-two-line-main">{customerName(row)}</span>
+        <span className="v2-two-line-main"><PromiseCustomer row={row} fallback={customerName(row)} /></span>
         <span className="v2-two-line-sub"><BucketBadge bucket={row.caseBucket} /> {row.subject}</span>
       </span>
     ),
@@ -168,7 +169,7 @@ const SPLIT_COLUMNS: readonly V2Column<PtpRow>[] = [
       <span className="v2-case-row">
         <BucketBar bucket={row.caseBucket} />
         <span className="v2-two-line">
-          <span className="v2-two-line-main">{customerName(row)}</span>
+          <span className="v2-two-line-main"><PromiseCustomer row={row} fallback={customerName(row)} /></span>
           <span className="v2-two-line-sub">
             <span className="v2-two-line-text">{row.caseNumber ?? '—'} · promised for {formatDay(row.ptpDate)} · {row.subject}</span>
             <PromiseOutcome status={row.ptpStatus} />

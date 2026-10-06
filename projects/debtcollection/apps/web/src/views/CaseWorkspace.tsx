@@ -15,7 +15,10 @@ import { ActivityDialog } from './ActivityDialog.js';
 import { PromiseDialog } from './PromiseDialog.js';
 import { CaseActionPlan } from './strategyViews.js';
 import { WorkoutLegalTab } from './workoutLegalTab.js';
+import { CommunicationCenterView } from './CommunicationCenter.js';
 import { useCrmSession } from '../shell/context.js';
+import { buildHash } from '../shell/useHashRoute.js';
+import { CustomerLink } from '../shell/RecordLinks.js';
 import { toError } from '../platform/errors.js';
 
 /**
@@ -23,7 +26,8 @@ import { toError } from '../platform/errors.js';
  *
  * Summary and Audit are Phase 5's. Actions and PTP are **readable** here because the records already
  * exist and hiding them would be less honest than showing them; capturing and evaluating them is
- * Phase 6. Communications and Documents have no records to show and say so. Workout & Legal is Phase 9's:
+ * Phase 6. Communications embeds the case's composer and history; Documents has no records to show and
+ * says so. Workout & Legal is Phase 9's:
  * what each advanced process supports, and the case's Legal, dispute and deceased records.
  *
  * Nothing on this screen decides anything. The status is the status the server set, the bucket is the
@@ -38,11 +42,14 @@ function pickTab(requested: string | undefined): string {
   return requested && (TAB_IDS as readonly string[]).includes(requested) ? requested : TAB_IDS[0];
 }
 
-export function CaseWorkspaceView({ caseId, initialTab, onOpenCustomer }: {
+export function CaseWorkspaceView({ caseId, initialTab, onOpenCustomer, onOpenComms, onNavigateComms }: {
   caseId?: string | undefined;
   /** Opens straight onto a tab, so  is a working link. */
   initialTab?: string | undefined;
   onOpenCustomer?: (customerBusinessId: string) => void;
+  /** The Communications tab's own navigation: another case's messages, or the bulk runs. */
+  onOpenComms?: (caseId: string) => void;
+  onNavigateComms?: (recordId?: string, tab?: string) => void;
 }) {
   const { adapter } = useCrmSession();
   const [tab, setTab] = useState<string>(() => pickTab(initialTab));
@@ -93,25 +100,36 @@ export function CaseWorkspaceView({ caseId, initialTab, onOpenCustomer }: {
   }
 
   const detail = state.detail;
+  const commsNavigation: CommsNavigation = {
+    onOpenComms: onOpenComms ?? (id => { window.location.hash = buildHash('comms', id); }),
+    onNavigateComms: onNavigateComms ?? ((recordId, tab) => { window.location.hash = buildHash('comms', recordId, tab); }),
+  };
   return (
     <div data-testid="view-case" data-case-id={detail.id}>
       <CaseHeader detail={detail} {...(onOpenCustomer ? { onOpenCustomer } : {})} />
-      <Pivot tabs={tabsFor(detail)} activeId={tab} onSelect={setTab} testId="case-pivot" />
+      <Pivot tabs={tabsFor(detail, commsNavigation)} activeId={tab} onSelect={setTab} testId="case-pivot" />
     </div>
   );
 }
 
-function tabsFor(detail: CaseDetail): readonly PivotTab[] {
+interface CommsNavigation {
+  onOpenComms: (caseId: string) => void;
+  onNavigateComms: (recordId?: string, tab?: string) => void;
+}
+
+function tabsFor(detail: CaseDetail, comms: CommsNavigation): readonly PivotTab[] {
   return [
     { id: 'summary', label: 'Summary', render: () => <SummaryTab detail={detail} /> },
     { id: 'actions', label: 'Actions', render: () => <ActionsTab detail={detail} /> },
     { id: 'ptp', label: 'PTP', render: () => <PtpTab caseId={detail.id} /> },
     {
-      id: 'comms', label: 'Communications', pendingPhase: 7,
+      // The same composer and history as the Communications route, embedded as V2 embeds it: the
+      // officer messages the customer without leaving the case.
+      id: 'comms', label: 'Communications',
       render: () => (
-        <PendingPhasePanel
-          phase={7}
-          what={'Messages for this case are sent and listed in Communications. Nothing is sent from this tab.'}
+        <CommunicationCenterView
+          mode="single" caseId={detail.id}
+          onSelectCase={comms.onOpenComms} onNavigate={comms.onNavigateComms}
         />
       ),
     },
@@ -147,6 +165,9 @@ function CaseHeader({ detail, onOpenCustomer }: {
           : undefined
       }
     >
+      <p className="case-customer" data-testid="case-header-customer">
+        <CustomerLink customerBusinessId={detail.customerBusinessId}>{detail.customerName ?? detail.customerBusinessId}</CustomerLink>
+      </p>
       <div className="action-row">
         <OrgBadge org={detail.organization} />
         <StatusPill status={detail.status} />
@@ -186,7 +207,7 @@ function SummaryTab({ detail }: { detail: CaseDetail }) {
         <FieldList
           testId="case-customer-fields"
           fields={[
-            { label: 'Customer id', value: detail.customerBusinessId },
+            { label: 'Customer id', value: <CustomerLink customerBusinessId={detail.customerBusinessId}>{detail.customerBusinessId}</CustomerLink> },
             { label: 'Customer type', value: detail.customerType ?? '—' },
             { label: 'Customer table', value: detail.customerTable ?? 'not linked' },
             { label: 'Facility', value: detail.facilityNumber },

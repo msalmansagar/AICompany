@@ -48,9 +48,7 @@ const itemIds = (role: RoleKey) => navigationFor(role).flatMap(group => group.it
 
 describe('navigation', () => {
   it('offers an officer the business areas of their day, in the canonical order', () => {
-    expect(itemIds('officer')).toEqual([
-      'myday', 'queues', 'cases', 'customer', 'actionplan', 'ptp', 'comms', 'disputes', 'legal', 'claims',
-    ]);
+    expect(itemIds('officer')).toEqual(['myday', 'queues', 'cases', 'customer', 'dashboards']);
   });
 
   it('adds oversight, control and the manager tools for a manager', () => {
@@ -83,9 +81,9 @@ describe('navigation', () => {
   it('navigates through the shared router', async () => {
     renderV2();
 
-    await userEvent.click(screen.getByTestId('v2-nav-ptp'));
+    await userEvent.click(screen.getByTestId('v2-nav-customer'));
 
-    expect(window.location.hash).toBe('#ptp');
+    expect(window.location.hash).toBe('#customer');
   });
 });
 

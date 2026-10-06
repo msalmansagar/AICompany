@@ -6,6 +6,7 @@ import { BucketBadge, StatusBadge, statusBadgeTone } from '../../components/Stat
 import type { SectionState } from '../../components/SectionBoundary.js';
 import { BucketBar, OrgBadge, formatCount, formatMoney } from '../../components/primitives.js';
 import { OwnerLabel } from '../../components/OwnerLabel.js';
+import { CaseLink } from '../../shell/RecordLinks.js';
 
 /** Rows rendered at a time; more are added on request, so the list never grows the DOM unbounded. */
 export const UNIT_PAGE = 10;
@@ -127,7 +128,7 @@ function CaseLine({ unit, terms, nextAction, nextActionsState, commands }: {
   return (
     <div className="c360-case-line" data-testid="c360-unit-case-line">
       <span className="c360-case-ref">
-        <span data-testid="c360-unit-case">{unit.case.caseNumber}</span>
+        <span data-testid="c360-unit-case"><CaseLink caseId={unit.case.id}>{unit.case.caseNumber}</CaseLink></span>
         <StatusBadge tone={statusBadgeTone(unit.case.status)}>{unit.case.status}</StatusBadge>
       </span>
       <span className="c360-case-meta">Owner <OwnerLabel ownerId={unit.case.ownerId} ownerName={unit.case.ownerName} /></span>

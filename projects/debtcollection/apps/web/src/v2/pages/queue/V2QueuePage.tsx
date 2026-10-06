@@ -99,6 +99,12 @@ export function V2QueuePage({ request, fixedBucket, intro }: {
               className="v2-input" type="search" value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Search this list" aria-label="Search this list" data-testid="v2-queue-search"
             />
+            {!fixedBucket && (
+              // Promises are not an activity bucket, so they are a list of their own, reached from here.
+              <button type="button" className="v2-btn" onClick={() => go('ptp')} data-testid="v2-queue-open-ptp">
+                Promise to Pay
+              </button>
+            )}
             <div className="v2-segmented" role="group" aria-label="Layout">
               {(['split', 'grid'] as const).map(option => (
                 <button key={option} type="button" className="v2-segment" aria-pressed={layout === option} onClick={() => chooseLayout(option)} data-testid={`v2-layout-${option}`}>

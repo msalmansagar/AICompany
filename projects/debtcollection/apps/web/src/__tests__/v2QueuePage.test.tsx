@@ -79,6 +79,22 @@ afterEach(() => {
   window.location.hash = '';
 });
 
+describe('contextual lists (WP2)', () => {
+  it('opens Promise to Pay from Work Queues, now that it is not a navigation entry for an officer', async () => {
+    await openQueue('#queues/MyAssigned');
+
+    await userEvent.click(screen.getByTestId('v2-queue-open-ptp'));
+
+    expect(window.location.hash).toBe('#ptp');
+  });
+
+  it('keeps the Disputes, Legal and Deceased Review lists as buckets', async () => {
+    await openQueue('#queues/MyAssigned');
+
+    for (const bucket of ['Disputes', 'Legal', 'DeceasedReview']) expect(screen.getByTestId(`v2-chip-${bucket}`)).toBeTruthy();
+  });
+});
+
 describe('the bucket', () => {
   it('comes from the URL', async () => {
     const queue = await openQueue('#queues/Legal');

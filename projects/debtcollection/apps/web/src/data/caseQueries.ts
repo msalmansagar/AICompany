@@ -193,6 +193,8 @@ export interface PtpRow extends ActivityRow {
   caseOrganization?: string;
   caseCustomerType?: string;
   caseCustomerName?: string;
+  /** The customer's business id, so the name can open Customer 360. */
+  caseCustomerBusinessId?: string;
 }
 
 /**
@@ -200,7 +202,7 @@ export interface PtpRow extends ActivityRow {
  * navigation property — one read for a page, not one per row. Honoured on the first page; the
  * continuation is the source's own link and carries it.
  */
-const PTP_CASE_EXPANSION = `${NAVIGATION_PROPERTIES.activityToCase}($select=qdb_casenumber,qdb_currentarrearbucket,qdb_currentdpd,qdb_currenttotalarrears,qdb_organizationcode,qdb_customertype,_qdb_customerid_value)`;
+const PTP_CASE_EXPANSION = `${NAVIGATION_PROPERTIES.activityToCase}($select=qdb_casenumber,qdb_currentarrearbucket,qdb_currentdpd,qdb_currenttotalarrears,qdb_organizationcode,qdb_customertype,_qdb_customerid_value,qdb_customerbusinessid)`;
 
 function readExpandedCase(row: CrmRow): Record<string, Partial<PtpRow>[keyof PtpRow]> {
   const expanded = row[NAVIGATION_PROPERTIES.activityToCase];
@@ -213,6 +215,7 @@ function readExpandedCase(row: CrmRow): Record<string, Partial<PtpRow>[keyof Ptp
     ...optional('caseOrganization', readChoice(caseRow, 'qdb_organizationcode', ORG_LABELS)),
     ...optional('caseCustomerType', readChoice(caseRow, 'qdb_customertype', CUSTOMER_TYPE_LABELS)),
     ...optional('caseCustomerName', readLookupName(caseRow, '_qdb_customerid_value')),
+    ...optional('caseCustomerBusinessId', readText(caseRow, 'qdb_customerbusinessid')),
   };
 }
 

@@ -4,7 +4,7 @@ import { Sidebar } from '../../components/Sidebar.js';
 import { ROLE_LABELS, useCrmSession, useOrg, useRole } from '../../shell/context.js';
 import type { Route } from '../../shell/useHashRoute.js';
 import { useWorkspaceVersion } from '../version/WorkspaceVersionRoot.js';
-import { activeNavigationId, navigationFor, navigationLabelOf, navigationSectionOf } from '../../shell/navigation.js';
+import { activeNavigationId, navigationFor, navigationSectionOf, pageTitleOf } from '../../shell/navigation.js';
 
 /**
  * The V2 application shell: navy navigation rail, a sticky header, and the page.
@@ -68,7 +68,7 @@ export function V2Shell({ route, children }: { route: Route & { go: Go }; childr
           type="button" className="v2-scrim" aria-label="Close navigation" tabIndex={-1}
           onClick={() => setDrawerOpen(false)}
         />
-        <V2Nav activeId={activeNavigationId(route.view.id)} onNavigate={navigate} />
+        <V2Nav activeViewId={route.view.id} onNavigate={navigate} />
         <div className="v2-main">
           <V2Header route={route} onOpenDrawer={() => setDrawerOpen(true)} onToggleCollapsed={toggleCollapsed} isCollapsed={isCollapsed} />
           <main ref={main} tabIndex={-1} className="v2-page" data-testid="v2-content" data-view={route.view.id}>{children}</main>
@@ -78,8 +78,9 @@ export function V2Shell({ route, children }: { route: Route & { go: Go }; childr
   );
 }
 
-function V2Nav({ activeId, onNavigate }: { activeId: string; onNavigate: Go }) {
+function V2Nav({ activeViewId, onNavigate }: { activeViewId: string; onNavigate: Go }) {
   const { role } = useRole();
+  const activeId = activeNavigationId(activeViewId, role);
   const { scope } = useOrg();
   const { context } = useCrmSession();
   const groups = navigationFor(role);
@@ -169,7 +170,7 @@ function V2Header({ route, onOpenDrawer, onToggleCollapsed, isCollapsed }: {
       </button>
       <div className="v2-header-title">
         <div className="v2-crumb">{navigationSectionOf(route.view)}</div>
-        <h1 className="v2-title">{route.view.id === 'case' ? 'Case' : navigationLabelOf(route.view)}</h1>
+        <h1 className="v2-title">{route.view.id === 'case' ? 'Case' : pageTitleOf(route.view, route.recordId)}</h1>
       </div>
       <div className="v2-header-tools">
         <form className="v2-search" role="search" onSubmit={submit}>

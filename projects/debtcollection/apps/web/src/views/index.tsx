@@ -14,10 +14,11 @@ import { encodeScope, hasScope } from '../data/caseListScopeUrl.js';
 import { ORG_CODES } from '../data/schema.js';
 import { MyWorkView } from './MyWorkView.js';
 import {
-  BucketBar, BucketPill, Card, EmptyState, InfoBanner, KpiRow, OrgBadge, PendingPhaseNotice, StatusPill,
+  BucketBar, BucketPill, Card, EmptyState, Icon, InfoBanner, KpiRow, OrgBadge, PendingPhaseNotice, StatusPill,
   formatCount, formatDate, formatMoney,
 } from '../components/primitives.js';
 import { useCrmSession, useOrg, useRole } from '../shell/context.js';
+import { CustomerLink, navigateTo } from '../shell/RecordLinks.js';
 import type { ViewDefinition } from '../shell/routes.js';
 import { ListToolbar, SplitLayout, useListLayout } from '../components/listLayout.js';
 import { AuditEntryPreview, CasePreview } from './previews.js';
@@ -38,7 +39,7 @@ import { Dialog } from '../components/forms.js';
 const CASE_COLUMNS: readonly DataGridColumn<CaseRow>[] = [
   { key: 'case', header: 'Case', width: '160px', render: r => <span className="row-lead"><BucketBar bucket={r.bucket} />{r.caseNumber}</span> },
   { key: 'org', header: 'CRM', width: '70px', render: r => <OrgBadge org={r.organization} /> },
-  { key: 'customer', header: 'Customer', width: '150px', render: r => r.customerBusinessId },
+  { key: 'customer', header: 'Customer', width: '150px', render: r => <CustomerLink customerBusinessId={r.customerBusinessId}>{r.customerBusinessId}</CustomerLink> },
   { key: 'facility', header: 'Facility', width: '140px', render: r => r.facilityNumber },
   { key: 'bucket', header: 'Bucket', width: '110px', render: r => <BucketPill bucket={r.bucket} /> },
   { key: 'dpd', header: 'DPD', width: '70px', render: r => formatCount(r.dpd) },
@@ -53,7 +54,9 @@ const CASE_SPLIT_COLUMNS: readonly DataGridColumn<CaseRow>[] = [
       <span className="row-lead">
         <BucketBar bucket={r.bucket} />
         <span className="two-line">
-          <span className="two-line-main">{r.customerName ?? r.customerBusinessId}</span>
+          <span className="two-line-main">
+            <CustomerLink customerBusinessId={r.customerBusinessId}>{r.customerName ?? r.customerBusinessId}</CustomerLink>
+          </span>
           <span className="two-line-sub">{r.caseNumber} · {r.organization} · {formatCount(r.dpd)} DPD</span>
         </span>
       </span>
@@ -468,6 +471,12 @@ export function QueuesView({ onOpenCase }: { onOpenCase?: (id: string) => void }
         * asks for, and the shell guard was right to insist.
         */}
       <MyWorkView {...(onOpenCase ? { onOpenCase } : {})} />
+      {/* Promises are not an activity bucket, so they are a list of their own, reached from here. */}
+      <div className="queue-related">
+        <button type="button" className="btn" onClick={() => navigateTo('ptp')} data-testid="queue-open-ptp">
+          <Icon name="promise" /> Promise to Pay
+        </button>
+      </div>
       <Card title="Queue contents" subtitle="All open cases across both organisations.">
         <CasesView {...(onOpenCase ? { onOpenCase } : {})} />
       </Card>

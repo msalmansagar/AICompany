@@ -10,6 +10,7 @@ import {
 } from '../components/primitives.js';
 import { describeRecorder, useApplicationUsers } from '../data/applicationUsers.js';
 import { useCrmSession } from '../shell/context.js';
+import { CustomerLink } from '../shell/RecordLinks.js';
 import type { ViewDefinition } from '../shell/routes.js';
 import { ListToolbar, SplitLayout, useListLayout } from '../components/listLayout.js';
 import { CasePreview, PreviewHeading, PreviewPrompt } from './previews.js';
@@ -115,6 +116,12 @@ const INTAKE_COUNTS: readonly CountRequest[] = [
 
 // ── Promise to Pay ───────────────────────────────────────────────────────────
 
+/** The promising customer's name, opening Customer 360; the fallback when no name came back. Shared with V2. */
+export function PromiseCustomer({ row, fallback }: { row: PtpRow; fallback: string }) {
+  if (!row.caseCustomerName) return <>{fallback}</>;
+  return <CustomerLink customerBusinessId={row.caseCustomerBusinessId}>{row.caseCustomerName}</CustomerLink>;
+}
+
 /** The grid, with who recorded each promise named for an officer — `System` for an integration. */
 function ptpListColumns(applicationUsers: ReadonlySet<string>): readonly DataGridColumn<PtpRow>[] {
   return [
@@ -122,7 +129,7 @@ function ptpListColumns(applicationUsers: ReadonlySet<string>): readonly DataGri
     {
       key: 'customer', header: 'Customer', render: r => (
         <span className="two-line">
-          <span className="two-line-main">{r.caseCustomerName ?? '—'}</span>
+          <span className="two-line-main"><PromiseCustomer row={r} fallback="—" /></span>
           <span className="two-line-sub">{r.subject}</span>
         </span>
       ),
@@ -143,7 +150,7 @@ const PTP_SPLIT_COLUMNS: readonly DataGridColumn<PtpRow>[] = [
       <span className="row-lead">
         <BucketBar bucket={r.caseBucket} />
         <span className="two-line">
-          <span className="two-line-main">{r.caseCustomerName ?? r.caseNumber ?? '—'}</span>
+          <span className="two-line-main"><PromiseCustomer row={r} fallback={r.caseNumber ?? '—'} /></span>
           <span className="two-line-sub">{r.caseNumber ?? '—'} · promised for {formatDay(r.ptpDate)} · {r.subject}</span>
         </span>
       </span>

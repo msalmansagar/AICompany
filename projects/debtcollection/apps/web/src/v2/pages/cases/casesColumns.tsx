@@ -2,6 +2,7 @@ import type { Sort } from '@dcp/domain';
 import type { CaseRow } from '../../../data/collectionQueries.js';
 import { StatusPill, formatCount, formatMoney } from '../../../components/primitives.js';
 import { OwnerLabel } from '../../../components/OwnerLabel.js';
+import { CustomerLink } from '../../../shell/RecordLinks.js';
 import { BucketBadge, BucketBar } from '../../components/primitives.js';
 import type { GridSort, V2Column } from '../../components/V2DataGrid.js';
 import { STRATEGY_NOT_ASSIGNED_LABEL } from '../../data/portfolioMatrix.js';
@@ -79,7 +80,7 @@ export const GRID_COLUMNS: readonly V2Column<CaseRow>[] = [
   {
     key: 'customer', header: 'Customer', render: row => (
       <span className="v2-two-line">
-        <span className="v2-two-line-main">{customerName(row)}</span>
+        <span className="v2-two-line-main"><CustomerLink customerBusinessId={row.customerBusinessId}>{customerName(row)}</CustomerLink></span>
         <span className="v2-two-line-sub">{row.productDescription ?? row.customerBusinessId}</span>
       </span>
     ),
@@ -98,7 +99,7 @@ export const SPLIT_COLUMNS: readonly V2Column<CaseRow>[] = [
       <span className="v2-case-row">
         <BucketBar bucket={row.bucket} />
         <span className="v2-two-line">
-          <span className="v2-two-line-main">{customerName(row)}</span>
+          <span className="v2-two-line-main"><CustomerLink customerBusinessId={row.customerBusinessId}>{customerName(row)}</CustomerLink></span>
           <span className="v2-two-line-sub">{row.caseNumber} · {row.sourceSystem} · <BucketBadge bucket={row.bucket} /></span>
         </span>
       </span>

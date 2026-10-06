@@ -24,7 +24,7 @@ export interface ViewDefinition {
   id: string;
   label: string;
   icon: IconName;
-  group: 'Workspace' | 'Customer' | 'Collection' | 'Resolution' | 'Strategy & Oversight' | 'Control' | 'Administration';
+  group: 'My Work' | 'Insights' | 'Manager' | 'Administration';
   /** Absent means every role sees it. */
   roles?: readonly RoleKey[];
   /** Named count this view shows as a badge, when a bounded count is available for it. */
@@ -40,67 +40,65 @@ export interface ViewDefinition {
 }
 
 export const VIEWS: readonly ViewDefinition[] = [
-  // ── Workspace ──────────────────────────────────────────────────────────────
-  { id: 'myday', label: 'My Day', icon: 'home', group: 'Workspace', phase: 5 },
-  { id: 'queues', label: 'Work Queues', icon: 'queue', group: 'Workspace', badge: 'openQueues', phase: 5 },
-  { id: 'cases', label: 'Collection Cases', icon: 'case', group: 'Workspace', badge: 'openCases', phase: 5 },
+  // ── My Work ────────────────────────────────────────────────────────────────
+  { id: 'myday', label: 'My Day', icon: 'home', group: 'My Work', phase: 5 },
+  { id: 'queues', label: 'Work Queues', icon: 'queue', group: 'My Work', badge: 'openQueues', phase: 5 },
+  { id: 'cases', label: 'Collection Cases', icon: 'case', group: 'My Work', badge: 'openCases', phase: 5 },
   // Contextual: reached from a list, never from the navigation.
-  { id: 'case', label: 'Case Detail', icon: 'doc', group: 'Workspace', phase: 5 },
+  { id: 'case', label: 'Case Detail', icon: 'doc', group: 'My Work', phase: 5 },
+  // The list is "Customers"; one customer is Customer 360 (`pageTitleOf`).
+  { id: 'customer', label: 'Customers', icon: 'users', group: 'My Work', phase: 5 },
 
-  // ── Customer ───────────────────────────────────────────────────────────────
-  { id: 'customer', label: 'Customer 360', icon: 'users', group: 'Customer', phase: 5 },
-
-  // ── Collection ─────────────────────────────────────────────────────────────
+  // ── Contextual for an officer: reached from the case and Work Queues ───────
   {
-    id: 'actionplan', label: 'Action Plan', icon: 'check', group: 'Collection', phase: 5,
+    id: 'actionplan', label: 'Action Plan', icon: 'check', group: 'Manager', phase: 5,
     pendingSummary: 'Every action an active strategy can resolve to is listed here. The plan for one ' +
       'case, and the work attributed to each planned action, are on that case\'s Actions tab.',
   },
   {
-    id: 'ptp', label: 'Promise to Pay', icon: 'promise', group: 'Collection', badge: 'openPtps', phase: 5,
+    id: 'ptp', label: 'Promise to Pay', icon: 'promise', group: 'My Work', badge: 'openPtps', phase: 5,
     pendingSummary: 'Promises are captured and worked from the case. Automatic reminders are not ' +
       'available yet, and automatic kept/broken evaluation needs the MIS payment contract.',
   },
   {
-    id: 'comms', label: 'Communications', icon: 'send', group: 'Collection', phase: 7,
+    id: 'comms', label: 'Communications', icon: 'send', group: 'Manager', phase: 7,
     pendingSummary: 'SMS and email are sent from a case. Warning letters are not available yet.',
   },
   {
-    id: 'templates', label: 'Template Library', icon: 'letter', group: 'Collection', phase: 7,
+    id: 'templates', label: 'Template Library', icon: 'letter', group: 'Manager', phase: 7,
     pendingSummary: 'Template management is not available in the workspace yet.',
   },
 
   // ── Resolution ─────────────────────────────────────────────────────────────
   // Disputes, Legal Hand-off and Deceased Review open the operational queue on their own process
   // (Phase 9). What each can and cannot do is said by the view itself; see `workoutQueueView.tsx`.
-  { id: 'disputes', label: 'Disputes', icon: 'dispute', group: 'Resolution', badge: 'openDisputes', phase: 9 },
+  { id: 'disputes', label: 'Disputes', icon: 'dispute', group: 'My Work', badge: 'openDisputes', phase: 9 },
   {
-    id: 'restructure', label: 'Restructuring', icon: 'restructure', group: 'Resolution', phase: 9, isParked: true,
+    id: 'restructure', label: 'Restructuring', icon: 'restructure', group: 'My Work', phase: 9, isParked: true,
     pendingSummary: 'Restructuring is parked by QDB, not cancelled. QDB handles it as Facility ' +
       'Amendment, and nothing further is built here until QDB resumes it. A restructuring ' +
       'recommendation raised by an officer appears in Work Queues today.',
   },
-  { id: 'legal', label: 'Legal Hand-off', icon: 'legal', group: 'Resolution', phase: 9 },
-  { id: 'claims', label: 'Deceased Review', icon: 'shield', group: 'Resolution', phase: 9 },
+  { id: 'legal', label: 'Legal Hand-off', icon: 'legal', group: 'My Work', phase: 9 },
+  { id: 'claims', label: 'Deceased Review', icon: 'shield', group: 'My Work', phase: 9 },
 
-  // ── Strategy & Oversight ───────────────────────────────────────────────────
-  { id: 'buckets', label: 'Portfolio & Strategy', icon: 'strategy', group: 'Strategy & Oversight', phase: 5 },
+  // ── Insights and Manager ───────────────────────────────────────────────────
+  { id: 'buckets', label: 'Portfolio & Strategy', icon: 'strategy', group: 'Manager', phase: 5 },
   {
-    id: 'dashboards', label: 'Dashboards', icon: 'chart', group: 'Strategy & Oversight', phase: 5,
+    id: 'dashboards', label: 'Dashboards', icon: 'chart', group: 'Insights', phase: 5,
     pendingSummary: 'Reports and dashboards run in the QDB Report Engine as you; a row opens the Cases list in the same scope. ' +
       'Drill-down into Work Queues, export, and Portfolio MIS transitions are not wired yet.',
   },
   {
-    id: 'mis', label: 'Portfolio MIS', icon: 'trend', group: 'Strategy & Oversight', roles: ['manager', 'rm'], phase: 10,
+    id: 'mis', label: 'Portfolio MIS', icon: 'trend', group: 'Manager', roles: ['manager', 'rm'], phase: 10,
     pendingSummary: 'Portfolio MIS needs the QDB MIS connection, which does not exist yet.',
   },
   {
-    id: 'approvals', label: 'Approvals', icon: 'approve', group: 'Strategy & Oversight', badge: 'pendingApprovals', phase: 10,
+    id: 'approvals', label: 'Approvals', icon: 'approve', group: 'Manager', badge: 'pendingApprovals', phase: 10,
     pendingSummary: 'Approval routing is not available yet.',
   },
 
-  // ── Control ────────────────────────────────────────────────────────────────
-  { id: 'audit', label: 'Audit Trail', icon: 'audit', group: 'Control', phase: 5 },
+  { id: 'audit', label: 'Audit Trail', icon: 'audit', group: 'Manager', phase: 5 },
 
   // ── Administration ─────────────────────────────────────────────────────────
   { id: 'intake', label: 'Delinquency Intake', icon: 'refresh', group: 'Administration', roles: ['manager'], phase: 5 },
@@ -117,9 +115,7 @@ export const VIEWS: readonly ViewDefinition[] = [
 ];
 
 /** Section order, as the shared navigation model lays it out. */
-export const GROUP_ORDER: readonly ViewDefinition['group'][] = [
-  'Workspace', 'Customer', 'Collection', 'Resolution', 'Strategy & Oversight', 'Control', 'Administration',
-];
+export const GROUP_ORDER: readonly ViewDefinition['group'][] = ['My Work', 'Insights', 'Manager', 'Administration'];
 
 export const DEFAULT_VIEW_ID = 'myday';
 

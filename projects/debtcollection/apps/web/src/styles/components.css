@@ -23,6 +23,18 @@ table.grid .num { text-align: right; font-variant-numeric: tabular-nums; }
 table.grid tfoot td { padding: 9px 12px; font-weight: 700; border-top: 1px solid var(--border-strong); background: var(--surface-alt); }
 .link-cell { color: var(--primary); font-weight: 600; cursor: pointer; }
 .link-cell:hover { text-decoration: underline; }
+/* A customer name or case number that navigates (`shell/RecordLinks.tsx`): reads as text, acts as a link. */
+.record-link {
+  appearance: none; background: none; border: 0; padding: 0; margin: 0; font: inherit; text-align: inherit;
+  display: inline-block; vertical-align: bottom;
+  color: var(--primary); cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.record-link:hover { text-decoration: underline; }
+.record-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; border-radius: 2px; }
+/* The customer's name on the V1 case header, opening Customer 360. */
+.case-customer { margin: 0 0 8px; font-size: 16px; font-weight: 600; }
+/* Lists reached from Work Queues that are not activity buckets (Promise to Pay). */
+.queue-related { display: flex; justify-content: flex-end; gap: 8px; margin: 8px 0 12px; }
 .row-check { width: 36px; }
 .empty-state {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;

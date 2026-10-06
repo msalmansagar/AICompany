@@ -598,6 +598,16 @@ describe('opening a case in Grid', () => {
     expect(window.location.hash).toBe('#case/c-0011');
   });
 
+  it('opens Customer 360, not the case, from the customer\'s name (WP2)', async () => {
+    useGrid();
+    await openCases();
+    const row = await screen.findByRole('row', { name: 'Open case DEMO-HL-1000' });
+
+    await userEvent.click(within(row).getByRole('button', { name: 'Open Customer 360 for Aisha Al-Mansouri' }));
+
+    expect(window.location.hash).toMatch(/^#customer\/289\d+$/);
+  });
+
   it('lays out every approved data point and nothing the reference shows that DCP cannot back', async () => {
     useGrid();
     await openCases();

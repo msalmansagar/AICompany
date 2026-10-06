@@ -16,13 +16,10 @@ import { findView, isPending, type RoleKey, type ViewDefinition } from './routes
  * gets whatever CRM's own security lets them read, exactly as before.
  */
 
-export type NavigationSection =
-  | 'Workspace' | 'Customer' | 'Collection' | 'Resolution' | 'Strategy & Oversight' | 'Control' | 'Administration';
+export type NavigationSection = 'My Work' | 'Insights' | 'Manager' | 'Administration';
 
-/** Section order, as the canonical model lays it out. Administration holds the manager tools. */
-export const NAVIGATION_SECTIONS: readonly NavigationSection[] = [
-  'Workspace', 'Customer', 'Collection', 'Resolution', 'Strategy & Oversight', 'Control', 'Administration',
-];
+/** Section order, as the canonical model lays it out (WP2 officer simplification, 2026-10-06). */
+export const NAVIGATION_SECTIONS: readonly NavigationSection[] = ['My Work', 'Insights', 'Manager', 'Administration'];
 
 export interface NavigationEntry {
   /** The route id, as `routes.ts` defines it. Never renamed here: bookmarks carry it. */
@@ -41,31 +38,35 @@ export interface NavigationEntry {
 }
 
 const SUPERVISION: readonly RoleKey[] = ['manager', 'rm'];
-const CONTROL: readonly RoleKey[] = ['manager'];
+const MANAGER_ONLY: readonly RoleKey[] = ['manager'];
 const ADMINISTRATION: readonly RoleKey[] = ['manager'];
 
+/**
+ * The officer's primary navigation is My Work + Insights and nothing else.
+ *
+ * Action Plan, Promise to Pay, Communications, Disputes, Legal Hand-off and Deceased Review are no
+ * longer primary entries for an officer. **Their routes and screens are untouched**: an officer
+ * reaches them from the case (Promises, Communications, Action Plan and Workout & Legal tabs) and
+ * from Work Queues (the Disputes, Legal and Deceased Review buckets, and the Promise to Pay link).
+ * `CONTEXTUAL_ROUTES` below records where each one is reached from, and a test holds it to that.
+ */
 export const NAVIGATION: readonly NavigationEntry[] = [
-  { id: 'myday', label: 'My Day', section: 'Workspace', icon: 'home' },
-  { id: 'queues', label: 'Work Queues', section: 'Workspace', icon: 'queue' },
-  { id: 'cases', label: 'Collection Cases', section: 'Workspace', icon: 'case' },
+  { id: 'myday', label: 'My Day', section: 'My Work', icon: 'home' },
+  { id: 'queues', label: 'Work Queues', section: 'My Work', icon: 'queue' },
+  { id: 'cases', label: 'Collection Cases', section: 'My Work', icon: 'case' },
+  { id: 'customer', label: 'Customers', section: 'My Work', icon: 'users' },
 
-  { id: 'customer', label: 'Customer 360', section: 'Customer', icon: 'users' },
+  { id: 'dashboards', label: 'Dashboards', section: 'Insights', icon: 'chart' },
 
-  { id: 'actionplan', label: 'Action Plan', section: 'Collection', icon: 'check' },
-  { id: 'ptp', label: 'Promise to Pay', section: 'Collection', icon: 'promise' },
-  { id: 'comms', label: 'Communications', section: 'Collection', icon: 'send' },
-
-  { id: 'disputes', label: 'Disputes', section: 'Resolution', icon: 'dispute' },
-  { id: 'legal', label: 'Legal Hand-off', section: 'Resolution', icon: 'legal' },
-  // "Deceased Review", not "Deceased & Claims": the screen is the deceased-review queue and says
-  // itself that insurance claims are not offered. The label must not promise more than the page.
-  { id: 'claims', label: 'Deceased Review', section: 'Resolution', icon: 'shield' },
-
-  { id: 'buckets', label: 'Portfolio & Strategy', section: 'Strategy & Oversight', icon: 'strategy', roles: SUPERVISION },
-  { id: 'dashboards', label: 'Dashboards', section: 'Strategy & Oversight', icon: 'chart', roles: SUPERVISION },
-  { id: 'approvals', label: 'Approvals', section: 'Strategy & Oversight', icon: 'approve', roles: SUPERVISION, isAdvertisedWhilePending: true },
-
-  { id: 'audit', label: 'Audit Trail', section: 'Control', icon: 'audit', roles: CONTROL },
+  // No "Team Work" entry: no screen shows a team's work yet, and an entry must not promise one.
+  { id: 'approvals', label: 'Approvals', section: 'Manager', icon: 'approve', roles: SUPERVISION, isAdvertisedWhilePending: true },
+  { id: 'buckets', label: 'Portfolio & Strategy', section: 'Manager', icon: 'strategy', roles: SUPERVISION },
+  // The portfolio list of strategy actions is strategy configuration, not officer work; the plan
+  // for one case is on that case. Kept here so the portfolio list is not orphaned.
+  { id: 'actionplan', label: 'Action Plan', section: 'Manager', icon: 'check', roles: SUPERVISION },
+  // Bulk SMS & Email runs. One customer's messages are sent from the case's Communications tab.
+  { id: 'comms', label: 'Communications', section: 'Manager', icon: 'send', roles: MANAGER_ONLY },
+  { id: 'audit', label: 'Audit Trail', section: 'Manager', icon: 'audit', roles: MANAGER_ONLY },
 
   // Manager tools outside the officer's business model, kept reachable rather than orphaned.
   { id: 'intake', label: 'Delinquency Intake', section: 'Administration', icon: 'refresh', roles: ADMINISTRATION },
@@ -110,9 +111,36 @@ function toItem(entry: NavigationEntry): NavigationItem {
   return { id: entry.id, label: entry.label, icon: entry.icon };
 }
 
-/** Which entry is current. A case is reached from a list, so the case view highlights Collection Cases. */
-export function activeNavigationId(viewId: string): string {
-  return viewId === 'case' ? 'cases' : viewId;
+/**
+ * Every built route that is not a primary entry for an officer, and where the officer reaches it.
+ * Moving an entry out of the navigation must never make its screen unreachable.
+ */
+export const CONTEXTUAL_ROUTES: Readonly<Record<string, { parent: string; reachedFrom: string }>> = {
+  case: { parent: 'cases', reachedFrom: 'any case number in a list, preview, queue, My Day or Customer 360' },
+  // An officer works the plan of one case, on that case. The portfolio list of every strategy action
+  // is a Manager entry; an officer can still open it by URL, and CRM decides what it shows.
+  actionplan: { parent: 'cases', reachedFrom: 'the case\'s Action Plan (that case\'s plan); the portfolio list from Manager › Action Plan' },
+  ptp: { parent: 'queues', reachedFrom: 'the case\'s Promises tab, Work Queues › Promise to Pay, and My Day' },
+  comms: { parent: 'cases', reachedFrom: 'the case\'s Communications tab (which also opens Bulk SMS & Email)' },
+  disputes: { parent: 'queues', reachedFrom: 'Work Queues › Disputes, and the case\'s Workout & Legal tab' },
+  legal: { parent: 'queues', reachedFrom: 'Work Queues › Legal, and the case\'s Workout & Legal tab' },
+  claims: { parent: 'queues', reachedFrom: 'Work Queues › Deceased Review, and the case\'s Workout & Legal tab' },
+};
+
+/**
+ * Which entry is current. A contextual route highlights the primary entry it is reached from, so the
+ * officer always sees where they are in the navigation they have.
+ */
+export function activeNavigationId(viewId: string, role: RoleKey = 'officer'): string {
+  const isOffered = navigationFor(role).some(group => group.items.some(item => item.id === viewId));
+  if (isOffered) return viewId;
+  return CONTEXTUAL_ROUTES[viewId]?.parent ?? viewId;
+}
+
+/** A page's heading: one customer is "Customer 360"; the list of them is "Customers". */
+export function pageTitleOf(view: ViewDefinition, recordId?: string): string {
+  if (view.id === 'customer' && recordId) return 'Customer 360';
+  return navigationLabelOf(view);
 }
 
 /** The business name of a route — the navigation's word for it, or the route table's own. */
@@ -122,6 +150,7 @@ export function navigationLabelOf(view: ViewDefinition): string {
 
 /** The section a route belongs to, for a breadcrumb or a page subtitle. */
 export function navigationSectionOf(view: ViewDefinition): NavigationSection {
-  const entry = NAVIGATION.find(candidate => candidate.id === activeNavigationId(view.id));
+  const entry = NAVIGATION.find(candidate => candidate.id === view.id)
+    ?? NAVIGATION.find(candidate => candidate.id === CONTEXTUAL_ROUTES[view.id]?.parent);
   return entry?.section ?? view.group;
 }

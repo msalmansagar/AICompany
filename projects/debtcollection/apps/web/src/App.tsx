@@ -152,7 +152,13 @@ function ViewHost({
     case 'myday': return <MyDayView onOpenCase={onOpenCase} />;
     case 'queues': return <QueuesView onOpenCase={onOpenCase} />;
     case 'cases': return <CasesView onOpenCase={onOpenCase} scope={recordId === SCOPE_SEGMENT ? decodeScope(tab) : {}} />;
-    case 'case': return <CaseWorkspaceView caseId={recordId} initialTab={tab} onOpenCustomer={onOpenCustomer} />;
+    case 'case':
+      return (
+        <CaseWorkspaceView
+          caseId={recordId} initialTab={tab} onOpenCustomer={onOpenCustomer}
+          onOpenComms={onOpenComms} onNavigateComms={onNavigateComms}
+        />
+      );
     case 'customer': return <Customer360View customerBusinessId={recordId} onOpenCase={onOpenCase} onOpenActionPlan={onOpenActionPlan} onOpenCustomer={onOpenCustomer} />;
     case 'intake': return <DelinquencyIntakeView />;
     case 'buckets': return <SegmentationView />;
@@ -231,7 +237,12 @@ function Commands({ view, recordId, go }: {
           ? { onClick: () => go('case', recordId, 'ptp') }
           : { disabledReason: 'Open a case to capture a promise against it' })}
       />
-      <Command icon="send" label="Send message" pendingPhase={7} />
+      <Command
+        icon="send" label="Send message"
+        {...(onCase
+          ? { onClick: () => go('case', recordId, 'comms') }
+          : { disabledReason: 'Open a case to message its customer' })}
+      />
       {/*
         * No "Propose restructure" or "Refer to legal" here (Phase 9). Restructuring is parked by QDB
         * and a Legal hand-off waits on QDB's qualification rule, so both would be controls for

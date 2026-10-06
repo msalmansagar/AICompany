@@ -3,6 +3,7 @@ import type { CaseDetail, CustomerProfile } from '../../../data/caseQueries.js';
 import { OrgBadge, StatusPill, formatCount, formatMoney } from '../../../components/primitives.js';
 import { BalancesAsOf } from '../../../components/BalancesAsOf.js';
 import { OwnerLabel } from '../../../components/OwnerLabel.js';
+import { CustomerLink } from '../../../shell/RecordLinks.js';
 import { BucketBadge, CommandBar, CommandButton } from '../../components/primitives.js';
 
 /**
@@ -34,7 +35,9 @@ export function CaseHeader({ detail, customer, onBack, onLogAction, onCapturePro
         <span className="v2-avatar" aria-hidden="true">{initialsOf(name)}</span>
         <div className="v2-case-names">
           <div className="v2-case-nameline">
-            <h2 className="v2-case-customer" data-testid="v2-case-customer">{name}</h2>
+            <h2 className="v2-case-customer" data-testid="v2-case-customer">
+              <CustomerLink customerBusinessId={detail.customerBusinessId}>{name}</CustomerLink>
+            </h2>
             <BucketBadge bucket={detail.bucket} />
             <StatusPill status={detail.status} />
             <OrgBadge org={detail.organization} />

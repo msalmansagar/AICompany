@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Icon } from '../components/primitives.js';
 import { Sidebar } from '../components/Sidebar.js';
 import { ROLE_LABELS, useCrmSession, useOrg, useRole } from './context.js';
-import { navigationFor, navigationSectionOf, type NavigationGroup } from './navigation.js';
+import { activeNavigationId, navigationFor, navigationSectionOf, pageTitleOf, type NavigationGroup } from './navigation.js';
 import type { RoleKey } from './routes.js';
 import { useHashRoute } from './useHashRoute.js';
 
@@ -127,7 +127,7 @@ export function AppShell({ commands, children }: AppShellProps) {
             <div className="page" data-testid="content" data-view={route.view.id}>
               <div className="page-head">
                 <div>
-                  <h1>{route.view.label}</h1>
+                  <h1>{pageTitleOf(route.view, route.recordId)}</h1>
                   <div className="page-sub">{navigationSectionOf(route.view)}</div>
                 </div>
               </div>
@@ -167,7 +167,7 @@ export function NavRail({ role, activeId, onNavigate, isCollapsed = false, heade
   profile?: ReactNode;
 }) {
   const groups: readonly NavigationGroup[] = navigationFor(role);
-  const current = activeId === 'case' ? 'cases' : activeId;
+  const current = activeNavigationId(activeId, role);
   return (
     <Sidebar
       className={isCollapsed ? 'nav collapsed' : 'nav'} label="Workspace navigation" testId="nav-rail" data-collapsed={String(isCollapsed)}

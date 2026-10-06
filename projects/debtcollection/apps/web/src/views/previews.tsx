@@ -8,6 +8,7 @@ import {
   BucketPill, EmptyState, FieldList, Icon, OrgBadge, StatusPill, formatCount, formatDate, formatMoney,
 } from '../components/primitives.js';
 import { useCrmSession } from '../shell/context.js';
+import { CaseLink, CustomerLink } from '../shell/RecordLinks.js';
 import { describeFailure } from '../platform/errors.js';
 
 /**
@@ -65,9 +66,11 @@ export function CasePreview({ caseId, reloadKey = 0, onOpen, onLogAction, onCapt
     <div className="preview" data-testid={testId} data-case-id={detail.id}>
       <div className="preview-head">
         <div className="preview-names">
-          <h3 className="preview-title" data-testid={`${testId}-customer`}>{name}</h3>
+          <h3 className="preview-title" data-testid={`${testId}-customer`}>
+            <CustomerLink customerBusinessId={detail.customerBusinessId}>{name}</CustomerLink>
+          </h3>
           <p className="preview-sub">
-            {detail.caseNumber} · facility {detail.facilityNumber}{detail.productDescription ? ` · ${detail.productDescription}` : ''}
+            <CaseLink caseId={detail.id}>{detail.caseNumber}</CaseLink> · facility {detail.facilityNumber}{detail.productDescription ? ` · ${detail.productDescription}` : ''}
           </p>
           <p className="row-actions">
             <BucketPill bucket={detail.bucket} /><StatusPill status={detail.status} /><OrgBadge org={detail.organization} />

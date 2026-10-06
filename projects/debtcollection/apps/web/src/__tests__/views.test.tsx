@@ -227,13 +227,20 @@ describe('the Case Workspace keeps all seven approved tabs', () => {
     expect([line.textContent, screen.queryByTestId('stored-position')]).toEqual(['Balances as of 17 Sep 2026', null]);
   });
 
-  it('says a tab is not available yet, without naming an internal delivery phase', async () => {
+  it('messages the customer from the case: Communications embeds the case\'s own composer (WP2)', async () => {
     await openView('case', 'c-1');
     await screen.findByTestId('view-case');
     await userEvent.click(screen.getByTestId('case-pivot-tab-comms'));
+    expect(await screen.findByTestId('view-comms')).toBeTruthy();
+    expect(screen.queryByTestId('pending-panel-7')).toBeNull();
+  });
+
+  it('says a tab is not available yet, without naming an internal delivery phase', async () => {
+    await openView('case', 'c-1');
+    await screen.findByTestId('view-case');
+    await userEvent.click(screen.getByTestId('case-pivot-tab-documents'));
     const panel = await screen.findByTestId('pending-panel-7');
     expect(panel.textContent).toContain('Not available yet.');
-    expect(panel.textContent).toContain('Nothing is sent from this tab');
     expect(panel.textContent).not.toMatch(/Phase \d/);
   });
 

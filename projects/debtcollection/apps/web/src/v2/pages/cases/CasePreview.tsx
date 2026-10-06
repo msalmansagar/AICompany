@@ -5,6 +5,7 @@ import { OrgBadge, StatusPill, formatCount, formatDate, formatMoney } from '../.
 import { BalancesAsOf } from '../../../components/BalancesAsOf.js';
 import { OwnerLabel } from '../../../components/OwnerLabel.js';
 import { useCrmSession } from '../../../shell/context.js';
+import { CaseLink, CustomerLink } from '../../../shell/RecordLinks.js';
 import { formatRecordedAt } from '../../format.js';
 import { BucketBadge, CommandBar, CommandButton, EmptyState, ErrorState, KeyValueList, LoadingSkeleton } from '../../components/primitives.js';
 import { initialsOf } from '../case/CaseHeader.js';
@@ -43,10 +44,11 @@ export function CasePreview({ caseId, reloadKey, onOpen, onLogAction, onCaptureP
         <span className="v2-avatar" aria-hidden="true">{initialsOf(name)}</span>
         <div className="v2-preview-names">
           <h2 className="v2-preview-name" data-testid="v2-preview-customer">
-            {name} <BucketBadge bucket={detail.bucket} /> <StatusPill status={detail.status} /> <OrgBadge org={detail.organization} />
+            <CustomerLink customerBusinessId={detail.customerBusinessId}>{name}</CustomerLink>{' '}
+            <BucketBadge bucket={detail.bucket} /> <StatusPill status={detail.status} /> <OrgBadge org={detail.organization} />
           </h2>
           <p className="v2-preview-sub" data-testid="v2-preview-sub">
-            {detail.caseNumber} · facility {detail.facilityNumber}{detail.productDescription ? ` · ${detail.productDescription}` : ''}
+            <CaseLink caseId={detail.id}>{detail.caseNumber}</CaseLink> · facility {detail.facilityNumber}{detail.productDescription ? ` · ${detail.productDescription}` : ''}
           </p>
         </div>
         <button type="button" className="v2-btn v2-btn-primary" onClick={onOpen} data-testid="v2-preview-open">Open full record</button>

@@ -229,18 +229,26 @@ describe('the header navigation toggle', () => {
 });
 
 describe('Dashboards', () => {
-  it('sits under Strategy & Oversight in both workspaces, and is a supervisor\'s entry', async () => {
+  it('sits under Insights in both workspaces, and is offered to an officer (WP2)', async () => {
     const view = findView('dashboards')!;
     await open('#myday');
 
     const rail = screen.getByTestId('nav-rail');
 
-    expect([view.group, navigationSectionOf(view), within(rail).queryByTestId('nav-dashboards')]).toEqual(['Strategy & Oversight', 'Strategy & Oversight', null]);
+    expect([view.group, navigationSectionOf(view), within(rail).queryByTestId('nav-dashboards') !== null]).toEqual(['Insights', 'Insights', true]);
   });
 });
 
 /** The Work Queues Split list previews the case behind the chosen work; its own test file covers opening it. */
 describe('Work Queues', () => {
+  it('opens Promise to Pay, now that it is not a navigation entry for an officer (WP2)', async () => {
+    await open('#queues');
+
+    await userEvent.click(await screen.findByTestId('queue-open-ptp'));
+
+    expect(window.location.hash).toBe('#ptp');
+  });
+
   it('offers the layout control beside the queue search', async () => {
     await open('#queues');
 
