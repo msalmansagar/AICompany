@@ -1,8 +1,9 @@
 # DCP — common on-prem package, 2026-10-04
 
-**Status: package prepared and prerequisite-checked — Import Pending Approval.** Nothing in this
-folder has been imported anywhere. Importing into HL CRM test or QDB1 test is the next deployment
-gate and needs explicit approval.
+**Status: imported into HL CRM test (import 2, post-import check 16/16); QDB1 preflight passed,
+import pending approval.** HL configuration row, reference data and roles are not yet set up, so
+HL runtime is untested. This kit predates the officer UX program (WP2–WP6): its workspace web
+resource is the older build, so a rebuilt kit is needed before acceptance testing on-prem.
 
 One package for both organisations. Configuration — not code — makes an org HL or BFD.
 

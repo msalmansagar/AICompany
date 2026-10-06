@@ -155,7 +155,7 @@ physical ones. Adding a canonical field is a code change; rebinding it is a row 
 | Facility.FacilityRef (optional, resolved) | `<HL facility entity>.<primary id>` — **HL Facility Entity = `TBD — Requires QDB Confirmation`** | **BFD Collection Facility/Account Target = likely `qdb_account`, `TBD — Requires QDB Confirmation`** |
 | Case.CustomerLookup | `qdb_collectioncase.qdb_customerid` → contact | `qdb_collectioncase.qdb_customerid` → account |
 | Case.FacilityLookup (optional extension) | `qdb_facilityid` → HL facility entity, **only if that deployment extension is installed** | `qdb_facilityid` → BFD target, same condition — **a different physical relationship, not the same schema** |
-| Communication.SMS / WhatsApp | `fax` | `fax` |
+| Communication.SMS / WhatsApp | `letter` — from `qdb_platformconfiguration.qdb_smsentity`; SMS only (WhatsApp needs `vrp_type` + a template column, not yet available) — see §2a | `fax` — from `qdb_smsentity` / `qdb_whatsappentity` |
 | Communication.Email | `email` | `email` |
 
 Before any proposed `qdb_` extension is created on contact/account, the existing QDB fields on those
