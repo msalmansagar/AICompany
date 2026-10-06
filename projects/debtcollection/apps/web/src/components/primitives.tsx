@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { ICON_PATHS } from './icons.js';
 import type { ViewDefinition } from '../shell/routes.js';
 import { bucketVisual } from '../data/bucketVisual.js';
+import { formatWithShortMonths } from './shortMonths.js';
 
 /**
  * The shared visual vocabulary, ported from the prototype's `DC.*` helpers.
@@ -336,5 +337,5 @@ const DAY = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', y
 export function formatDay(value: string | undefined | null): string {
   if (!value) return '—';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '—' : DAY.format(date).replace(/\u00a0/g, ' ');
+  return Number.isNaN(date.getTime()) ? '—' : formatWithShortMonths(DAY, date).replace(/\u00a0/g, ' ');
 }

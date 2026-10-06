@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { describeBucket, describeCount, describeWorkType, type OperationalBucket, type WorkItem } from '@dcp/domain';
 import { createWorkQueue, loadTypeIds, type TypeIds, type WorkQueueRequest } from '../../../data/operationalQueue.js';
 import { formatCount, formatMoney } from '../../../components/primitives.js';
+import { BalancesAsOf } from '../../../components/BalancesAsOf.js';
 import { useCrmSession } from '../../../shell/context.js';
 import type { ViewRequest } from '../../V2Workspace.js';
 import { useV2Shell } from '../../shell/V2Shell.js';
@@ -187,7 +188,7 @@ function QueuePreview({ item, onOpen }: { item?: WorkItem | undefined; onOpen: (
             { label: 'With', value: item.ownerName ?? 'Nobody yet' },
             { label: 'State', value: item.domainState ?? '—' },
           ]} />
-          <p className="v2-toolbar-note">Stored MIS position — not a live MIS read.</p>
+          <BalancesAsOf asOf={record.detail.misAsOfDate} className="v2-toolbar-note" />
         </>
       )}
       {(record.status === 'error' || record.status === 'missing') && <p className="v2-muted">The case could not be read.</p>}

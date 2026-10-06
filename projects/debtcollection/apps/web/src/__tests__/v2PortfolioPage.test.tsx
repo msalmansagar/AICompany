@@ -205,10 +205,10 @@ describe('the matrix', () => {
       .toEqual(['5', '2', true]);
   });
 
-  it('says the position is stored MIS data, with its as-of date', async () => {
+  it('says which date the balances are from, in the same words as the case screens', async () => {
     await openPortfolio();
 
-    expect((await screen.findByTestId('v2-portfolio-freshness')).textContent).toMatch(/Stored MIS position as of 2026-09-17.*not a live MIS read/);
+    expect((await screen.findByTestId('v2-portfolio-freshness')).textContent).toBe('Balances as of 18 Sep 2026');
   });
 });
 

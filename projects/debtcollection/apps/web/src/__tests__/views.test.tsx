@@ -224,7 +224,7 @@ describe('the Case Workspace keeps all seven approved tabs', () => {
   it('says which date the balances are from, with no MIS position bar', async () => {
     await openView('case', 'c-1');
     const line = await screen.findByTestId('balances-as-of');
-    expect([line.textContent, screen.queryByTestId('stored-position')]).toEqual(['Balances as of 17 Sept 2026', null]);
+    expect([line.textContent, screen.queryByTestId('stored-position')]).toEqual(['Balances as of 17 Sep 2026', null]);
   });
 
   it('says a tab is not available yet, without naming an internal delivery phase', async () => {
@@ -359,7 +359,7 @@ describe('a KPI is a platform count or an em dash, never an invention', () => {
     const tiles = await screen.findAllByText('Current arrears');
     const tile = tiles[0]!.closest('.kpi-tile')!;
     await waitFor(() => expect(tile.querySelector('.kpi-value')!.textContent).toBe(formatMoney(CASE_ROW.qdb_currenttotalarrears + 1_000)));
-    expect(tile.textContent).toContain('Stored MIS position');
+    expect(tile.textContent).toContain('Latest MIS balances, open cases');
   });
 
   it('shows an em dash, never zero, when the platform refuses the sum', async () => {

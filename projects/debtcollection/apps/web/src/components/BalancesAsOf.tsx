@@ -1,3 +1,5 @@
+import { formatWithShortMonths } from './shortMonths.js';
+
 /**
  * The date a customer's or case's balances are from — one quiet line under the figures.
  *
@@ -9,7 +11,7 @@ const QATAR_DAY = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'sho
 
 export function describeBalancesDate(asOf: string | undefined): string {
   if (!asOf || Number.isNaN(Date.parse(asOf))) return 'Balance date not available';
-  return `Balances as of ${QATAR_DAY.format(new Date(asOf))}`;
+  return `Balances as of ${formatWithShortMonths(QATAR_DAY, new Date(asOf))}`;
 }
 
 /** `className` places the line in its screen; the wording and test id are the same everywhere. */

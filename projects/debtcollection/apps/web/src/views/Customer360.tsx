@@ -13,6 +13,7 @@ import { CustomerLogActionButton } from './customer360/CustomerLogAction.js';
 import { DelinquencyHistory } from './customer360/DelinquencyHistory.js';
 import { FinancialUnitList, unitKey } from './customer360/FinancialUnitList.js';
 import { BalancesAsOf } from '../components/BalancesAsOf.js';
+import { formatWithShortMonths } from '../components/shortMonths.js';
 import { useCustomer360Sections } from './customer360/useCustomer360Sections.js';
 
 /**
@@ -138,5 +139,5 @@ export function formatMoment(value: string | undefined): string {
   if (!value) return '—';
   const at = new Date(value);
   if (Number.isNaN(at.getTime())) return '—';
-  return MOMENT.format(at).replace(/ /g, ' ').replace(/, /, ' · ');
+  return formatWithShortMonths(MOMENT, at).replace(/ /g, ' ').replace(/, /, ' · ');
 }

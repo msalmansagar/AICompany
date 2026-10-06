@@ -463,7 +463,7 @@ describe('position and balances', () => {
     await open();
 
     expect([screen.getByTestId('balances-as-of').textContent, screen.queryByTestId('c360-mis')])
-      .toEqual(['Balances as of 27 Sept 2026', null]);
+      .toEqual(['Balances as of 27 Sep 2026', null]);
   });
 
   it('describeBalancesDate_noDate_saysTheDateIsNotAvailable', () => {

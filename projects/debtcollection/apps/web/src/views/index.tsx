@@ -325,7 +325,7 @@ export function MyDayView({ onOpenCase }: { onOpenCase?: (id: string) => void })
       */}
       <KpiRow items={[
         { label: casesTile.label, value: formatCountResult(counts[casesTile.key]), hint: casesTile.hint },
-        { label: 'Current arrears', value: arrears.status === 'ready' ? formatMoney(arrears.value) : '—', hint: arrears.status === 'unknown' ? 'The platform could not sum the portfolio' : 'Stored MIS position over open cases' },
+        { label: 'Current arrears', value: arrears.status === 'ready' ? formatMoney(arrears.value) : '—', hint: arrears.status === 'unknown' ? 'The platform could not sum the portfolio' : 'Latest MIS balances, open cases' },
         { label: 'My open work', value: formatCountResult(counts['myOpenWork']), hint: 'Open activities owned by you' },
         { label: 'Follow-ups overdue', value: formatCountResult(counts['followUpsOverdue']), tone: 'warn', hint: 'Follow-up date before now' },
         { label: 'Follow-ups upcoming', value: formatCountResult(counts['followUpsUpcoming']), hint: 'Follow-up date from now on' },

@@ -8,6 +8,7 @@ import type { HistoryContext } from './useCustomer360Sections.js';
 import { StatusBadge, statusBadgeTone, type BadgeTone } from '../../components/StatusBadge.js';
 import { SkeletonLines } from '../../components/SectionBoundary.js';
 import { formatMoney } from '../../components/primitives.js';
+import { formatWithShortMonths } from '../../components/shortMonths.js';
 import { describeFailure } from '../../platform/errors.js';
 import { useCrmSession } from '../../shell/context.js';
 import { OwnerLabel } from '../../components/OwnerLabel.js';
@@ -161,7 +162,7 @@ function HistoryRow({ entry, context }: { entry: HistoryEntry; context: { unit: 
 }
 
 const MOMENT = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-const momentOf = (iso: string) => (Number.isNaN(Date.parse(iso)) ? '—' : MOMENT.format(new Date(iso)));
+const momentOf = (iso: string) => (Number.isNaN(Date.parse(iso)) ? '—' : formatWithShortMonths(MOMENT, new Date(iso)));
 
 function typeOf(entry: HistoryEntry): string {
   if (entry.category === 'communications') return entry.channel;

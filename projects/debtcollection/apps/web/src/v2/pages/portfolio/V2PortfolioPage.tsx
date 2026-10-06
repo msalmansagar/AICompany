@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createStrategyActionQuery, createStrategyQuery, type StrategyActionRow, type StrategyRow } from '../../../data/configurationQueries.js';
 import { formatCount, formatDate, formatMoney } from '../../../components/primitives.js';
+import { describeBalancesDate } from '../../../components/BalancesAsOf.js';
 import { useCrmSession, useOrg, type OrganizationScope } from '../../../shell/context.js';
 import { useV2Shell } from '../../shell/V2Shell.js';
 import { BucketDot, Card, EmptyState, ErrorState, LoadingSkeleton } from '../../components/primitives.js';
@@ -108,15 +109,10 @@ export function V2PortfolioPage() {
   );
 }
 
+/** The date the portfolio's balances are from — the same quiet line the case and customer screens use. */
 function FreshnessLine({ freshness }: { freshness: Freshness | null }) {
-  if (!freshness?.asOf) return <span className="v2-freshness" data-testid="v2-portfolio-freshness">Stored MIS position — not a live MIS read</span>;
-  const window = freshness.syncedFrom && freshness.syncedTo && freshness.syncedFrom.slice(0, 10) !== freshness.syncedTo.slice(0, 10)
-    ? ` · synchronised ${formatDate(freshness.syncedFrom)} to ${formatDate(freshness.syncedTo)}`
-    : freshness.syncedTo ? ` · synchronised ${formatDate(freshness.syncedTo)}` : '';
   return (
-    <span className="v2-freshness" data-testid="v2-portfolio-freshness">
-      Stored MIS position as of {formatDate(freshness.asOf)}{window} — not a live MIS read
-    </span>
+    <span className="v2-freshness" data-testid="v2-portfolio-freshness">{describeBalancesDate(freshness?.asOf)}</span>
   );
 }
 
