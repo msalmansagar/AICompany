@@ -13,6 +13,8 @@ import { Card, FilterChips, LoadingSkeleton, MetricTile } from '../../components
 import { V2DataGrid, type V2Column } from '../../components/V2DataGrid.js';
 import { HOME_BUCKETS, useBucketCounts } from './useBucketCounts.js';
 import { CompleteFollowUpButton, useFollowUpCompletion } from '../../../views/FollowUpCompletion.js';
+import { followUpContext, restoredWindow, useLoadedRows } from '../../../views/workListContext.js';
+import { startWorkContext } from '../../../data/workContext.js';
 
 /**
  * My Day — "what needs my attention?"
@@ -148,9 +150,15 @@ const WINDOWS: readonly { id: FollowUpWindow; label: string }[] = [
 function FollowUps({ now, onOpenCase }: { now: Date; onOpenCase: (id: string) => void }) {
   const { adapter } = useCrmSession();
   const { scopeFilter } = useOrg();
-  const [window, setWindow] = useState<FollowUpWindow>('overdue');
+  const [window, setWindow] = useState<FollowUpWindow>(() => restoredWindow());
   const fetchPage = useMemo(() => createFollowUpQuery(adapter), [adapter]);
   const completion = useFollowUpCompletion();
+  const rows = useLoadedRows<ActivityRow>();
+  const openRow = (row: ActivityRow) => {
+    if (!row.caseId) return;
+    startWorkContext(followUpContext(rows.current(), row, window));
+    onOpenCase(row.caseId);
+  };
   // The reload key is part of the question, so a completion re-reads the list from its first page.
   const query = useMemo<FollowUpQuery>(() => ({ window, now, ...(scopeFilter ? { scopeFilter } : {}), reloadKey: completion.reloadKey }), [window, now, scopeFilter, completion.reloadKey]);
   const applicationUsers = useApplicationUsers(adapter);
@@ -165,7 +173,7 @@ function FollowUps({ now, onOpenCase }: { now: Date; onOpenCase: (id: string) =>
     >
       <V2DataGrid<ActivityRow, FollowUpQuery>
         columns={columns} fetchPage={fetchPage} query={query} rowKey={r => r.id}
-        onRowOpen={r => { if (r.caseId) onOpenCase(r.caseId); }}
+        onRowOpen={openRow} onRows={rows.onRows}
         rowLabel={r => `Open case ${r.caseNumber ?? ''} for ${r.subject}`}
         emptyTitle={window === 'overdue' ? 'Nothing is overdue.' : 'No follow-up in this window.'}
         height={320} testId="v2-followups"

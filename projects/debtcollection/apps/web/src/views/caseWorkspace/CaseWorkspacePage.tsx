@@ -18,6 +18,8 @@ import { CaseDelinquencyPanel } from './CaseDelinquencyPanel.js';
 import { CaseRecordTabs, recordTabFor, type RecordTab, type RecordTabsProps } from './CaseRecordTabs.js';
 import { CasePanes, type CasePane, type PaneOutcome } from './CasePanes.js';
 import { useCaseWorkspace, type CaseWorkspaceData } from './useCaseWorkspace.js';
+import { useWorkNavigation } from './useWorkNavigation.js';
+import { CaseWorkNavigator } from './CaseWorkNavigator.js';
 
 /**
  * The Collection Case Workspace — one delinquency episode, worked from one surface (WP3).
@@ -57,16 +59,23 @@ export function CaseWorkspacePage({ detail, customer, initialTab, reloadKey, onS
     onSaved: message => { setPane(undefined); setNotice(message); onSaved(); },
     onRefresh: onSaved,
   }), [onSaved]);
+  const work = useWorkNavigation(detail.id);
   const bar = (
-    <CaseActionBar
-      isOpen={detail.isOpen} organization={detail.organization} customer={customer}
-      channels={contactChannels(data, customer)} followUps={followUps} commands={commands}
-    />
+    <>
+      <CaseWorkNavigator navigation={work} isCaseOpen={detail.isOpen} onCompleted={onSaved} />
+      <CaseActionBar
+        isOpen={detail.isOpen} organization={detail.organization} customer={customer}
+        channels={contactChannels(data, customer)} followUps={followUps} commands={commands}
+      />
+    </>
   );
+  const back = work.context
+    ? { onBack: work.backToOrigin, backLabel: `Back to ${work.context.originLabel}` }
+    : { onBack: navigation.onBack, backLabel: 'Collection Cases' };
 
   return (
     <div className="cw" data-testid="view-case" data-case-id={detail.id}>
-      <CaseIdentityHeader detail={detail} customer={customer} onBack={navigation.onBack} actions={bar} />
+      <CaseIdentityHeader detail={detail} customer={customer} {...back} actions={bar} />
       {notice && <p className="cw-notice" role="status" data-testid="cw-notice">{notice}</p>}
       <WorkSurface detail={detail} data={data} reloadKey={reloadKey} commands={commands} openTab={openTab} />
       <CaseRecordTabs detail={detail} active={tab} onSelect={openTab} onSaved={onSaved} comms={commsOf(navigation)} />

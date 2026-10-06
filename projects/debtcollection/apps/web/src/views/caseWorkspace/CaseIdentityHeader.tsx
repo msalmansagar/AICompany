@@ -14,10 +14,12 @@ import { CustomerLink } from '../../shell/RecordLinks.js';
  * system. The figures are the last MIS position DCP stored, with the date they are from; none is a
  * live MIS read. The customer's name opens Customer 360; the case number is this page.
  */
-export function CaseIdentityHeader({ detail, customer, onBack, actions }: {
+export function CaseIdentityHeader({ detail, customer, onBack, backLabel, actions }: {
   detail: CaseDetail;
   customer: CustomerProfile | undefined;
   onBack: () => void;
+  /** Names where Back goes — the list the case came from, or Collection Cases. */
+  backLabel: string;
   /** The action bar, kept inside the sticky block so the commands stay reachable while scrolling. */
   actions: ReactNode;
 }) {
@@ -25,7 +27,7 @@ export function CaseIdentityHeader({ detail, customer, onBack, actions }: {
   return (
     <header className="cw-sticky" data-testid="cw-header">
       <div className="cw-identity">
-        <button type="button" className="btn cw-back" onClick={onBack} data-testid="cw-back">← Collection Cases</button>
+        <button type="button" className="btn cw-back" onClick={onBack} data-testid="cw-back">← {backLabel}</button>
         <div className="cw-names">
           <h2 className="cw-customer" data-testid="cw-customer">
             <CustomerLink customerBusinessId={detail.customerBusinessId} fromCaseId={detail.id}>{name}</CustomerLink>

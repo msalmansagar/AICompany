@@ -13,6 +13,8 @@ import { formatRecordedAt } from '../../format.js';
 import { useBucketCounts } from '../home/useBucketCounts.js';
 import { useCaseRecord } from '../../../data/useCaseRecord.js';
 import { readLayout, writeLayout, type ListLayout } from '../../../data/layoutPreference.js';
+import { QUEUE_ORIGIN, queueContext, useLoadedRows, useRestoredListState } from '../../../views/workListContext.js';
+import { startWorkContext } from '../../../data/workContext.js';
 
 /**
  * Work Queues V2 — the operational lists, one bucket at a time.
@@ -49,7 +51,14 @@ export function V2QueuePage({ request, fixedBucket, intro }: {
   const { adapter, context } = useCrmSession();
   const buckets = useBucketCounts(QUEUE_BUCKETS);
   const bucket = fixedBucket ?? pickBucket(request.recordId);
-  const [search, setSearch] = useState('');
+  const restored = useRestoredListState(QUEUE_ORIGIN);
+  const [search, setSearch] = useState(restored['search'] ?? '');
+  const rows = useLoadedRows<WorkItem>();
+  const openWork = (item: WorkItem) => {
+    const scope = { bucket, ...(context.userId ? { currentUserId: context.userId } : {}), returnHash: window.location.hash || `#queues/${bucket}`, search };
+    startWorkContext(queueContext(rows.current(), item, scope));
+    request.onOpenCase(item.caseId);
+  };
   const query = useDebounced(search.trim(), 300);
   const [layout, setLayout] = useState<ListLayout>(() => readLayout(LAYOUT_KEY));
   const [selected, setSelected] = useState<WorkItem | undefined>(undefined);
@@ -121,7 +130,7 @@ export function V2QueuePage({ request, fixedBucket, intro }: {
         {!reason && fetchPage && layout === 'grid' && (
           <V2DataGrid<WorkItem, typeof listQuery>
             columns={GRID_COLUMNS} fetchPage={fetchPage as never} query={listQuery} rowKey={item => item.id}
-            onRowOpen={item => request.onOpenCase(item.caseId)} rowLabel={item => `Open case ${item.caseNumber ?? ''} for ${item.title}`}
+            onRowOpen={openWork} onRows={rows.onRows} rowLabel={item => `Open case ${item.caseNumber ?? ''} for ${item.title}`}
             isFiltered={Boolean(query)} emptyTitle="Nothing in this queue right now." testId="v2-queue-grid"
           />
         )}
@@ -130,12 +139,12 @@ export function V2QueuePage({ request, fixedBucket, intro }: {
             <div className="v2-split-list">
               <V2DataGrid<WorkItem, typeof listQuery>
                 columns={SPLIT_COLUMNS} fetchPage={fetchPage as never} query={listQuery} rowKey={item => item.id}
-                onRowOpen={setSelected} selectedKey={selected?.id ?? ''} onSelectFirst={setSelected}
+                onRowOpen={setSelected} selectedKey={selected?.id ?? ''} onSelectFirst={setSelected} onRows={rows.onRows}
                 rowLabel={item => `Preview ${item.title}`}
                 isFiltered={Boolean(query)} emptyTitle="Nothing in this queue right now." height={560} testId="v2-queue-list" fitsWidth
               />
             </div>
-            <QueuePreview item={selected} onOpen={id => request.onOpenCase(id)} />
+            <QueuePreview item={selected} onOpen={() => { if (selected) openWork(selected); }} />
           </div>
         )}
       </Card>

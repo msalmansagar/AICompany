@@ -83,6 +83,8 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   window.localStorage.removeItem(VERSION_STORAGE_KEY);
+  // The work context is per tab (sessionStorage); a test must not inherit the previous test's list.
+  window.sessionStorage.clear();
   window.location.hash = '';
 });
 
@@ -297,6 +299,101 @@ describe.each(['v1', 'v2'] as const)('Complete from My Day (%s, WP4)', version =
 
     const pane = await screen.findByTestId('activity-dialog');
     expect([window.location.hash, within(pane).getByTestId('activity-dialog-context').textContent]).toEqual(['#myday', 'Case COL-HL-000123 · Call back about arrears']);
+  });
+});
+
+describe.each(['v1', 'v2'] as const)('working through a list from My Day (%s, WP5)', version => {
+  const CASE_2 = { ...CASE_ROW, qdb_collectioncaseid: 'c-2', qdb_casenumber: 'COL-HL-000200' };
+  const followUp = (id: string, caseId: string, caseNumber: string, over: Record<string, unknown> = {}) => ({
+    activityid: id, subject: `Call ${caseNumber}`, statecode: 0, qdb_followupdate: isoDay(-2), createdon: '2026-09-20T09:00:00Z',
+    _qdb_collectioncaseid_value: caseId, '_qdb_collectioncaseid_value@OData.Community.Display.V1.FormattedValue': caseNumber, ...over,
+  });
+  const LIST: Rows = { ...BASE, qdb_collectioncase: [CASE_ROW, CASE_2], qdb_collectionactivity: [followUp('f-1', 'c-1', 'COL-HL-000123'), followUp('f-2', 'c-2', 'COL-HL-000200')] };
+
+  async function openFirstFollowUp(rows: Rows) {
+    window.localStorage.setItem(VERSION_STORAGE_KEY, version);
+    install(rows);
+    window.location.hash = '#myday';
+    render(<App />);
+    const opener = version === 'v2'
+      ? await screen.findByRole('row', { name: /Open case COL-HL-000123/ }, { timeout: 5000 })
+      : await screen.findByText('COL-HL-000123', {}, { timeout: 5000 });
+    await userEvent.click(opener);
+    return screen.findByTestId('cw-worknav', {}, { timeout: 5000 });
+  }
+
+  it('says where the case sits in the list it came from, and names that list on Back', async () => {
+    const nav = await openFirstFollowUp(LIST);
+
+    expect([within(nav).getByTestId('cw-position-in-list').textContent, screen.getByTestId('cw-back').textContent, (screen.getByTestId('cw-previous') as HTMLButtonElement).disabled])
+      .toEqual(['1 of 2 · Overdue follow-ups', '← Back to Overdue follow-ups', true]);
+  });
+
+  it('moves to the next item of the same list after checking it still belongs there', async () => {
+    await openFirstFollowUp(LIST);
+
+    await userEvent.click(screen.getByTestId('cw-next'));
+
+    await waitFor(() => expect(window.location.hash).toBe('#case/c-2'));
+    expect((await screen.findByTestId('cw-position-in-list', {}, { timeout: 5000 })).textContent).toBe('2 of 2 · Overdue follow-ups');
+  });
+
+  it('skips an item completed elsewhere instead of opening it, and says so', async () => {
+    const stale = { ...LIST, qdb_collectionactivity: [followUp('f-1', 'c-1', 'COL-HL-000123'), followUp('f-2', 'c-2', 'COL-HL-000200', { statecode: 1 })] };
+    await openFirstFollowUp(stale);
+
+    await userEvent.click(screen.getByTestId('cw-next'));
+
+    const note = await screen.findByTestId('cw-worknav-note');
+    expect([window.location.hash, note.textContent]).toEqual(['#case/c-1', 'Skipped 1: COL-HL-000200 · Call COL-HL-000200 (it was completed or cancelled).']);
+  });
+
+  it('offers Complete & Next on the follow-up it came for, opening the activity pane at completion', async () => {
+    await openFirstFollowUp(LIST);
+
+    await userEvent.click(screen.getByTestId('cw-complete-next'));
+
+    expect((await screen.findByTestId('activity-dialog-context')).textContent).toBe('COL-HL-000123 · Call COL-HL-000123 · then the next item in Overdue follow-ups');
+  });
+
+  it('goes back to My Day with the list as it was', async () => {
+    await openFirstFollowUp(LIST);
+
+    await userEvent.click(screen.getByTestId('cw-back'));
+
+    await waitFor(() => expect(window.location.hash).toBe('#myday'));
+  });
+});
+
+describe('Previous/Next only where there is an order (WP5)', () => {
+  it('shows no work-list controls on a case opened by its link', async () => {
+    await openCase('v1');
+
+    expect([screen.queryByTestId('cw-worknav'), screen.getByTestId('cw-back').textContent]).toEqual([null, '← Collection Cases']);
+  });
+
+  it('ignores a list the officer has since left for another case', async () => {
+    window.sessionStorage.setItem('dcp.workContext', JSON.stringify({ originLabel: 'Overdue follow-ups', returnHash: '#myday', originKey: 'myday-followups', eligibility: { kind: 'followUps', window: 'overdue' }, items: [{ caseId: 'c-9', label: 'Other' }], index: 0, hasMore: false, listState: {} }));
+
+    await openCase('v2');
+
+    expect(screen.queryByTestId('cw-worknav')).toBeNull();
+  });
+});
+
+describe('Back restores the follow-up window (WP5)', () => {
+  it('puts Upcoming back after a case opened from Upcoming', async () => {
+    window.localStorage.setItem(VERSION_STORAGE_KEY, 'v2');
+    install({ ...BASE, qdb_collectionactivity: [{ activityid: 'u-1', subject: 'Call later', statecode: 0, qdb_followupdate: isoDay(3), createdon: '2026-09-20T09:00:00Z', _qdb_collectioncaseid_value: 'c-1', '_qdb_collectioncaseid_value@OData.Community.Display.V1.FormattedValue': 'COL-HL-000123' }] });
+    window.location.hash = '#myday';
+    render(<App />);
+    await userEvent.click(await screen.findByTestId('v2-chip-upcoming', {}, { timeout: 5000 }));
+    await userEvent.click(await screen.findByRole('row', { name: /Open case COL-HL-000123/ }, { timeout: 5000 }));
+    await screen.findByTestId('cw-worknav', {}, { timeout: 5000 });
+
+    await userEvent.click(screen.getByTestId('cw-back'));
+
+    expect((await screen.findByTestId('v2-chip-upcoming', {}, { timeout: 5000 })).getAttribute('aria-pressed')).toBe('true');
   });
 });
 

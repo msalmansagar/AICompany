@@ -57,6 +57,8 @@ export interface DataGridProps<T, Q extends object> {
    * selection the officer made.
    */
   onSelectFirst?: ((item: T) => void) | undefined;
+  /** Told what the list holds, in order, so opening a row can carry the list as work context. */
+  onRows?: ((rows: LoadedRows<T>) => void) | undefined;
   /** Shown when the query matched nothing. The approved empty states are per-screen wording. */
   emptyMessage?: string;
   enabled?: boolean;
@@ -94,12 +96,14 @@ export function DataGrid<T, Q extends object>({
   activation = 'lead',
   selectedKey,
   onSelectFirst,
+  onRows,
   emptyMessage = 'Nothing matches the current filters.',
   enabled = true,
   'data-testid': testId = 'data-grid',
 }: DataGridProps<T, Q>) {
   const paged = usePagedQuery<T, Q>({ fetchPage, query, pageSize, rowKey, enabled });
   useSelectFirst(paged.items, selectedKey, onSelectFirst);
+  useRowsReport(paged, onRows);
   const isWholeRowControl = activation === 'row' && onRowClick !== undefined;
   const linkKey = activation === 'lead' && onRowClick !== undefined ? (columns.find(column => column.isLink) ?? columns[0])?.key : undefined;
 
@@ -194,6 +198,21 @@ export function DataGrid<T, Q extends object>({
 }
 
 /** Selects the first row when there is one and nothing is selected yet. */
+/** What a list has loaded, in its order, for the work context a row opens (WP5). */
+export interface LoadedRows<T> {
+  items: readonly T[];
+  hasMore: boolean;
+  totalCount?: number;
+}
+
+/** Tells the list's owner what it holds whenever that changes. Read-only: the grid stays the owner. */
+export function useRowsReport<T>(state: { items: readonly T[]; hasMore: boolean; totalCount?: number }, onRows: ((rows: LoadedRows<T>) => void) | undefined): void {
+  const { items, hasMore, totalCount } = state;
+  useEffect(() => {
+    onRows?.({ items, hasMore, ...(totalCount !== undefined ? { totalCount } : {}) });
+  }, [items, hasMore, totalCount, onRows]);
+}
+
 export function useSelectFirst<T>(items: readonly T[], selectedKey: string | undefined, onSelectFirst: ((item: T) => void) | undefined): void {
   const first = items[0];
   const hasSelection = selectedKey !== undefined && selectedKey !== '';

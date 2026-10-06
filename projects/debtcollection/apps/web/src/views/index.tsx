@@ -20,6 +20,8 @@ import {
 import { useCrmSession, useOrg, useRole } from '../shell/context.js';
 import { CustomerLink, navigateTo } from '../shell/RecordLinks.js';
 import { CompleteFollowUpButton, useFollowUpCompletion } from './FollowUpCompletion.js';
+import { CASES_ORIGIN, casesContext, followUpContext, restoredWindow, useLoadedRows, useRestoredListState } from './workListContext.js';
+import { startWorkContext } from '../data/workContext.js';
 import type { ViewDefinition } from '../shell/routes.js';
 import { ListToolbar, SplitLayout, useListLayout } from '../components/listLayout.js';
 import { AuditEntryPreview, CasePreview } from './previews.js';
@@ -78,12 +80,22 @@ export function CasesView({ onOpenCase, scope = {} }: { onOpenCase?: (id: string
   const { scopeFilter } = useOrg();
   const [bucket, setBucket] = useState(scope.bucket ?? '');
   const [status, setStatus] = useState(scope.caseStatus ?? '');
-  const [search, setSearch] = useState('');
+  const restored = useRestoredListState(CASES_ORIGIN);
+  const [search, setSearch] = useState(restored['search'] ?? '');
   const [layout, chooseLayout] = useListLayout(CASES_LAYOUT_KEY);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [dialog, setDialog] = useState<CaseCommandDialog>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const scopeId = encodeScope(scope);
+  const rows = useLoadedRows<CaseRow>();
+  const openCase = (id: string) => {
+    if (!onOpenCase) return;
+    const loaded = rows.current();
+    const opened = loaded.items.find(row => row.id === id);
+    const term = search.trim();
+    if (opened) startWorkContext(casesContext(loaded, opened, { search: term, returnHash: window.location.hash || '#cases', listState: { search: term } }));
+    onOpenCase(id);
+  };
 
   useEffect(() => {
     setBucket(scope.bucket ?? '');
@@ -160,7 +172,8 @@ export function CasesView({ onOpenCase, scope = {} }: { onOpenCase?: (id: string
           rowKey={row => row.id}
           pageSize={50}
           emptyMessage="No open cases match these filters."
-          {...(onOpenCase ? { onRowClick: (row: CaseRow) => onOpenCase(row.id) } : {})}
+          {...(onOpenCase ? { onRowClick: (row: CaseRow) => openCase(row.id) } : {})}
+          onRows={rows.onRows}
           data-testid="cases-grid"
         />
       )}
@@ -180,6 +193,7 @@ export function CasesView({ onOpenCase, scope = {} }: { onOpenCase?: (id: string
               activation="row"
               onRowClick={row => setSelectedId(row.id)}
               onSelectFirst={row => setSelectedId(row.id)}
+              onRows={rows.onRows}
               emptyMessage="No open cases match these filters."
               data-testid="cases-list"
             />
@@ -187,7 +201,7 @@ export function CasesView({ onOpenCase, scope = {} }: { onOpenCase?: (id: string
           preview={(
             <CasePreview
               caseId={selectedId} reloadKey={reloadKey}
-              onOpen={id => onOpenCase?.(id)}
+              onOpen={openCase}
               onLogAction={() => setDialog('activity')}
               onCapturePromise={() => setDialog('promise')}
             />
@@ -393,10 +407,16 @@ function FollowUpsPanel({ onOpenCase }: { onOpenCase?: (id: string) => void }) {
   const { adapter } = useCrmSession();
   const { scopeFilter } = useOrg();
   const fetchPage = useMemo(() => createFollowUpQuery(adapter), [adapter]);
-  const [window, setWindow] = useState<FollowUpWindow>('overdue');
+  const [window, setWindow] = useState<FollowUpWindow>(() => restoredWindow());
   const [now] = useState(() => new Date());
 
   const completion = useFollowUpCompletion();
+  const rows = useLoadedRows<ActivityRow>();
+  const openRow = (row: ActivityRow) => {
+    if (!row.caseId || !onOpenCase) return;
+    startWorkContext(followUpContext(rows.current(), row, window));
+    onOpenCase(row.caseId);
+  };
   // The reload key is part of the question, so a completion re-reads the list from its first page.
   const query = useMemo<FollowUpQuery>(() => ({
     window, now, ...(scopeFilter ? { scopeFilter } : {}), reloadKey: completion.reloadKey,
@@ -427,9 +447,8 @@ function FollowUpsPanel({ onOpenCase }: { onOpenCase?: (id: string) => void }) {
       <DataGrid<ActivityRow, FollowUpQuery>
         columns={columns} fetchPage={fetchPage} query={query}
         rowKey={row => row.id} pageSize={50} height={320}
-        {...(onOpenCase
-          ? { onRowClick: (row: ActivityRow) => { if (row.caseId) onOpenCase(row.caseId); } }
-          : {})}
+        {...(onOpenCase ? { onRowClick: openRow } : {})}
+        onRows={rows.onRows}
         emptyMessage={
           window === 'overdue'
             ? 'Nothing is overdue. Follow-ups appear here once their date has passed.'

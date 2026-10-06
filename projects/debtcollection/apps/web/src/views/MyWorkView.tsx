@@ -12,6 +12,8 @@ import { Card, EmptyState, Icon, InfoBanner } from '../components/primitives.js'
 import { ListToolbar, SplitLayout, useListLayout } from '../components/listLayout.js';
 import { useCrmSession } from '../shell/context.js';
 import { CasePreview, PreviewHeading, PreviewPrompt } from './previews.js';
+import { QUEUE_ORIGIN, queueContext, useLoadedRows, useRestoredListState } from './workListContext.js';
+import { startWorkContext } from '../data/workContext.js';
 
 /**
  * My Work — one place to answer "what needs my attention now?".
@@ -90,6 +92,11 @@ const SPLIT_COLUMNS: readonly DataGridColumn<WorkItem>[] = [
 
 const LAYOUT_KEY = 'dcp.v1.queueLayout';
 
+/** The bucket Back puts back, when it is one of this view's; otherwise where the view opens. */
+function restoredBucket(restored: string | undefined, initial: OperationalBucket): OperationalBucket {
+  return BUCKETS.find(candidate => candidate === restored) ?? initial;
+}
+
 export function MyWorkView({ onOpenCase, initialBucket = 'MyAssigned' }: {
   onOpenCase?: (id: string) => void;
   /** The bucket to open on — a Workout view opens straight onto its own process. */
@@ -98,8 +105,16 @@ export function MyWorkView({ onOpenCase, initialBucket = 'MyAssigned' }: {
   const { adapter, context } = useCrmSession();
   // Read from the platform's own context, never assumed or passed in.
   const userId = context.userId;
-  const [bucket, setBucket] = useState<OperationalBucket>(initialBucket);
-  const [search, setSearch] = useState('');
+  const restored = useRestoredListState(QUEUE_ORIGIN);
+  const [bucket, setBucket] = useState<OperationalBucket>(() => restoredBucket(restored['bucket'], initialBucket));
+  const [search, setSearch] = useState(restored['search'] ?? '');
+  const rows = useLoadedRows<WorkItem>();
+  const openWork = (item: WorkItem) => {
+    if (!onOpenCase) return;
+    const scope = { bucket, ...(userId ? { currentUserId: userId } : {}), returnHash: window.location.hash || '#queues', search };
+    startWorkContext(queueContext(rows.current(), item, scope));
+    onOpenCase(item.caseId);
+  };
   const [layout, chooseLayout] = useListLayout(LAYOUT_KEY);
   const [selected, setSelected] = useState<WorkItem | undefined>(undefined);
   const [typeIds, setTypeIds] = useState<TypeIds | null>(null);
@@ -204,9 +219,8 @@ export function MyWorkView({ onOpenCase, initialBucket = 'MyAssigned' }: {
             pageSize={50}
             emptyMessage="Nothing in this list right now."
             data-testid="mywork-grid"
-            {...(onOpenCase
-              ? { onRowClick: (item: WorkItem) => onOpenCase(item.caseId) }
-              : {})}
+            onRows={rows.onRows}
+            {...(onOpenCase ? { onRowClick: openWork } : {})}
           />
         )}
         {available && fetchPage && layout === 'split' && (
@@ -225,11 +239,12 @@ export function MyWorkView({ onOpenCase, initialBucket = 'MyAssigned' }: {
                 activation="row"
                 onRowClick={setSelected}
                 onSelectFirst={setSelected}
+                onRows={rows.onRows}
                 emptyMessage="Nothing in this list right now."
                 data-testid="mywork-list"
               />
             )}
-            preview={<WorkItemPreview item={selected} {...(onOpenCase ? { onOpenCase } : {})} />}
+            preview={<WorkItemPreview item={selected} {...(onOpenCase ? { onOpenCase: () => { if (selected) openWork(selected); } } : {})} />}
           />
         )}
       </Card>
