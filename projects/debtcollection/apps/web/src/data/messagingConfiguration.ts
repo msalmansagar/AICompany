@@ -29,6 +29,17 @@ const MESSAGE_TABLES: Readonly<Record<MessageTable, { entitySet: string; partyCo
   letter: { entitySet: ENTITY_SETS.letter, partyCollection: PARTY_COLLECTIONS.letter, regardingToCase: NAVIGATION_PROPERTIES.letterToCase },
 };
 
+/**
+ * The column that says which channel a row is, and this channel's value in it — HL's `vrp_type` on
+ * Letter. Named by a `channelType` mapping; the values come from `qdb_featureflags`, because a
+ * mapping row has no column for a value: `{"messageChannelValues": {"SMS": 1, "WhatsApp": 2}}`.
+ */
+export interface ChannelMarker { column: string; value: string | number }
+
+/** The canonical field a mapping row uses to name the channel-type column. Not a message value. */
+export const CHANNEL_TYPE_FIELD = 'channelType';
+const CHANNEL_VALUES_FLAG = 'messageChannelValues';
+
 /** Everything needed to write or read one channel's messages in one organisation. */
 export interface MessageRoute {
   table: MessageTable;
@@ -36,6 +47,8 @@ export interface MessageRoute {
   partyCollection: string;
   regardingToCase: string;
   columns: Readonly<Partial<Record<MessageField, string>>>;
+  /** Written on every message this channel sends, and read back to tell the channels apart. */
+  channelMarker?: ChannelMarker;
 }
 
 export interface MessagingConfiguration {
@@ -82,16 +95,20 @@ async function readCommunicationMappings(adapter: XrmCrmAdapter, configurationId
 
 /** Builds both routes from the configuration row and its mappings, collecting every problem. */
 export function assemble(organization: string, configuration: CrmRow, mappings: readonly CrmRow[]): MessagingConfiguration {
-  const sms = buildRoute({ organization, channel: 'SMS', tableName: configuration['qdb_smsentity'], mappings });
-  const whatsApp = buildRoute({ organization, channel: 'WhatsApp', tableName: configuration['qdb_whatsappentity'], mappings });
+  const channelValues = readChannelValues(configuration);
+  const sms = buildRoute({ organization, channel: 'SMS', tableName: configuration['qdb_smsentity'], mappings, channelValues });
+  const built = buildRoute({ organization, channel: 'WhatsApp', tableName: configuration['qdb_whatsappentity'], mappings, channelValues });
+  const whatsApp = sms.route && built.route ? requireDistinguishable(organization, sms.route, built.route) : built;
   const problems = [sms.problem, whatsApp.problem].filter((problem): problem is string => problem !== undefined);
   return { organization, ...(sms.route ? { sms: sms.route } : {}), ...(whatsApp.route ? { whatsApp: whatsApp.route } : {}), problems };
 }
 
-interface RouteSource { organization: string; channel: 'SMS' | 'WhatsApp'; tableName: unknown; mappings: readonly CrmRow[] }
+type Channel = 'SMS' | 'WhatsApp';
+interface RouteSource { organization: string; channel: Channel; tableName: unknown; mappings: readonly CrmRow[]; channelValues: ChannelValues }
+type BuiltRoute = { route?: MessageRoute; problem?: string };
 
 /** One channel's route, or the reason it has none. */
-function buildRoute(source: RouteSource): { route?: MessageRoute; problem?: string } {
+function buildRoute(source: RouteSource): BuiltRoute {
   const { organization, channel, tableName, mappings } = source;
   const table = String(tableName ?? '').trim().toLowerCase();
   const setting = channel === 'SMS' ? 'qdb_smsentity' : 'qdb_whatsappentity';
@@ -100,7 +117,53 @@ function buildRoute(source: RouteSource): { route?: MessageRoute; problem?: stri
   const columns = columnsFor(table, mappings);
   const missing = REQUIRED_FIELDS.filter(field => !columns[field]);
   if (missing.length > 0) return { problem: `${channel} on ${table} for ${organization} has no Communication mapping for ${missing.join(', ')}.` };
-  return { route: { table, ...MESSAGE_TABLES[table], columns } };
+  const channelMarker = markerFor(table, source);
+  return { route: { table, ...MESSAGE_TABLES[table], columns, ...(channelMarker ? { channelMarker } : {}) } };
+}
+
+/**
+ * WhatsApp sharing SMS's table is only usable when something on the row says which it is: a channel
+ * marker, or a WhatsApp template column. Without one, a WhatsApp written by DCP would be read — and
+ * delivered — as an SMS, so the channel is unavailable until the organisation configures one.
+ */
+function requireDistinguishable(organization: string, sms: MessageRoute, whatsApp: MessageRoute): BuiltRoute {
+  if (sms.table !== whatsApp.table || whatsApp.channelMarker || whatsApp.columns.whatsAppTemplate) return { route: whatsApp };
+  return {
+    problem: `WhatsApp shares the ${whatsApp.table} table with SMS for ${organization}, and nothing marks which is which. `
+      + `Map ${CHANNEL_TYPE_FIELD} and record its values in ${CHANNEL_VALUES_FLAG}, or map whatsAppTemplate.`,
+  };
+}
+
+type ChannelValues = Readonly<Partial<Record<Channel, string | number>>>;
+
+/** The channel-type values recorded in the configuration's feature flags; none when unreadable. */
+function readChannelValues(configuration: CrmRow): ChannelValues {
+  const raw = String(configuration['qdb_featureflags'] ?? '').trim();
+  if (!raw) return {};
+  try {
+    const flags: unknown = JSON.parse(raw);
+    const values: unknown = isRecord(flags) ? flags[CHANNEL_VALUES_FLAG] : undefined;
+    return isRecord(values) ? { ...channelValue(values, 'SMS'), ...channelValue(values, 'WhatsApp') } : {};
+  } catch {
+    // Unreadable flags configure no marker; the channels then fall back to the distinguishability rule.
+    return {};
+  }
+}
+
+function channelValue(values: Record<string, unknown>, channel: Channel): ChannelValues {
+  const value = values[channel];
+  return typeof value === 'number' || (typeof value === 'string' && value.trim()) ? { [channel]: value } : {};
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** The marker for one channel: the mapped channel-type column on this table, and the channel's value. */
+function markerFor(table: MessageTable, source: RouteSource): ChannelMarker | undefined {
+  const value = source.channelValues[source.channel];
+  const row = source.mappings.find(mapping => String(mapping['qdb_canonicalfield'] ?? '').trim() === CHANNEL_TYPE_FIELD
+    && String(mapping['qdb_crmentitylogicalname'] ?? '').trim().toLowerCase() === table);
+  const column = String(row?.['qdb_crmfieldlogicalname'] ?? '').trim().toLowerCase();
+  return column && value !== undefined ? { column, value } : undefined;
 }
 
 const isMessageTable = (name: string): name is MessageTable => name === 'fax' || name === 'letter';
@@ -137,27 +200,37 @@ export function historyRoutes(messaging: MessagingConfiguration): readonly Messa
 
 /** The columns a history reads from a message table: native context plus the channel discriminator. */
 export function historyColumnsFor(messaging: MessagingConfiguration, route: MessageRoute): readonly string[] {
-  const template = discriminatorOf(messaging, route);
-  return template ? [...MESSAGE_BASE_COLUMNS, template] : [...MESSAGE_BASE_COLUMNS];
+  const discriminator = sharedTableWhatsApp(messaging, route);
+  const column = discriminator?.channelMarker?.column ?? discriminator?.columns.whatsAppTemplate;
+  return column ? [...MESSAGE_BASE_COLUMNS, column] : [...MESSAGE_BASE_COLUMNS];
 }
 
 /**
  * Which channel a message row is.
  *
- * When SMS and WhatsApp share a table, the WhatsApp template column tells them apart (QDB's Fax
- * convention). Where the organisation maps no template column, the row cannot be told apart and is
- * labelled as such rather than guessed.
+ * A table that carries one channel needs no discriminator. When SMS and WhatsApp share one, the
+ * channel marker decides (HL's `vrp_type`) — an empty marker is a row written before it existed,
+ * when everything on the table was SMS — or else the WhatsApp template column (QDB's Fax
+ * convention). A value nobody configured is labelled as unknown rather than guessed.
  */
 export function channelOfMessage(messaging: MessagingConfiguration, route: MessageRoute, row: CrmRow): string {
   const carriesSms = messaging.sms?.table === route.table;
-  const carriesWhatsApp = messaging.whatsApp?.table === route.table;
-  if (carriesSms && !carriesWhatsApp) return 'SMS';
-  if (carriesWhatsApp && !carriesSms) return 'WhatsApp';
-  const template = discriminatorOf(messaging, route);
-  if (!template) return 'SMS or WhatsApp';
-  return String(row[template] ?? '').trim() ? 'WhatsApp' : 'SMS';
+  const whatsApp = sharedTableWhatsApp(messaging, route);
+  if (carriesSms && !whatsApp) return 'SMS';
+  if (!whatsApp) return messaging.whatsApp?.table === route.table ? 'WhatsApp' : 'SMS';
+  if (whatsApp.channelMarker) return channelByMarker(whatsApp.channelMarker, messaging.sms?.channelMarker, row);
+  return String(row[whatsApp.columns.whatsAppTemplate ?? ''] ?? '').trim() ? 'WhatsApp' : 'SMS';
 }
 
-function discriminatorOf(messaging: MessagingConfiguration, route: MessageRoute): string | undefined {
-  return messaging.whatsApp?.table === route.table ? messaging.whatsApp.columns.whatsAppTemplate : undefined;
+/** The WhatsApp route when it shares this table with SMS; undefined when the table carries one channel. */
+function sharedTableWhatsApp(messaging: MessagingConfiguration, route: MessageRoute): MessageRoute | undefined {
+  const isShared = messaging.sms?.table === route.table && messaging.whatsApp?.table === route.table;
+  return isShared ? messaging.whatsApp : undefined;
+}
+
+function channelByMarker(whatsApp: ChannelMarker, sms: ChannelMarker | undefined, row: CrmRow): string {
+  const value = String(row[whatsApp.column] ?? '').trim();
+  if (value === String(whatsApp.value)) return 'WhatsApp';
+  if (!value || value === String(sms?.value ?? '')) return 'SMS';
+  return 'SMS or WhatsApp';
 }

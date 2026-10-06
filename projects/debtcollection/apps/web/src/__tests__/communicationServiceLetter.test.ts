@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { CommunicationRequest } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import { CommunicationService, RECIPIENT_PARTY_MASK, type SendContext } from '../services/communicationService.js';
-import { FAX_MESSAGING, LETTER_MESSAGING } from './messagingFixtures.js';
+import { assemble } from '../data/messagingConfiguration.js';
+import {
+  communicationMappings, configurationRow, FAX_MESSAGING, LETTER_CHANNEL_VALUES, LETTER_COLUMN_MAP, LETTER_MESSAGING,
+  TYPED_LETTER_MESSAGING,
+} from './messagingFixtures.js';
 
 /**
  * A Housing Loan SMS is a Letter: written to `letters`, its mobile in `vrp_address`, its text in
@@ -65,6 +69,46 @@ describe('CommunicationService.send — Housing Loan Letter', () => {
     const { adapter, creates } = recordingAdapter();
     const outcome = await new CommunicationService(adapter).send('act-1', SMS, context({ organization: 'HL', problems: ['SMS has no table configured for HL (qdb_smsentity).'] }));
     expect([outcome.status, creates.length]).toEqual(['refused', 0]);
+  });
+});
+
+describe('CommunicationService.send — the Letter channel marker (vrp_type)', () => {
+  const WHATSAPP: CommunicationRequest = { ...SMS, channel: 'WhatsApp', whatsAppTemplate: 'overdue_reminder', language: 'en' };
+  const WHATSAPP_READY = assemble(
+    'HL',
+    { ...configurationRow('cfg-hl', 'letter', 'letter'), qdb_featureflags: JSON.stringify({ messageChannelValues: LETTER_CHANNEL_VALUES }) },
+    communicationMappings('cfg-hl', 'letter', { ...LETTER_COLUMN_MAP, channelType: 'vrp_type', whatsAppTemplate: 'vrp_template', language: 'vrp_language' }));
+
+  it('send_SmsWithChannelType_StampsTheSmsValue', async () => {
+    const { adapter, creates } = recordingAdapter();
+    await new CommunicationService(adapter).send('act-4', SMS, context(TYPED_LETTER_MESSAGING));
+    expect(creates[0]!.payload['vrp_type']).toBe(LETTER_CHANNEL_VALUES.SMS);
+  });
+
+  it('send_SmsWithoutChannelType_WritesNoMarker', async () => {
+    const { adapter, creates } = recordingAdapter();
+    await new CommunicationService(adapter).send('act-5', SMS, context(LETTER_MESSAGING));
+    expect(creates[0]!.payload).not.toHaveProperty('vrp_type');
+  });
+
+  it('send_WhatsAppWhereNothingMarksIt_RefusesAndWritesNothing', async () => {
+    const { adapter, creates } = recordingAdapter();
+    const outcome = await new CommunicationService(adapter).send('act-6', WHATSAPP, context(LETTER_MESSAGING));
+    expect([outcome.status, creates.length]).toEqual(['refused', 0]);
+  });
+
+  it('send_WhatsAppWithNoTemplateColumn_RefusesWithTheReason', async () => {
+    const { adapter, creates } = recordingAdapter();
+    const outcome = await new CommunicationService(adapter).send('act-7', WHATSAPP, context(TYPED_LETTER_MESSAGING));
+    expect([outcome.status === 'refused' ? outcome.refusals[0]!.message : '', creates.length])
+      .toEqual([expect.stringContaining('whatsAppTemplate'), 0]);
+  });
+
+  it('send_WhatsAppFullyConfigured_StampsTheWhatsAppValue', async () => {
+    const { adapter, creates } = recordingAdapter();
+    await new CommunicationService(adapter).send('act-8', WHATSAPP, context(WHATSAPP_READY));
+    expect([creates[0]!.entitySet, creates[0]!.payload['vrp_type'], creates[0]!.payload['vrp_template']])
+      .toEqual(['letters', LETTER_CHANNEL_VALUES.WhatsApp, 'overdue_reminder']);
   });
 });
 

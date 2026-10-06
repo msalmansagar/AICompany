@@ -37,5 +37,13 @@ export function communicationMappings(configurationId: string, table: string, co
 export const FAX_MESSAGING: MessagingConfiguration = assemble(
   'BFD', configurationRow('cfg-bfd', 'fax', 'fax'), communicationMappings('cfg-bfd', 'fax', FAX_COLUMN_MAP));
 
+/** HL today: Letter named for both channels, nothing marking which is which — so SMS only. */
 export const LETTER_MESSAGING: MessagingConfiguration = assemble(
   'HL', configurationRow('cfg-hl', 'letter', 'letter'), communicationMappings('cfg-hl', 'letter', LETTER_COLUMN_MAP));
+
+/** HL once WhatsApp is enabled: `vrp_type` marks the channel, with the values in the feature flags. */
+export const LETTER_CHANNEL_VALUES = { SMS: 100000000, WhatsApp: 100000001 } as const;
+export const TYPED_LETTER_MESSAGING: MessagingConfiguration = assemble(
+  'HL',
+  { ...configurationRow('cfg-hl', 'letter', 'letter'), qdb_featureflags: JSON.stringify({ messageChannelValues: LETTER_CHANNEL_VALUES }) },
+  communicationMappings('cfg-hl', 'letter', { ...LETTER_COLUMN_MAP, channelType: 'vrp_type' }));

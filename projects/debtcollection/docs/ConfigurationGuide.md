@@ -93,9 +93,27 @@ why it is configuration and not code: each organisation maps its own.
 
 The customer is linked to the message through the table's native **To** party (`letter_activity_parties` /
 `fax_activity_parties`); the case through `regardingobjectid`. The native preference that governs a
-message is the table's: **do not send postal mail** on HL, **do not fax** on BFD. Where SMS and WhatsApp
-share a table, `whatsAppTemplate` tells them apart; HL maps none, so its history labels such rows
-"SMS or WhatsApp" — **how HL marks a WhatsApp letter is still to be confirmed.**
+message is the table's: **do not send postal mail** on HL, **do not fax** on BFD.
+
+**Telling SMS from WhatsApp on one table.** BFD's Fax uses `whatsAppTemplate`: a row with a template
+is WhatsApp. HL's Letter uses **`vrp_type`**: map it as `channelType` and record its two values in the
+configuration's `qdb_featureflags` as `{"messageChannelValues": {"SMS": <value>, "WhatsApp": <value>}}`.
+DCP then writes the value on every Letter it creates, and reads it back in history; a Letter with no
+`vrp_type` was written before the marker existed and reads as SMS. **Where SMS and WhatsApp share a
+table and nothing marks which is which, WhatsApp is unavailable** — a WhatsApp nobody can tell from an
+SMS would be delivered as one.
+
+**HL today is SMS-only** (`qdb_whatsappentity` empty; seed with `--sms-only`). To enable WhatsApp once
+HL's gateway sends it:
+
+```
+node crm/scripts/seed-messaging-configuration.mjs --organization=HL --table=letter \
+  --map=recipientNumber:vrp_address,messageBody:vrp_description,channelType:vrp_type,whatsAppTemplate:<column> \
+  --channel-values=SMS:<value>,WhatsApp:<value> [--execute]
+```
+
+A WhatsApp message needs its registered template name, so Letter also needs a column for it, mapped as
+`whatsAppTemplate`; without one a WhatsApp send is refused with that reason. No redeploy is needed.
 
 ## 3. `qdb_platformmapping` — normalised child rows (MP §14)
 

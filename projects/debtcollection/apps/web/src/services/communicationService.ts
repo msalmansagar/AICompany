@@ -4,7 +4,7 @@ import {
 } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import { ENTITY_SETS, NAVIGATION_PROPERTIES, PARTY_COLLECTIONS, bindLookup } from '../data/schema.js';
-import { routeFor, type MessageRoute, type MessagingConfiguration } from '../data/messagingConfiguration.js';
+import { routeFor, type ChannelMarker, type MessageRoute, type MessagingConfiguration } from '../data/messagingConfiguration.js';
 import { describeFailure } from '../platform/errors.js';
 
 /**
@@ -32,6 +32,8 @@ interface WriteTarget {
   partyCollection: string;
   regardingToCase: string;
   columns: Readonly<Record<string, string>>;
+  /** HL's `vrp_type`: stamped on every message so SMS and WhatsApp on one table stay apart. */
+  channelMarker?: ChannelMarker;
 }
 
 const EMAIL_TARGET: WriteTarget = {
@@ -48,6 +50,7 @@ function messageTarget(route: MessageRoute): WriteTarget {
     partyCollection: route.partyCollection,
     regardingToCase: route.regardingToCase,
     columns: { subject: 'subject', ...route.columns },
+    ...(route.channelMarker ? { channelMarker: route.channelMarker } : {}),
   };
 }
 
@@ -197,20 +200,20 @@ export class CommunicationService {
   }
 }
 
-/**
- * Translates a plan into the native payload.
- *
- * A canonical name with no column mapped for this entity is a programming error, not a value to pass
- * through — the platform would reject it with a message about an undeclared property, which is a
- * slow way to learn about a typo.
- */
 /** The plan's fields this target has no column for. `send` refuses on any, before writing. */
 function unmappedFields(plan: CommunicationWritePlan, target: WriteTarget): readonly string[] {
   return Object.keys(plan.fields).filter(name => !target.columns[name]);
 }
 
+/**
+ * Translates a plan into the native payload, with the channel marker when the target has one.
+ *
+ * A canonical name with no column mapped for this entity is a programming error, not a value to pass
+ * through — the platform would reject it with a message about an undeclared property, which is a
+ * slow way to learn about a typo.
+ */
 export function toNativePayload(plan: CommunicationWritePlan, target: WriteTarget): Record<string, unknown> {
-  const payload: Record<string, unknown> = {};
+  const payload: Record<string, unknown> = target.channelMarker ? { [target.channelMarker.column]: target.channelMarker.value } : {};
 
   for (const [name, value] of Object.entries(plan.fields)) {
     const column = target.columns[name];
