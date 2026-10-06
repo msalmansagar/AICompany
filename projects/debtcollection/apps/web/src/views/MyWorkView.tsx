@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { OwnerLabel } from '../components/OwnerLabel.js';
 import {
   describeBucket, describeCount, describeWorkType, unknownCount,
   type OperationalBucket, type WorkCount, type WorkItem,
@@ -73,7 +74,7 @@ const COLUMNS: readonly DataGridColumn<WorkItem>[] = [
      */
     render: item => (item.createdOn ? item.createdOn.slice(0, 16).replace('T', ' ') : '—'),
   },
-  { key: 'owner', header: 'With', width: '160px', render: item => item.ownerName ?? 'Nobody yet' },
+  { key: 'owner', header: 'With', width: '160px', render: item => <OwnerLabel ownerId={item.ownerId} ownerName={item.ownerName} /> },
   { key: 'state', header: 'State', width: '180px', render: item => item.domainState ?? '—' },
 ];
 
@@ -259,7 +260,7 @@ function WorkItemPreview({ item, onOpenCase }: { item: WorkItem | undefined; onO
     <div data-testid="mywork-preview" data-work-id={item.id}>
       <div className="preview">
         <PreviewHeading eyebrow={describeWorkType(item.type)} title={item.title}>
-          <p className="preview-sub">With {item.ownerName ?? 'nobody yet'} · {item.domainState ?? '—'}</p>
+          <p className="preview-sub">With <OwnerLabel ownerId={item.ownerId} ownerName={item.ownerName} /> · {item.domainState ?? '—'}</p>
         </PreviewHeading>
       </div>
       <CasePreview caseId={item.caseId} onOpen={id => onOpenCase?.(id)} testId="mywork-case-preview" />

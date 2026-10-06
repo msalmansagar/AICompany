@@ -196,8 +196,10 @@ function CaseCommunications({ caseId, initialChannel, onSent }: {
         <div className="field-error" data-testid="hold-blocked">{hold.explanation}</div>
       )}
       {messaging && !messaging.sms && (
-        <div className="field-error" data-testid="messaging-unconfigured">
-          SMS cannot be sent on this case: {messaging.problems.join(' ')}
+        // The officer reads the business fact; the configuration detail (which table, which mapping) is
+        // an administrator's, so it is kept for the hover text rather than said in table names (WP6).
+        <div className="field-error" data-testid="messaging-unconfigured" title={messaging.problems.join(' ')}>
+          SMS is not set up for this organisation yet, so it cannot be sent on this case. Ask your administrator to check the messaging configuration.
         </div>
       )}
       {hold && messaging && (

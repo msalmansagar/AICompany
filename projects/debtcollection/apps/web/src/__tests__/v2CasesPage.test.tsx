@@ -498,7 +498,8 @@ describe('choosing a case in Split', () => {
     expect(stats).toContain('StrategyDEMO-Early stage — soft contact');
     expect(details).toContain('Customer typeIndividual');
     expect(details).toContain('OwnerTester');
-    expect(within(preview).getByTestId('v2-preview-sub').textContent).toBe('DEMO-HL-1000 · facility FAC-0011 · Building Housing');
+    // An HL unit is a Loan Account, never a facility (WP6 terminology sweep).
+    expect(within(preview).getByTestId('v2-preview-sub').textContent).toBe('DEMO-HL-1000 · Loan Account FAC-0011 · Building Housing');
     expect(within(preview).getByTestId('balances-as-of').textContent).toMatch(/^Balances as of \d{1,2} \w+ \d{4}$/);
   });
 

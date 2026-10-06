@@ -102,6 +102,7 @@ export async function loadDeceasedReview(
     ...(activity.status !== undefined ? { status: activity.status } : {}),
     ...(activity.createdOn !== undefined ? { recordedOn: activity.createdOn } : {}),
     ...(activity.ownerName !== undefined ? { ownerName: activity.ownerName } : {}),
+    ...(activity.ownerId !== undefined ? { ownerId: activity.ownerId } : {}),
     ...(activity.subject !== undefined ? { notes: activity.subject } : {}),
   };
 }

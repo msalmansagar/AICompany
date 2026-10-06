@@ -5,6 +5,8 @@ import { ROLE_LABELS, useCrmSession, useOrg, useRole } from './context.js';
 import { activeNavigationId, navigationFor, navigationSectionOf, pageTitleOf, type NavigationGroup } from './navigation.js';
 import type { RoleKey } from './routes.js';
 import { useHashRoute } from './useHashRoute.js';
+import { announceHandedOverSearch, handOverSearch } from '../data/workContext.js';
+import { initialsOf } from '../components/initials.js';
 
 /** The rail's collapsed state, remembered in this browser — a convenience, never state that matters. */
 export const NAV_COLLAPSED_KEY = 'dcp.v1.navCollapsed';
@@ -77,10 +79,7 @@ export function AppShell({ commands, children }: AppShellProps) {
           own chrome marks the environment.
         */}
 
-        <div className="header-search">
-          <Icon name="search" />
-          <input type="search" placeholder="Search customer, case or QID" aria-label="Search" />
-        </div>
+        <HeaderSearch onSearch={term => searchCases(term, route.view.id === 'cases', route.go)} />
 
         <div className="role-pick" title="The working role. Presentation only — CRM security decides what you may read.">
           <span className="rp-lbl">Role</span>
@@ -140,13 +139,31 @@ export function AppShell({ commands, children }: AppShellProps) {
   );
 }
 
-/** The avatar shows initials, as the prototype does — a full name does not fit a 28px circle. */
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  const first = parts[0]![0] ?? '';
-  const last = parts.length > 1 ? parts[parts.length - 1]![0] ?? '' : '';
-  return (first + last).toUpperCase();
+/**
+ * The header search (WP6; it used to do nothing). Enter takes the term to Collection Cases, which
+ * searches case number and customer id there — V1's identifier search — and a row opens the case.
+ */
+function HeaderSearch({ onSearch }: { onSearch: (term: string) => void }) {
+  const [term, setTerm] = useState('');
+  return (
+    <form className="header-search" role="search" onSubmit={event => { event.preventDefault(); if (term.trim()) onSearch(term.trim()); }}>
+      <Icon name="search" />
+      <input
+        type="search" placeholder="Case number or customer id" aria-label="Search collection cases by case number or customer id"
+        value={term} onChange={event => setTerm(event.target.value)} data-testid="header-search"
+      />
+    </form>
+  );
+}
+
+/**
+ * Hands the term to Collection Cases. On another page the route change mounts the list, which takes
+ * it; on Collection Cases itself the route does not change, so the open list is told instead.
+ */
+function searchCases(term: string, isOnCases: boolean, go: (viewId: string) => void): void {
+  handOverSearch(term);
+  if (isOnCases) announceHandedOverSearch();
+  else go('cases');
 }
 
 /**

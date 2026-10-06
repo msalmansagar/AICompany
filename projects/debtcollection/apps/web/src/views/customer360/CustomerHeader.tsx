@@ -4,6 +4,7 @@ import type { PromisePerformance } from '../../data/customerAggregate.js';
 import { BucketBadge } from '../../components/StatusBadge.js';
 import { formatCount, formatMoney } from '../../components/primitives.js';
 import type { SectionState } from '../../components/SectionBoundary.js';
+import { initialsOf } from '../../components/initials.js';
 
 /**
  * Who the customer is, compactly: initials, the name exactly as CRM holds it, where the customer
@@ -75,6 +76,3 @@ export function describePromises(state: SectionState<PromisePerformance>): strin
   return `${formatCount(state.data.kept)} of ${formatCount(state.data.recorded)}`;
 }
 
-function initialsOf(name: string): string {
-  return name.split(/\s+/).filter(Boolean).map(part => part[0]).slice(0, 2).join('').toUpperCase() || '·';
-}

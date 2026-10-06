@@ -153,10 +153,17 @@ describe('every Phase 5 view in the route table has an implementation', () => {
   /** Controls for functionality that does not exist are not offered, even disabled. */
   it('offers no Refer to legal or Propose restructure command', async () => {
     await openView('restructure');
-    await screen.findByTestId('cmd-log-action');
+    await screen.findByTestId('cmd-refresh');
 
     expect([screen.queryByTestId('cmd-refer-to-legal'), screen.queryByTestId('cmd-propose-restructure')])
       .toEqual([null, null]);
+  });
+
+  it('keeps case commands off the global command bar — the case action bar does them in place (WP6)', async () => {
+    await openView('restructure');
+    await screen.findByTestId('cmd-refresh');
+
+    expect(['cmd-log-action', 'cmd-capture-ptp', 'cmd-send-message'].map(id => screen.queryByTestId(id))).toEqual([null, null, null]);
   });
 
   it('says restructuring is parked by QDB, not waiting on a phase', async () => {

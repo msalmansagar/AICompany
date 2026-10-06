@@ -397,6 +397,32 @@ describe('Back restores the follow-up window (WP5)', () => {
   });
 });
 
+describe('the V1 header search works (WP6; it used to do nothing)', () => {
+  it('takes the term to Collection Cases, which searches with it', async () => {
+    window.localStorage.setItem(VERSION_STORAGE_KEY, 'v1');
+    install(BASE);
+    window.location.hash = '#myday';
+    render(<App />);
+
+    await userEvent.type(await screen.findByTestId('header-search', {}, { timeout: 5000 }), 'COL-HL-000123{Enter}');
+
+    await waitFor(() => expect(window.location.hash).toBe('#cases'));
+    expect(((await screen.findByTestId('filter-search', {}, { timeout: 5000 })) as HTMLInputElement).value).toBe('COL-HL-000123');
+  });
+
+  it('searches the open list when Collection Cases is already showing', async () => {
+    window.localStorage.setItem(VERSION_STORAGE_KEY, 'v1');
+    install(BASE);
+    window.location.hash = '#cases';
+    render(<App />);
+    await screen.findByTestId('filter-search', {}, { timeout: 5000 });
+
+    await userEvent.type(screen.getByTestId('header-search'), '289{Enter}');
+
+    await waitFor(() => expect((screen.getByTestId('filter-search') as HTMLInputElement).value).toBe('289'));
+  });
+});
+
 describe('Customer 360 from the case, and back (WP4)', () => {
   it('opens on the case it came from and offers one click back to it', async () => {
     await openCase('v1');

@@ -104,6 +104,32 @@ export function takeRestoredState(originKey: string): Readonly<Record<string, st
   }
 }
 
+// ── Header search (V1): the term travels to Collection Cases once ────────────
+
+const SEARCH_KEY = 'dcp.search.handover';
+
+export function handOverSearch(term: string): void {
+  try { window.sessionStorage.setItem(SEARCH_KEY, term); } catch { /* tolerated: the list opens unsearched */ }
+}
+
+/** Told to a Cases list that is already open, which then takes the term (the route does not change). */
+export const SEARCH_HANDED_OVER = 'dcp:search-handed-over';
+
+export function announceHandedOverSearch(): void {
+  window.dispatchEvent(new Event(SEARCH_HANDED_OVER));
+}
+
+/** The header's term, once; the list owns the search from then on. */
+export function takeHandedOverSearch(): string {
+  try {
+    const term = window.sessionStorage.getItem(SEARCH_KEY) ?? '';
+    window.sessionStorage.removeItem(SEARCH_KEY);
+    return term;
+  } catch {
+    return '';
+  }
+}
+
 // ── Position ─────────────────────────────────────────────────────────────────
 
 /** "3 of 18 · Overdue follow-ups"; "3 of 18+ …" when the list had more than it had loaded. */

@@ -8,7 +8,7 @@ import { readLayout, writeLayout, type ListLayout } from '../../../data/layoutPr
 import { useDebounced } from '../../hooks/useDebounced.js';
 import { Card, EmptyState, ErrorState, KeyValueList, LoadingSkeleton } from '../../components/primitives.js';
 import { V2DataGrid, type V2Column } from '../../components/V2DataGrid.js';
-import { initialsOf } from '../case/CaseHeader.js';
+import { initialsOf } from '../../../components/initials.js';
 
 /**
  * Customers with arrears, V2 — the Customer 360 landing list, in the same two layouts as Collection

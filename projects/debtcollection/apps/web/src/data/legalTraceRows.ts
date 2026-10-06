@@ -46,6 +46,8 @@ export interface LegalTraceRow {
   recordedOn: string;
   /** Who holds the collection work. Never the Litigation Request's owner. */
   ownerName: string;
+  /** Their id, so an integration user reads as "System". */
+  ownerId?: string;
   /** The activity's own status or outcome — Collection's, not Legal's. */
   activityStatus: string;
   /** Whether the strategy asked for this recommendation, or an officer did. */
@@ -138,6 +140,7 @@ function toLegalTraceRow(
     recommendation: activity.subject,
     recordedOn: activity.createdOn ? context.formatDate(activity.createdOn) : '—',
     ownerName: activity.ownerName ?? 'Nobody yet',
+    ...(activity.ownerId !== undefined ? { ownerId: activity.ownerId } : {}),
     activityStatus: activity.status ?? 'Open',
     origin: context.describeOrigin(activity),
     trace,

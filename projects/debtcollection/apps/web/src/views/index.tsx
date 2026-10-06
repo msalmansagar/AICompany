@@ -21,7 +21,8 @@ import { useCrmSession, useOrg, useRole } from '../shell/context.js';
 import { CustomerLink, navigateTo } from '../shell/RecordLinks.js';
 import { CompleteFollowUpButton, useFollowUpCompletion } from './FollowUpCompletion.js';
 import { CASES_ORIGIN, casesContext, followUpContext, restoredWindow, useLoadedRows, useRestoredListState } from './workListContext.js';
-import { startWorkContext } from '../data/workContext.js';
+import { SEARCH_HANDED_OVER, startWorkContext, takeHandedOverSearch } from '../data/workContext.js';
+import { financialUnitTerms } from '../data/financialUnit.js';
 import type { ViewDefinition } from '../shell/routes.js';
 import { ListToolbar, SplitLayout, useListLayout } from '../components/listLayout.js';
 import { AuditEntryPreview, CasePreview } from './previews.js';
@@ -43,7 +44,8 @@ const CASE_COLUMNS: readonly DataGridColumn<CaseRow>[] = [
   { key: 'case', header: 'Case', width: '160px', render: r => <span className="row-lead"><BucketBar bucket={r.bucket} />{r.caseNumber}</span> },
   { key: 'org', header: 'CRM', width: '70px', render: r => <OrgBadge org={r.organization} /> },
   { key: 'customer', header: 'Customer', width: '150px', render: r => <CustomerLink customerBusinessId={r.customerBusinessId}>{r.customerBusinessId}</CustomerLink> },
-  { key: 'facility', header: 'Facility', width: '140px', render: r => r.facilityNumber },
+  // One list holds HL and BFD rows: the header names both units, each row says which it is.
+  { key: 'facility', header: 'Loan Account / Facility', width: '170px', render: r => <span title={financialUnitTerms(r.sourceSystem).noun}>{r.facilityNumber}</span> },
   { key: 'bucket', header: 'Bucket', width: '110px', render: r => <BucketPill bucket={r.bucket} /> },
   { key: 'dpd', header: 'DPD', width: '70px', render: r => formatCount(r.dpd) },
   { key: 'arrears', header: 'Overdue', width: '130px', render: r => formatMoney(r.totalArrears) },
@@ -81,7 +83,8 @@ export function CasesView({ onOpenCase, scope = {} }: { onOpenCase?: (id: string
   const [bucket, setBucket] = useState(scope.bucket ?? '');
   const [status, setStatus] = useState(scope.caseStatus ?? '');
   const restored = useRestoredListState(CASES_ORIGIN);
-  const [search, setSearch] = useState(restored['search'] ?? '');
+  const [search, setSearch] = useState(() => takeHandedOverSearch() || (restored['search'] ?? ''));
+  useHandedOverSearch(setSearch);
   const [layout, chooseLayout] = useListLayout(CASES_LAYOUT_KEY);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [dialog, setDialog] = useState<CaseCommandDialog>(null);
@@ -214,6 +217,15 @@ export function CasesView({ onOpenCase, scope = {} }: { onOpenCase?: (id: string
       />
     </>
   );
+}
+
+/** A header search made while this list is already open (the route does not change). */
+function useHandedOverSearch(setSearch: (term: string) => void): void {
+  useEffect(() => {
+    const take = () => { const term = takeHandedOverSearch(); if (term) setSearch(term); };
+    window.addEventListener(SEARCH_HANDED_OVER, take);
+    return () => window.removeEventListener(SEARCH_HANDED_OVER, take);
+  }, [setSearch]);
 }
 
 /** A source system named by the scope narrows the list even when the header picker says both. */

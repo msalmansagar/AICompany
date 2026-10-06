@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { OwnerLabel } from '../components/OwnerLabel.js';
 import {
   explainLegalWait, litigationExists, type LegalWorkState, type LegalWorkStateName,
 } from '@dcp/domain';
@@ -114,7 +115,7 @@ export function CaseLegalTrace({ caseId, organization, episodeNumber, customer }
                 )}
               </td>
               <td>{row.recordedOn}</td>
-              <td>{row.ownerName}</td>
+              <td><OwnerLabel ownerId={row.ownerId} ownerName={row.ownerName} /></td>
               <td>{row.origin}</td>
               <td><span className={legalTone(row.trace.state)}>{row.trace.label}</span></td>
               <td><LitigationCell trace={row.trace} /></td>

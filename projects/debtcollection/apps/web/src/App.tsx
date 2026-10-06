@@ -109,7 +109,7 @@ export function App() {
 function Workspace() {
   const route = useHashRoute();
   return (
-    <AppShell commands={<Commands view={route.view} recordId={route.recordId} go={route.go} />}>
+    <AppShell commands={<Commands view={route.view} />}>
       <ViewHost
         view={route.view}
         {...(route.recordId !== undefined ? { recordId: route.recordId } : {})}
@@ -206,41 +206,16 @@ function UnroutedView({ view }: { view: ViewDefinition }) {
 }
 
 /**
- * The approved command bar. Later-phase commands stay visible and disabled rather than vanishing.
+ * The global command bar. Later-phase commands stay visible and disabled rather than vanishing.
  *
- * **Log action and Capture PTP act on a case, and the command bar is global**, so they are enabled
- * only where a case is open and they take the user to the tab that does the work. Enabling them
- * everywhere would mean either picking a case for the user or opening a form with nowhere to save
- * to; disabling them on the case view, where the capability plainly exists, would be the opposite
- * lie. The tooltip says which it is.
+ * Log action, Capture PTP and Send message are no longer here (WP6): they only ever jumped to a case
+ * tab, and the Case Workspace's own action bar now opens each of them in place on the case. A global
+ * bar has no case to act on, so offering them here could only duplicate or mislead.
  */
-function Commands({ view, recordId, go }: {
-  view: ViewDefinition;
-  recordId?: string | undefined;
-  go: (viewId: string, recordId?: string, tab?: string) => void;
-}) {
-  const onCase = view.id === 'case' && Boolean(recordId);
+function Commands({ view }: { view: ViewDefinition }) {
   return (
     <>
       <Command icon="refresh" label="Refresh" onClick={() => window.location.reload()} />
-      <Command
-        icon="add" label="Log action"
-        {...(onCase
-          ? { onClick: () => go('case', recordId, 'actions') }
-          : { disabledReason: 'Open a case to log an action against it' })}
-      />
-      <Command
-        icon="promise" label="Capture PTP"
-        {...(onCase
-          ? { onClick: () => go('case', recordId, 'ptp') }
-          : { disabledReason: 'Open a case to capture a promise against it' })}
-      />
-      <Command
-        icon="send" label="Send message"
-        {...(onCase
-          ? { onClick: () => go('case', recordId, 'comms') }
-          : { disabledReason: 'Open a case to message its customer' })}
-      />
       {/*
         * No "Propose restructure" or "Refer to legal" here (Phase 9). Restructuring is parked by QDB
         * and a Legal hand-off waits on QDB's qualification rule, so both would be controls for

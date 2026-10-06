@@ -9,6 +9,7 @@ import {
 } from '../components/primitives.js';
 import { useCrmSession } from '../shell/context.js';
 import { CaseLink, CustomerLink } from '../shell/RecordLinks.js';
+import { financialUnitTerms } from '../data/financialUnit.js';
 import { describeFailure } from '../platform/errors.js';
 
 /**
@@ -70,7 +71,7 @@ export function CasePreview({ caseId, reloadKey = 0, onOpen, onLogAction, onCapt
             <CustomerLink customerBusinessId={detail.customerBusinessId}>{name}</CustomerLink>
           </h3>
           <p className="preview-sub">
-            <CaseLink caseId={detail.id}>{detail.caseNumber}</CaseLink> · facility {detail.facilityNumber}{detail.productDescription ? ` · ${detail.productDescription}` : ''}
+            <CaseLink caseId={detail.id}>{detail.caseNumber}</CaseLink> · {financialUnitTerms(detail.sourceSystem).noun} {detail.facilityNumber}{detail.productDescription ? ` · ${detail.productDescription}` : ''}
           </p>
           <p className="row-actions">
             <BucketPill bucket={detail.bucket} /><StatusPill status={detail.status} /><OrgBadge org={detail.organization} />

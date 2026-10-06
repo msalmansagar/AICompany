@@ -5,6 +5,7 @@ import { ROLE_LABELS, useCrmSession, useOrg, useRole } from '../../shell/context
 import type { Route } from '../../shell/useHashRoute.js';
 import { useWorkspaceVersion } from '../version/WorkspaceVersionRoot.js';
 import { activeNavigationId, navigationFor, navigationSectionOf, pageTitleOf } from '../../shell/navigation.js';
+import { initialsOf } from '../../components/initials.js';
 
 /**
  * The V2 application shell: navy navigation rail, a sticky header, and the page.
@@ -231,10 +232,6 @@ export function VersionSwitch() {
 const SCOPE_LABELS: Readonly<Record<string, string>> = {
   all: 'HL + BFD', HL: 'Housing Loan', BFD: 'BFD',
 };
-
-function initialsOf(name: string): string {
-  return name.split(/\s+/).filter(Boolean).map(part => part[0]).slice(0, 2).join('').toUpperCase() || '·';
-}
 
 /** A per-browser convenience; blocked storage simply means the default. */
 function readFlag(key: string): boolean {

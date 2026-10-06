@@ -3,6 +3,7 @@ import { describeBucket, describeCount, describeWorkType, type OperationalBucket
 import { createWorkQueue, loadTypeIds, type TypeIds, type WorkQueueRequest } from '../../../data/operationalQueue.js';
 import { formatCount, formatMoney } from '../../../components/primitives.js';
 import { BalancesAsOf } from '../../../components/BalancesAsOf.js';
+import { OwnerLabel } from '../../../components/OwnerLabel.js';
 import { useCrmSession } from '../../../shell/context.js';
 import type { ViewRequest } from '../../V2Workspace.js';
 import { useV2Shell } from '../../shell/V2Shell.js';
@@ -164,7 +165,7 @@ const GRID_COLUMNS: readonly V2Column<WorkItem>[] = [
   { key: 'case', header: 'Case', width: '150px', render: item => item.caseNumber ?? '—' },
   { key: 'customer', header: 'Customer', width: '170px', render: item => item.customerName ?? '—' },
   { key: 'recorded', header: 'Recorded', width: '140px', render: recorded },
-  { key: 'owner', header: 'With', width: '150px', render: item => item.ownerName ?? 'Nobody yet' },
+  { key: 'owner', header: 'With', width: '150px', render: item => <OwnerLabel ownerId={item.ownerId} ownerName={item.ownerName} /> },
   { key: 'state', header: 'State', width: '170px', render: item => item.domainState ?? '—' },
 ];
 
@@ -200,7 +201,7 @@ function QueuePreview({ item, onOpen }: { item?: WorkItem | undefined; onOpen: (
           <KeyValueList items={[
             { label: 'DPD', value: formatCount(record.detail.dpd) },
             { label: 'Arrears', value: formatMoney(record.detail.totalArrears) },
-            { label: 'With', value: item.ownerName ?? 'Nobody yet' },
+            { label: 'With', value: <OwnerLabel ownerId={item.ownerId} ownerName={item.ownerName} /> },
             { label: 'State', value: item.domainState ?? '—' },
           ]} />
           <BalancesAsOf asOf={record.detail.misAsOfDate} className="v2-toolbar-note" />

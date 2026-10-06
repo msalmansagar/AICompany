@@ -8,7 +8,8 @@ import { useCrmSession } from '../../../shell/context.js';
 import { CaseLink, CustomerLink } from '../../../shell/RecordLinks.js';
 import { formatRecordedAt } from '../../format.js';
 import { BucketBadge, CommandBar, CommandButton, EmptyState, ErrorState, KeyValueList, LoadingSkeleton } from '../../components/primitives.js';
-import { initialsOf } from '../case/CaseHeader.js';
+import { initialsOf } from '../../../components/initials.js';
+import { financialUnitTerms } from '../../../data/financialUnit.js';
 import { useCaseRecord } from '../../../data/useCaseRecord.js';
 import { StrategyName } from './casesColumns.js';
 
@@ -48,7 +49,7 @@ export function CasePreview({ caseId, reloadKey, onOpen, onLogAction, onCaptureP
             <BucketBadge bucket={detail.bucket} /> <StatusPill status={detail.status} /> <OrgBadge org={detail.organization} />
           </h2>
           <p className="v2-preview-sub" data-testid="v2-preview-sub">
-            <CaseLink caseId={detail.id}>{detail.caseNumber}</CaseLink> · facility {detail.facilityNumber}{detail.productDescription ? ` · ${detail.productDescription}` : ''}
+            <CaseLink caseId={detail.id}>{detail.caseNumber}</CaseLink> · {financialUnitTerms(detail.sourceSystem).noun} {detail.facilityNumber}{detail.productDescription ? ` · ${detail.productDescription}` : ''}
           </p>
         </div>
         <button type="button" className="v2-btn v2-btn-primary" onClick={onOpen} data-testid="v2-preview-open">Open full record</button>
