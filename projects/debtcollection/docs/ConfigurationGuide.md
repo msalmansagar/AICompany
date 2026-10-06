@@ -83,8 +83,11 @@ The message table's columns come from mapping rows (`qdb_canonicalfield` → `qd
 
 | Canonical field | HL — `letter` | BFD — `fax` | Required |
 |---|---|---|---|
-| `recipientNumber` | `vrp_address` (cloud sandbox) — HL CRM test: confirm | `faxnumber` | yes |
-| `messageBody` | `vrp_descriptions` (cloud sandbox) · `vrp_description` per the user for HL — **confirm on HL** | `qdb_message_body` | yes |
+| `recipientNumber` | `vrp_address` (HL and cloud sandbox) | `faxnumber` | yes |
+| `messageBody` | HL: `vrp_description` (schema name `vrp_Description`, confirmed 2026-10-06) · cloud sandbox: `vrp_descriptions` | `qdb_message_body` | yes |
+
+Map the **logical** name (lower case), not the schema name. The two spellings of the message column are
+why it is configuration and not code: each organisation maps its own.
 | `sender` | — | `qdb_sender` | no |
 | `language` · `whatsAppTemplate` · `otp` | — | `qdb_language` · `qdb_whatsapptemplate` · `qdb_otp` | no |
 
