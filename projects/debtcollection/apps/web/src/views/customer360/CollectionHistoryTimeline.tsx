@@ -60,34 +60,49 @@ export function CollectionHistoryTimeline({ caseIds, history, counts, contextOf 
       <h3 id="c360-history-title">Collection History</h3>
       <div className="c360-history-controls">
         <FilterTabs filters={filters} active={filter} counts={counts} onChoose={setFilter} />
-        <label className="c360-type-filter">
-          <span>Activity type</span>
-          <select
-            value={typeApplies ? activityTypeId : ''} disabled={!typeApplies} onChange={event => setActivityTypeId(event.target.value)}
-            title={typeApplies ? undefined : 'Messages have no activity type.'} data-testid="c360-history-type"
-          >
-            <option value="">All types</option>
-            {activityTypes.map(type => <option key={type.id} value={type.id}>{type.name}</option>)}
-          </select>
-        </label>
+        <ActivityTypeFilter types={activityTypes} chosen={chosenType ?? ''} isApplicable={typeApplies} onChoose={setActivityTypeId} />
       </div>
       <ol className="c360-timeline" data-testid="c360-history" aria-live="polite">
         {state.entries.map(entry => <HistoryRow key={entry.id} entry={entry} context={contextOf(entry.caseId)} />)}
       </ol>
-      {state.status === 'loading' && <div aria-busy="true" data-testid="c360-history-loading"><SkeletonLines lines={3} height={18} /></div>}
-      {state.status === 'error' && (
-        <div className="info-banner bad" role="alert" data-testid="c360-history-error">
-          <div><b>The history could not be loaded.</b><p>{state.error}</p>
-            <button type="button" className="btn" onClick={() => load(state, filter)} data-testid="c360-history-retry">Retry</button></div>
-        </div>
-      )}
-      {state.status === 'ready' && state.entries.length === 0 && <p className="c360-empty" data-testid="c360-history-empty">{emptyMessage(filter)}</p>}
-      {state.status === 'ready' && !state.complete && (
-        <button type="button" className="btn c360-more" onClick={() => load(state, filter)} data-testid="c360-history-more">Load more</button>
-      )}
-      {state.status === 'ready' && state.complete && state.entries.length > 0 && <p className="c360-hint" data-testid="c360-history-end">End of history</p>}
+      <HistoryFooter state={state} filter={filter} onLoadFrom={from => load(from, filter)} />
     </section>
   );
+}
+
+function ActivityTypeFilter({ types, chosen, isApplicable, onChoose }: {
+  types: HistoryContext['activityTypes']; chosen: string; isApplicable: boolean; onChoose: (typeId: string) => void;
+}) {
+  return (
+    <label className="c360-type-filter">
+      <span>Activity type</span>
+      <select
+        value={chosen} disabled={!isApplicable} onChange={event => onChoose(event.target.value)}
+        title={isApplicable ? undefined : 'Messages have no activity type.'} data-testid="c360-history-type"
+      >
+        <option value="">All types</option>
+        {types.map(type => <option key={type.id} value={type.id}>{type.name}</option>)}
+      </select>
+    </label>
+  );
+}
+
+/** Loading, failure with Retry, empty, Load more or end — whichever the list is in. */
+function HistoryFooter({ state, filter, onLoadFrom }: { state: HistoryState; filter: HistoryFilter; onLoadFrom: (from: Loaded) => void }) {
+  if (state.status === 'loading') return <div aria-busy="true" data-testid="c360-history-loading"><SkeletonLines lines={3} height={18} /></div>;
+  if (state.status === 'error') {
+    return (
+      <div className="info-banner bad" role="alert" data-testid="c360-history-error">
+        <div><b>The history could not be loaded.</b><p>{state.error}</p>
+          <button type="button" className="btn" onClick={() => onLoadFrom(state)} data-testid="c360-history-retry">Retry</button></div>
+      </div>
+    );
+  }
+  const empty = state.entries.length === 0 && <p className="c360-empty" data-testid="c360-history-empty">{emptyMessage(filter)}</p>;
+  if (!state.complete) {
+    return <>{empty}<button type="button" className="btn c360-more" onClick={() => onLoadFrom(state)} data-testid="c360-history-more">Load more</button></>;
+  }
+  return empty || <p className="c360-hint" data-testid="c360-history-end">End of history</p>;
 }
 
 function FilterTabs({ filters, active, counts, onChoose }: { filters: readonly HistoryFilter[]; active: HistoryFilter; counts: HistoryCounts | undefined; onChoose: (filter: HistoryFilter) => void }) {

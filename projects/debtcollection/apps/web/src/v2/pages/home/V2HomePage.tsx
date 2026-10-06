@@ -87,24 +87,27 @@ function MyQueues({ buckets, promises, onOpenBucket, onOpenPromises }: {
 }) {
   const rows: QueueRow[] = [
     ...HOME_BUCKETS.filter(bucket => buckets.isAvailable(bucket)).map(bucket => bucketRow(bucket, buckets.counts[bucket], onOpenBucket)),
-    promiseRow('promises-due', `Promises due, ${PROMISE_HORIZON_DAYS} days`, promises.due, onOpenPromises),
-    promiseRow('promises-broken', 'Broken promises', promises.broken, onOpenPromises),
+    promiseRow({ id: 'promises-due', title: `Promises due, ${PROMISE_HORIZON_DAYS} days`, count: promises.due, onOpen: onOpenPromises }),
+    promiseRow({ id: 'promises-broken', title: 'Broken promises', count: promises.broken, onOpen: onOpenPromises }),
   ];
   return (
     <Card title="My queues" subtitle="Work can sit in more than one queue, so these are not added up." flush testId="v2-my-queues">
-      {!buckets.isReady && <LoadingSkeleton rows={4} label="Counting queues" />}
-      {buckets.isReady && (
-        <ul className="v2-list">
-          {rows.map(row => (
-            <li key={row.id} className={row.hasWork ? 'v2-list-row' : 'v2-list-row v2-list-row-quiet'} data-testid={`v2-queue-${row.id}`}>
-              <span className="v2-list-main"><span className="v2-list-title">{row.title}</span></span>
-              <span className="v2-list-count">{row.count}</span>
-              <button type="button" className="v2-btn" onClick={row.onOpen} data-testid={`v2-queue-open-${row.id}`}>Open</button>
-            </li>
-          ))}
-        </ul>
-      )}
+      {buckets.isReady ? <QueueList rows={rows} /> : <LoadingSkeleton rows={4} label="Counting queues" />}
     </Card>
+  );
+}
+
+function QueueList({ rows }: { rows: readonly QueueRow[] }) {
+  return (
+    <ul className="v2-list">
+      {rows.map(row => (
+        <li key={row.id} className={row.hasWork ? 'v2-list-row' : 'v2-list-row v2-list-row-quiet'} data-testid={`v2-queue-${row.id}`}>
+          <span className="v2-list-main"><span className="v2-list-title">{row.title}</span></span>
+          <span className="v2-list-count">{row.count}</span>
+          <button type="button" className="v2-btn" onClick={row.onOpen} data-testid={`v2-queue-open-${row.id}`}>Open</button>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -117,7 +120,9 @@ function bucketRow(bucket: OperationalBucket, count: WorkCount | undefined, onOp
   };
 }
 
-function promiseRow(id: string, title: string, count: CountResult | undefined, onOpen: () => void): QueueRow {
+interface PromiseRowSource { id: string; title: string; count: CountResult | undefined; onOpen: () => void }
+
+function promiseRow({ id, title, count, onOpen }: PromiseRowSource): QueueRow {
   return { id, title, count: formatCountResult(count), hasWork: count?.value === undefined || count.value > 0, onOpen };
 }
 
