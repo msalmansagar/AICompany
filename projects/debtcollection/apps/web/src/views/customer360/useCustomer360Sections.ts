@@ -63,7 +63,8 @@ export function useCustomer360Sections(aggregate: CustomerAggregate, selected: F
   return { promises: promises.state, nextActions, history, counts: counts.state, snapshots, openProcesses };
 }
 
-async function loadHistoryContext(adapter: Parameters<typeof loadActivityTypes>[0], organization: string): Promise<HistoryContext> {
+/** Shared with the Case Workspace, whose timeline and resolution summary need the same context. */
+export async function loadHistoryContext(adapter: Parameters<typeof loadActivityTypes>[0], organization: string): Promise<HistoryContext> {
   const [activityTypes, messaging] = await Promise.all([loadActivityTypes(adapter), resolveMessagingConfiguration(adapter, organization)]);
   return {
     types: categoryTypesOf(activityTypes),

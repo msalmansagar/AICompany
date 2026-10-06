@@ -2,11 +2,11 @@ import {
   satisfiesPlannedAction, type ContinuationToken, type Page,
 } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
-import { ACTIVITY_COLUMNS, ENTITY_SETS, STRATEGY_ACTION_COLUMNS } from './schema.js';
+import { ACTIVITY_COLUMNS, ENTITY_SETS, PTP_COLUMNS, STRATEGY_ACTION_COLUMNS } from './schema.js';
 import { scopeThroughCase } from './activityScope.js';
 import { escapeOData, mapPage } from './collectionQueries.js';
 import { toStrategyActionRow, type StrategyActionRow } from './configurationQueries.js';
-import { toActivityRow, type ActivityRow } from './caseQueries.js';
+import { toActivityRow, toPtpRow, type ActivityRow, type PtpRow } from './caseQueries.js';
 
 /**
  * Follow-ups, and the Action Plan.
@@ -145,17 +145,39 @@ export async function loadActionPlan(
   adapter: XrmCrmAdapter,
   query: ActionPlanQuery,
 ): Promise<ActionPlan> {
+  const { rows, unattributed } = await loadCaseWork(adapter, query);
+  return { rows, unattributed };
+}
+
+/**
+ * The plan **and** every activity on the case, from the same three bounded reads.
+ *
+ * The Case Workspace answers its overview, Action Plan, promises, follow-ups and resolution summary
+ * from this one read model instead of one request per section. The activity reads carry the promise
+ * columns, so a promise is an activity like any other here; the strategy read runs beside them.
+ */
+export interface CaseWork extends ActionPlan {
+  /** Every activity on the case, attributed or not, newest first. Bounded by the two reads. */
+  activities: readonly PtpRow[];
+}
+
+/**
+ * Reads one case's work: attributed activities, unattributed activities and the strategy's actions,
+ * all three at once. Each read is bounded and narrowed by the platform; none is per record.
+ */
+export async function loadCaseWork(adapter: XrmCrmAdapter, query: ActionPlanQuery): Promise<CaseWork> {
   const caseFilter = `_qdb_collectioncaseid_value eq ${escapeOData(query.caseId)}`;
-  const [attributed, unattributed] = await Promise.all([
+  const [attributed, unattributed, actions] = await Promise.all([
     readCaseActivities(adapter, `${caseFilter} and _qdb_strategyactionid_value ne null`),
     readCaseActivities(adapter, `${caseFilter} and _qdb_strategyactionid_value eq null`),
+    query.strategyId ? readStrategyActions(adapter, query.strategyId) : Promise.resolve([]),
   ]);
-
-  if (!query.strategyId) return { rows: [], unattributed };
-
-  const actions = await readStrategyActions(adapter, query.strategyId);
   const rows = actions.map(planned => groupAttributedWork(planned, attributed));
-  return { rows, unattributed };
+  return { rows, unattributed, activities: newestFirst([...attributed, ...unattributed]) };
+}
+
+function newestFirst(activities: readonly PtpRow[]): readonly PtpRow[] {
+  return [...activities].sort((a, b) => (b.createdOn ?? '').localeCompare(a.createdOn ?? ''));
 }
 
 /** Groups by the id the activity itself names. No type, name or sequence takes part. */
@@ -190,14 +212,14 @@ async function readStrategyActions(
 async function readCaseActivities(
   adapter: XrmCrmAdapter,
   filter: string,
-): Promise<readonly ActivityRow[]> {
+): Promise<readonly PtpRow[]> {
   return mapPage(
     await adapter.retrievePage(ENTITY_SETS.collectionActivity, {
-      select: [...ACTIVITY_COLUMNS],
+      select: [...PTP_COLUMNS],
       pageSize: ACTIVITY_PAGE_SIZE,
       sort: [{ field: 'createdon', descending: true }],
       filter,
     }),
-    toActivityRow,
+    toPtpRow,
   ).items;
 }

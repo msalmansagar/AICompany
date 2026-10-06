@@ -1,0 +1,106 @@
+/* Collection Case Workspace (WP3) — shared by V1 and V2. Fluent tokens only, like Customer 360:
+   colour carries meaning (bucket, status, overdue), never decoration. */
+
+.cw { display: flex; flex-direction: column; gap: 12px; min-width: 0; max-width: 100%; overflow-x: clip; }
+
+/* ── Sticky header + action bar: the identity and the commands stay on screen ─────────────── */
+.cw-sticky {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; flex-direction: column; gap: 8px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 10px 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
+}
+.cw-identity { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.cw-back { flex: none; }
+.cw-names { flex: 1 1 auto; min-width: 0; }
+.cw-customer { margin: 0; font-size: 18px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cw-sub { margin: 4px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; color: var(--text-secondary); font-size: 13px; }
+.cw-sub b { color: var(--text); font-weight: 600; }
+
+.cw-position { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 4px 16px; }
+.cw-figures { display: flex; flex-wrap: wrap; gap: 4px 24px; margin: 0; }
+.cw-figure { display: flex; flex-direction: column; min-width: 0; }
+.cw-figure dt { font-size: 12px; color: var(--text-secondary); }
+.cw-figure dd { margin: 0; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cw-figure.strong dd { font-size: 18px; }
+.cw-as-of { margin: 0; }
+
+.cw-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
+.cw-closed { color: var(--text-secondary); font-size: 13px; }
+.cw-notice { margin: 0; padding: 6px 12px; border-radius: 4px; background: var(--success-bg, #dff6dd); color: var(--text); font-size: 13px; }
+
+/* ── Menus (Contact ▾, More ▾, Complete follow-up ▾) ──────────────────────────────────────── */
+.menu-button { position: relative; display: inline-flex; }
+.menu-list {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 20; min-width: 220px; max-width: min(320px, 90vw);
+  margin: 0; padding: 4px 0; list-style: none; background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: 4px; box-shadow: 0 4px 12px rgba(0, 0, 0, .14);
+}
+.menu-item {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; padding: 8px 12px;
+  background: none; border: 0; font: inherit; text-align: left; color: var(--text); text-decoration: none; cursor: pointer;
+}
+.menu-item:hover, .menu-item:focus-visible { background: var(--primary-tint-2); outline: none; }
+.menu-hint { font-size: 12px; color: var(--text-secondary); }
+
+/* ── Layout: working column + supporting panels; one column below 1080 px ─────────────────── */
+.cw-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 12px; align-items: start; }
+.cw-col-main, .cw-col-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.cw .section-card { margin: 0; min-width: 0; }
+.cw .section-card h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+.cw-overview, .cw-plan, .cw-timeline, .cw-ptp, .cw-resolution, .cw-delinquency, .cw-records { min-width: 0; }
+
+@media (max-width: 1080px) {
+  .cw-layout { grid-template-columns: minmax(0, 1fr); }
+}
+/* Phone: a sticky header would take half the screen (measured 358 of 740 px). The identity scrolls
+   away; the action bar is pinned to the bottom edge, where a thumb reaches it, and its menus open up. */
+@media (max-width: 640px) {
+  /* Clears the pinned bar, which wraps to up to three rows (measured 129 px at 400 px wide). */
+  .cw { padding-bottom: 148px; }
+  .cw-sticky { position: static; padding: 8px 10px; box-shadow: none; }
+  .cw-identity { flex-direction: column; gap: 6px; }
+  .cw-figures { gap: 4px 16px; }
+  .cw-actions {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+    background: var(--surface); border-top: 1px solid var(--border-strong); padding: 8px 10px;
+    box-shadow: 0 -2px 6px rgba(0, 0, 0, .08);
+  }
+  .cw-actions .btn { flex: 1 1 auto; }
+  /* Positioned against the bar, full width, so a menu near the right edge never runs off-screen. */
+  .cw-actions .menu-button { position: static; flex: 1 1 auto; }
+  .cw-actions .menu-button > .btn { width: 100%; }
+  .cw-actions .menu-list { top: auto; bottom: calc(100% + 4px); left: 8px; right: 8px; max-width: none; }
+}
+
+.btn-link { background: none; border: 0; padding: 0; font: inherit; font-size: 13px; color: var(--primary); cursor: pointer; }
+.btn-link:hover { text-decoration: underline; }
+.btn-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* ── Action Plan ──────────────────────────────────────────────────────────────────────────── */
+.cw-plan-group + .cw-plan-group { margin-top: 10px; }
+.cw-plan-group h4 { margin: 0 0 4px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--text-secondary); }
+.cw-plan-group.overdue h4 { color: var(--error); }
+.cw-plan-group ul { list-style: none; margin: 0; padding: 0; }
+.cw-plan-line { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.cw-plan-marker { color: var(--text-secondary); }
+.cw-plan-group.overdue .cw-plan-marker { color: var(--error); }
+.cw-plan-group.today .cw-plan-marker { color: var(--primary); }
+.cw-plan-group.completed .cw-plan-marker { color: var(--success, #107c10); }
+.cw-plan-title { min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
+.cw-plan-detail { font-size: 12px; color: var(--text-secondary); }
+.cw-plan-date { font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ── Promise, resolution, delinquency ─────────────────────────────────────────────────────── */
+.cw-ptp-current p { margin: 0 0 4px; }
+.cw-ptp-label { font-size: 12px; color: var(--text-secondary); }
+.cw-ptp-amount { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cw-ptp-earlier { list-style: none; margin: 10px 0 0; padding: 8px 0 0; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.cw-ptp-earlier li { display: flex; justify-content: space-between; gap: 8px; }
+.cw-resolution-list { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.cw-resolution-list dt { font-size: 12px; color: var(--text-secondary); }
+.cw-resolution-list dd { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.cw-snapshots { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cw-snapshots th { text-align: left; font-weight: 600; font-size: 12px; color: var(--text-secondary); padding: 4px 6px 4px 0; border-bottom: 1px solid var(--border); }
+.cw-snapshots td { padding: 5px 6px 5px 0; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+.cw-records { scroll-margin-top: 220px; }

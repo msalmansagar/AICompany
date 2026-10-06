@@ -32,8 +32,12 @@ export type CaseContextLookup = (caseId: string | undefined) => { unit: string; 
  * platform. Changing the filter starts a new request and resets the list; an answer to an earlier
  * request — a slower page, or a page for the filter just left — is dropped, never shown.
  */
-export function CollectionHistoryTimeline({ caseIds, history, counts, contextOf }: {
+export function CollectionHistoryTimeline({ caseIds, history, counts, contextOf, title = 'Collection History', onEntries }: {
   caseIds: readonly string[]; history: HistoryContext; counts: HistoryCounts | undefined; contextOf: CaseContextLookup;
+  /** The Case Workspace calls it the case's timeline; Customer 360 its Collection History. */
+  title?: string;
+  /** Told what the unfiltered list holds once it answers — the Case Workspace's "last contact". */
+  onEntries?: (entries: readonly HistoryEntry[]) => void;
 }) {
   const { adapter } = useCrmSession();
   const { types, messaging, activityTypes } = history;
@@ -55,10 +59,12 @@ export function CollectionHistoryTimeline({ caseIds, history, counts, contextOf 
   }, [adapter, caseIds, types, messaging, chosenType]);
 
   useEffect(() => { load({ entries: [], cursor: startCustomerHistory(messaging, filter, chosenType), complete: false }, filter); }, [load, filter, messaging, chosenType]);
+  const isUnfiltered = filter === 'all' && !chosenType;
+  useEffect(() => { if (isUnfiltered && state.status === 'ready') onEntries?.(state.entries); }, [isUnfiltered, state.status, state.entries, onEntries]);
 
   return (
     <section className="section-card c360-history" aria-labelledby="c360-history-title" data-testid="c360-history-card">
-      <h3 id="c360-history-title">Collection History</h3>
+      <h3 id="c360-history-title">{title}</h3>
       <div className="c360-history-controls">
         <FilterTabs filters={filters} active={filter} counts={counts} onChoose={setFilter} />
         <ActivityTypeFilter types={activityTypes} chosen={chosenType ?? ''} isApplicable={typeApplies} onChoose={setActivityTypeId} />

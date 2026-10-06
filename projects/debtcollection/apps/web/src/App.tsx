@@ -29,6 +29,7 @@ import './styles/phase10.css';
 import './styles/lists.css';
 import './styles/sidebar.css';
 import './styles/customer360.css';
+import './styles/caseworkspace.css';
 import { toError } from './platform/errors.js';
 import { SCOPE_SEGMENT, decodeScope, encodeScope } from './data/caseListScopeUrl.js';
 import { WorkspaceVersionRoot, useWorkspaceVersion } from './v2/version/WorkspaceVersionRoot.js';
@@ -154,10 +155,7 @@ function ViewHost({
     case 'cases': return <CasesView onOpenCase={onOpenCase} scope={recordId === SCOPE_SEGMENT ? decodeScope(tab) : {}} />;
     case 'case':
       return (
-        <CaseWorkspaceView
-          caseId={recordId} initialTab={tab} onOpenCustomer={onOpenCustomer}
-          onOpenComms={onOpenComms} onNavigateComms={onNavigateComms}
-        />
+        <CaseWorkspaceView caseId={recordId} initialTab={tab} onOpenComms={onOpenComms} onNavigateComms={onNavigateComms} />
       );
     case 'customer': return <Customer360View customerBusinessId={recordId} onOpenCase={onOpenCase} onOpenActionPlan={onOpenActionPlan} onOpenCustomer={onOpenCustomer} />;
     case 'intake': return <DelinquencyIntakeView />;

@@ -200,13 +200,13 @@ const CASE_ROW = {
   [`_qdb_strategyid_value${FORMATTED}`]: 'Early stage',
 };
 
-describe('the Case Workspace keeps all seven approved tabs', () => {
-  const TABS = ['summary', 'actions', 'ptp', 'comms', 'documents', 'workout', 'audit'];
+describe('the Case Workspace keeps every record a case had (WP3)', () => {
+  // Summary became the working surface above the tabs; Documents was a placeholder with nothing in it.
+  const TABS = ['actions', 'ptp', 'comms', 'plan', 'workout', 'history', 'details', 'audit'];
 
   beforeEach(() => install(fakeXrm({ qdb_collectioncase: [CASE_ROW] })));
 
-  it('renders every tab from the approved design', async () => {
-    expect(TABS, 'the approved design names seven tabs').toHaveLength(7);
+  it('renders every record tab, and no others', async () => {
     await openView('case', 'c-1');
     const pivot = await screen.findByTestId('case-pivot');
     for (const tab of TABS) expect(screen.getByTestId(`case-pivot-tab-${tab}`)).toBeTruthy();
@@ -214,11 +214,11 @@ describe('the Case Workspace keeps all seven approved tabs', () => {
     expect(pivot.querySelectorAll('[role="tab"]')).toHaveLength(TABS.length);
   });
 
-  it('shows the case it was asked for', async () => {
+  it('shows the case it was asked for, with its stored details one tab away', async () => {
     await openView('case', 'c-1');
     const view = await screen.findByTestId('view-case');
-    expect(view.getAttribute('data-case-id')).toBe('c-1');
-    expect(screen.getByTestId('case-summary-fields').textContent).toContain('COL-HL-000123');
+    await userEvent.click(screen.getByTestId('case-pivot-tab-details'));
+    expect([view.getAttribute('data-case-id'), screen.getByTestId('case-summary-fields').textContent?.includes('COL-HL-000123')]).toEqual(['c-1', true]);
   });
 
   it('says which date the balances are from, with no MIS position bar', async () => {
@@ -235,21 +235,10 @@ describe('the Case Workspace keeps all seven approved tabs', () => {
     expect(screen.queryByTestId('pending-panel-7')).toBeNull();
   });
 
-  it('says a tab is not available yet, without naming an internal delivery phase', async () => {
+  it('names no internal delivery phase anywhere on the case', async () => {
     await openView('case', 'c-1');
-    await screen.findByTestId('view-case');
-    await userEvent.click(screen.getByTestId('case-pivot-tab-documents'));
-    const panel = await screen.findByTestId('pending-panel-7');
-    expect(panel.textContent).toContain('Not available yet.');
-    expect(panel.textContent).not.toMatch(/Phase \d/);
-  });
-
-  it('shows no data on a later-phase tab', async () => {
-    await openView('case', 'c-1');
-    await screen.findByTestId('view-case');
-    await userEvent.click(screen.getByTestId('case-pivot-tab-documents'));
-    expect(screen.queryByTestId('case-actions')).toBeNull();
-    expect((await screen.findByTestId('pending-panel-7')).textContent).toContain('none would be real');
+    const view = await screen.findByTestId('view-case');
+    expect(view.textContent).not.toMatch(/Phase \d|\bP\d\b/);
   });
 
   /**

@@ -31,7 +31,8 @@ import { describeFailure } from '../platform/errors.js';
  * outcome the authorisation requires.
  */
 
-export type ActivityDialogMode = 'create' | 'edit';
+/** `complete` is `edit` opened straight at "Complete…" — the Case Workspace's Complete follow-up. */
+export type ActivityDialogMode = 'create' | 'edit' | 'complete';
 
 export interface ActivityDialogProps {
   mode: ActivityDialogMode;
@@ -230,6 +231,12 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved, con
     )).then(result => { if (result) { onSaved(); void load(); } });
   };
 
+  // Only once the record and its catalogue have answered may completion start: an activity that
+  // cannot be concluded opens as a plain edit, saying why, rather than offering a dead button.
+  useEffect(() => {
+    if (mode === 'complete' && loaded && !isImmutable && canConclude) setCompleting(true);
+  }, [mode, loaded, isImmutable, canConclude]);
+
   const title = mode === 'create' ? 'Log a collection action' : loaded?.subject || 'Collection action';
 
   return (
@@ -262,7 +269,7 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved, con
 
       {loadState === 'ready' && (
         <>
-          <SaveStatus state={save.state} onReload={mode === 'edit' ? () => void load() : undefined} testId="activity-dialog" />
+          <SaveStatus state={save.state} onReload={mode !== 'create' ? () => void load() : undefined} testId="activity-dialog" />
 
           {!isImmutable && !completing && loaded && !concluding.available && (
             <div className="info-banner" data-testid="conclude-unavailable">
@@ -312,10 +319,10 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved, con
               value={activityTypeId} onChange={setActivityTypeId}
               // The type is what its outcomes hang off, so changing it on an existing activity would
               // orphan a recorded outcome. It is chosen once, when the action is logged.
-              disabled={mode === 'edit' || save.busy}
-              choices={mode === 'edit' ? typeChoices(types) : typeChoices(loggableTypes(types))}
+              disabled={mode !== 'create' || save.busy}
+              choices={mode !== 'create' ? typeChoices(types) : typeChoices(loggableTypes(types))}
               refusal={save.refusalFor('activityTypeId')}
-              hint={mode === 'edit' ? 'Set when the action was logged.' : 'From configuration. Record a promise with Capture PTP.'}
+              hint={mode !== 'create' ? 'Set when the action was logged.' : 'From configuration. Record a promise with Capture PTP.'}
             />
 
 

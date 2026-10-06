@@ -82,15 +82,37 @@ const CATALOG_PAGE_SIZE = 250;
  * retired type — the one a record being edited already points at — so an existing record renders
  * truthfully without its retired type becoming available to every new record.
  */
-export async function loadActivityTypes(
+export function loadActivityTypes(
   adapter: XrmCrmAdapter,
   options: { currentId?: string | undefined } = {},
 ): Promise<readonly ActivityTypeOption[]> {
-  const rows = await readCatalog(
+  const load = async () => (await readCatalog(
     adapter, ENTITY_SETS.collectionActivityType, [...ACTIVITY_TYPE_COLUMNS],
     'qdb_collectionactivitytypeid', options.currentId,
-  );
-  return rows.map(toActivityTypeOption).sort(bySequenceThenName);
+  )).map(toActivityTypeOption).sort(bySequenceThenName);
+  return options.currentId ? load() : remembered(adapter, 'activityTypes', load);
+}
+
+/**
+ * How long one session reuses a catalogue answer.
+ *
+ * The Case Workspace asks the same configuration question from several panels at once — the Workout
+ * & Legal tab alone asked for the activity types about eight times. Configuration changes rarely and
+ * a minute-old answer is still the configuration; a failed read is forgotten at once so a retry
+ * really retries. A read that must include a retired row (`currentId`) is never shared.
+ */
+const CATALOGUE_REUSE_MS = 60_000;
+const catalogueAnswers = new WeakMap<XrmCrmAdapter, Map<string, { readAt: number; answer: Promise<unknown> }>>();
+
+function remembered<T>(adapter: XrmCrmAdapter, key: string, load: () => Promise<T>): Promise<T> {
+  const answers = catalogueAnswers.get(adapter) ?? new Map<string, { readAt: number; answer: Promise<unknown> }>();
+  catalogueAnswers.set(adapter, answers);
+  const known = answers.get(key);
+  if (known && Date.now() - known.readAt < CATALOGUE_REUSE_MS) return known.answer as Promise<T>;
+  const answer = load();
+  answers.set(key, { readAt: Date.now(), answer });
+  answer.catch(() => answers.delete(key));
+  return answer;
 }
 
 /**
@@ -107,12 +129,12 @@ export async function loadOutcomes(
   options: { currentId?: string | undefined } = {},
 ): Promise<readonly OutcomeOption[]> {
   if (!activityTypeId) return [];
-  const rows = await readCatalog(
+  const load = async () => (await readCatalog(
     adapter, ENTITY_SETS.activityOutcome, [...ACTIVITY_OUTCOME_COLUMNS],
     'qdb_activityoutcomeid', options.currentId,
     `_qdb_activitytypeid_value eq ${escapeOData(activityTypeId)}`,
-  );
-  return rows.map(toOutcomeOption).sort(bySequenceThenName);
+  )).map(toOutcomeOption).sort(bySequenceThenName);
+  return options.currentId ? load() : remembered(adapter, `outcomes:${activityTypeId}`, load);
 }
 
 /**
