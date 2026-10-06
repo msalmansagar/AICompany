@@ -89,24 +89,21 @@ function Tile({ label, value, caption }: { label: string; value: string; caption
   );
 }
 
-/** The stored values as plain rows, newest first. A table for assistive technology, quiet on screen. */
+/** The stored values, newest first, in the workspace's standard grid with the bucket badge. */
 function StoredValues({ points }: { points: readonly SnapshotRow[] }) {
   return (
-    <>
-      <p className="c360-hint c360-values-title">Stored values, newest first</p>
-      <table className="c360-values" data-testid="c360-snapshot-values">
-        <caption className="c360-visually-hidden">Stored DPD by date, newest first</caption>
-        <thead className="c360-visually-hidden"><tr><th scope="col">As of</th><th scope="col">DPD</th><th scope="col">Bucket</th></tr></thead>
-        <tbody>
-          {[...points].reverse().map(point => (
-            <tr key={point.id}>
-              <td>{formatSnapshotDay(point.snapshotDate)}</td>
-              <td className="c360-values-dpd">{point.dpd === undefined ? '—' : `${formatCount(point.dpd)} DPD`}</td>
-              <td className="c360-values-bucket">{point.bucket ?? '—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </>
+    <table className="grid c360-values" data-testid="c360-snapshot-values">
+      <caption className="c360-visually-hidden">Stored DPD by date, newest first</caption>
+      <thead><tr><th scope="col">As of</th><th scope="col">DPD</th><th scope="col">Bucket</th></tr></thead>
+      <tbody>
+        {[...points].reverse().map(point => (
+          <tr key={point.id}>
+            <td>{formatSnapshotDay(point.snapshotDate)}</td>
+            <td>{formatCount(point.dpd)}</td>
+            <td><BucketBadge bucket={point.bucket} /></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }

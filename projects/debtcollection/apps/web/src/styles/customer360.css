@@ -118,11 +118,7 @@
 .c360-chart-label { font-size: 11px; font-weight: 600; fill: var(--text); }
 .c360-chart-axis { font-size: 10px; fill: var(--text-secondary); }
 .c360-chart-baseline { stroke: var(--border); stroke-width: 1; }
-.c360-values-title { margin-top: 10px; }
-.c360-values { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
-.c360-values td { padding: 6px 0; border-bottom: 1px solid var(--border); }
-.c360-values-dpd { font-weight: 600; text-align: center; }
-.c360-values-bucket { color: var(--text-secondary); text-align: right; }
+.c360-values { margin-top: 10px; width: 100%; font-variant-numeric: tabular-nums; }
 
 /* ── History ────────────────────────────────────────────────────────── */
 .c360-filters { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }

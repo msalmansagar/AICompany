@@ -368,11 +368,14 @@ describe('Delinquency History', () => {
     expect(tiles.textContent).toBe('Current DPD9230-Sep-2026Previous DPD6231-Aug-2026Change↑ 30vs previous');
   });
 
-  it('lists the stored values newest first, as DPD and bucket range', async () => {
+  it('lists the stored values newest first in a table, with the bucket as a badge', async () => {
     await open({ snapshots: [snapshot('2026-08-31', 62), snapshot('2026-09-30', 92)] });
 
-    const rows = (await screen.findByTestId('c360-snapshot-values', {}, { timeout: WAIT })).querySelectorAll('tbody tr');
-    expect(Array.from(rows).map(row => row.textContent)).toEqual(['30-Sep-202692 DPD1-30', '31-Aug-202662 DPD1-30']);
+    const table = await screen.findByTestId('c360-snapshot-values', {}, { timeout: WAIT });
+    expect([
+      Array.from(table.querySelectorAll('thead th')).map(cell => cell.textContent),
+      Array.from(table.querySelectorAll('tbody tr')).map(row => row.textContent),
+    ]).toEqual([['As of', 'DPD', 'Bucket'], ['30-Sep-2026921-30 DPD', '31-Aug-2026621-30 DPD']]);
   });
 
   it('keeps a snapshot failure inside its section, with Retry, and the summary working', async () => {
