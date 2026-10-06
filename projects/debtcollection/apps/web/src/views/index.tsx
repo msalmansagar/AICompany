@@ -411,7 +411,7 @@ const FOLLOW_UP_WINDOWS: readonly { id: FollowUpWindow; label: string }[] = [
  * `now` is pinned for the life of the panel rather than re-read on each render, so scrolling the
  * list does not silently move the boundary underneath it and drop a row between two pages.
  *
- * Opening a row goes to its case, where the Actions tab completes or updates the activity. There is
+ * Opening a row goes to its case, where the Action Plan completes or updates the activity. There is
  * no separate follow-up entity: a follow-up is a date on the activity that created it, which is what
  * makes "complete the activity" and "clear the follow-up" the same act.
  */

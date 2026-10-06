@@ -29,7 +29,7 @@ export interface ViewRequest {
   recordId?: string | undefined;
   tab?: string | undefined;
   onOpenCase: (id: string) => void;
-  /** A case opened on its Action Plan — V1 shows the plan on the Actions tab, V2 on its own Plan tab. */
+  /** A case opened on its Action Plan — both workspaces show it on the shared case's Action Plan tab. */
   onOpenActionPlan: (id: string) => void;
   /** The Cases list in a reporting scope — a dashboard row's drill-down. In V2 it opens V2's own list. */
   onOpenCases: (scope: ReportingScope) => void;

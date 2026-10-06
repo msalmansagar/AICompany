@@ -13,7 +13,7 @@ export function MoreOnActionsNotice({ testId }: { testId: string }) {
     <div className="info-banner" data-testid={testId}>
       <Icon name="info" />
       <div>
-        Showing the {CASE_CARD_PAGE_SIZE} most recent. Older ones are on the Actions tab, which
+        Showing the {CASE_CARD_PAGE_SIZE} most recent. Older ones are on the Activities tab, which
         pages through every activity on the case.
       </div>
     </div>

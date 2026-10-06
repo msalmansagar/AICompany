@@ -54,7 +54,7 @@ table.grid tfoot td { padding: 9px 12px; font-weight: 700; border-top: 1px solid
 .pill.warn, .pill.pending, .pill.due, .pill.review { background: var(--warning-bg); color: var(--warning); }
 .pill.bad, .pill.broken, .pill.rejected, .pill.breach, .pill.overdue { background: var(--error-bg); color: var(--error); }
 .pill.info, .pill.new, .pill.draft { background: var(--info-bg); color: var(--info); }
-.pill.muted { background: var(--neutral-chip); color: var(--text-disabled); }
+.pill.muted { background: var(--neutral-chip); color: var(--text-secondary); } /* readable status, not a disabled control (WCAG AA 4.5:1) */
 .pill.plain::before { display: none; }
 
 /* DPD bucket colouring — one hue per MIS bucket (tokens.css), the same ten V2 uses */

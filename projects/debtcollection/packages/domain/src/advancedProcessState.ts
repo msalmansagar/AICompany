@@ -84,7 +84,7 @@ function legalAspects(evidence: AdvancedProcessEvidence): readonly ProcessAspect
   return [
     {
       id: 'legal-record', process: 'Legal', aspect: 'Record a Legal recommendation',
-      capability: 'Actionable', explanation: 'Logged from the Actions tab with Log action.',
+      capability: 'Actionable', explanation: 'Logged on the case with Log action.',
     },
     legalHandoffAspect(evidence.legalQualificationConfigured),
     {
@@ -134,7 +134,7 @@ function disputeAspects(evidence: AdvancedProcessEvidence): readonly ProcessAspe
   return [
     {
       id: 'dispute-record', process: 'Dispute', aspect: 'Record a collection dispute',
-      capability: 'Actionable', explanation: 'Logged from the Actions tab with Log action.',
+      capability: 'Actionable', explanation: 'Logged on the case with Log action.',
     },
     conclusionAspect('dispute-conclude', 'Dispute', evidence.outcomeCounts.dispute),
     {

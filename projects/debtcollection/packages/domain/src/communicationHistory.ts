@@ -1,7 +1,8 @@
 /**
  * One chronological history over several native sources, without loading any of them.
  *
- * A case's communications live in three tables — `fax` for SMS and WhatsApp, `email`, and
+ * A case's communications live in three tables — the organisation's configured message table for
+ * SMS and WhatsApp (`letter` on HL, `fax` on BFD), `email`, and
  * `qdb_collectionactivity` for calls and visits — and OData cannot union across entity sets. The
  * obvious workaround is to read all of each and sort in the browser, which is precisely what the
  * permanent large-data NFR forbids: a customer with four years of history would fetch thousands of

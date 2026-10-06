@@ -53,7 +53,7 @@ export const VIEWS: readonly ViewDefinition[] = [
   {
     id: 'actionplan', label: 'Action Plan', icon: 'check', group: 'Manager', phase: 5,
     pendingSummary: 'Every action an active strategy can resolve to is listed here. The plan for one ' +
-      'case, and the work attributed to each planned action, are on that case\'s Actions tab.',
+      'case, and the work attributed to each planned action, are on that case\'s Action Plan tab.',
   },
   {
     id: 'ptp', label: 'Promise to Pay', icon: 'promise', group: 'My Work', badge: 'openPtps', phase: 5,
