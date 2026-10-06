@@ -30,6 +30,11 @@ export interface FollowUpQuery {
   horizonDays?: number;
   /** Injected so the boundary is testable and the caller owns the clock. */
   now?: Date;
+  /**
+   * Bumped after a follow-up is completed, so the list asks again from its first page. The source
+   * ignores it; it exists so the query's identity changes and paging restarts.
+   */
+  reloadKey?: number;
 }
 
 /**

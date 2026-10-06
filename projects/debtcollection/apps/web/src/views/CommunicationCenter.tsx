@@ -8,7 +8,7 @@ import {
   Card, EmptyState, InfoBanner, Pivot, StatusPill, formatDate, type PivotTab,
 } from '../components/primitives.js';
 import { BulkCommunicationView } from './BulkCommunication.js';
-import { SelectField, TextAreaField, TextField } from '../components/forms.js';
+import { Dialog, SelectField, TextAreaField, TextField } from '../components/forms.js';
 import { loadTemplateCatalogue } from '../data/templateQueries.js';
 import {
   nextHistoryPage, startHistory, type HistoryCursor,
@@ -121,7 +121,34 @@ function SingleTab({ caseId, onSelectCase }: {
   return <CaseCommunications key={caseId} caseId={caseId} />;
 }
 
-function CaseCommunications({ caseId }: { caseId: string }) {
+/**
+ * One message to the case's customer, in a pane over the Case Workspace — the same composer, hold
+ * check and history as the Communications tab, opened on the channel Contact chose. Sending keeps the
+ * pane open so the officer reads what was handed over; `onSent` lets the case re-read its timeline.
+ */
+export function CaseMessagePane({ caseId, channel, onClose, onSent }: {
+  caseId: string;
+  channel: TemplateChannel;
+  onClose: () => void;
+  onSent: () => void;
+}) {
+  return (
+    <Dialog
+      title={`Send ${channel === 'Email' ? 'an email' : 'an SMS'}`} subtitle="To this case's customer, from an approved template."
+      onClose={onClose} testId="message-pane" wide
+      footer={<button type="button" className="btn" onClick={onClose} data-testid="message-pane-done">Done</button>}
+    >
+      <CaseCommunications caseId={caseId} initialChannel={channel} onSent={onSent} />
+    </Dialog>
+  );
+}
+
+function CaseCommunications({ caseId, initialChannel, onSent }: {
+  caseId: string;
+  /** The channel the composer opens on; the officer can still change it. */
+  initialChannel?: TemplateChannel;
+  onSent?: () => void;
+}) {
   const { adapter } = useCrmSession();
   const [recipient, setRecipient] = useState<CustomerProfile | null>(null);
   const [hold, setHold] = useState<ContactHoldResolution | null>(null);
@@ -130,6 +157,8 @@ function CaseCommunications({ caseId }: { caseId: string }) {
   // in a row both trigger a reload.
   const [historyToken, setHistoryToken] = useState(0);
   const refreshHistory = useCallback(() => setHistoryToken(token => token + 1), []);
+  // The composer reports a send once; the history re-reads, and the host (a case pane) is told.
+  const afterSend = useCallback(() => { refreshHistory(); onSent?.(); }, [refreshHistory, onSent]);
 
   // The recipient is the case's own customer, read from whichever table the lookup points at —
   // contact for Housing Loan, account for BFD. One code path, no branch on the organisation.
@@ -172,7 +201,7 @@ function CaseCommunications({ caseId }: { caseId: string }) {
         </div>
       )}
       {hold && messaging && (
-        <Composer caseId={caseId} recipient={recipient} hold={hold} messaging={messaging} onSent={refreshHistory} />
+        <Composer caseId={caseId} recipient={recipient} hold={hold} messaging={messaging} onSent={afterSend} initialChannel={initialChannel ?? 'SMS'} />
       )}
       {messaging && <History caseId={caseId} messaging={messaging} reloadToken={historyToken} />}
     </div>
@@ -188,16 +217,17 @@ type SendState =
   | { kind: 'refused'; messages: readonly string[] }
   | { kind: 'failed'; message: string };
 
-function Composer({ caseId, recipient, hold, messaging, onSent }: {
+function Composer({ caseId, recipient, hold, messaging, onSent, initialChannel }: {
   caseId: string;
   recipient: CustomerProfile | null;
   hold: ContactHoldResolution;
   messaging: MessagingConfiguration;
   onSent: () => void;
+  initialChannel: TemplateChannel;
 }) {
   const { adapter } = useCrmSession();
   const [catalogue, setCatalogue] = useState<readonly CommunicationTemplate[]>([]);
-  const [channel, setChannel] = useState<TemplateChannel>('SMS');
+  const [channel, setChannel] = useState<TemplateChannel>(initialChannel);
   const [language, setLanguage] = useState<TemplateLanguage>('English');
   const [templateId, setTemplateId] = useState('');
   const [values, setValues] = useState<Record<string, string>>({});

@@ -157,7 +157,7 @@ function ViewHost({
       return (
         <CaseWorkspaceView caseId={recordId} initialTab={tab} onOpenComms={onOpenComms} onNavigateComms={onNavigateComms} />
       );
-    case 'customer': return <Customer360View customerBusinessId={recordId} onOpenCase={onOpenCase} onOpenActionPlan={onOpenActionPlan} onOpenCustomer={onOpenCustomer} />;
+    case 'customer': return <Customer360View customerBusinessId={recordId} fromCaseId={tab} onOpenCase={onOpenCase} onOpenActionPlan={onOpenActionPlan} onOpenCustomer={onOpenCustomer} />;
     case 'intake': return <DelinquencyIntakeView />;
     case 'buckets': return <SegmentationView />;
     case 'rules': return <StrategyRulesView view={view} />;

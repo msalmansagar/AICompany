@@ -3,6 +3,9 @@
 
 .c360 { display: flex; flex-direction: column; gap: 12px; min-width: 0; max-width: 100%; overflow-x: clip; }
 
+/* Back to the case Customer 360 was opened from (WP4) — first, and left-aligned, like the case's own Back. */
+.c360-back { align-self: flex-start; }
+
 /* ── Header ─────────────────────────────────────────────────────────── */
 .c360-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 12px 16px; }
 .c360-avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--primary-tint); color: var(--primary-pressed); font-weight: 600; flex: none; }

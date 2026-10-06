@@ -19,6 +19,7 @@ import {
 } from '../components/primitives.js';
 import { useCrmSession, useOrg, useRole } from '../shell/context.js';
 import { CustomerLink, navigateTo } from '../shell/RecordLinks.js';
+import { CompleteFollowUpButton, useFollowUpCompletion } from './FollowUpCompletion.js';
 import type { ViewDefinition } from '../shell/routes.js';
 import { ListToolbar, SplitLayout, useListLayout } from '../components/listLayout.js';
 import { AuditEntryPreview, CasePreview } from './previews.js';
@@ -353,7 +354,7 @@ export function MyDayView({ onOpenCase }: { onOpenCase?: (id: string) => void })
 // ── Follow-ups ───────────────────────────────────────────────────────────────
 
 /** The follow-up columns; an integration-owned activity is shown as "System", never by its technical name. */
-function followUpColumns(applicationUsers: ReadonlySet<string>): readonly DataGridColumn<ActivityRow>[] {
+function followUpColumns(applicationUsers: ReadonlySet<string>, onComplete: (row: ActivityRow) => void): readonly DataGridColumn<ActivityRow>[] {
   return [
     { key: 'due', header: 'Follow-up', width: '110px', render: r => formatDate(r.followUpDate) },
     { key: 'case', header: 'Case', width: '160px', isLink: true, render: r => r.caseNumber ?? '—' },
@@ -361,6 +362,7 @@ function followUpColumns(applicationUsers: ReadonlySet<string>): readonly DataGr
     { key: 'subject', header: 'Subject', render: r => r.subject },
     { key: 'owner', header: 'Owner', width: '150px', render: r => describeRecorder(r, applicationUsers) },
     { key: 'status', header: 'Status', width: '120px', render: r => <StatusPill status={r.status} /> },
+    { key: 'complete', header: '', width: '100px', render: r => <CompleteFollowUpButton row={r} onComplete={onComplete} /> },
   ];
 }
 
@@ -394,16 +396,18 @@ function FollowUpsPanel({ onOpenCase }: { onOpenCase?: (id: string) => void }) {
   const [window, setWindow] = useState<FollowUpWindow>('overdue');
   const [now] = useState(() => new Date());
 
+  const completion = useFollowUpCompletion();
+  // The reload key is part of the question, so a completion re-reads the list from its first page.
   const query = useMemo<FollowUpQuery>(() => ({
-    window, now, ...(scopeFilter ? { scopeFilter } : {}),
-  }), [window, now, scopeFilter]);
+    window, now, ...(scopeFilter ? { scopeFilter } : {}), reloadKey: completion.reloadKey,
+  }), [window, now, scopeFilter, completion.reloadKey]);
   const applicationUsers = useApplicationUsers(adapter);
-  const columns = useMemo(() => followUpColumns(applicationUsers), [applicationUsers]);
+  const columns = useMemo(() => followUpColumns(applicationUsers, completion.open), [applicationUsers, completion.open]);
 
   return (
     <Card
       title="Follow-ups"
-      subtitle="Activities an officer has committed to return to. Completing the activity clears its follow-up."
+      subtitle="Activities an officer has committed to return to. Complete one here, or open its case."
       actions={
         <div className="chips" data-testid="followup-windows">
           {FOLLOW_UP_WINDOWS.map(option => (
@@ -433,6 +437,8 @@ function FollowUpsPanel({ onOpenCase }: { onOpenCase?: (id: string) => void }) {
         }
         data-testid="myday-followups"
       />
+      {completion.notice && <p className="cw-notice" role="status" data-testid="followup-notice">{completion.notice}</p>}
+      {completion.pane}
     </Card>
   );
 }

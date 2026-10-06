@@ -41,6 +41,8 @@ export interface PromiseDialogProps {
   promiseId?: string | undefined;
   onClose: () => void;
   onSaved: () => void;
+  /** Whose promise, on which unit and case — said at the top so nothing is reselected. */
+  contextNote?: string | undefined;
 }
 
 interface LoadedPromise {
@@ -56,7 +58,7 @@ interface LoadedPromise {
   notes: string;
 }
 
-export function PromiseDialog({ mode, caseId, promiseId, onClose, onSaved }: PromiseDialogProps) {
+export function PromiseDialog({ mode, caseId, promiseId, onClose, onSaved, contextNote }: PromiseDialogProps) {
   const { adapter } = useCrmSession();
   const service = useMemo(() => new ActivityService(adapter), [adapter]);
   const save = useSaveOperation<unknown>();
@@ -208,6 +210,7 @@ export function PromiseDialog({ mode, caseId, promiseId, onClose, onSaved }: Pro
           )
       }
     >
+      {contextNote && <div className="info-banner" data-testid="promise-dialog-context"><Icon name="info" /><div>{contextNote}</div></div>}
       {loadState === 'loading' && <div className="empty-state" data-testid="promise-dialog-loading">Loading the promise…</div>}
       {loadState === 'error' && (
         <div className="info-banner bad" data-testid="promise-dialog-load-error">

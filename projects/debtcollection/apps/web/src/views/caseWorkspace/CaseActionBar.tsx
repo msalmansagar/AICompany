@@ -11,21 +11,31 @@ import { MenuButton, type MenuItem } from '../../components/MenuButton.js';
  * (no qualification rule is configured — KI-109) and no Reassign (ownership is not grantable yet —
  * KI-100), so neither is offered. A closed case offers nothing that writes.
  */
+/** Which message channels this case can be sent on, from its organisation's configuration. */
+export interface ContactChannels {
+  /** The organisation's SMS table is configured (Letter on Housing Loan, Fax on BFD — never said). */
+  canSms: boolean;
+  /** The customer has an email address. */
+  canEmail: boolean;
+}
+
 export interface CaseCommands {
   onLogAction: () => void;
+  onLogCall: () => void;
+  onMessage: (channel: 'SMS' | 'Email') => void;
   onCapturePromise: () => void;
   onComplete: (activityId: string) => void;
   onViewPromise: (promiseId: string) => void;
-  onOpenCommunications: () => void;
   onRaiseComplaint: () => void;
   onRecordDispute: () => void;
   onOpenResolution: () => void;
 }
 
-export function CaseActionBar({ isOpen, organization, customer, followUps, commands }: {
+export function CaseActionBar({ isOpen, organization, customer, channels, followUps, commands }: {
   isOpen: boolean;
   organization: string;
   customer: CustomerProfile | undefined;
+  channels: ContactChannels;
   /** What Complete follow-up offers; empty while the work is still loading or when nothing is due. */
   followUps: readonly CompletableWork[];
   commands: CaseCommands;
@@ -35,7 +45,7 @@ export function CaseActionBar({ isOpen, organization, customer, followUps, comma
   }
   return (
     <div className="cw-actions" role="toolbar" aria-label="Case commands" data-testid="cw-actions">
-      <MenuButton label="Contact" icon="send" items={contactItems(customer, commands)} testId="cw-contact" />
+      <MenuButton label="Contact" icon="send" items={contactItems(customer, channels, commands)} testId="cw-contact" />
       <button type="button" className="btn primary" onClick={commands.onLogAction} data-testid="cw-log-action"><Icon name="add" />Log action</button>
       <button type="button" className="btn" onClick={commands.onCapturePromise} data-testid="cw-capture-ptp"><Icon name="promise" />Capture PTP</button>
       <CompleteFollowUp followUps={followUps} onComplete={commands.onComplete} />
@@ -44,13 +54,21 @@ export function CaseActionBar({ isOpen, organization, customer, followUps, comma
   );
 }
 
-/** Calls are the customer's own numbers; a message is composed on the case, in business words. */
-function contactItems(customer: CustomerProfile | undefined, commands: CaseCommands): readonly MenuItem[] {
+/**
+ * Only channels that can be used on this case, in business words. Calls are the customer's own
+ * numbers, followed by "Log the call" so the outcome is recorded without hunting for the form. SMS
+ * needs the organisation's message table; Email needs an address. WhatsApp is not offered: no screen
+ * can send one yet for any organisation, and a menu entry must not promise it.
+ */
+function contactItems(customer: CustomerProfile | undefined, channels: ContactChannels, commands: CaseCommands): readonly MenuItem[] {
   const calls: MenuItem[] = [
-    ...(customer?.mobile ? [{ id: 'call-mobile', label: 'Call mobile', hint: customer.mobile, href: `tel:${customer.mobile}` }] : []),
-    ...(customer?.phone ? [{ id: 'call-phone', label: 'Call phone', hint: customer.phone, href: `tel:${customer.phone}` }] : []),
+    ...(customer?.mobile ? [{ id: 'call-mobile', label: 'Call', hint: `Mobile ${customer.mobile}`, href: `tel:${customer.mobile}` }] : []),
+    ...(customer?.phone ? [{ id: 'call-phone', label: 'Call', hint: `Phone ${customer.phone}`, href: `tel:${customer.phone}` }] : []),
   ];
-  return [...calls, { id: 'message', label: 'Send SMS or email…', onSelect: commands.onOpenCommunications }];
+  const logCall: MenuItem = { id: 'log-call', label: 'Log the call…', hint: 'Record what the customer said', onSelect: commands.onLogCall };
+  const sms: MenuItem = { id: 'sms', label: 'SMS…', onSelect: () => commands.onMessage('SMS') };
+  const email: MenuItem = { id: 'email', label: 'Email…', onSelect: () => commands.onMessage('Email'), ...(customer?.email ? { hint: customer.email } : {}) };
+  return [...calls, ...(calls.length > 0 ? [logCall] : []), ...(channels.canSms ? [sms] : []), ...(channels.canEmail ? [email] : [])];
 }
 
 /**

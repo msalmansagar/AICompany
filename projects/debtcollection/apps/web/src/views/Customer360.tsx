@@ -25,8 +25,10 @@ import { useCustomer360Sections } from './customer360/useCustomer360Sections.js'
  * a workflow or a Rule Engine decision, and nothing here writes: the figures are the last stored MIS
  * position, labelled as such, and viewing the screen changes no collection state.
  */
-export function Customer360View({ customerBusinessId, onOpenCase, onOpenActionPlan, onOpenCustomer }: {
+export function Customer360View({ customerBusinessId, fromCaseId, onOpenCase, onOpenActionPlan, onOpenCustomer }: {
   customerBusinessId?: string | undefined;
+  /** The case the officer came from (`#customer/<id>/<caseId>`): selected on arrival, one click back. */
+  fromCaseId?: string | undefined;
   onOpenCase?: (caseId: string) => void;
   /** Opens the case on its Action Plan; falls back to the case itself where a host has no such tab. */
   onOpenActionPlan?: (caseId: string) => void;
@@ -38,6 +40,7 @@ export function Customer360View({ customerBusinessId, onOpenCase, onOpenActionPl
   const navigation: CaseNavigation = {
     onOpenCase: id => onOpenCase?.(id),
     onOpenActionPlan: id => (onOpenActionPlan ?? onOpenCase)?.(id),
+    ...(fromCaseId ? { fromCaseId } : {}),
   };
   return <Customer360Page customerBusinessId={customerBusinessId} navigation={navigation} />;
 }
@@ -46,6 +49,7 @@ export function Customer360View({ customerBusinessId, onOpenCase, onOpenActionPl
 interface CaseNavigation {
   onOpenCase: (caseId: string) => void;
   onOpenActionPlan: (caseId: string) => void;
+  fromCaseId?: string;
 }
 
 function Customer360Page({ customerBusinessId, navigation }: { customerBusinessId: string; navigation: CaseNavigation }) {
@@ -66,8 +70,9 @@ function Customer360Page({ customerBusinessId, navigation }: { customerBusinessI
 function Customer360Content({ aggregate, reloadKey, onSaved, navigation }: {
   aggregate: CustomerAggregate; reloadKey: number; onSaved: () => void; navigation: CaseNavigation;
 }) {
-  const { onOpenCase } = navigation;
-  const [selectedKey, setSelectedKey] = useState<string | undefined>(() => (aggregate.financialUnits[0] ? unitKey(aggregate.financialUnits[0]) : undefined));
+  const { onOpenCase, fromCaseId } = navigation;
+  const [selectedKey, setSelectedKey] = useState<string | undefined>(() => initialUnitKey(aggregate, fromCaseId));
+  const origin = aggregate.cases.find(c => c.id === fromCaseId);
   const selected = aggregate.financialUnits.find(unit => unitKey(unit) === selectedKey);
   const sections = useCustomer360Sections(aggregate, selected, reloadKey);
   const [command, setCommand] = useState<{ kind: CaseCommandDialog; caseId: string; note?: string } | undefined>(undefined);
@@ -85,6 +90,11 @@ function Customer360Content({ aggregate, reloadKey, onSaved, navigation }: {
 
   return (
     <>
+      {origin && (
+        <button type="button" className="btn c360-back" onClick={() => onOpenCase(origin.id)} data-testid="c360-back-to-case">
+          ← Back to case {origin.caseNumber}
+        </button>
+      )}
       <CustomerHeader aggregate={aggregate} actions={<CustomerLogActionButton openUnits={openUnits} onChosen={(unit, note) => setCommand({ kind: 'activity', caseId: unit.case.id, note })} />} />
       <CollectionKpiStrip aggregate={aggregate} promises={sections.promises} />
       <BalancesAsOf asOf={aggregate.misAsOfDate} className="c360-balances-as-of" />
@@ -124,6 +134,12 @@ function Customer360Content({ aggregate, reloadKey, onSaved, navigation }: {
       />
     </>
   );
+}
+
+/** The unit of the case the officer came from, else the first — never a different case than they left. */
+function initialUnitKey(aggregate: CustomerAggregate, fromCaseId: string | undefined): string | undefined {
+  const origin = aggregate.financialUnits.find(unit => unit.case.id === fromCaseId) ?? aggregate.financialUnits[0];
+  return origin ? unitKey(origin) : undefined;
 }
 
 /** Each history entry's Loan Account / Facility and Collection Case, from the cases already read. */

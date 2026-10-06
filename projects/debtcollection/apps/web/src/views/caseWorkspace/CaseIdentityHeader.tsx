@@ -28,7 +28,7 @@ export function CaseIdentityHeader({ detail, customer, onBack, actions }: {
         <button type="button" className="btn cw-back" onClick={onBack} data-testid="cw-back">← Collection Cases</button>
         <div className="cw-names">
           <h2 className="cw-customer" data-testid="cw-customer">
-            <CustomerLink customerBusinessId={detail.customerBusinessId}>{name}</CustomerLink>
+            <CustomerLink customerBusinessId={detail.customerBusinessId} fromCaseId={detail.id}>{name}</CustomerLink>
           </h2>
           <IdentityLine detail={detail} />
         </div>

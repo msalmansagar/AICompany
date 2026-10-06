@@ -12,6 +12,7 @@ import { useV2Shell } from '../../shell/V2Shell.js';
 import { Card, FilterChips, LoadingSkeleton, MetricTile } from '../../components/primitives.js';
 import { V2DataGrid, type V2Column } from '../../components/V2DataGrid.js';
 import { HOME_BUCKETS, useBucketCounts } from './useBucketCounts.js';
+import { CompleteFollowUpButton, useFollowUpCompletion } from '../../../views/FollowUpCompletion.js';
 
 /**
  * My Day — "what needs my attention?"
@@ -127,7 +128,7 @@ function promiseRow({ id, title, count, onOpen }: PromiseRowSource): QueueRow {
 }
 
 /** The follow-up columns; an integration-owned activity is shown as "System", never by its technical name. */
-function followUpColumns(applicationUsers: ReadonlySet<string>): readonly V2Column<ActivityRow>[] {
+function followUpColumns(applicationUsers: ReadonlySet<string>, onComplete: (row: ActivityRow) => void): readonly V2Column<ActivityRow>[] {
   return [
     { key: 'due', header: 'Follow-up', width: '110px', render: r => formatDate(r.followUpDate) },
     { key: 'case', header: 'Case', width: '160px', render: r => r.caseNumber ?? '—' },
@@ -135,6 +136,7 @@ function followUpColumns(applicationUsers: ReadonlySet<string>): readonly V2Colu
     { key: 'subject', header: 'Subject', render: r => r.subject },
     { key: 'owner', header: 'Owner', width: '160px', render: r => describeRecorder(r, applicationUsers) },
     { key: 'status', header: 'Status', width: '120px', render: r => <StatusPill status={r.status} /> },
+    { key: 'complete', header: '', width: '104px', render: r => <CompleteFollowUpButton row={r} onComplete={onComplete} className="v2-btn" /> },
   ];
 }
 
@@ -148,14 +150,16 @@ function FollowUps({ now, onOpenCase }: { now: Date; onOpenCase: (id: string) =>
   const { scopeFilter } = useOrg();
   const [window, setWindow] = useState<FollowUpWindow>('overdue');
   const fetchPage = useMemo(() => createFollowUpQuery(adapter), [adapter]);
-  const query = useMemo<FollowUpQuery>(() => ({ window, now, ...(scopeFilter ? { scopeFilter } : {}) }), [window, now, scopeFilter]);
+  const completion = useFollowUpCompletion();
+  // The reload key is part of the question, so a completion re-reads the list from its first page.
+  const query = useMemo<FollowUpQuery>(() => ({ window, now, ...(scopeFilter ? { scopeFilter } : {}), reloadKey: completion.reloadKey }), [window, now, scopeFilter, completion.reloadKey]);
   const applicationUsers = useApplicationUsers(adapter);
-  const columns = useMemo(() => followUpColumns(applicationUsers), [applicationUsers]);
+  const columns = useMemo(() => followUpColumns(applicationUsers, completion.open), [applicationUsers, completion.open]);
 
   return (
     <Card
       title="Follow-ups"
-      subtitle="Activities an officer committed to return to. Completing the activity clears its follow-up."
+      subtitle="Activities an officer committed to return to. Complete one here, or open its case."
       actions={<FilterChips label="Window" options={WINDOWS} selected={window} onSelect={id => setWindow(id as FollowUpWindow)} testId="v2-followup-window" />}
       flush
     >
@@ -166,6 +170,8 @@ function FollowUps({ now, onOpenCase }: { now: Date; onOpenCase: (id: string) =>
         emptyTitle={window === 'overdue' ? 'Nothing is overdue.' : 'No follow-up in this window.'}
         height={320} testId="v2-followups"
       />
+      {completion.notice && <p className="v2-toolbar-note" role="status" data-testid="followup-notice">{completion.notice}</p>}
+      {completion.pane}
     </Card>
   );
 }

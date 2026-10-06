@@ -19,16 +19,18 @@ export function navigateTo(viewId: string, recordId?: string, tab?: string): voi
 }
 
 /** A customer's name, opening that customer's Customer 360. Plain text when the id is unknown. */
-export function CustomerLink({ customerBusinessId, children, className }: {
+export function CustomerLink({ customerBusinessId, children, className, fromCaseId }: {
   customerBusinessId: string | undefined;
   children: ReactNode;
   className?: string;
+  /** The case the officer is leaving; Customer 360 opens on it and offers the way back. */
+  fromCaseId?: string;
 }) {
   if (!isKnownId(customerBusinessId)) return <span className={className}>{children}</span>;
   return (
     <RecordLink
       label={`Open Customer 360 for ${textOf(children)}`} className={className}
-      onActivate={() => navigateTo('customer', customerBusinessId)} testId="customer-link"
+      onActivate={() => navigateTo('customer', customerBusinessId, fromCaseId)} testId="customer-link"
     >
       {children}
     </RecordLink>
