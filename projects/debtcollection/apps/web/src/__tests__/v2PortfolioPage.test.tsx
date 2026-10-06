@@ -63,7 +63,7 @@ function matches(c: FakeCase, filter: string): boolean {
 function aggregate(cases: FakeCase[], fetchXml: string): Record<string, unknown>[] {
   const org = /qdb_organizationcode" operator="eq" value="(\d+)"/.exec(fetchXml);
   const rows = cases.filter(c => c.open && (!org || c.org === Number(org[1])));
-  if (fetchXml.includes('alias="asof"')) return [{ asof: '2026-09-17T22:04:56Z', syncedfrom: '2026-09-17T22:04:40Z', syncedto: '2026-09-18T22:45:43Z' }];
+  if (fetchXml.includes('alias="asof"')) return [{ asof: '2026-09-17T22:04:56Z' }];
   const groups = new Map<string, { cases: number; arrears: number; bucket: number; strategy: string | null }>();
   for (const c of rows) {
     const key = `${c.bucket}|${c.strategy}`;
