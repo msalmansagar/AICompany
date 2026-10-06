@@ -41,7 +41,8 @@ export function DpdChart({ points }: { points: readonly SnapshotRow[] }) {
 
 function plot(points: readonly SnapshotRow[]): PlottedPoint[] {
   const known = points.filter(point => point.dpd !== undefined);
-  const scale = verticalScale(known.map(point => point.dpd!));
+  if (known.length === 0) return [];
+  const scale = buildVerticalScale(known.map(point => point.dpd!));
   const step = known.length > 1 ? (WIDTH - 2 * PAD_X) / (known.length - 1) : 0;
   const labels = axisLabelsFor(known.map(point => point.snapshotDate));
   const labelEvery = Math.ceil(known.length / MAX_AXIS_LABELS);
@@ -55,7 +56,7 @@ function plot(points: readonly SnapshotRow[]): PlottedPoint[] {
 }
 
 /** Maps a DPD to a y position over the range of the values shown, padded so no point sits on an edge. */
-function verticalScale(values: readonly number[]): (value: number) => number {
+function buildVerticalScale(values: readonly number[]): (value: number) => number {
   const lowest = Math.min(...values);
   const highest = Math.max(...values);
   const margin = Math.max((highest - lowest) * 0.15, 1);

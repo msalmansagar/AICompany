@@ -9,6 +9,7 @@ import { axisLabelsFor, formatSnapshotDay } from '../views/customer360/snapshotD
  * the movement, a label under the points, and three-letter months everywhere.
  */
 
+// A partial row: the chart reads only id, date and DPD, so the remaining columns are left out.
 const snapshot = (date: string, dpd: number): SnapshotRow => ({ id: `s-${date}`, snapshotDate: date, dpd } as SnapshotRow);
 const WEEKLY = [snapshot('2026-09-04', 60), snapshot('2026-09-11', 67), snapshot('2026-09-18', 74)];
 const MONTHLY = [snapshot('2026-06-30', 122), snapshot('2026-07-31', 153), snapshot('2026-08-31', 184), snapshot('2026-09-30', 214)];

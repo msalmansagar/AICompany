@@ -95,6 +95,7 @@ function StoredValues({ points }: { points: readonly SnapshotRow[] }) {
     <>
       <p className="c360-hint c360-values-title">Stored values, newest first</p>
       <table className="c360-values" data-testid="c360-snapshot-values">
+        <caption className="c360-visually-hidden">Stored DPD by date, newest first</caption>
         <thead className="c360-visually-hidden"><tr><th scope="col">As of</th><th scope="col">DPD</th><th scope="col">Bucket</th></tr></thead>
         <tbody>
           {[...points].reverse().map(point => (
