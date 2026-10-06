@@ -1,14 +1,17 @@
 import type { CaseDetail, CustomerProfile } from '../../../data/caseQueries.js';
 import { OrgBadge, StatusPill, formatCount, formatMoney } from '../../../components/primitives.js';
-import { StoredPositionNotice } from '../../../components/Freshness.js';
+import { BalancesAsOf } from '../../../components/BalancesAsOf.js';
+import { describeRecorder, useApplicationUsers } from '../../../data/applicationUsers.js';
+import { useCrmSession } from '../../../shell/context.js';
 import { BucketBadge, CommandBar, CommandButton } from '../../components/primitives.js';
 
 /**
  * Who, which facility, how late, and what can be done — in one card.
  *
- * The figures are MIS's last reported position, stored on the case, and the notice beneath them says
- * so: this is never presented as a live read. Status and organisation badges are V1's own, so both
- * workspaces describe a status the same way. Only commands for real capabilities are offered.
+ * The figures are MIS's last reported position, stored on the case; the line beneath them gives the
+ * date they are from. An integration-owned case shows its owner as "System". Status and organisation
+ * badges are V1's own, so both workspaces describe a status the same way. Only commands for real
+ * capabilities are offered.
  */
 export function CaseHeader({ detail, customer, onBack, onLogAction, onCapturePromise, onMessage, onOpenCustomer }: {
   detail: CaseDetail;
@@ -21,6 +24,7 @@ export function CaseHeader({ detail, customer, onBack, onLogAction, onCapturePro
 }) {
   const name = customer?.displayName ?? detail.customerBusinessId;
   const closedReason = detail.isOpen ? undefined : 'This case is closed.';
+  const applicationUsers = useApplicationUsers(useCrmSession().adapter);
 
   return (
     <div className="v2-case-head" data-testid="v2-case-header">
@@ -56,11 +60,11 @@ export function CaseHeader({ detail, customer, onBack, onLogAction, onCapturePro
         <Stat label="Loan balance" value={formatMoney(detail.loanBalance)} />
         <Stat label="DPD" value={formatCount(detail.dpd)} />
         <Stat label="Instalment" value={formatMoney(detail.installmentAmount)} />
-        <Stat label="Owner" value={detail.ownerName ?? '—'} />
+        <Stat label="Owner" value={describeRecorder(detail, applicationUsers)} />
         <Stat label="Strategy" value={detail.strategyName ?? '—'} />
       </dl>
       <div className="v2-case-freshness">
-        <StoredPositionNotice asOf={detail.misAsOfDate} syncedOn={detail.lastMisSyncOn} />
+        <BalancesAsOf asOf={detail.misAsOfDate} />
       </div>
     </div>
   );

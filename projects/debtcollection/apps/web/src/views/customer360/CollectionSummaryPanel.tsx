@@ -5,7 +5,7 @@ import { BucketBadge, StatusBadge, statusBadgeTone } from '../../components/Stat
 import { SectionBoundary, SkeletonLines, type SectionState } from '../../components/SectionBoundary.js';
 import { formatCount } from '../../components/primitives.js';
 import { describeDue, describeNext, useUnitTerm } from './FinancialUnitList.js';
-import { OwnerLabel } from './OwnerLabel.js';
+import { OwnerLabel } from '../../components/OwnerLabel.js';
 
 /**
  * The selected Loan Account or Facility and its Collection Case, as the platform records them.

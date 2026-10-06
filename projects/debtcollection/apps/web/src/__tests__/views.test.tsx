@@ -221,11 +221,10 @@ describe('the Case Workspace keeps all seven approved tabs', () => {
     expect(screen.getByTestId('case-summary-fields').textContent).toContain('COL-HL-000123');
   });
 
-  it('says the position is stored rather than a live MIS read', async () => {
+  it('says which date the balances are from, with no MIS position bar', async () => {
     await openView('case', 'c-1');
-    const notice = await screen.findByTestId('stored-position');
-    expect(notice.textContent).toContain('not a live MIS read');
-    expect(within(notice).getByTestId('stored-asof').textContent).toContain('2026-09-17');
+    const line = await screen.findByTestId('balances-as-of');
+    expect([line.textContent, screen.queryByTestId('stored-position')]).toEqual(['Balances as of 17 Sept 2026', null]);
   });
 
   it('says a tab is not available yet, without naming an internal delivery phase', async () => {

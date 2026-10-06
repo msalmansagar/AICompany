@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { App } from '../App.js';
 import { VERSION_STORAGE_KEY } from '../v2/version/workspaceVersion.js';
 import type { XrmLike } from '../platform/crmContext.js';
-import { describeBalancesDate } from '../views/customer360/BalancesAsOf.js';
+import { describeBalancesDate } from '../components/BalancesAsOf.js';
 import { communicationMappings, configurationRow, FAX_COLUMN_MAP, LETTER_COLUMN_MAP } from './messagingFixtures.js';
 
 /**
@@ -440,7 +440,7 @@ describe('position and balances', () => {
   it('says which date the balances are from, with no MIS position bar', async () => {
     await open();
 
-    expect([screen.getByTestId('c360-balances-as-of').textContent, screen.queryByTestId('c360-mis')])
+    expect([screen.getByTestId('balances-as-of').textContent, screen.queryByTestId('c360-mis')])
       .toEqual(['Balances as of 27 Sept 2026', null]);
   });
 

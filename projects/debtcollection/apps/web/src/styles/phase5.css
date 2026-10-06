@@ -38,8 +38,8 @@
 .freshness.cached { border-color: var(--warning); background: var(--warning-bg); color: var(--warning); }
 .freshness.cached .freshness-detail { color: var(--warning); opacity: .85; }
 
-/* Stored: what the case or snapshot table holds. Not a live read at all. */
-.freshness.stored { border-color: var(--border-strong); color: var(--text-secondary); }
+/* The date stored balances are from: a quiet line, not a warning bar. */
+.balances-as-of { color: var(--text-secondary); font-size: 12px; margin: 8px 0; }
 
 .stale-reason {
   display: flex; align-items: center; gap: 8px; font-size: 12.5px;

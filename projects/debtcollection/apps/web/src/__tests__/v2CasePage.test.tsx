@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from '../App.js';
 import { VERSION_STORAGE_KEY } from '../v2/version/workspaceVersion.js';
@@ -88,10 +88,20 @@ describe('the case header', () => {
     expect(screen.getByTestId('v2-case-customer').textContent).toBe('28912345678');
   });
 
-  it('shows the stored position and says it is not a live read', async () => {
+  it('says which date the balances are from, with no MIS position bar', async () => {
     await openCase();
 
-    expect(screen.getByTestId('v2-case-header').textContent).toContain('not a live MIS read');
+    const header = screen.getByTestId('v2-case-header');
+    expect([within(header).getByTestId('balances-as-of').textContent, header.textContent?.includes('not a live MIS read')])
+      .toEqual([expect.stringMatching(/^Balances as of \d{1,2} \w+ \d{4}$/), false]);
+  });
+
+  it('shows an integration-owned case as owned by System, never by its technical name', async () => {
+    const integrationOwned = { ...CASE_ROW, _ownerid_value: 'app-1', '_ownerid_value@OData.Community.Display.V1.FormattedValue': '# DFE Backend API' };
+    await openCase('#case/c-1', { qdb_collectioncase: [integrationOwned], contact: [CONTACT], systemuser: [{ systemuserid: 'app-1' }] });
+
+    await waitFor(() => expect(screen.getByTestId('v2-case-stats').textContent).toContain('OwnerSystem'));
+    expect(screen.getByTestId('v2-case-stats').textContent).not.toContain('DFE Backend');
   });
 
   it('shows the arrears from the case', async () => {

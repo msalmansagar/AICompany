@@ -12,7 +12,7 @@ import { CollectionKpiStrip, CustomerHeader } from './customer360/CustomerHeader
 import { CustomerLogActionButton } from './customer360/CustomerLogAction.js';
 import { DelinquencyHistory } from './customer360/DelinquencyHistory.js';
 import { FinancialUnitList, unitKey } from './customer360/FinancialUnitList.js';
-import { BalancesAsOf } from './customer360/BalancesAsOf.js';
+import { BalancesAsOf } from '../components/BalancesAsOf.js';
 import { useCustomer360Sections } from './customer360/useCustomer360Sections.js';
 
 /**
@@ -86,7 +86,7 @@ function Customer360Content({ aggregate, reloadKey, onSaved, navigation }: {
     <>
       <CustomerHeader aggregate={aggregate} actions={<CustomerLogActionButton openUnits={openUnits} onChosen={(unit, note) => setCommand({ kind: 'activity', caseId: unit.case.id, note })} />} />
       <CollectionKpiStrip aggregate={aggregate} promises={sections.promises} />
-      <BalancesAsOf asOf={aggregate.misAsOfDate} />
+      <BalancesAsOf asOf={aggregate.misAsOfDate} className="c360-balances-as-of" />
       <div className="c360-layout">
         <div className="c360-col-main">
           <div className="c360-slot-units">

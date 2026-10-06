@@ -9,7 +9,8 @@ import {
   BucketBar, BucketPill, Card, EmptyState, FieldList, OrgBadge, PendingPhasePanel, Pivot, StatusPill,
   PromiseOutcome, formatCount, formatDate, formatMoney, type PivotTab,
 } from '../components/primitives.js';
-import { StoredPositionNotice } from '../components/Freshness.js';
+import { BalancesAsOf } from '../components/BalancesAsOf.js';
+import { OwnerLabel } from '../components/OwnerLabel.js';
 import { ActivityDialog } from './ActivityDialog.js';
 import { PromiseDialog } from './PromiseDialog.js';
 import { CaseActionPlan } from './strategyViews.js';
@@ -153,7 +154,7 @@ function CaseHeader({ detail, onOpenCustomer }: {
         <span className="chip">{formatMoney(detail.totalArrears)} overdue</span>
         <span className="chip">{formatCount(detail.dpd)} DPD</span>
       </div>
-      <StoredPositionNotice asOf={detail.misAsOfDate} syncedOn={detail.lastMisSyncOn} />
+      <BalancesAsOf asOf={detail.misAsOfDate} />
     </Card>
   );
 }
@@ -172,7 +173,7 @@ function SummaryTab({ detail }: { detail: CaseDetail }) {
             { label: 'State', value: detail.isOpen ? 'Open' : 'Closed' },
             { label: 'Opened', value: formatDate(detail.openDate) },
             { label: 'Episode', value: formatCount(detail.episodeNumber) },
-            { label: 'Owner', value: detail.ownerName ?? '—' },
+            { label: 'Owner', value: <OwnerLabel ownerId={detail.ownerId} ownerName={detail.ownerName} /> },
             { label: 'Strategy', value: detail.strategyName ?? '—' },
             { label: 'Cured on', value: formatDate(detail.cureDate) },
             { label: 'Resolution', value: detail.resolutionType ?? '—' },
@@ -247,7 +248,7 @@ const ACTIVITY_COLUMNS: readonly DataGridColumn<ActivityRow>[] = [
   { key: 'date', header: 'When', width: '110px', render: r => formatDate(r.activityDate ?? r.createdOn) },
   { key: 'type', header: 'Type', width: '150px', render: r => r.activityType ?? '—' },
   { key: 'subject', header: 'Subject', isLink: true, render: r => r.subject },
-  { key: 'owner', header: 'Owner', width: '160px', render: r => r.ownerName ?? '—' },
+  { key: 'owner', header: 'Owner', width: '160px', render: r => <OwnerLabel ownerId={r.ownerId} ownerName={r.ownerName} /> },
   { key: 'followup', header: 'Follow-up', width: '110px', render: r => formatDate(r.followUpDate) },
   { key: 'status', header: 'Status', width: '120px', render: r => <StatusPill status={r.status} /> },
 ];

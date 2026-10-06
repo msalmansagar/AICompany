@@ -8,6 +8,7 @@ import {
   PromiseOutcome, StatusPill, formatCount, formatDate, formatMoney,
 } from '../../../components/primitives.js';
 import { useCrmSession } from '../../../shell/context.js';
+import { OwnerLabel } from '../../../components/OwnerLabel.js';
 import { BucketBadge, BucketBar, Card, EmptyState } from '../../components/primitives.js';
 import { V2DataGrid, type V2Column } from '../../components/V2DataGrid.js';
 
@@ -21,7 +22,7 @@ const ACTIVITY_COLUMNS: readonly V2Column<ActivityRow>[] = [
   { key: 'date', header: 'When', width: '110px', render: r => formatDate(r.activityDate ?? r.createdOn) },
   { key: 'type', header: 'Type', width: '170px', render: r => r.activityType ?? '—' },
   { key: 'subject', header: 'Subject', render: r => r.subject },
-  { key: 'owner', header: 'Owner', width: '170px', render: r => r.ownerName ?? '—' },
+  { key: 'owner', header: 'Owner', width: '170px', render: r => <OwnerLabel ownerId={r.ownerId} ownerName={r.ownerName} /> },
   { key: 'followup', header: 'Follow-up', width: '110px', render: r => formatDate(r.followUpDate) },
   { key: 'status', header: 'Status', width: '130px', render: r => <StatusPill status={r.status} /> },
 ];

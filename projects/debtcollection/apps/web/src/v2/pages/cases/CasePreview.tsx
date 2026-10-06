@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { createActivityQuery, createPtpQuery, type ActivityRow, type CaseDetail, type PtpRow } from '../../../data/caseQueries.js';
 import { useNextAction } from '../../../data/useNextAction.js';
 import { OrgBadge, StatusPill, formatCount, formatDate, formatMoney } from '../../../components/primitives.js';
-import { StoredPositionNotice } from '../../../components/Freshness.js';
+import { BalancesAsOf } from '../../../components/BalancesAsOf.js';
+import { OwnerLabel } from '../../../components/OwnerLabel.js';
 import { useCrmSession } from '../../../shell/context.js';
 import { formatRecordedAt } from '../../format.js';
 import { BucketBadge, CommandBar, CommandButton, EmptyState, ErrorState, KeyValueList, LoadingSkeleton } from '../../components/primitives.js';
@@ -61,7 +62,7 @@ export function CasePreview({ caseId, reloadKey, onOpen, onLogAction, onCaptureP
       <KeyValueList testId="v2-preview-details" items={[
         { label: 'Customer type', value: detail.customerType ?? '—' },
         { label: 'Status', value: detail.status },
-        { label: 'Owner', value: detail.ownerName ?? '—' },
+        { label: 'Owner', value: <OwnerLabel ownerId={detail.ownerId} ownerName={detail.ownerName} /> },
         { label: 'Source system', value: detail.sourceSystem },
         { label: 'Episode', value: formatCount(detail.episodeNumber) },
         { label: 'Opened', value: detail.openDate ? formatDate(detail.openDate) : '—' },
@@ -69,7 +70,7 @@ export function CasePreview({ caseId, reloadKey, onOpen, onLogAction, onCaptureP
 
       <NextAction detail={detail} reloadKey={reloadKey} />
       <RecentFacts detail={detail} reloadKey={reloadKey} />
-      <StoredPositionNotice asOf={detail.misAsOfDate} syncedOn={detail.lastMisSyncOn} />
+      <BalancesAsOf asOf={detail.misAsOfDate} />
 
       <CommandBar label="Case commands">
         <CommandButton label="Log action" isPrimary onClick={onLogAction} testId="v2-preview-log-action" {...closedReason(detail)} />

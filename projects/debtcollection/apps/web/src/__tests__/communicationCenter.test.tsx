@@ -224,23 +224,23 @@ describe('choosing what to send', () => {
     await open(baseRows());
     // The composer appears once the organisation's hold policy AND messaging tables are read.
     const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
-    await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
+    await waitFor(() => expect(picker.textContent).toContain('Overdue reminder'));
   });
 
   it('never offers a template that has not been approved', async () => {
     await open(baseRows([approvedTemplate, unapprovedTemplate]));
     const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
-    await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
+    await waitFor(() => expect(picker.textContent).toContain('Overdue reminder'));
     // The column has no Draft value, so an untouched template carries null. Reading that as
     // anything but "unapproved" would put unreviewed wording in front of a customer.
-    expect(picker.textContent).not.toContain('P7-SMS-DRAFT');
+    expect(picker.textContent).not.toContain('Draft wording');
   });
 
   it('never offers an inactive template', async () => {
     await open(baseRows([approvedTemplate, inactiveTemplate]));
     const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
-    await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
-    expect(picker.textContent).not.toContain('P7-SMS-OFF');
+    await waitFor(() => expect(picker.textContent).toContain('Overdue reminder'));
+    expect(picker.textContent).not.toContain('Retired wording');
   });
 
   it('says so plainly when no template is available, rather than showing an empty list', async () => {
@@ -254,7 +254,7 @@ describe('an incomplete message cannot be sent', () => {
   it('refuses to enable Send while a placeholder is unresolved', async () => {
     await open(baseRows());
     const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
-    await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
+    await waitFor(() => expect(picker.textContent).toContain('Overdue reminder'));
 
     await userEvent.selectOptions(picker, 't-approved');
 
@@ -265,7 +265,7 @@ describe('an incomplete message cannot be sent', () => {
   it('enables Send once every placeholder has a value', async () => {
     await open(baseRows());
     const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
-    await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
+    await waitFor(() => expect(picker.textContent).toContain('Overdue reminder'));
     await userEvent.selectOptions(picker, 't-approved');
 
     await userEvent.type(screen.getByTestId('placeholder-customerName'), 'Ahmed');
@@ -280,7 +280,7 @@ describe('sending, through the production composition path', () => {
     const sent = captureWrites();
     await open(baseRows());
     const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
-    await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
+    await waitFor(() => expect(picker.textContent).toContain('Overdue reminder'));
     await userEvent.selectOptions(picker, 't-approved');
     await userEvent.type(screen.getByTestId('placeholder-customerName'), 'Ahmed');
     await waitFor(() => expect(screen.getByTestId('composer-send')).toBeEnabled());
@@ -333,7 +333,7 @@ describe('sending, through the production composition path', () => {
     const sent = captureWrites();
     await open(baseRows());
     const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
-    await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
+    await waitFor(() => expect(picker.textContent).toContain('Overdue reminder'));
     await userEvent.selectOptions(picker, 't-approved');
     await userEvent.type(screen.getByTestId('placeholder-customerName'), 'Ahmed');
     await waitFor(() => expect(screen.getByTestId('composer-send')).toBeEnabled());
@@ -355,7 +355,7 @@ describe('sending, through the production composition path', () => {
     const sent = captureWrites();
     await open(baseRows());
     const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
-    await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
+    await waitFor(() => expect(picker.textContent).toContain('Overdue reminder'));
     await userEvent.selectOptions(picker, 't-approved');
 
     await userEvent.type(screen.getByTestId('placeholder-customerName'), 'Ahmed');
@@ -379,7 +379,7 @@ describe('sending, through the production composition path', () => {
     const sent = captureWrites();
     await open(baseRows());
     const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
-    await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
+    await waitFor(() => expect(picker.textContent).toContain('Overdue reminder'));
     await userEvent.selectOptions(picker, 't-approved');
     await userEvent.type(screen.getByTestId('placeholder-customerName'), 'Ahmed');
     await waitFor(() => expect(screen.getByTestId('composer-send')).toBeEnabled());
@@ -430,7 +430,7 @@ describe('Contact Hold, which this organisation cannot establish', () => {
     expect(notice.textContent).toMatch(/Contact Hold cannot be checked/i);
 
     const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
-    await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
+    await waitFor(() => expect(picker.textContent).toContain('Overdue reminder'));
     await userEvent.selectOptions(picker, 't-approved');
     await userEvent.type(screen.getByTestId('placeholder-customerName'), 'Ahmed');
 
@@ -486,7 +486,7 @@ describe('a customer who must not be contacted', () => {
     await screen.findByTestId('view-comms');
 
     const picker = await screen.findByTestId('composer-template', {}, { timeout: 5000 });
-    await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE'));
+    await waitFor(() => expect(picker.textContent).toContain('Overdue reminder'));
     await userEvent.selectOptions(picker, 't-approved');
     await userEvent.type(screen.getByTestId('placeholder-customerName'), 'Ahmed');
     await waitFor(() => expect(screen.getByTestId('composer-send')).toBeEnabled());

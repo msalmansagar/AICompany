@@ -1,5 +1,5 @@
-import { useApplicationUsers } from '../../data/applicationUsers.js';
-import { useCrmSession } from '../../shell/context.js';
+import { useApplicationUsers } from '../data/applicationUsers.js';
+import { useCrmSession } from '../shell/context.js';
 
 /** Shown on a record owned by a service identity; the owner record itself is never changed. */
 export const SYSTEM_OWNER_HINT = 'Recorded by an integration. The technical owner is shown in audit and administration.';

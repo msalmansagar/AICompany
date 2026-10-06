@@ -6,6 +6,7 @@ import {
 import { loadActionPlan } from '../../../data/followUpQueries.js';
 import { toPlanItem, type CaseContext } from '../../../data/actionPlanRows.js';
 import { StatusPill, formatCount, formatDate, formatMoney } from '../../../components/primitives.js';
+import { OwnerLabel } from '../../../components/OwnerLabel.js';
 import { describeFailure } from '../../../platform/errors.js';
 import { formatRecordedAt } from '../../format.js';
 import { useCrmSession } from '../../../shell/context.js';
@@ -162,7 +163,7 @@ function RecentActivity({ caseId, reloadKey, onOpenAll }: { caseId: string; relo
                 <div className="v2-timeline-head">
                   <span className="v2-timeline-title">{row.activityType ?? 'Action'}</span>
                   <StatusPill status={row.status} />
-                  <span className="v2-timeline-when">Recorded {formatRecordedAt(row.createdOn)} · {row.ownerName ?? '—'}</span>
+                  <span className="v2-timeline-when">Recorded {formatRecordedAt(row.createdOn)} · <OwnerLabel ownerId={row.ownerId} ownerName={row.ownerName} /></span>
                 </div>
                 <p className="v2-timeline-note">{row.subject}</p>
               </div>

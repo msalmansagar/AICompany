@@ -2,7 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { AuditRow } from '../data/collectionQueries.js';
 import { loadCustomerAggregate, type CustomerAggregate } from '../data/customerAggregate.js';
 import { useCaseRecord } from '../data/useCaseRecord.js';
-import { StoredPositionNotice } from '../components/Freshness.js';
+import { BalancesAsOf } from '../components/BalancesAsOf.js';
+import { OwnerLabel } from '../components/OwnerLabel.js';
 import {
   BucketPill, EmptyState, FieldList, Icon, OrgBadge, StatusPill, formatCount, formatDate, formatMoney,
 } from '../components/primitives.js';
@@ -80,11 +81,11 @@ export function CasePreview({ caseId, reloadKey = 0, onOpen, onLogAction, onCapt
         { label: 'Loan balance', value: formatMoney(detail.loanBalance) },
         { label: 'Strategy', value: detail.strategyName ?? 'Not assigned' },
         { label: 'Customer type', value: detail.customerType ?? '—' },
-        { label: 'Owner', value: detail.ownerName ?? '—' },
+        { label: 'Owner', value: <OwnerLabel ownerId={detail.ownerId} ownerName={detail.ownerName} /> },
         { label: 'Episode', value: formatCount(detail.episodeNumber) },
         { label: 'Opened', value: formatDate(detail.openDate) },
       ]} />
-      <StoredPositionNotice asOf={detail.misAsOfDate} syncedOn={detail.lastMisSyncOn} />
+      <BalancesAsOf asOf={detail.misAsOfDate} />
       {(onLogAction || onCapturePromise) && (
         <div className="action-row" role="toolbar" aria-label="Case commands">
           {onLogAction && <CaseCommand label="Log action" icon="add" onClick={onLogAction} isOpen={detail.isOpen} testId={`${testId}-log-action`} />}

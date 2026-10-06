@@ -10,7 +10,7 @@ import { SkeletonLines } from '../../components/SectionBoundary.js';
 import { formatMoney } from '../../components/primitives.js';
 import { describeFailure } from '../../platform/errors.js';
 import { useCrmSession } from '../../shell/context.js';
-import { OwnerLabel } from './OwnerLabel.js';
+import { OwnerLabel } from '../../components/OwnerLabel.js';
 
 export const HISTORY_PAGE = 20;
 

@@ -1,5 +1,5 @@
 /**
- * The date the customer's balances are from — one quiet line under the figures.
+ * The date a customer's or case's balances are from — one quiet line under the figures.
  *
  * The balances are the last MIS position DCP stored; there is no live MIS read. Officers asked for
  * the "Stored MIS position" bar to go (it read as a warning about something they cannot act on), but
@@ -12,6 +12,7 @@ export function describeBalancesDate(asOf: string | undefined): string {
   return `Balances as of ${QATAR_DAY.format(new Date(asOf))}`;
 }
 
-export function BalancesAsOf({ asOf }: { asOf: string | undefined }) {
-  return <p className="c360-hint c360-balances-as-of" data-testid="c360-balances-as-of">{describeBalancesDate(asOf)}</p>;
+/** `className` places the line in its screen; the wording and test id are the same everywhere. */
+export function BalancesAsOf({ asOf, className = '' }: { asOf: string | undefined; className?: string }) {
+  return <p className={`balances-as-of ${className}`.trim()} data-testid="balances-as-of">{describeBalancesDate(asOf)}</p>;
 }

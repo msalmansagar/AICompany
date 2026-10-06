@@ -32,7 +32,7 @@
 }
 .dcp-v2 .v2-stat-value.v2-stat-strong { color: var(--v2-danger-strong); }
 .dcp-v2 .v2-case-freshness { padding: 8px 20px; border-top: 1px solid var(--v2-divider); background: var(--v2-surface-alt); }
-.dcp-v2 .v2-case-freshness .freshness { margin: 0; border: 0; background: transparent; padding: 0; font-size: var(--v2-fs-xs); }
+.dcp-v2 .v2-case-freshness .balances-as-of { margin: 0; font-size: var(--v2-fs-xs); color: var(--v2-text-muted); }
 
 .dcp-v2 .v2-case-panel { display: flex; flex-direction: column; gap: var(--v2-space-4); min-width: 0; }
 .dcp-v2 .v2-case-overview { display: flex; flex-direction: column; gap: var(--v2-space-4); }

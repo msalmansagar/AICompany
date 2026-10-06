@@ -499,7 +499,7 @@ describe('choosing a case in Split', () => {
     expect(details).toContain('Customer typeIndividual');
     expect(details).toContain('OwnerTester');
     expect(within(preview).getByTestId('v2-preview-sub').textContent).toBe('DEMO-HL-1000 · facility FAC-0011 · Building Housing');
-    expect(within(preview).getByTestId('stored-position').textContent).toContain('not a live MIS read');
+    expect(within(preview).getByTestId('balances-as-of').textContent).toMatch(/^Balances as of \d{1,2} \w+ \d{4}$/);
   });
 
   it('says Strategy Not Assigned and No next action determined when that is the truth', async () => {

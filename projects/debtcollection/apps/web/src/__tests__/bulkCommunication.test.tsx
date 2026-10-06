@@ -135,7 +135,7 @@ function openBulk(source: Rows = rows(), organizationName?: string) {
 async function compose(channel: 'SMS' | 'Email', templateId: string) {
   await userEvent.selectOptions(screen.getByTestId('bulk-channel'), channel);
   const picker = screen.getByTestId('bulk-template');
-  await waitFor(() => expect(picker.textContent).toContain('P7-'));
+  await waitFor(() => expect(picker.textContent).toContain('Overdue'));
   await userEvent.selectOptions(picker, templateId);
   await userEvent.type(screen.getByTestId('bulk-placeholder-branch'), 'Doha');
 }
@@ -220,26 +220,26 @@ describe('the wording a bulk run may carry', () => {
   it('offers approved templates and never an unapproved one', async () => {
     await openBulk();
     const picker = screen.getByTestId('bulk-template');
-    await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE-EN'));
-    expect(picker.textContent).not.toContain('P7-SMS-UNAPPROVED-EN');
+    await waitFor(() => expect(picker.textContent).toContain('Overdue reminder'));
+    expect(picker.textContent).not.toContain('Never approved');
   });
 
   it('offers the email template only on the email channel', async () => {
     await openBulk();
     const picker = screen.getByTestId('bulk-template');
-    await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE-EN'));
-    expect(picker.textContent).not.toContain('P7-EMAIL-OVERDUE-EN');
+    await waitFor(() => expect(picker.textContent).toContain('Overdue reminder'));
+    expect(picker.textContent).not.toContain('Overdue notice');
 
     await userEvent.selectOptions(screen.getByTestId('bulk-channel'), 'Email');
     await waitFor(() => expect(screen.getByTestId('bulk-template').textContent)
-      .toContain('P7-EMAIL-OVERDUE-EN'));
-    expect(screen.getByTestId('bulk-template').textContent).not.toContain('P7-SMS-OVERDUE-EN');
+      .toContain('Overdue notice'));
+    expect(screen.getByTestId('bulk-template').textContent).not.toContain('Overdue reminder');
   });
 
   it('refuses to confirm while the wording is incomplete', async () => {
     await openBulk();
     const picker = screen.getByTestId('bulk-template');
-    await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE-EN'));
+    await waitFor(() => expect(picker.textContent).toContain('Overdue reminder'));
     await userEvent.selectOptions(picker, 't-sms');
 
     expect(screen.getByTestId('bulk-unresolved').textContent).toMatch(/branch/);

@@ -292,7 +292,7 @@ function Composer({ caseId, recipient, hold, messaging, onSent }: {
         <SelectField
           label="Template" value={templateId} testId="composer-template"
           placeholder={offered.length === 0 ? 'No approved template for this channel' : 'Choose a template'}
-          choices={offered.map(t => ({ value: t.id, label: `${t.code} — ${t.name}` }))}
+          choices={offered.map(t => ({ value: t.id, label: t.name }))}
           onChange={setTemplateId}
         />
       </div>
