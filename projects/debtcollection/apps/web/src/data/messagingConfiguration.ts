@@ -5,6 +5,7 @@ import {
   PLATFORM_CONFIGURATION_COLUMNS, PLATFORM_MAPPING_COLUMNS,
 } from './schema.js';
 import { escapeOData } from './collectionQueries.js';
+import { describeFailure } from '../platform/errors.js';
 
 /**
  * Which table carries SMS and WhatsApp in an organisation, and which columns hold what.
@@ -95,11 +96,11 @@ async function readCommunicationMappings(adapter: XrmCrmAdapter, configurationId
 
 /** Builds both routes from the configuration row and its mappings, collecting every problem. */
 export function assemble(organization: string, configuration: CrmRow, mappings: readonly CrmRow[]): MessagingConfiguration {
-  const channelValues = readChannelValues(configuration);
+  const { channelValues, problem: flagsProblem } = readChannelValues(organization, configuration);
   const sms = buildRoute({ organization, channel: 'SMS', tableName: configuration['qdb_smsentity'], mappings, channelValues });
   const built = buildRoute({ organization, channel: 'WhatsApp', tableName: configuration['qdb_whatsappentity'], mappings, channelValues });
   const whatsApp = sms.route && built.route ? requireDistinguishable(organization, sms.route, built.route) : built;
-  const problems = [sms.problem, whatsApp.problem].filter((problem): problem is string => problem !== undefined);
+  const problems = [flagsProblem, sms.problem, whatsApp.problem].filter((problem): problem is string => problem !== undefined);
   return { organization, ...(sms.route ? { sms: sms.route } : {}), ...(whatsApp.route ? { whatsApp: whatsApp.route } : {}), problems };
 }
 
@@ -136,17 +137,20 @@ function requireDistinguishable(organization: string, sms: MessageRoute, whatsAp
 
 type ChannelValues = Readonly<Partial<Record<Channel, string | number>>>;
 
-/** The channel-type values recorded in the configuration's feature flags; none when unreadable. */
-function readChannelValues(configuration: CrmRow): ChannelValues {
+/**
+ * The channel-type values recorded in the configuration's feature flags. Unreadable flags configure
+ * no marker — the channels then fall back to the distinguishability rule — and are reported as a
+ * problem, so an administrator can tell a malformed value from an absent one.
+ */
+function readChannelValues(organization: string, configuration: CrmRow): { channelValues: ChannelValues; problem?: string } {
   const raw = String(configuration['qdb_featureflags'] ?? '').trim();
-  if (!raw) return {};
+  if (!raw) return { channelValues: {} };
   try {
     const flags: unknown = JSON.parse(raw);
     const values: unknown = isRecord(flags) ? flags[CHANNEL_VALUES_FLAG] : undefined;
-    return isRecord(values) ? { ...channelValue(values, 'SMS'), ...channelValue(values, 'WhatsApp') } : {};
-  } catch {
-    // Unreadable flags configure no marker; the channels then fall back to the distinguishability rule.
-    return {};
+    return { channelValues: isRecord(values) ? { ...channelValue(values, 'SMS'), ...channelValue(values, 'WhatsApp') } : {} };
+  } catch (error) {
+    return { channelValues: {}, problem: `The feature flags for ${organization} are not readable JSON (${describeFailure(error)}), so no channel values apply.` };
   }
 }
 

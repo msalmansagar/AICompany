@@ -100,8 +100,9 @@ describe('CommunicationService.send — the Letter channel marker (vrp_type)', (
   it('send_WhatsAppWithNoTemplateColumn_RefusesWithTheReason', async () => {
     const { adapter, creates } = recordingAdapter();
     const outcome = await new CommunicationService(adapter).send('act-7', WHATSAPP, context(TYPED_LETTER_MESSAGING));
-    expect([outcome.status === 'refused' ? outcome.refusals[0]!.message : '', creates.length])
-      .toEqual([expect.stringContaining('whatsAppTemplate'), 0]);
+    expect([outcome, creates.length]).toEqual([
+      { status: 'refused', refusals: [expect.objectContaining({ message: expect.stringContaining('whatsAppTemplate') })] }, 0,
+    ]);
   });
 
   it('send_WhatsAppFullyConfigured_StampsTheWhatsAppValue', async () => {

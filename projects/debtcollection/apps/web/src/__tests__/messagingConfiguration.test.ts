@@ -110,6 +110,12 @@ describe('a WhatsApp that would be indistinguishable from SMS', () => {
     expect(messaging.whatsApp).toBeUndefined();
   });
 
+  it('assemble_UnreadableFeatureFlags_SaysSo', () => {
+    const messaging = assemble('HL', { ...configurationRow('cfg-hl', 'letter', null), qdb_featureflags: '{not json' },
+      communicationMappings('cfg-hl', 'letter', LETTER_COLUMN_MAP));
+    expect(messaging.problems[0]).toContain('not readable JSON');
+  });
+
   it('assemble_FaxWithWhatsAppTemplate_KeepsWhatsAppAvailable', () => {
     expect(FAX_MESSAGING.whatsApp?.table).toBe('fax');
   });

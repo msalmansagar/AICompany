@@ -36,14 +36,14 @@ const CHANNELS = ['SMS', 'WhatsApp'];
 const argument = name => process.argv.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3);
 const isExecute = process.argv.includes('--execute');
 const isSmsOnly = process.argv.includes('--sms-only');
-const pairs = text => (text ?? '').split(',').filter(Boolean).map(pair => pair.split(':').map(s => s.trim()));
+const parsePairs = text => (text ?? '').split(',').filter(Boolean).map(pair => pair.split(':').map(s => s.trim()));
 
 const organization = argument('organization');
 const table = argument('table');
 const whatsAppTable = isSmsOnly ? null : table;
-const map = Object.fromEntries(pairs(argument('map')));
+const map = Object.fromEntries(parsePairs(argument('map')));
 // A numeric value is written as a number, so it matches a choice column's integer.
-const channelValues = Object.fromEntries(pairs(argument('channel-values')).map(([channel, value]) => [channel, /^\d+$/.test(value) ? Number(value) : value]));
+const channelValues = Object.fromEntries(parsePairs(argument('channel-values')).map(([channel, value]) => [channel, /^\d+$/.test(value) ? Number(value) : value]));
 const fail = message => { console.error(`[STOP] ${message}`); process.exit(2); };
 if (!ORG_CODES[organization]) fail('--organization must be HL or BFD');
 if (table !== 'fax' && table !== 'letter') fail('--table must be fax or letter');
