@@ -111,11 +111,34 @@ Code review (code-reviewer): **PASS WITH WARNINGS**, no blocking findings; both 
 only; route role gates in `routes.ts` are unchanged; every route still resolves by URL for every role
 (existing test kept); no new security rule, no role mapping invented.
 
-## 10. Screenshots
+## 10. Screenshots / live evidence (org5869857f, 2026-10-06, System Administrator)
 
-**Not captured.** The deploy of the built bundle to org5869857f was blocked by the session's permission
-check, so the change is not on the sandbox and no browser evidence exists yet. The bundle builds
-(`apps/web/dist/index.html`, 773 kB). The deploy command is in §13.
+Deployed with `deploy-workspace-webresource.mjs --publish`: 11/11, stored content byte-for-byte equal to the
+build. The CRM frame first served the **previous** bundle (old seven-section menu) — the known stale-iframe
+cache; re-pointing `FullPageWebResource0` at `/WebResources/qdb_dcp_workspace.html?cb=…` loaded the new one.
+
+| Check | V2 | V1 |
+|---|---|---|
+| Officer menu = My Work (4) + Insights (Dashboards) | ✅ | ✅ |
+| Manager / RM / Legal menus as §3 | ✅ all four roles | (same model) |
+| Work Queues › Promise to Pay opens `#ptp`, Work Queues highlighted | ✅ | ✅ |
+| Disputes / Legal / Deceased buckets present on Work Queues | ✅ | ✅ |
+| Customer name in Cases list opens `#customer/<id>`, title "Customer 360" | ✅ | — |
+| Case numbers in Customer 360 are links to the case | ✅ | ✅ (shared) |
+| Case header customer name is a link | ✅ | ✅ |
+| Case Communications tab embeds composer + history (no placeholder) | ✅ (as before) | ✅ **new** |
+| Command bar "Send message" enabled on a case, opens Communications | — | ✅ |
+| Bookmarks `#disputes #legal #claims #actionplan #comms/bulk` open their screens | ✅ | ✅ |
+| Keyboard: Tab through the menu, Enter opens the entry | — | ✅ |
+| Collapsed rail keeps every entry's name (title), re-expands to 248 px | — | ✅ |
+| Mobile (400 px probe frame): menu off-screen, burger opens drawer with the 5 entries, choosing one navigates and closes it, no horizontal scroll | ✅ | — |
+| Console errors | none captured (tracking started after first load) | |
+
+Screenshots saved locally: V2 My Day with the new menu; V2 Customer 360 reached from a customer name; V1 case
+Communications tab with composer and history. Browser left as found: V2, My Day, Collection Officer, rail expanded.
+
+Cosmetic finding: on the V1 case header the customer-name line renders under the "Customer 360" button instead
+of beside the case number (Card actions layout). Not functional; fix in WP3 with the case composition.
 
 ## 11. Files changed
 
@@ -141,10 +164,7 @@ A, C, D, F, K, L are unchanged — they are WP3–WP5 work.
 
 ## 13. Remaining issues
 
-1. **Not deployed / no screenshots** — needs the user to run:
-   `npm --workspace @dcp/web run build` then
-   `DV_API_VERSION=9.2 DV_AUTH_MODE=entra node --env-file="<path>/.env" crm/scripts/deploy-workspace-webresource.mjs --publish`
-   (from `projects/debtcollection` in the `dcp-ui` worktree). This also carries the unrecorded `8daf9347`.
+1. Deployed and live-checked (§10); the deploy also carried the previously unrecorded `8daf9347`.
 2. **Role is not derived from CRM roles.** The working role is still the header picker (default Officer,
    presentation only). The CRM context exposes only security-role *ids*; mapping them to Officer/Manager
    needs a QDB-agreed role→working-role mapping (configuration, not schema). Until then an officer can
@@ -169,3 +189,21 @@ A, C, D, F, K, L are unchanged — they are WP3–WP5 work.
 5. Deceased review gets a confirm step before its write.
 6. Customer 360 opened from a case preselects that case's unit and offers "← Back to case".
 No business-logic, schema or security change expected.
+
+## 15. Completion check against the WP2 brief
+
+| Brief item | Status |
+|---|---|
+| Officer navigation = My Work (My Day, Work Queues, Collection Cases, Customers) + Insights (Dashboards) | ✅ done, live in V1 + V2 |
+| Manager section: Team Work where supported, Approvals, Portfolio & Strategy, Audit Trail | ✅ (Team Work omitted — not supported). **Deviation:** Action Plan and Communications (bulk) also sit here so they are not orphaned — awaiting acceptance |
+| Administration: Intake, Strategy Rules, Configuration | ✅ |
+| Six items out of officer primary nav, functionality kept | ✅ — reachable from case / Work Queues, proven by tests and live |
+| "Customers" destination; selecting a customer leads to Customer 360 | ✅ |
+| Customer name **throughout** DCP → Customer 360 | ⚠️ **Mostly.** Linked in cases lists, previews, case headers, promise lists. Not linked: Work Queue rows (the queue read carries no customer), Legal trace card (Legal's account, no DCP business id) |
+| Case identifiers → Collection Case | ✅ lists/rows already open the case; previews and Customer 360 units now link |
+| Use **existing CRM role/permission context** for role-aware presentation | ❌ **Not met.** Still the header role picker; the host gives only security-role ids and no agreed role → working-role mapping exists (configuration decision for QDB). Admin navigation is not offered to the Officer role, but a user can choose another role in the picker |
+| Tests: unreachable / deep links / one model / keyboard / mobile+collapsed / CRM authoritative | ✅ automated + live (mobile verified in a 400 px probe frame, not on a phone) |
+| Return items 1–14 | ✅ this document |
+
+**Verdict: WP2 is complete except one brief item (role from CRM context) and one partial (customer name in
+Work Queue rows / Legal trace), both needing a decision or data the current read model does not carry.**
