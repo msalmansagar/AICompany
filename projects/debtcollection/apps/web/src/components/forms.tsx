@@ -73,8 +73,9 @@ function useFocusOnOpen(dialogRef: RefObject<HTMLDivElement>): void {
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const dialog = dialogRef.current;
-    (dialog?.querySelector<HTMLElement>(FIRST_FIELD) ?? dialog)?.focus();
-    return () => { if (opener?.isConnected) opener.focus(); };
+    // preventScroll: taking focus must not scroll the pane past its notices, or the page behind it.
+    (dialog?.querySelector<HTMLElement>(FIRST_FIELD) ?? dialog)?.focus({ preventScroll: true });
+    return () => { if (opener?.isConnected) opener.focus({ preventScroll: true }); };
   }, [dialogRef]);
 }
 

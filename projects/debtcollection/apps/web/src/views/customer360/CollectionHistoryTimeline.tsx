@@ -5,13 +5,13 @@ import {
   type CustomerHistoryCursor, type HistoryCounts, type HistoryFilter,
 } from '../../data/customerHistoryQueries.js';
 import type { HistoryContext } from './useCustomer360Sections.js';
-import { StatusBadge, statusBadgeTone, type BadgeTone } from '../../components/StatusBadge.js';
+import { StatusBadge } from '../../components/StatusBadge.js';
 import { SkeletonLines } from '../../components/SectionBoundary.js';
-import { formatMoney } from '../../components/primitives.js';
-import { formatWithShortMonths } from '../../components/shortMonths.js';
 import { describeFailure } from '../../platform/errors.js';
 import { useCrmSession } from '../../shell/context.js';
 import { OwnerLabel } from '../../components/OwnerLabel.js';
+import { badgeFor, detailOf, momentOf, typeOf, whatHappened } from './historyEntryText.js';
+import { HistoryEntryPane } from './HistoryEntryPane.js';
 
 export const HISTORY_PAGE = 20;
 
@@ -26,6 +26,7 @@ type HistoryState = Loaded & { status: 'loading' | 'ready' | 'error'; error?: st
 
 /** Where each entry happened: its Loan Account or Facility and its Collection Case. */
 export type CaseContextLookup = (caseId: string | undefined) => { unit: string; caseNumber: string } | undefined;
+type EntryContext = ReturnType<CaseContextLookup>;
 
 /**
  * Everything recorded across the customer's cases, newest first, filtered and paged by the
@@ -58,7 +59,12 @@ export function CollectionHistoryTimeline({ caseIds, history, counts, contextOf,
       .catch((error: unknown) => { if (id === request.current) setState({ ...from, status: 'error', error: describeFailure(error) }); });
   }, [adapter, caseIds, types, messaging, chosenType]);
 
-  useEffect(() => { load({ entries: [], cursor: startCustomerHistory(messaging, filter, chosenType), complete: false }, filter); }, [load, filter, messaging, chosenType]);
+  const [opened, setOpened] = useState<HistoryEntry>();
+  // A save in the opened pane re-reads the list from the top, so the row shows what was saved.
+  const [reloadKey, setReloadKey] = useState(0);
+  const savedFromPane = useCallback(() => { setOpened(undefined); setReloadKey(key => key + 1); }, []);
+
+  useEffect(() => { load({ entries: [], cursor: startCustomerHistory(messaging, filter, chosenType), complete: false }, filter); }, [load, filter, messaging, chosenType, reloadKey]);
   const isUnfiltered = filter === 'all' && !chosenType;
   useEffect(() => { if (isUnfiltered && state.status === 'ready') onEntries?.(state.entries); }, [isUnfiltered, state.status, state.entries, onEntries]);
 
@@ -70,9 +76,10 @@ export function CollectionHistoryTimeline({ caseIds, history, counts, contextOf,
         <ActivityTypeFilter types={activityTypes} chosen={chosenType ?? ''} isApplicable={typeApplies} onChoose={setActivityTypeId} />
       </div>
       <ol className="c360-timeline" data-testid="c360-history" aria-live="polite">
-        {state.entries.map(entry => <HistoryRow key={entry.id} entry={entry} context={contextOf(entry.caseId)} />)}
+        {state.entries.map(entry => <HistoryRow key={entry.id} entry={entry} context={contextOf(entry.caseId)} onOpen={() => setOpened(entry)} />)}
       </ol>
       <HistoryFooter state={state} filter={filter} onLoadFrom={from => load(from, filter)} />
+      {opened && <HistoryEntryPane entry={opened} context={contextOf(opened.caseId)} onClose={() => setOpened(undefined)} onSaved={savedFromPane} />}
     </section>
   );
 }
@@ -147,56 +154,29 @@ function emptyMessage(filter: HistoryFilter): string {
   return messages[filter];
 }
 
-/** Line 1: when · type · outcome badge. Line 2: what happened. Line 3: detail. Line 4: unit · case · who. */
-function HistoryRow({ entry, context }: { entry: HistoryEntry; context: { unit: string; caseNumber: string } | undefined }) {
+/**
+ * One timeline entry: a dot on the line coloured by the badge's tone, then what happened · badge ·
+ * when, the detail, and where (type · unit · case · who). The whole entry is one button that opens
+ * the record in the side pane.
+ */
+function HistoryRow({ entry, context, onOpen }: { entry: HistoryEntry; context: EntryContext; onOpen: () => void }) {
   const badge = badgeFor(entry);
+  const detail = detailOf(entry);
   return (
-    <li className="c360-entry" data-testid="c360-history-item" data-category={entry.category}>
-      <div className="c360-entry-line">
-        <time dateTime={entry.occurredAt}>{momentOf(entry.occurredAt)}</time>
-        <span className="c360-entry-type">{typeOf(entry)}</span>
-        {badge && <StatusBadge tone={badge.tone}>{badge.text}</StatusBadge>}
-      </div>
-      <p className="c360-entry-what">{whatHappened(entry)}</p>
-      {detailOf(entry) && <p className="c360-entry-detail">{detailOf(entry)}</p>}
-      <p className="c360-entry-where">
-        {context ? `${context.unit} · ${context.caseNumber}` : 'Case not recorded'}
-        {' · '}<OwnerLabel ownerId={entry.recordedById} ownerName={entry.recordedBy} />
-      </p>
+    <li className="c360-entry" data-testid="c360-history-item" data-category={entry.category} data-tone={badge?.tone ?? 'neutral'}>
+      <button type="button" className="c360-entry-open" onClick={onOpen} aria-haspopup="dialog" data-testid="c360-history-open">
+        <span className="c360-entry-line">
+          <span className="c360-entry-what">{whatHappened(entry)}</span>
+          {badge && <StatusBadge tone={badge.tone}>{badge.text}</StatusBadge>}
+          <time dateTime={entry.occurredAt}>{momentOf(entry.occurredAt)}</time>
+        </span>
+        {detail && <span className="c360-entry-detail">{detail}</span>}
+        <span className="c360-entry-where">
+          <span className="c360-entry-type">{typeOf(entry)}</span>
+          {' · '}{context ? `${context.unit} · ${context.caseNumber}` : 'Case not recorded'}
+          {' · '}<OwnerLabel ownerId={entry.recordedById} ownerName={entry.recordedBy} />
+        </span>
+      </button>
     </li>
   );
-}
-
-const MOMENT = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-const momentOf = (iso: string) => (Number.isNaN(Date.parse(iso)) ? '—' : formatWithShortMonths(MOMENT, new Date(iso)));
-
-function typeOf(entry: HistoryEntry): string {
-  if (entry.category === 'communications') return entry.channel;
-  if (entry.externalReference) return entry.externalReference.process === 'Complaint' ? 'Complaint / Dispute' : 'Legal';
-  return entry.channel;
-}
-
-/** A hand-off says where it went; everything else says what the record says. */
-function whatHappened(entry: HistoryEntry): string {
-  if (entry.externalReference?.process === 'Complaint') return 'Referred to BFD Case Management';
-  if (entry.externalReference?.process === 'Legal') return 'Referred to BFD Legal';
-  return entry.subject || entry.channel;
-}
-
-function detailOf(entry: HistoryEntry): string | undefined {
-  const reference = entry.externalReference;
-  if (reference) {
-    const owner = reference.process === 'Complaint' ? 'BFD Case Management' : 'BFD Legal';
-    return `External reference ${reference.recordNumber ?? 'not yet issued'} · Lifecycle owned by ${owner}`;
-  }
-  const parts = [entry.detail, entry.amount !== undefined && !entry.detail ? formatMoney(entry.amount) : undefined, entry.outcome && entry.status ? `Activity ${entry.status}` : undefined];
-  return parts.filter(Boolean).join(' · ') || undefined;
-}
-
-/** The recorded outcome is the badge; the activity's own status goes to the detail line. */
-function badgeFor(entry: HistoryEntry): { text: string; tone: BadgeTone } | undefined {
-  if (entry.externalReference) return { text: entry.externalReference.process === 'Complaint' ? 'Complaint referral' : 'Legal referral', tone: 'referral' };
-  if (entry.outcome) return { text: entry.outcome, tone: statusBadgeTone(entry.outcome) };
-  if (entry.status) return { text: entry.status, tone: statusBadgeTone(entry.status) };
-  return undefined;
 }

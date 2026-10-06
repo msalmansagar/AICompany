@@ -406,6 +406,25 @@ describe('Collection History', () => {
     expect(probe.reads.some(read => read.startsWith('qdb_collectionactivity') && read.includes("qdb_relatedrecordtype eq 'qdb_qdblegal'"))).toBe(true);
   });
 
+  it('opens a collection activity from its row in the activity pane, over Customer 360', async () => {
+    await open({ activities: [{ activityid: 'l-1', subject: 'Legal hand-off', createdon: '2026-09-29T10:00:00Z', _qdb_collectioncaseid_value: 'c-1', qdb_relatedrecordtype: 'qdb_qdblegal', qdb_relatedrecordnumber: 'LGL-0042' }] });
+    fireEvent.click(await screen.findByTestId('c360-filter-legal', {}, { timeout: WAIT }));
+    const entry = await screen.findByTestId('c360-history-item', {}, { timeout: WAIT });
+
+    fireEvent.click(within(entry).getByTestId('c360-history-open'));
+
+    expect(await screen.findByTestId('activity-dialog', {}, { timeout: WAIT })).toBeTruthy();
+    expect(window.location.hash.startsWith('#customer/')).toBe(true);
+  });
+
+  it('draws a hand-off on the timeline with a referral-coloured dot', async () => {
+    await open({ activities: [{ activityid: 'l-1', subject: 'Legal hand-off', createdon: '2026-09-29T10:00:00Z', _qdb_collectioncaseid_value: 'c-1', qdb_relatedrecordtype: 'qdb_qdblegal', qdb_relatedrecordnumber: 'LGL-0042' }] });
+
+    const entry = await screen.findByTestId('c360-history-item', {}, { timeout: WAIT });
+
+    expect(entry.getAttribute('data-tone')).toBe('referral');
+  });
+
   it('drops a slow answer to a filter that was left', async () => {
     const probe = await open({ holdFirstActivityRead: true });
 
