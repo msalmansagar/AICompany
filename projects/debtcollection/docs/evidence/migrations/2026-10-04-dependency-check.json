@@ -1,0 +1,128 @@
+{
+  "checkedAt": "2026-10-04T10:26:47.991Z",
+  "newChoiceExists": false,
+  "columns": [
+    {
+      "table": "qdb_collectionactivity",
+      "column": "qdb_approvalstatus",
+      "exists": true,
+      "dependents": [
+        {
+          "type": 60,
+          "id": "56bf69fc-792c-48d0-9560-dcb5a32e79c9"
+        }
+      ],
+      "blocking": [],
+      "pluginSteps": [],
+      "stepImages": [],
+      "processesAndBusinessRules": [],
+      "calculatedOrRollup": [],
+      "fate": "rebind"
+    },
+    {
+      "table": "qdb_communicationtemplate",
+      "column": "qdb_approvalstatus",
+      "exists": true,
+      "dependents": [
+        {
+          "type": 60,
+          "id": "81d62e69-a854-45cc-a801-0cd49f4103ba"
+        },
+        {
+          "type": 26,
+          "id": "f3b3fbbd-73e6-4f17-993e-0d9fe50adfb3"
+        },
+        {
+          "type": 26,
+          "id": "37675dda-3ecb-481a-a1f0-943aba2c7cab"
+        }
+      ],
+      "blocking": [],
+      "pluginSteps": [],
+      "stepImages": [],
+      "processesAndBusinessRules": [],
+      "calculatedOrRollup": [],
+      "fate": "rebind"
+    },
+    {
+      "table": "qdb_collectioncase",
+      "column": "qdb_risklevel",
+      "exists": true,
+      "dependents": [
+        {
+          "type": 60,
+          "id": "01aaae51-df67-482f-bb37-36820daec7e9"
+        }
+      ],
+      "blocking": [],
+      "pluginSteps": [],
+      "stepImages": [],
+      "processesAndBusinessRules": [],
+      "calculatedOrRollup": [],
+      "fate": "retire",
+      "valuesPresent": 0
+    },
+    {
+      "table": "qdb_collectioncase",
+      "column": "qdb_priority",
+      "exists": true,
+      "dependents": [
+        {
+          "type": 60,
+          "id": "01aaae51-df67-482f-bb37-36820daec7e9"
+        }
+      ],
+      "blocking": [],
+      "pluginSteps": [],
+      "stepImages": [],
+      "processesAndBusinessRules": [],
+      "calculatedOrRollup": [],
+      "fate": "retire",
+      "valuesPresent": 0
+    },
+    {
+      "table": "qdb_collectionstrategy",
+      "column": "qdb_risklevel",
+      "exists": true,
+      "dependents": [
+        {
+          "type": 60,
+          "id": "2934f76a-94e9-4b13-875b-114f01a84783"
+        },
+        {
+          "type": 26,
+          "id": "d644fa44-123d-4a99-98a8-9f7ccdd673d9"
+        },
+        {
+          "type": 26,
+          "id": "28cf609d-8425-402e-a890-3e7f6e99497f"
+        }
+      ],
+      "blocking": [],
+      "pluginSteps": [],
+      "stepImages": [],
+      "processesAndBusinessRules": [],
+      "calculatedOrRollup": [],
+      "fate": "retire",
+      "valuesPresent": 0
+    },
+    {
+      "table": "qdb_assignmentconfiguration",
+      "column": "qdb_risklevel",
+      "exists": true,
+      "dependents": [
+        {
+          "type": 60,
+          "id": "0278ee27-5d37-42ae-97f6-5eb7246bb729"
+        }
+      ],
+      "blocking": [],
+      "pluginSteps": [],
+      "stepImages": [],
+      "processesAndBusinessRules": [],
+      "calculatedOrRollup": [],
+      "fate": "retire",
+      "valuesPresent": 0
+    }
+  ]
+}

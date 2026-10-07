@@ -357,7 +357,7 @@ function PopulationChooser({
         pageSize={50}
         height={280}
         emptyMessage="No open case matches this filter."
-        {...(mode === 'SelectedRecords' ? { onRowClick: toggle } : {})}
+        {...(mode === 'SelectedRecords' ? { activation: 'row' as const, onRowClick: toggle } : {})}
         data-testid="bulk-population-grid"
       />
     </>
@@ -393,7 +393,7 @@ function ComposerFields({ composition, template, offered, preview, onChange }: {
         <SelectField
           label="Template" value={composition.templateId} testId="bulk-template"
           placeholder={offered.length === 0 ? 'No approved template for this channel' : 'Choose a template'}
-          choices={offered.map(option => ({ value: option.id, label: `${option.code} — ${option.name}` }))}
+          choices={offered.map(option => ({ value: option.id, label: option.name }))}
           onChange={next => onChange({ ...composition, templateId: next })}
         />
       </div>

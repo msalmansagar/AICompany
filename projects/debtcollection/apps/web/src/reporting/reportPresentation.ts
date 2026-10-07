@@ -1,5 +1,6 @@
 import type { ReportingScope } from '@dcp/domain';
 import { formatCount, formatDate, formatMoney } from '../components/primitives.js';
+import { formatWithShortMonths } from '../components/shortMonths.js';
 import type { DashboardPanel, PanelColumn } from './dcpDashboards.js';
 import type { ReportCell, ReportDataset, ReportRow } from './reportEngineContracts.js';
 import type { ReportState } from './useReport.js';
@@ -90,9 +91,11 @@ function numberIn(row: ReportRow, alias: string): number | undefined {
   return typeof value === 'number' ? value : undefined;
 }
 
+const MONTH_YEAR = new Intl.DateTimeFormat('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+
 function monthLabel(year: unknown, month: number | undefined): string {
   if (typeof year !== 'number' || month === undefined) return '—';
-  return new Intl.DateTimeFormat('en-GB', { month: 'short', year: 'numeric' }).format(new Date(Date.UTC(year, month - 1, 1)));
+  return formatWithShortMonths(MONTH_YEAR, new Date(Date.UTC(year, month - 1, 1)));
 }
 
 function dayLabel(year: unknown, month: number | undefined, day: number | undefined): string {

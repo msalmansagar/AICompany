@@ -13,12 +13,14 @@ import {
   rememberCaseListReturn, rememberSelectedCase, type CaseListFilters,
 } from '../../data/caseListFilterUrl.js';
 import { SCOPE_SEGMENT, decodeScope } from '../../../data/caseListScopeUrl.js';
-import { readLayout, writeLayout, type ListLayout } from '../../data/layoutPreference.js';
+import { readLayout, writeLayout, type ListLayout } from '../../../data/layoutPreference.js';
 import { STRATEGY_NOT_ASSIGNED, STRATEGY_NOT_ASSIGNED_LABEL } from '../../data/portfolioMatrix.js';
 import { CASE_SORTS, GRID_COLUMNS, SPLIT_COLUMNS, describeSort, sortKeyOf, toSourceSort, type CaseSortKey } from './casesColumns.js';
 import { CasePreview } from './CasePreview.js';
-import { CaseCommandDialogs, type CaseCommandDialog } from './CaseCommandDialogs.js';
+import { CaseCommandDialogs, type CaseCommandDialog } from '../../../views/CaseCommandDialogs.js';
 import { useBucketFacets } from './useBucketFacets.js';
+import { CASES_ORIGIN, casesContext, useLoadedRows, useRestoredListState } from '../../../views/workListContext.js';
+import { startWorkContext } from '../../../data/workContext.js';
 
 /**
  * Collection Cases V2 — choose a case to work.
@@ -31,6 +33,12 @@ import { useBucketFacets } from './useBucketFacets.js';
  */
 
 type OwnerScope = 'all' | 'mine';
+
+/** The order Back puts back, when it is one the list offers; otherwise worst DPD first. */
+function restoredSort(restored: Readonly<Record<string, string>>): GridSort {
+  const offered = Object.values(CASE_SORTS).find(entry => entry.sort.field === restored['sortField'] && String(entry.sort.descending) === restored['sortDescending']);
+  return offered?.sort ?? CASE_SORTS.dpd.sort;
+}
 const LAYOUT_KEY = 'dcp.v2.casesLayout';
 
 export function V2CasesPage({ request }: { request: ViewRequest }) {
@@ -45,11 +53,14 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
     return {};
   }, [request.recordId, request.tab]);
   const isFilteredUrl = request.recordId === FILTER_SEGMENT || request.recordId === SCOPE_SEGMENT;
-  const [search, setSearch] = useState(shell.search);
+  // Back from a case opened here puts the search, owner chip and order back (WP5); the URL keeps the rest.
+  const restored = useRestoredListState(CASES_ORIGIN);
+  const [search, setSearch] = useState(shell.search || (restored['search'] ?? ''));
   const [bucket, setBucket] = useState(urlFilters.bucket ?? '');
   const [status, setStatus] = useState(urlFilters.status ?? '');
-  const [owner, setOwner] = useState<OwnerScope>('all');
-  const [sort, setSort] = useState<GridSort>(CASE_SORTS.dpd.sort);
+  const [owner, setOwner] = useState<OwnerScope>(restored['owner'] === 'mine' ? 'mine' : 'all');
+  const [sort, setSort] = useState<GridSort>(() => restoredSort(restored));
+  const rows = useLoadedRows<CaseRow>();
   const [layout, setLayout] = useState<ListLayout>(() => readLayout(LAYOUT_KEY));
   const [selectedId, setSelectedId] = useState<string | undefined>(() => recallSelectedCase());
   const [dialog, setDialog] = useState<CaseCommandDialog>(null);
@@ -96,6 +107,10 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
   const selectCase = (row: CaseRow) => { setSelectedId(row.id); rememberSelectedCase(row.id); };
   const openCase = (id: string) => {
     rememberCaseListReturn(isFilteredUrl ? encodeCaseListFilters(urlFilters) : undefined);
+    const loaded = rows.current();
+    const opened = loaded.items.find(row => row.id === id);
+    const listState = { search: settledSearch, owner, sortField: sort.field, sortDescending: String(sort.descending) };
+    if (opened) startWorkContext(casesContext(loaded, opened, { search: settledSearch, returnHash: window.location.hash || '#cases', listState }));
     request.onOpenCase(id);
   };
   const saved = (message: string) => { setDialog(null); setReloadKey(key => key + 1); setToast(message); };
@@ -241,7 +256,7 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
         {layout === 'grid' && (
           <V2DataGrid<CaseRow, CaseQuery>
             columns={GRID_COLUMNS} fetchPage={fetchPage} query={query} rowKey={row => row.id}
-            onRowOpen={row => openCase(row.id)} rowLabel={row => `Open case ${row.caseNumber}`}
+            onRowOpen={row => openCase(row.id)} onRows={rows.onRows} rowLabel={row => `Open case ${row.caseNumber}`}
             sort={sort} onSortChange={setSort} summary={summary} fitsWidth
             isFiltered={activeFilters > 0} emptyTitle="There are no open cases in this CRM scope."
             height={560} testId="v2-cases-grid"
@@ -252,7 +267,7 @@ export function V2CasesPage({ request }: { request: ViewRequest }) {
             <div className="v2-split-list">
               <V2DataGrid<CaseRow, CaseQuery>
                 columns={SPLIT_COLUMNS} fetchPage={fetchPage} query={query} rowKey={row => row.id}
-                onRowOpen={selectCase} selectedKey={selectedId ?? ''} rowLabel={row => `Preview case ${row.caseNumber}`} summary={summary}
+                onRowOpen={selectCase} selectedKey={selectedId ?? ''} onSelectFirst={row => setSelectedId(row.id)} onRows={rows.onRows} rowLabel={row => `Preview case ${row.caseNumber}`} summary={summary}
                 isFiltered={activeFilters > 0} emptyTitle="There are no open cases in this CRM scope."
                 rowHeight={58} height={640} testId="v2-cases-list" fitsWidth
               />

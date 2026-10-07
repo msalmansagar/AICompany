@@ -56,8 +56,8 @@ missing mandatory mapping) — never a silent default to HL or cloud.
 | `qdb_facilitylookupfield` | string | **optional.** Name of the per-deployment `qdb_facilityid` extension relationship, when one is deployed. Empty ⇒ no physical lookup exists and the canonical `facilityNumber` + `sourceSystem` carry the link. Never read by Collection business logic — only by the adapter that resolves `facilityRef`. See §4a |
 | `qdb_collectioncaseentity` | string | `qdb_collectioncase` |
 | `qdb_collectionactivityentity` | string | `qdb_collectionactivity` |
-| `qdb_smsentity` | string | `fax` |
-| `qdb_whatsappentity` | string | `fax` |
+| `qdb_smsentity` | string | the native table SMS is written to and read from: **`letter` on Housing Loan, `fax` on BFD** (user, 2026-10-05). Empty ⇒ SMS is unavailable for this organisation, never defaulted |
+| `qdb_whatsappentity` | string | the same for WhatsApp — `letter` (HL) · `fax` (BFD) |
 | `qdb_emailentity` | string | `email` |
 | `qdb_documentprovider` | choice (SharePoint · SharePointOnline · None) | document integration |
 | `qdb_misintegrationenabled` | bool | master switch for both MIS paths |
@@ -74,6 +74,46 @@ missing mandatory mapping) — never a silent default to HL or cloud.
 (MP §13). Those live in the Integration Service environment / secret store only.
 
 ---
+
+### 2a. SMS / WhatsApp columns — `qdb_platformmapping`, business object *Communication*
+
+The message table's columns come from mapping rows (`qdb_canonicalfield` → `qdb_crmentitylogicalname`.
+`qdb_crmfieldlogicalname`), read by `apps/web/src/data/messagingConfiguration.ts`. Seeded with
+`crm/scripts/seed-messaging-configuration.mjs` (dry run unless `--execute`; checks every column exists).
+
+| Canonical field | HL — `letter` | BFD — `fax` | Required |
+|---|---|---|---|
+| `recipientNumber` | `vrp_address` (HL and cloud sandbox) | `faxnumber` | yes |
+| `messageBody` | HL: `vrp_description` (schema name `vrp_Description`, confirmed 2026-10-06) · cloud sandbox: `vrp_descriptions` | `qdb_message_body` | yes |
+
+Map the **logical** name (lower case), not the schema name. The two spellings of the message column are
+why it is configuration and not code: each organisation maps its own.
+| `sender` | — | `qdb_sender` | no |
+| `language` · `whatsAppTemplate` · `otp` | — | `qdb_language` · `qdb_whatsapptemplate` · `qdb_otp` | no |
+
+The customer is linked to the message through the table's native **To** party (`letter_activity_parties` /
+`fax_activity_parties`); the case through `regardingobjectid`. The native preference that governs a
+message is the table's: **do not send postal mail** on HL, **do not fax** on BFD.
+
+**Telling SMS from WhatsApp on one table.** BFD's Fax uses `whatsAppTemplate`: a row with a template
+is WhatsApp. HL's Letter uses **`vrp_type`**: map it as `channelType` and record its two values in the
+configuration's `qdb_featureflags` as `{"messageChannelValues": {"SMS": <value>, "WhatsApp": <value>}}`.
+DCP then writes the value on every Letter it creates, and reads it back in history; a Letter with no
+`vrp_type` was written before the marker existed and reads as SMS. **Where SMS and WhatsApp share a
+table and nothing marks which is which, WhatsApp is unavailable** — a WhatsApp nobody can tell from an
+SMS would be delivered as one.
+
+**HL today is SMS-only** (`qdb_whatsappentity` empty; seed with `--sms-only`). To enable WhatsApp once
+HL's gateway sends it:
+
+```
+node crm/scripts/seed-messaging-configuration.mjs --organization=HL --table=letter \
+  --map=recipientNumber:vrp_address,messageBody:vrp_description,channelType:vrp_type,whatsAppTemplate:<column> \
+  --channel-values=SMS:<value>,WhatsApp:<value> [--execute]
+```
+
+A WhatsApp message needs its registered template name, so Letter also needs a column for it, mapped as
+`whatsAppTemplate`; without one a WhatsApp send is refused with that reason. No redeploy is needed.
 
 ## 3. `qdb_platformmapping` — normalised child rows (MP §14)
 
@@ -115,7 +155,7 @@ physical ones. Adding a canonical field is a code change; rebinding it is a row 
 | Facility.FacilityRef (optional, resolved) | `<HL facility entity>.<primary id>` — **HL Facility Entity = `TBD — Requires QDB Confirmation`** | **BFD Collection Facility/Account Target = likely `qdb_account`, `TBD — Requires QDB Confirmation`** |
 | Case.CustomerLookup | `qdb_collectioncase.qdb_customerid` → contact | `qdb_collectioncase.qdb_customerid` → account |
 | Case.FacilityLookup (optional extension) | `qdb_facilityid` → HL facility entity, **only if that deployment extension is installed** | `qdb_facilityid` → BFD target, same condition — **a different physical relationship, not the same schema** |
-| Communication.SMS / WhatsApp | `fax` | `fax` |
+| Communication.SMS / WhatsApp | `letter` — from `qdb_platformconfiguration.qdb_smsentity`; SMS only (WhatsApp needs `vrp_type` + a template column, not yet available) — see §2a | `fax` — from `qdb_smsentity` / `qdb_whatsappentity` |
 | Communication.Email | `email` | `email` |
 
 Before any proposed `qdb_` extension is created on contact/account, the existing QDB fields on those

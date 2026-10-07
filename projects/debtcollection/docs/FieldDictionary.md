@@ -37,8 +37,10 @@ The **Entity** is the heading above each table (one table per entity).
 - **PTP core fields are physical** on `qdb_collectionactivity` (date, promised amount, promise type,
   status, amount received, payment date, broken date/reason, reschedule count, previous date, reminder
   date, supervisor escalated) because automation queries them. **Descriptive fields for PTP, field
-  visit, restructuring, legal, deceased/insurance and complaint/dispute are Form Engine configuration**
+  visit, restructuring, legal, deceased/insurance and dispute are Form Engine configuration**
   (Master Prompt §26–31, §45), not physical columns; the activity references the Form Engine submission.
+  **Complaints are not DCP data**: a complaint is a Case in QDB's existing BFD Case Management (`incident`),
+  which owns its fields and lifecycle (ADR-DCP-21, `CaseManagement_HLComplaint_Findings.md`).
 - Option **values** are publisher-bound; migration maps `msst_` choices by label/code, never by integer.
 - Where a value is unknown the text `TBD — Requires QDB Confirmation` is used verbatim.
 - Autonumber (`AutoNumberFormat`) is available from v9.0 on both platforms and is used for case and

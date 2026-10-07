@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ReportingScope } from '@dcp/domain';
 import { AppShell, Command } from './shell/AppShell.js';
 import { CrmSessionProvider, OrgProvider, RoleProvider, type CrmSession } from './shell/context.js';
@@ -6,6 +6,7 @@ import { useHashRoute } from './shell/useHashRoute.js';
 import { isPending, type ViewDefinition } from './shell/routes.js';
 import { BULK_SEGMENT, CommunicationCenterView } from './views/CommunicationCenter.js';
 import { findXrm, readCrmContext, CrmContextError, type XrmLike } from './platform/crmContext.js';
+import { createWebApiHost } from './platform/webApiHost.js';
 import { XrmCrmAdapter } from './platform/XrmCrmAdapter.js';
 import { SameOriginWriteTransport } from './platform/writeTransport.js';
 import { XrmReportingService } from './reporting/XrmReportingService.js';
@@ -25,6 +26,10 @@ import './styles/phase5.css';
 import './styles/phase6.css';
 import './styles/phase7.css';
 import './styles/phase10.css';
+import './styles/lists.css';
+import './styles/sidebar.css';
+import './styles/customer360.css';
+import './styles/caseworkspace.css';
 import { toError } from './platform/errors.js';
 import { SCOPE_SEGMENT, decodeScope, encodeScope } from './data/caseListScopeUrl.js';
 import { WorkspaceVersionRoot, useWorkspaceVersion } from './v2/version/WorkspaceVersionRoot.js';
@@ -52,22 +57,42 @@ export function createCrmSession(xrm: XrmLike | null = findXrm()): CrmSession {
 }
 
 /**
+ * The session when no model-driven app surrounds the page: the organisation's own Web API on the
+ * same origin, spoken as the client API would be. The identity is still the signed-in user and the
+ * security is still CRM's — only the channel differs (user instruction, 2026-09-27).
+ */
+export async function createStandaloneSession(): Promise<CrmSession> {
+  return createCrmSession(await createWebApiHost());
+}
+
+type SessionState = { status: 'connecting' } | { status: 'ready'; session: CrmSession } | { status: 'failed'; error: Error };
+
+/**
  * The workspace root.
  *
- * It resolves the CRM session once and refuses clearly if there is not one, because this application
- * has no standalone mode: it reads through the signed-in user's CRM session, which is also what makes
- * CRM's own security authoritative rather than decorative.
+ * It resolves the CRM session once. Inside an app the client API answers at once; at the raw web
+ * resource URL the organisation is asked over its Web API first, and the page says so while it
+ * waits. Either way every read and write is the signed-in user's, which is what makes CRM's own
+ * security authoritative rather than decorative.
  */
 export function App() {
-  const session = useMemo<CrmSession | Error>(() => {
-    try {
-      return createCrmSession();
-    } catch (error) {
-      return toError(error);
-    }
-  }, []);
+  const hosted = useMemo<CrmSession | null>(() => (findXrm() ? createCrmSession() : null), []);
+  const [standalone, setStandalone] = useState<SessionState>({ status: 'connecting' });
 
-  if (session instanceof Error) return <HostMissing error={session} />;
+  useEffect(() => {
+    if (hosted) return undefined;
+    let cancelled = false;
+    createStandaloneSession()
+      .then(session => { if (!cancelled) setStandalone({ status: 'ready', session }); })
+      .catch((failure: unknown) => { if (!cancelled) setStandalone({ status: 'failed', error: toError(failure) }); });
+    return () => { cancelled = true; };
+  }, [hosted]);
+
+  const session = hosted ?? (standalone.status === 'ready' ? standalone.session : null);
+  if (!session) {
+    if (standalone.status === 'failed') return <HostMissing error={standalone.error} />;
+    return <Connecting />;
+  }
 
   return (
     <CrmSessionProvider value={session}>
@@ -84,12 +109,13 @@ export function App() {
 function Workspace() {
   const route = useHashRoute();
   return (
-    <AppShell commands={<Commands view={route.view} recordId={route.recordId} go={route.go} />}>
+    <AppShell commands={<Commands view={route.view} />}>
       <ViewHost
         view={route.view}
         {...(route.recordId !== undefined ? { recordId: route.recordId } : {})}
         {...(route.tab !== undefined ? { tab: route.tab } : {})}
         onOpenCase={id => route.go('case', id)}
+        onOpenActionPlan={id => route.go('case', id, 'actions')}
         onOpenCases={scope => route.go('cases', SCOPE_SEGMENT, encodeScope(scope))}
         onOpenCustomer={customerBusinessId => route.go('customer', customerBusinessId)}
         onOpenComms={id => route.go('comms', id)}
@@ -107,12 +133,14 @@ function Workspace() {
  * nothing resolves to invented data.
  */
 function ViewHost({
-  view, recordId, tab, onOpenCase, onOpenCases, onOpenCustomer, onOpenComms, onNavigateComms,
+  view, recordId, tab, onOpenCase, onOpenActionPlan, onOpenCases, onOpenCustomer, onOpenComms, onNavigateComms,
 }: {
   view: ViewDefinition;
   recordId?: string | undefined;
   tab?: string | undefined;
   onOpenCase: (id: string) => void;
+  /** A case opened on its Action Plan. Each workspace knows which of its tabs that is. */
+  onOpenActionPlan: (id: string) => void;
   /** The Cases list in a reporting scope — a dashboard row's drill-down. */
   onOpenCases: (scope: ReportingScope) => void;
   onOpenCustomer: (customerBusinessId: string) => void;
@@ -125,12 +153,15 @@ function ViewHost({
     case 'myday': return <MyDayView onOpenCase={onOpenCase} />;
     case 'queues': return <QueuesView onOpenCase={onOpenCase} />;
     case 'cases': return <CasesView onOpenCase={onOpenCase} scope={recordId === SCOPE_SEGMENT ? decodeScope(tab) : {}} />;
-    case 'case': return <CaseWorkspaceView caseId={recordId} initialTab={tab} onOpenCustomer={onOpenCustomer} />;
-    case 'customer': return <Customer360View customerBusinessId={recordId} onOpenCase={onOpenCase} />;
+    case 'case':
+      return (
+        <CaseWorkspaceView caseId={recordId} initialTab={tab} onOpenComms={onOpenComms} onNavigateComms={onNavigateComms} />
+      );
+    case 'customer': return <Customer360View customerBusinessId={recordId} fromCaseId={tab} onOpenCase={onOpenCase} onOpenActionPlan={onOpenActionPlan} onOpenCustomer={onOpenCustomer} />;
     case 'intake': return <DelinquencyIntakeView />;
     case 'buckets': return <SegmentationView />;
     case 'rules': return <StrategyRulesView view={view} />;
-    case 'actionplan': return <ActionPlanView view={view} />;
+    case 'actionplan': return <ActionPlanView view={view} onOpenCases={onOpenCases} />;
     case 'ptp': return <PromiseToPayView view={view} onOpenCase={onOpenCase} />;
     case 'dashboards': return <ReportingDashboardsView view={view} onOpenCases={onOpenCases} />;
     case 'admin': return <ConfigurationView view={view} />;
@@ -167,44 +198,24 @@ function UnroutedView({ view }: { view: ViewDefinition }) {
     <div className="host-missing" data-testid="unrouted-view" data-view={view.id}>
       <h1>{view.label}</h1>
       <p>
-        This view is declared as Phase 5 in the route table but has no implementation bound to it.
-        That is a defect in the router, not a screen that is still to come.
+        This view is declared in the route table but has no screen bound to it. That is a defect in
+        the workspace, not a screen that is still to come.
       </p>
     </div>
   );
 }
 
 /**
- * The approved command bar. Later-phase commands stay visible and disabled rather than vanishing.
+ * The global command bar. Later-phase commands stay visible and disabled rather than vanishing.
  *
- * **Log action and Capture PTP act on a case, and the command bar is global**, so they are enabled
- * only where a case is open and they take the user to the tab that does the work. Enabling them
- * everywhere would mean either picking a case for the user or opening a form with nowhere to save
- * to; disabling them on the case view, where the capability plainly exists, would be the opposite
- * lie. The tooltip says which it is.
+ * Log action, Capture PTP and Send message are no longer here (WP6): they only ever jumped to a case
+ * tab, and the Case Workspace's own action bar now opens each of them in place on the case. A global
+ * bar has no case to act on, so offering them here could only duplicate or mislead.
  */
-function Commands({ view, recordId, go }: {
-  view: ViewDefinition;
-  recordId?: string | undefined;
-  go: (viewId: string, recordId?: string, tab?: string) => void;
-}) {
-  const onCase = view.id === 'case' && Boolean(recordId);
+function Commands({ view }: { view: ViewDefinition }) {
   return (
     <>
       <Command icon="refresh" label="Refresh" onClick={() => window.location.reload()} />
-      <Command
-        icon="add" label="Log action"
-        {...(onCase
-          ? { onClick: () => go('case', recordId, 'actions') }
-          : { disabledReason: 'Open a case to log an action against it' })}
-      />
-      <Command
-        icon="promise" label="Capture PTP"
-        {...(onCase
-          ? { onClick: () => go('case', recordId, 'ptp') }
-          : { disabledReason: 'Open a case to capture a promise against it' })}
-      />
-      <Command icon="send" label="Send message" pendingPhase={7} />
       {/*
         * No "Propose restructure" or "Refer to legal" here (Phase 9). Restructuring is parked by QDB
         * and a Legal hand-off waits on QDB's qualification rule, so both would be controls for
@@ -227,12 +238,22 @@ function SwitchToV2Command() {
   return <Command icon="popout" label="Workspace V2" onClick={() => switchTo('v2')} />;
 }
 
+/** Shown while the organisation is being asked who is signed in, at the raw web resource URL. */
+function Connecting() {
+  return (
+    <div className="host-missing" data-testid="host-connecting" role="status" aria-live="polite">
+      <h1>Debt Collection Workspace</h1>
+      <p>Connecting to the organisation…</p>
+    </div>
+  );
+}
+
 /**
- * What the user sees when the workspace is opened outside Dynamics.
+ * What the user sees when the workspace can reach no organisation at all.
  *
- * It says so plainly rather than rendering an empty shell. The Form Engine lost an on-premises
- * release to exactly this confusion: the page worked at the raw `/WebResources/` URL and failed at
- * `main.aspx`, which is the only place a user ever opens it.
+ * It says so plainly rather than rendering an empty shell. Inside an app the client API is the
+ * host; at the raw `/WebResources/` URL the organisation's Web API is; when neither answers, the
+ * page is not on an organisation host or the browser is not signed in to it.
  */
 function HostMissing({ error }: { error: Error }) {
   const kind = error instanceof CrmContextError ? error.kind : 'Unknown';
@@ -241,9 +262,9 @@ function HostMissing({ error }: { error: Error }) {
       <h1>Debt Collection Workspace</h1>
       <p>{error.message}</p>
       <p className="hint">
-        Open it from the Dynamics sitemap, or at
-        <code> main.aspx?pagetype=webresource&amp;webresourceName=…</code> — the raw
-        <code> /WebResources/ </code> path has no CRM context.
+        Open it from the Dynamics sitemap, at
+        <code> main.aspx?pagetype=webresource&amp;webresourceName=…</code>, or at its
+        <code> /WebResources/ </code> URL while signed in to the organisation in this browser.
       </p>
     </div>
   );

@@ -1,8 +1,23 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Icon } from '../components/primitives.js';
+import { Sidebar } from '../components/Sidebar.js';
 import { ROLE_LABELS, useCrmSession, useOrg, useRole } from './context.js';
-import { GROUP_ORDER, isPending, viewsForRole, type ViewDefinition } from './routes.js';
+import { activeNavigationId, navigationFor, navigationSectionOf, pageTitleOf, type NavigationGroup } from './navigation.js';
+import type { RoleKey } from './routes.js';
 import { useHashRoute } from './useHashRoute.js';
+import { announceHandedOverSearch, handOverSearch } from '../data/workContext.js';
+import { initialsOf } from '../components/initials.js';
+
+/** The rail's collapsed state, remembered in this browser — a convenience, never state that matters. */
+export const NAV_COLLAPSED_KEY = 'dcp.v1.navCollapsed';
+
+function readCollapsed(): boolean {
+  try { return window.localStorage.getItem(NAV_COLLAPSED_KEY) === 'true'; } catch { return false; }
+}
+
+function writeCollapsed(value: boolean): void {
+  try { window.localStorage.setItem(NAV_COLLAPSED_KEY, String(value)); } catch { /* tolerated: the default returns next time */ }
+}
 
 /**
  * The workspace chrome, as the approved prototype arranges it.
@@ -29,11 +44,22 @@ export function AppShell({ commands, children }: AppShellProps) {
   const { role, setRole } = useRole();
   const { scope, setScope } = useOrg();
   const route = useHashRoute();
-  const visible = viewsForRole(role);
+  const [isCollapsed, setCollapsed] = useState(readCollapsed);
+  const toggleCollapsed = () => setCollapsed(previous => { writeCollapsed(!previous); return !previous; });
 
   return (
     <div className="app">
       <header className="app-header">
+        {/* The navigation toggle, where Power Platform puts it: collapses the sitemap to icons and back. */}
+        <button
+          type="button" className="icon-btn nav-toggle" onClick={toggleCollapsed}
+          aria-label={isCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+          title={isCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+          aria-pressed={isCollapsed}
+          data-testid="nav-toggle"
+        >
+          <Icon name="menu" />
+        </button>
         <div className="app-title">
           <span className="env">MSS Collections</span>
           <span className="name">Debt Collection</span>
@@ -53,10 +79,7 @@ export function AppShell({ commands, children }: AppShellProps) {
           own chrome marks the environment.
         */}
 
-        <div className="header-search">
-          <Icon name="search" />
-          <input type="search" placeholder="Search customer, case or QID" aria-label="Search" />
-        </div>
+        <HeaderSearch onSearch={term => searchCases(term, route.view.id === 'cases', route.go)} />
 
         <div className="role-pick" title="The working role. Presentation only — CRM security decides what you may read.">
           <span className="rp-lbl">Role</span>
@@ -92,15 +115,19 @@ export function AppShell({ commands, children }: AppShellProps) {
       </header>
 
       <div className="body">
-        <NavRail views={visible} activeId={route.view.id} onNavigate={route.go} />
+        <NavRail
+          role={role} activeId={route.view.id} onNavigate={route.go} isCollapsed={isCollapsed}
+          header={<RailBrand scope={scope} />}
+          profile={<RailProfile userName={context.userName} roleLabel={ROLE_LABELS[role]} />}
+        />
         <main className="content">
           {commands && <div className="cmdbar" role="toolbar" aria-label="Commands">{commands}</div>}
           <div className="scroll">
             <div className="page" data-testid="content" data-view={route.view.id}>
               <div className="page-head">
                 <div>
-                  <h1>{route.view.label}</h1>
-                  <div className="page-sub">{route.view.group}</div>
+                  <h1>{pageTitleOf(route.view, route.recordId)}</h1>
+                  <div className="page-sub">{navigationSectionOf(route.view)}</div>
                 </div>
               </div>
               {children}
@@ -112,65 +139,107 @@ export function AppShell({ commands, children }: AppShellProps) {
   );
 }
 
-/** The avatar shows initials, as the prototype does — a full name does not fit a 28px circle. */
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  const first = parts[0]![0] ?? '';
-  const last = parts.length > 1 ? parts[parts.length - 1]![0] ?? '' : '';
-  return (first + last).toUpperCase();
+/**
+ * The header search (WP6; it used to do nothing). Enter takes the term to Collection Cases, which
+ * searches case number and customer id there — V1's identifier search — and a row opens the case.
+ */
+function HeaderSearch({ onSearch }: { onSearch: (term: string) => void }) {
+  const [term, setTerm] = useState('');
+  return (
+    <form className="header-search" role="search" onSubmit={event => { event.preventDefault(); if (term.trim()) onSearch(term.trim()); }}>
+      <Icon name="search" />
+      <input
+        type="search" placeholder="Case number or customer id" aria-label="Search collection cases by case number or customer id"
+        value={term} onChange={event => setTerm(event.target.value)} data-testid="header-search"
+      />
+    </form>
+  );
 }
 
 /**
- * The left navigation.
- *
- * Grouped and ordered exactly as the prototype. A view whose functionality belongs to a later phase
- * still appears, marked, because the approved information architecture is part of what was approved —
- * quietly dropping the Workout group until Phase 9 would change the shape of the product.
+ * Hands the term to Collection Cases. On another page the route change mounts the list, which takes
+ * it; on Collection Cases itself the route does not change, so the open list is told instead.
  */
-export function NavRail({ views, activeId, onNavigate }: {
-  views: readonly ViewDefinition[];
+function searchCases(term: string, isOnCases: boolean, go: (viewId: string) => void): void {
+  handOverSearch(term);
+  if (isOnCases) announceHandedOverSearch();
+  else go('cases');
+}
+
+/**
+ * The left navigation: the shared business model (`navigation.ts`), drawn in the prototype's rail.
+ *
+ * V2 draws the same sections, words and order in its own style. Nothing here decides what is
+ * offered; it only renders what the model offers this role.
+ */
+export function NavRail({ role, activeId, onNavigate, isCollapsed = false, header, profile }: {
+  role: RoleKey;
   activeId: string;
   onNavigate: (viewId: string) => void;
+  /** Icons only; every entry keeps its name as a tooltip so nothing becomes unreachable by name. */
+  isCollapsed?: boolean;
+  /** The fixed header above the menu — the product and the CRM scope. */
+  header?: ReactNode;
+  /** The fixed footer below the menu — who is signed in. Always visible, never scrolled to. */
+  profile?: ReactNode;
 }) {
+  const groups: readonly NavigationGroup[] = navigationFor(role);
+  const current = activeNavigationId(activeId, role);
   return (
-    <nav className="nav" aria-label="Workspace navigation" data-testid="nav-rail">
-      <div className="nav-scroll">
-        {GROUP_ORDER.map(group => {
-          const inGroup = views.filter(v => v.group === group);
-          if (inGroup.length === 0) return null;
-          return (
-            <div key={group}>
-              <div className="nav-group-label">{group}</div>
-              {inGroup.map(view => (
-                <button
-                  key={view.id}
-                  type="button"
-                  className={view.id === activeId ? 'nav-item active' : 'nav-item'}
-                  data-testid={`nav-${view.id}`}
-                  data-pending={isPending(view) ? String(view.phase) : undefined}
-                  aria-current={view.id === activeId ? 'page' : undefined}
-                  onClick={() => onNavigate(view.id)}
-                >
-                  <Icon name={view.icon} />
-                  <span>{view.label}</span>
-                  {isPending(view) && (
-                    <span
-                      className="nav-count"
-                      title={view.isParked ? 'Parked by QDB' : `Phase ${view.phase} owns this functionality`}
-                    >
-                      {view.isParked ? 'Parked' : `P${view.phase}`}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          );
-        })}
-      </div>
-    </nav>
+    <Sidebar
+      className={isCollapsed ? 'nav collapsed' : 'nav'} label="Workspace navigation" testId="nav-rail" data-collapsed={String(isCollapsed)}
+      header={header ?? null} {...(profile !== undefined ? { profile } : {})}
+      regionClassNames={{ nav: 'nav-scroll' }}
+    >
+      <>
+        {groups.map(group => (
+          <div key={group.section} role="group" aria-label={group.section}>
+            <div className="nav-group-label">{group.section}</div>
+            {group.items.map(item => (
+              <button
+                key={item.id}
+                type="button"
+                className={item.id === current ? 'nav-item active' : 'nav-item'}
+                data-testid={`nav-${item.id}`}
+                aria-current={item.id === current ? 'page' : undefined}
+                title={item.label}
+                onClick={() => onNavigate(item.id)}
+              >
+                <Icon name={item.icon} />
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        ))}
+      </>
+    </Sidebar>
   );
 }
+
+/** The rail's fixed header: the product and the CRM scope in view, in the prototype's type. */
+function RailBrand({ scope }: { scope: string }) {
+  return (
+    <div className="nav-brand">
+      <span className="nav-brand-name">Debt Collection</span>
+      <span className="nav-brand-scope">{RAIL_SCOPE_LABELS[scope] ?? scope}</span>
+    </div>
+  );
+}
+
+/** The rail's fixed footer: who is signed in and the working role. Long names truncate, never wrap the rail. */
+function RailProfile({ userName, roleLabel }: { userName: string; roleLabel: string }) {
+  return (
+    <div className="nav-user" title={`${userName} · ${roleLabel}`} data-testid="nav-user">
+      <span className="nav-user-avatar" aria-hidden="true">{initialsOf(userName)}</span>
+      <span className="nav-user-meta">
+        <span className="nav-user-name">{userName}</span>
+        <span className="nav-user-role">{roleLabel}</span>
+      </span>
+    </div>
+  );
+}
+
+const RAIL_SCOPE_LABELS: Readonly<Record<string, string>> = { all: 'HL + BFD', HL: 'Housing Loan', BFD: 'BFD' };
 
 /**
  * A command bar button.
@@ -194,7 +263,7 @@ export function Command({ icon, label, onClick, pendingPhase, disabledReason }: 
 }) {
   const disabled = pendingPhase !== undefined || disabledReason !== undefined;
   const title = pendingPhase !== undefined
-    ? `Phase ${pendingPhase} owns this — not yet implemented`
+    ? 'Not available yet'
     : disabledReason ?? label;
   return (
     <button

@@ -258,6 +258,16 @@ describe('Dashboards V2 as Report Engine compositions', () => {
     expect(screen.queryByTestId('v2-dropped-DCP-RPT-005')).toBeNull();
   });
 
+  /** An eight-column table shared a half-width cell and needed a scrollbar (Issues 2026-09-27). */
+  it('gives a many-column report the whole row, and a short one half of it', async () => {
+    install(fakeXrm().xrm);
+    await openV2Dashboards();
+
+    expect((await panel('DCP-RPT-001')).className).toBe('v2-report-panel');
+    await userEvent.click(screen.getByTestId('v2-tab-DCP-DB-004'));
+    expect((await panel('DCP-RPT-013')).className).toBe('v2-report-panel v2-report-wide');
+  });
+
   it('shows configuration gaps as one count per dataset', async () => {
     install(fakeXrm().xrm);
     await openV2Dashboards();

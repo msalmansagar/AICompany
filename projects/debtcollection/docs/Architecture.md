@@ -55,6 +55,24 @@ Both targets are equal. Platform and organisation differences live in `qdb_platf
   TBD — Requires QDB Confirmation.
 ```
 
+### 3.1 Deployment topology and the centralised QDB processes (confirmed 2026-09-29)
+
+- **DCP is deployed to both organisations, from one solution.** Import #1: HL CRM — individual
+  customers, `contact`, HL Loan Account, configuration marked HL. Import #2: BFD CRM / QDB1 —
+  corporate/SME customers, `account`, Facility, configuration marked BFD. No code fork, no second
+  solution; `qdb_platformconfiguration` decides which organisation a deployment serves.
+- **BFD CRM hosts two enterprise processes for both populations: Case Management (complaints) and
+  Legal.** Neither exists in HL CRM, neither is copied there, and DCP recreates neither. HL and BFD
+  Collection Cases alike hand complaints to BFD Case Management and legal matters to BFD Legal.
+- **Cross-organisation relationships are generic external process references**, never native
+  lookups: a Collection Activity records the owning organisation, the record type, the record id
+  and the owning system's number (ADR-DCP-22, `ExternalProcessReference.md`). The same pattern is
+  used when the target is in the same organisation, so there is one schema and one contract.
+- **Creation and status go through the Integration Service**, acting as the signed-in user in each
+  organisation. The browser never signs in to BFD CRM and never addresses the Case or Legal tables.
+- **Each organisation's workspace works on its own collection data.** A consolidated HL + BFD view
+  would have to be built on the Integration Service; it is a separate decision, not designed here.
+
 ## 4. Containers
 
 | Container | Technology | Deployed as | Platform-specific? |
@@ -114,6 +132,8 @@ Both targets are equal. Platform and organisation differences live in `qdb_platf
 | ADR-DCP-18 | Concurrency-controlled writes bypass `Xrm.WebApi` for a same-origin `fetch` | **Accepted** (Phase 6) — `ADR_Phase6_Writes.md` |
 | ADR-DCP-19 | Duplicate submission prevented by a client-chosen primary key, not by the UI | **Accepted** (Phase 6) — `ADR_Phase6_Writes.md` |
 | ADR-DCP-20 | A bulk communication is made safe by its ids, not by its procedure | **Accepted** (Phase 7) — `ADR_Phase7_BulkIdempotency.md` |
+| ADR-DCP-21 | Complaints are raised in QDB's **existing BFD Case Management** through the Integration Service; DCP owns no complaint entity, workflow or lifecycle. HL: Case customer = the existing Non Customer account, real HL customer carried as values | **Accepted** (brief 2026-09-29) — `CaseManagement_HLComplaint_Findings.md` |
+| ADR-DCP-22 | Complaint and Legal are referenced through a **generic external process reference** on the Collection Activity (organisation · record type · record id · number) for HL and BFD alike; the two same-organisation lookups are retired; status is read from the owning module, never stored | **Accepted** (user approval 2026-09-29) — `ExternalProcessReference.md` |
 
 Superseded ADRs are kept and marked; none are deleted.
 
@@ -130,7 +150,7 @@ Superseded ADRs are kept and marked; none are deleted.
 | 6 | Collection activities & PTP lifecycle | " |
 | 7 | Communication Center — SMS/WhatsApp (fax), Email, templates, validation, history | " |
 | 8 | Strategy automation & assignment | " |
-| 9 | Advanced processes — field visit, restructuring, legal, deceased & insurance, complaints | " |
+| 9 | Advanced processes — field visit, restructuring, legal, deceased & insurance, complaints (integration with QDB's existing BFD Case Management — DCP initiates, Case Management owns; ADR-DCP-21) | " |
 | 10 | Reporting & oversight | " |
 | 11 | Hardening & production readiness — regression, security, performance, both targets, same-source verification | production readiness report |
 

@@ -1,12 +1,12 @@
 import {
   deriveProgress, freezePopulation, isConcurrencyConflict, nativeActivityIdFor, parseNonSuccesses,
   planBatch, reconcile, serialiseNonSuccesses, thawPopulation, validateManifestCapacity,
-  type CommunicationChannel, type CommunicationRequest, type EligibilityContext,
+  type CommunicationChannel, type CommunicationRequest,
   type RecipientResult, type RecordedNonSuccess, type RowVersion, type RunProgress,
 } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import { ENTITY_SETS, COMMUNICATION_RUN_COLUMNS } from '../data/schema.js';
-import { CommunicationService, RECIPIENT_PARTY_MASK } from './communicationService.js';
+import { CommunicationService, RECIPIENT_PARTY_MASK, type SendContext } from './communicationService.js';
 import { describeFailure } from '../platform/errors.js';
 
 /**
@@ -180,7 +180,7 @@ export class BulkCommunicationService {
   async runBatch(
     runId: string,
     buildRequest: (recipientId: string, run: CommunicationRun) => Promise<CommunicationRequest | null>,
-    eligibility: (recipientId: string) => Promise<EligibilityContext>,
+    eligibility: (recipientId: string) => Promise<SendContext>,
     batchSize: number = DEFAULT_BATCH_SIZE,
   ): Promise<BatchOutcome> {
     const run = await this.loadRun(runId);
@@ -264,7 +264,7 @@ export class BulkCommunicationService {
     recipientId: string,
     run: CommunicationRun,
     buildRequest: (recipientId: string, run: CommunicationRun) => Promise<CommunicationRequest | null>,
-    eligibility: (recipientId: string) => Promise<EligibilityContext>,
+    eligibility: (recipientId: string) => Promise<SendContext>,
   ): Promise<RecipientResult> {
     try {
       const request = await buildRequest(recipientId, run);
@@ -315,7 +315,7 @@ export class BulkCommunicationService {
   async retryFailures(
     runId: string,
     buildRequest: (recipientId: string, run: CommunicationRun) => Promise<CommunicationRequest | null>,
-    eligibility: (recipientId: string) => Promise<EligibilityContext>,
+    eligibility: (recipientId: string) => Promise<SendContext>,
     batchSize: number = DEFAULT_BATCH_SIZE,
   ): Promise<BatchOutcome> {
     const run = await this.loadRun(runId);

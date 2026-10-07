@@ -87,16 +87,15 @@ describe('the figures', () => {
 
   /**
    * Phase 10 made the promise tile a fact about PTP activities — recorded status Active, promised
-   * for a stated window — rather than a case status standing in for a promise. The words on the tile
-   * keep the distinction: a recorded status is not a verified payment.
+   * for a stated window — rather than a case status standing in for a promise. The tile keeps a
+   * short subtitle; "recorded, not verified" is said on the promise lists, where outcomes are read.
    */
-  it('counts promises due as PTP activities in a stated window, and says a recorded status is not a payment', async () => {
-    const home = await openHome();
+  it('counts promises due as PTP activities in a stated window', async () => {
+    await openHome();
 
     const tile = screen.getByTestId('v2-metric-ptp-due');
     expect(tile.textContent).toContain('Promises due, 7 days');
-    expect(tile.textContent).toMatch(/not a verified payment/);
-    expect(home.textContent).not.toMatch(/Active promises|Broken promises/);
+    expect(tile.textContent).toContain('Promised for today onward');
     await waitFor(() => expect(countUrls.some(url => url.includes('qdb_collectionactivities') && url.includes('qdb_ptpdate ne null') && url.includes('qdb_ptpstatus eq') && url.includes('qdb_ptpdate ge') && url.includes('qdb_ptpdate lt'))).toBe(true));
   });
 
@@ -110,33 +109,55 @@ describe('the figures', () => {
   });
 });
 
-describe('what needs you', () => {
-  it('lists a queue that holds work', async () => {
+describe('my queues', () => {
+  it('shows a queue that holds work at full weight', async () => {
     await openHome();
 
-    expect(await screen.findByTestId('v2-needs-Legal')).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId('v2-queue-Legal').className).not.toContain('v2-list-row-quiet'));
   });
 
-  it('leaves out a queue known to be empty', async () => {
+  it('keeps a queue known to be empty, quietened rather than hidden', async () => {
     await openHome();
-    await screen.findByTestId('v2-needs-Legal');
+    await screen.findByTestId('v2-queue-Legal');
 
-    expect(screen.queryByTestId('v2-needs-Disputes')).toBeNull();
+    expect(screen.getByTestId('v2-queue-Disputes').className).toContain('v2-list-row-quiet');
   });
 
   it('opens the queue that holds the work', async () => {
     await openHome();
 
-    await userEvent.click(await screen.findByTestId('v2-needs-Legal'));
+    await userEvent.click(await screen.findByTestId('v2-queue-open-Legal'));
 
     expect(window.location.hash).toBe('#queues/Legal');
   });
 
+  it('lists promises due and broken promises in the same panel', async () => {
+    await openHome();
+    const panel = await screen.findByTestId('v2-my-queues');
+
+    await waitFor(() => expect([panel.querySelector('[data-testid="v2-queue-promises-due"]'), panel.querySelector('[data-testid="v2-queue-promises-broken"]')].every(Boolean)).toBe(true));
+  });
+
+  it('opens the promise list from a promise row', async () => {
+    await openHome();
+
+    await userEvent.click(await screen.findByTestId('v2-queue-open-promises-broken'));
+
+    expect(window.location.hash).toBe('#ptp');
+  });
+
   it('never offers queues that cannot be answered without due dates', async () => {
     await openHome();
-    await screen.findByTestId('v2-queue-load');
+    await screen.findByTestId('v2-queue-Legal');
 
-    expect([screen.queryByTestId('v2-load-Overdue'), screen.queryByTestId('v2-load-DueSoon')]).toEqual([null, null]);
+    expect([screen.queryByTestId('v2-queue-Overdue'), screen.queryByTestId('v2-queue-DueSoon')]).toEqual([null, null]);
+  });
+
+  it('shows an officer their own open cases and no identity exceptions', async () => {
+    await openHome();
+
+    expect([screen.getByTestId('v2-metric-open').textContent, screen.queryByTestId('v2-metric-identity')])
+      .toEqual([expect.stringContaining('My open cases'), null]);
   });
 });
 

@@ -50,7 +50,8 @@ describe('V2 covers every route', () => {
 
   it('draws these routes natively', () => {
     expect(Object.keys(V2_PAGES).sort()).toEqual(
-      ['buckets', 'case', 'cases', 'claims', 'customer', 'dashboards', 'disputes', 'legal', 'myday', 'ptp', 'queues'].sort(),
+      // `case` is the shared Case Workspace, drawn inside the V2 frame (WP3).
+      ['buckets', 'cases', 'claims', 'customer', 'dashboards', 'disputes', 'legal', 'myday', 'ptp', 'queues'].sort(),
     );
   });
 

@@ -1,238 +1,159 @@
-import { useEffect, useMemo, useState } from 'react';
-import { DataGrid, type DataGridColumn } from '../data/DataGrid.js';
-import { loadCustomerAggregate, type CustomerAggregate, type FacilitySummary } from '../data/customerAggregate.js';
-import { createSnapshotQuery, type SnapshotQuery, type SnapshotRow } from '../data/caseQueries.js';
-import {
-  BucketBar, BucketPill, Card, EmptyState, FieldList, InfoBanner, KpiRow, OrgBadge, StatusPill,
-  formatCount, formatDate, formatMoney,
-} from '../components/primitives.js';
+import { useCallback, useMemo, useState } from 'react';
+import { loadCustomerAggregate, type CustomerAggregate, type FinancialUnit } from '../data/customerAggregate.js';
+import { describeFinancialUnit } from '../data/financialUnit.js';
+import { SectionBoundary, SkeletonLines, useSectionData } from '../components/SectionBoundary.js';
 import { useCrmSession } from '../shell/context.js';
-import { CasesView } from './index.js';
+import { CaseCommandDialogs, type CaseCommandDialog } from './CaseCommandDialogs.js';
+import { CustomersView } from './CustomersView.js';
+import { CollectionHistoryTimeline } from './customer360/CollectionHistoryTimeline.js';
+import { CollectionSummaryPanel } from './customer360/CollectionSummaryPanel.js';
+import { ContactPreferences } from './customer360/ContactPreferences.js';
+import { CollectionKpiStrip, CustomerHeader } from './customer360/CustomerHeader.js';
+import { CustomerLogActionButton } from './customer360/CustomerLogAction.js';
+import { DelinquencyHistory } from './customer360/DelinquencyHistory.js';
+import { FinancialUnitList, unitKey } from './customer360/FinancialUnitList.js';
+import { BalancesAsOf } from '../components/BalancesAsOf.js';
+import { formatWithShortMonths } from '../components/shortMonths.js';
+import { useCustomer360Sections } from './customer360/useCustomer360Sections.js';
 
 /**
- * Customer & Loan 360 — everything known about one customer, gathered rather than stored.
+ * Customer 360 — one customer's collection position, as a read model over records that exist.
  *
- * The screen is an aggregation over records that already exist: the CRM customer (a contact for
- * Housing Loan, an account for BFD), the collection cases that name that customer's business id, and
- * the MIS snapshots recorded against them. **It creates no customer master and no facility master**,
- * which is the standing architectural constraint and not an implementation shortcut.
- *
- * Collateral, guarantor and insurance appear in the approved design and have **no canonical field**
- * anywhere in the platform. They are shown as *not yet sourced* rather than dropped, because adding
- * columns for them would be a schema change, and inventing values would be worse than either.
+ * Shared by V1 and V2 (V2 hosts it inside its frame); there is one implementation of the content,
+ * the reads and the actions. HL customers are CRM contacts with Loan Accounts; BFD customers are CRM
+ * accounts with Facilities; a Loan Account is never called a Facility. Nothing here is a master,
+ * a workflow or a Rule Engine decision, and nothing here writes: the figures are the last stored MIS
+ * position, labelled as such, and viewing the screen changes no collection state.
  */
-
-const NOT_SOURCED = 'not yet sourced';
-
-export function Customer360View({ customerBusinessId, onOpenCase }: {
+export function Customer360View({ customerBusinessId, fromCaseId, onOpenCase, onOpenActionPlan, onOpenCustomer }: {
   customerBusinessId?: string | undefined;
+  /** The case the officer came from (`#customer/<id>/<caseId>`): selected on arrival, one click back. */
+  fromCaseId?: string | undefined;
   onOpenCase?: (caseId: string) => void;
+  /** Opens the case on its Action Plan; falls back to the case itself where a host has no such tab. */
+  onOpenActionPlan?: (caseId: string) => void;
+  onOpenCustomer?: (customerBusinessId: string) => void;
 }) {
+  if (!customerBusinessId) {
+    return <CustomersView onOpenCustomer={id => onOpenCustomer?.(id)} onOpenCase={id => onOpenCase?.(id)} />;
+  }
+  const navigation: CaseNavigation = {
+    onOpenCase: id => onOpenCase?.(id),
+    onOpenActionPlan: id => (onOpenActionPlan ?? onOpenCase)?.(id),
+    ...(fromCaseId ? { fromCaseId } : {}),
+  };
+  return <Customer360Page customerBusinessId={customerBusinessId} navigation={navigation} />;
+}
+
+/** Where Customer 360 can send the officer: the case itself, or straight to its Action Plan. */
+interface CaseNavigation {
+  onOpenCase: (caseId: string) => void;
+  onOpenActionPlan: (caseId: string) => void;
+  fromCaseId?: string;
+}
+
+function Customer360Page({ customerBusinessId, navigation }: { customerBusinessId: string; navigation: CaseNavigation }) {
   const { adapter } = useCrmSession();
-  const [state, setState] = useState<{
-    status: 'idle' | 'loading' | 'ready' | 'error';
-    aggregate?: CustomerAggregate;
-    error?: Error;
-  }>({ status: customerBusinessId ? 'loading' : 'idle' });
-
-  useEffect(() => {
-    if (!customerBusinessId) { setState({ status: 'idle' }); return; }
-    let cancelled = false;
-    setState({ status: 'loading' });
-    loadCustomerAggregate(adapter, customerBusinessId)
-      .then(aggregate => { if (!cancelled) setState({ status: 'ready', aggregate }); })
-      .catch((error: unknown) => {
-        if (!cancelled) setState({ status: 'error', error: error instanceof Error ? error : new Error(String(error)) });
-      });
-    return () => { cancelled = true; };
-  }, [adapter, customerBusinessId]);
-
-  if (!customerBusinessId) return <CustomerPicker {...(onOpenCase ? { onOpenCase } : {})} />;
-  if (state.status === 'loading') {
-    return <div className="empty-state" data-testid="customer-loading">Loading customer…</div>;
-  }
-  if (state.status === 'error') {
-    return (
-      <Card title="Customer & Loan 360">
-        <EmptyState icon="warn" message={state.error?.message ?? 'The customer could not be read.'} />
-      </Card>
-    );
-  }
-  if (!state.aggregate || state.aggregate.cases.length === 0) {
-    return (
-      <Card title="Customer & Loan 360">
-        <EmptyState
-          icon="users"
-          message={`No collection case names customer ${customerBusinessId}, so there is nothing to aggregate.`}
-        />
-      </Card>
-    );
-  }
-
-  return <CustomerAggregateView aggregate={state.aggregate} {...(onOpenCase ? { onOpenCase } : {})} />;
-}
-
-/**
- * How a customer is chosen.
- *
- * There is no customer list to browse, because there is no frontend customer master to browse. A
- * customer is reached through a case, which is also how an officer actually works.
- */
-function CustomerPicker({ onOpenCase }: { onOpenCase?: (caseId: string) => void }) {
+  const [reloadKey, setReloadKey] = useState(0);
+  const customer = useSectionData(() => loadCustomerAggregate(adapter, customerBusinessId), [adapter, customerBusinessId, reloadKey]);
   return (
-    <>
-      <InfoBanner icon="users">
-        A customer is reached through one of their cases. This workspace keeps <b>no customer master of
-        its own</b> — the record lives in the CRM that owns it, as a contact for Housing Loan and an
-        account for BFD.
-      </InfoBanner>
-      <Card title="Open a case to see its customer">
-        <CasesView {...(onOpenCase ? { onOpenCase } : {})} />
-      </Card>
-    </>
-  );
-}
-
-function CustomerAggregateView({ aggregate, onOpenCase }: {
-  aggregate: CustomerAggregate;
-  onOpenCase?: (caseId: string) => void;
-}) {
-  const partial = !aggregate.isComplete;
-  return (
-    <div data-testid="view-customer" data-customer-id={aggregate.customerBusinessId}>
-      {partial && (
-        <InfoBanner icon="warn">
-          This customer has more cases than one page holds, so the totals below cover the cases read
-          and are <b>partial</b>. They are not this customer&apos;s full exposure.
-        </InfoBanner>
-      )}
-      <KpiRow items={[
-        { label: 'Total exposure', value: formatMoney(aggregate.totalExposure), ...(partial ? { hint: 'Partial' } : {}) },
-        { label: 'Total overdue', value: formatMoney(aggregate.totalOverdue), ...(partial ? { hint: 'Partial' } : {}), tone: 'warn' },
-        { label: 'Facilities', value: formatCount(aggregate.facilities.length) },
-        { label: 'Cases', value: formatCount(aggregate.openCaseCount) },
-        { label: 'Worst DPD', value: formatCount(aggregate.worstDpd) },
-        { label: 'Risk grade', value: '—', hint: NOT_SOURCED },
-      ]} />
-
-      <CustomerIdentity aggregate={aggregate} />
-      <FacilitiesCard aggregate={aggregate} {...(onOpenCase ? { onOpenCase } : {})} />
-      <SnapshotsCard customerBusinessId={aggregate.customerBusinessId} />
+    <div className="c360" data-testid="view-customer" data-customer-id={customerBusinessId}>
+      <SectionBoundary label="The customer" state={customer.state} onRetry={customer.retry} skeleton={<SkeletonLines lines={4} height={20} />} testId="c360-customer">
+        {aggregate => aggregate.cases.length === 0
+          ? <p className="c360-empty section-card" data-testid="c360-no-cases">No Collection Case names customer {customerBusinessId}, so there is nothing to show.</p>
+          : <Customer360Content aggregate={aggregate} reloadKey={reloadKey} onSaved={() => setReloadKey(key => key + 1)} navigation={navigation} />}
+      </SectionBoundary>
     </div>
   );
 }
 
-function CustomerIdentity({ aggregate }: { aggregate: CustomerAggregate }) {
-  const profile = aggregate.profile;
-  if (!profile) {
-    return (
-      <Card title="Customer">
-        <EmptyState
-          icon="users"
-          message={`Customer ${aggregate.customerBusinessId} has cases but no linked CRM record. That is an identity exception, not an empty screen — Delinquency Intake lists them.`}
-        />
-      </Card>
-    );
-  }
-  return (
-    <Card
-      title={profile.displayName}
-      subtitle={`${profile.table === 'contact' ? 'Contact' : 'Account'} in the CRM that owns this customer`}
-    >
-      <FieldList
-        testId="customer-fields"
-        fields={[
-          { label: 'Customer id', value: aggregate.customerBusinessId },
-          { label: 'Customer table', value: profile.table },
-          { label: 'State', value: profile.isActive ? 'Active' : 'Inactive' },
-          { label: 'Phone', value: profile.phone ?? '—' },
-          { label: 'Mobile', value: profile.mobile ?? '—' },
-          { label: 'Email', value: profile.email ?? '—' },
-          { label: 'City', value: profile.city ?? '—' },
-        ]}
-      />
-    </Card>
-  );
-}
-
-// ── Facilities ───────────────────────────────────────────────────────────────
-
-const FACILITY_COLUMNS: readonly DataGridColumn<FacilitySummary>[] = [
-  { key: 'facility', header: 'Facility', width: '150px', render: r => <span className="row-lead"><BucketBar bucket={r.bucket} />{r.facilityNumber}</span> },
-  { key: 'org', header: 'CRM', width: '70px', render: r => <OrgBadge org={r.organization} /> },
-  { key: 'balance', header: 'Outstanding', width: '130px', render: r => formatMoney(r.loanBalance) },
-  { key: 'overdue', header: 'Overdue', width: '130px', render: r => formatMoney(r.totalArrears) },
-  { key: 'dpd', header: 'DPD', width: '70px', render: r => formatCount(r.dpd) },
-  { key: 'bucket', header: 'Bucket', width: '110px', render: r => <BucketPill bucket={r.bucket} /> },
-  { key: 'case', header: 'Case', width: '150px', render: r => r.caseNumber },
-  { key: 'status', header: 'Status', width: '140px', render: r => <StatusPill status={r.caseStatus} /> },
-  // The approved design's remaining three columns. No canonical field exists for any of them, so
-  // they are present and honest rather than absent or invented.
-  { key: 'collateral', header: 'Collateral', width: '120px', render: () => <NotSourced /> },
-  { key: 'guarantor', header: 'Guarantor', width: '120px', render: () => <NotSourced /> },
-  { key: 'insurance', header: 'Insurance', width: '120px', render: () => <NotSourced /> },
-];
-
-function NotSourced() {
-  return <span className="not-sourced" title="No canonical field exists for this yet (Phase 9)">{NOT_SOURCED}</span>;
-}
-
-function FacilitiesCard({ aggregate, onOpenCase }: {
-  aggregate: CustomerAggregate;
-  onOpenCase?: (caseId: string) => void;
+function Customer360Content({ aggregate, reloadKey, onSaved, navigation }: {
+  aggregate: CustomerAggregate; reloadKey: number; onSaved: () => void; navigation: CaseNavigation;
 }) {
+  const { onOpenCase, fromCaseId } = navigation;
+  const [selectedKey, setSelectedKey] = useState<string | undefined>(() => initialUnitKey(aggregate, fromCaseId));
+  const origin = aggregate.cases.find(c => c.id === fromCaseId);
+  const selected = aggregate.financialUnits.find(unit => unitKey(unit) === selectedKey);
+  const sections = useCustomer360Sections(aggregate, selected, reloadKey);
+  const [command, setCommand] = useState<{ kind: CaseCommandDialog; caseId: string; note?: string } | undefined>(undefined);
+  const openUnits = useMemo(() => aggregate.financialUnits.filter(unit => unit.case.isOpen), [aggregate.financialUnits]);
+  // Stable across renders, so a selection change never looks like a new history question.
+  const caseIds = useMemo(() => aggregate.cases.map(c => c.id), [aggregate.cases]);
+  const contextOf = useCaseContext(aggregate);
+  const commands = useMemo(() => ({
+    onSelect: setSelectedKey,
+    onOpenCase,
+    onLogAction: (unit: FinancialUnit) => setCommand({ kind: 'activity', caseId: unit.case.id }),
+    onCapturePromise: (unit: FinancialUnit) => setCommand({ kind: 'promise', caseId: unit.case.id }),
+  }), [onOpenCase]);
+  const nextOf = (unit: FinancialUnit | undefined) => (unit && sections.nextActions.state.status === 'ready' ? sections.nextActions.state.data.get(unit.case.id) : undefined);
+
   return (
-    <Card
-      title="Facilities"
-      subtitle="One row per facility this customer has a collection case for. A facility is MIS identity carried on the case, never a CRM record."
-    >
-      <table className="grid" data-testid="customer-facilities">
-        <thead>
-          <tr>{FACILITY_COLUMNS.map(column => <th key={column.key} style={column.width ? { width: column.width } : undefined}>{column.header}</th>)}</tr>
-        </thead>
-        <tbody>
-          {aggregate.facilities.map(facility => (
-            <tr
-              key={facility.facilityNumber}
-              data-facility={facility.facilityNumber}
-              {...(onOpenCase ? { onClick: () => onOpenCase(facility.caseId), className: 'clickable' } : {})}
-            >
-              {FACILITY_COLUMNS.map(column => <td key={column.key}>{column.render(facility)}</td>)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </Card>
+    <>
+      {origin && (
+        <button type="button" className="btn c360-back" onClick={() => onOpenCase(origin.id)} data-testid="c360-back-to-case">
+          ← Back to case {origin.caseNumber}
+        </button>
+      )}
+      <CustomerHeader aggregate={aggregate} actions={<CustomerLogActionButton openUnits={openUnits} onChosen={(unit, note) => setCommand({ kind: 'activity', caseId: unit.case.id, note })} />} />
+      <CollectionKpiStrip aggregate={aggregate} promises={sections.promises} />
+      <BalancesAsOf asOf={aggregate.misAsOfDate} className="c360-balances-as-of" />
+      <div className="c360-layout">
+        <div className="c360-col-main">
+          <div className="c360-slot-units">
+            <FinancialUnitList units={aggregate.financialUnits} portfolio={aggregate.portfolio} nextActions={sections.nextActions.state} selectedKey={selectedKey} commands={commands} />
+          </div>
+          <div className="c360-slot-history">
+            <SectionBoundary label="Collection History" state={sections.history.state} onRetry={sections.history.retry} skeleton={<SkeletonLines lines={5} height={18} />} testId="c360-history-section">
+              {history => <CollectionHistoryTimeline caseIds={caseIds} history={history} counts={sections.counts.status === 'ready' ? sections.counts.data : undefined} contextOf={contextOf} />}
+            </SectionBoundary>
+          </div>
+        </div>
+        <div className="c360-col-side">
+          <div className="c360-sticky-group">
+            <div className="c360-slot-summary">
+              <CollectionSummaryPanel
+                unit={selected} nextAction={nextOf(selected)} nextActionsStatus={sections.nextActions.state.status}
+                openProcesses={sections.openProcesses.state} onRetryProcesses={sections.openProcesses.retry} onOpenActionPlan={navigation.onOpenActionPlan}
+              />
+            </div>
+            <div className="c360-slot-delinquency">
+              {selected && (
+                <SectionBoundary label="Delinquency History" state={sections.snapshots.state} onRetry={sections.snapshots.retry} skeleton={<SkeletonLines lines={4} height={18} />} testId="c360-delinquency-section">
+                  {snapshots => <DelinquencyHistory unitNumber={selected.unitNumber} snapshots={snapshots} />}
+                </SectionBoundary>
+              )}
+            </div>
+          </div>
+          <div className="c360-slot-prefs"><ContactPreferences profile={aggregate.profile} messageTable={sections.history.state.status === 'ready' ? sections.history.state.data.messaging.sms?.table : undefined} /></div>
+        </div>
+      </div>
+      <CaseCommandDialogs
+        caseId={command?.caseId} dialog={command?.kind ?? null} contextNote={command?.note}
+        onClose={() => setCommand(undefined)} onSaved={() => { setCommand(undefined); onSaved(); }}
+      />
+    </>
   );
 }
 
-// ── Snapshot history ─────────────────────────────────────────────────────────
+/** The unit of the case the officer came from, else the first — never a different case than they left. */
+function initialUnitKey(aggregate: CustomerAggregate, fromCaseId: string | undefined): string | undefined {
+  const origin = aggregate.financialUnits.find(unit => unit.case.id === fromCaseId) ?? aggregate.financialUnits[0];
+  return origin ? unitKey(origin) : undefined;
+}
 
-const SNAPSHOT_COLUMNS: readonly DataGridColumn<SnapshotRow>[] = [
-  { key: 'date', header: 'As of', width: '110px', render: r => <span className="row-lead"><BucketBar bucket={r.bucket} />{formatDate(r.snapshotDate)}</span> },
-  { key: 'facility', header: 'Facility', width: '150px', render: r => r.facilityNumber ?? '—' },
-  { key: 'dpd', header: 'DPD', width: '70px', render: r => formatCount(r.dpd) },
-  { key: 'bucket', header: 'Bucket', width: '110px', render: r => <BucketPill bucket={r.bucket} /> },
-  { key: 'arrears', header: 'Arrears', width: '130px', render: r => formatMoney(r.totalArrears) },
-  { key: 'balance', header: 'Balance', width: '130px', render: r => formatMoney(r.loanBalance) },
-  { key: 'outcome', header: 'Eligibility', render: r => r.eligibilityOutcome ?? '—' },
-];
+/** Each history entry's Loan Account / Facility and Collection Case, from the cases already read. */
+function useCaseContext(aggregate: CustomerAggregate) {
+  const byCase = useMemo(() => new Map(aggregate.cases.map(c => [c.id, { unit: describeFinancialUnit(c.organization, c.facilityNumber), caseNumber: c.caseNumber }])), [aggregate.cases]);
+  return useCallback((caseId: string | undefined) => (caseId ? byCase.get(caseId) : undefined), [byCase]);
+}
 
-function SnapshotsCard({ customerBusinessId }: { customerBusinessId: string }) {
-  const { adapter } = useCrmSession();
-  const fetchPage = useMemo(() => createSnapshotQuery(adapter), [adapter]);
-  const query = useMemo<SnapshotQuery>(() => ({ customerBusinessId }), [customerBusinessId]);
-  return (
-    <Card
-      title="MIS history"
-      subtitle="Positions MIS reported for this customer's facilities. Stored values, not a live MIS read."
-    >
-      <DataGrid<SnapshotRow, SnapshotQuery>
-        columns={SNAPSHOT_COLUMNS} fetchPage={fetchPage} query={query}
-        rowKey={row => row.id} pageSize={50} height={320}
-        emptyMessage="No MIS snapshot has been recorded for this customer."
-        data-testid="customer-snapshots"
-      />
-    </Card>
-  );
+const MOMENT = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+/** "29 Sept 2026 · 14:45", in the officer's time zone; an absent or unreadable moment is an em dash. */
+export function formatMoment(value: string | undefined): string {
+  if (!value) return '—';
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) return '—';
+  return formatWithShortMonths(MOMENT, at).replace(/ /g, ' ').replace(/, /, ' · ');
 }

@@ -24,6 +24,9 @@ import { FILTER_SEGMENT, caseListFiltersFromScope, encodeCaseListFilters } from 
  * opens V2's Collection Cases with the very filters the row was counted in, so the list is the
  * population the figure describes; the way back is kept.
  */
+/** From this many columns a report table spans the full width rather than sharing a row. */
+export const WIDE_TABLE_COLUMNS = 5;
+
 export function V2DashboardsPage({ request }: { request: ViewRequest }) {
   const { adapter } = useCrmSession();
   const reporting = useReportingService();
@@ -82,8 +85,10 @@ function V2ReportPanel({ panel, definition, scope, dropped, reporting, resolutio
   const state = useReport(reporting, { reportId: resolution.isResolved ? resolution.reportId : undefined, scope, isResolved: resolution.isResolved });
   const isDropped = dropped.length > 0;
   const isTable = panel.kind === 'table';
+  // A table with many columns takes the whole row so every column shows without a scrollbar.
+  const isWide = !isTable || panel.columns.length >= WIDE_TABLE_COLUMNS;
   return (
-    <div className={isTable ? 'v2-report-panel' : 'v2-report-panel v2-report-wide'} data-testid={`v2-panel-${panel.report}`} data-state={state.status}>
+    <div className={isWide ? 'v2-report-panel v2-report-wide' : 'v2-report-panel'} data-testid={`v2-panel-${panel.report}`} data-state={state.status}>
       <Card
         title={panel.title}
         subtitle={definition.purpose}

@@ -22,6 +22,8 @@ import type {
 
 const ODATA_VERSION = '4.0';
 const ODATA_MAX_VERSION = '4.0';
+/** The platform's answer to `If-None-Match: *` when the id already exists. */
+const PRECONDITION_FAILED = 412;
 
 /**
  * Org-addressed Dataverse / D365 CE Web API (OData v4) client.
@@ -159,6 +161,44 @@ export class DataverseClient {
     await this.executeRequest('PATCH', url, body, requestOptions);
   }
 
+  /**
+   * Create a record under an id the caller chose, refusing if that id already exists.
+   *
+   * `PATCH` with `If-None-Match: *` — the platform's create-only upsert, the same pattern DCP's
+   * web writes use (ADR-DCP-19) and proved against the organisation in the Phase 6 smoke. The
+   * platform answers 412 when the id exists, so a retried submission is recognised by the request
+   * it made, not by parsing an error code. Resolves `'created'` or `'alreadyExists'`.
+   */
+  async createWithId(
+    entity: string,
+    id: string,
+    body: Record<string, unknown>,
+    requestOptions: RequestOptions = {},
+  ): Promise<'created' | 'alreadyExists'> {
+    const url = buildSingleUrl(this.baseUrl, this.apiVersion, entity, id);
+    try {
+      await this.executeRequest('PATCH', url, body, requestOptions, { 'If-None-Match': '*' });
+      return 'created';
+    } catch (error) {
+      if (error instanceof CrmApiError && error.httpStatus === PRECONDITION_FAILED) return 'alreadyExists';
+      throw error;
+    }
+  }
+
+  /**
+   * GET one object that is not a record or a list — a metadata attribute, a function result.
+   * The path is relative to the Web API root, e.g. `EntityDefinitions(LogicalName='incident')`.
+   */
+  async getSingle<T>(
+    path: string,
+    options: Pick<ODataQueryOptions, 'select' | 'expand'> = {},
+    requestOptions: RequestOptions = {},
+  ): Promise<T> {
+    const url = buildListUrl(this.baseUrl, this.apiVersion, path, options);
+    const result = await this.executeRequest('GET', url, undefined, requestOptions);
+    return result as T;
+  }
+
   /** DELETE a record by GUID. */
   async delete(
     entity: string,
@@ -189,7 +229,7 @@ export class DataverseClient {
     requestOptions: RequestOptions,
   ): Promise<{ id: string }> {
     return withRetry(async () => {
-      const headers = await this.buildHeaders(requestOptions.correlationId);
+      const headers = await this.buildHeaders(requestOptions);
       const response = await fetch(url, {
         method: 'POST',
         headers,
@@ -208,7 +248,7 @@ export class DataverseClient {
     });
   }
 
-  private async buildHeaders(correlationId?: string): Promise<Record<string, string>> {
+  private async buildHeaders(requestOptions: RequestOptions): Promise<Record<string, string>> {
     const token = await this.getAccessToken(this.orgKey);
     return {
       Authorization: `Bearer ${token}`,
@@ -217,7 +257,8 @@ export class DataverseClient {
       'OData-MaxVersion': ODATA_MAX_VERSION,
       'OData-Version': ODATA_VERSION,
       Prefer: 'odata.include-annotations="*"',
-      ...(correlationId !== undefined ? { 'x-correlation-id': correlationId } : {}),
+      ...(requestOptions.correlationId !== undefined ? { 'x-correlation-id': requestOptions.correlationId } : {}),
+      ...(requestOptions.callerId !== undefined ? { MSCRMCallerID: requestOptions.callerId } : {}),
     };
   }
 
@@ -229,7 +270,7 @@ export class DataverseClient {
     extraHeaders: Record<string, string> = {},
   ): Promise<unknown> {
     return withRetry(async () => {
-      const headers = mergeHeaders(await this.buildHeaders(requestOptions.correlationId), extraHeaders);
+      const headers = mergeHeaders(await this.buildHeaders(requestOptions), extraHeaders);
       const fetchOptions: RequestInit = {
         method,
         headers: headers,

@@ -63,7 +63,7 @@ function matches(c: FakeCase, filter: string): boolean {
 function aggregate(cases: FakeCase[], fetchXml: string): Record<string, unknown>[] {
   const org = /qdb_organizationcode" operator="eq" value="(\d+)"/.exec(fetchXml);
   const rows = cases.filter(c => c.open && (!org || c.org === Number(org[1])));
-  if (fetchXml.includes('alias="asof"')) return [{ asof: '2026-09-17T22:04:56Z', syncedfrom: '2026-09-17T22:04:40Z', syncedto: '2026-09-18T22:45:43Z' }];
+  if (fetchXml.includes('alias="asof"')) return [{ asof: '2026-09-17T22:04:56Z' }];
   const groups = new Map<string, { cases: number; arrears: number; bucket: number; strategy: string | null }>();
   for (const c of rows) {
     const key = `${c.bucket}|${c.strategy}`;
@@ -205,10 +205,10 @@ describe('the matrix', () => {
       .toEqual(['5', '2', true]);
   });
 
-  it('says the position is stored MIS data, with its as-of date', async () => {
+  it('says which date the balances are from, in the same words as the case screens', async () => {
     await openPortfolio();
 
-    expect((await screen.findByTestId('v2-portfolio-freshness')).textContent).toMatch(/Stored MIS position as of 2026-09-17.*not a live MIS read/);
+    expect((await screen.findByTestId('v2-portfolio-freshness')).textContent).toBe('Balances as of 18 Sep 2026');
   });
 });
 

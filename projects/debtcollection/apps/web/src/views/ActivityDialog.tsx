@@ -8,7 +8,7 @@ import {
   type SelectChoice,
 } from '../components/forms.js';
 import { Icon, StatusPill, formatDate } from '../components/primitives.js';
-import { loadActivityTypes, loadOutcomes, type ActivityTypeOption, type OutcomeOption } from '../data/configurationCatalog.js';
+import { isPromiseTypeCode, loadActivityTypes, loadOutcomes, type ActivityTypeOption, type OutcomeOption } from '../data/configurationCatalog.js';
 import { ENTITY_SETS, ACTIVITY_COLUMNS } from '../data/schema.js';
 import { isConcernTypeCode } from '../data/caseConcerns.js';
 import { ActivityService } from '../services/activityService.js';
@@ -31,7 +31,8 @@ import { describeFailure } from '../platform/errors.js';
  * outcome the authorisation requires.
  */
 
-export type ActivityDialogMode = 'create' | 'edit';
+/** `complete` is `edit` opened straight at "Complete…" — the Case Workspace's Complete follow-up. */
+export type ActivityDialogMode = 'create' | 'edit' | 'complete';
 
 export interface ActivityDialogProps {
   mode: ActivityDialogMode;
@@ -41,6 +42,8 @@ export interface ActivityDialogProps {
   onClose: () => void;
   /** Called after a successful write so the list behind the dialog re-reads. */
   onSaved: () => void;
+  /** Which unit and case the action was opened for, said at the top so it is never a surprise. */
+  contextNote?: string | undefined;
 }
 
 /** The record as the form holds it, with the version every write must carry. */
@@ -56,7 +59,7 @@ interface LoadedActivity {
   activityNumber: string;
 }
 
-export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: ActivityDialogProps) {
+export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved, contextNote }: ActivityDialogProps) {
   const { adapter } = useCrmSession();
   const service = useMemo(() => new ActivityService(adapter), [adapter]);
   const save = useSaveOperation<unknown>();
@@ -228,6 +231,12 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
     )).then(result => { if (result) { onSaved(); void load(); } });
   };
 
+  // Only once the record and its catalogue have answered may completion start: an activity that
+  // cannot be concluded opens as a plain edit, saying why, rather than offering a dead button.
+  useEffect(() => {
+    if (mode === 'complete' && loaded && !isImmutable && canConclude) setCompleting(true);
+  }, [mode, loaded, isImmutable, canConclude]);
+
   const title = mode === 'create' ? 'Log a collection action' : loaded?.subject || 'Collection action';
 
   return (
@@ -249,6 +258,7 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
         />
       }
     >
+      {contextNote && <div className="info-banner" data-testid="activity-dialog-context"><Icon name="info" /><div>{contextNote}</div></div>}
       {loadState === 'loading' && <div className="empty-state" data-testid="activity-dialog-loading">Loading the activity…</div>}
       {loadState === 'error' && (
         <div className="info-banner bad" data-testid="activity-dialog-load-error">
@@ -259,7 +269,7 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
 
       {loadState === 'ready' && (
         <>
-          <SaveStatus state={save.state} onReload={mode === 'edit' ? () => void load() : undefined} testId="activity-dialog" />
+          <SaveStatus state={save.state} onReload={mode !== 'create' ? () => void load() : undefined} testId="activity-dialog" />
 
           {!isImmutable && !completing && loaded && !concluding.available && (
             <div className="info-banner" data-testid="conclude-unavailable">
@@ -309,10 +319,10 @@ export function ActivityDialog({ mode, caseId, activityId, onClose, onSaved }: A
               value={activityTypeId} onChange={setActivityTypeId}
               // The type is what its outcomes hang off, so changing it on an existing activity would
               // orphan a recorded outcome. It is chosen once, when the action is logged.
-              disabled={mode === 'edit' || save.busy}
-              choices={typeChoices(types)}
+              disabled={mode !== 'create' || save.busy}
+              choices={mode !== 'create' ? typeChoices(types) : typeChoices(loggableTypes(types))}
               refusal={save.refusalFor('activityTypeId')}
-              hint={mode === 'edit' ? 'Set when the action was logged.' : 'From configuration.'}
+              hint={mode !== 'create' ? 'Set when the action was logged.' : 'From configuration. Record a promise with Capture PTP.'}
             />
 
 
@@ -389,8 +399,8 @@ function OutcomeEffects({ outcome }: { outcome: OutcomeOption }) {
       )}
       {outcome.closesActivity && <span className="chip">Closes the activity</span>}
       {outcome.escalationRequired && (
-        <span className="chip" title="Recorded as configuration. Automated escalation is Phase 8.">
-          Flagged for escalation — Phase 8 acts on it
+        <span className="chip" title="Recorded as configuration. Escalation is not automated yet.">
+          Flagged for escalation
         </span>
       )}
     </div>
@@ -458,6 +468,15 @@ function ActivityFooter({
       )}
     </>
   );
+}
+
+/**
+ * The types a new action may be logged as. Promise to Pay is left out: logged here it would be an
+ * activity with no amount, date or promise status — a promise nothing can track as kept or broken.
+ * Capture PTP is the one way a promise is recorded. An existing activity keeps showing its own type.
+ */
+function loggableTypes(types: readonly ActivityTypeOption[]): readonly ActivityTypeOption[] {
+  return types.filter(type => !isPromiseTypeCode(type.code));
 }
 
 function typeChoices(types: readonly ActivityTypeOption[]): readonly SelectChoice[] {

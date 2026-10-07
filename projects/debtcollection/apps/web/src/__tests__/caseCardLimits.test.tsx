@@ -91,7 +91,7 @@ describe('the Legal card', () => {
 
     const notice = await screen.findByTestId('legal-more', {}, { timeout: WAIT });
 
-    expect(notice.textContent).toContain('Actions tab');
+    expect(notice.textContent).toContain('Activities tab');
   });
 
   /** Asserted once the rows have rendered, so the absence is not an early look. */
@@ -110,7 +110,7 @@ describe('the disputes and complaints cards', () => {
 
     const notice = await screen.findByTestId('concerns-more', {}, { timeout: WAIT });
 
-    expect(notice.textContent).toContain('Actions tab');
+    expect(notice.textContent).toContain('Activities tab');
   });
 
   it('say nothing when they show everything', async () => {

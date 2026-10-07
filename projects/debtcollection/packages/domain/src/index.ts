@@ -370,7 +370,7 @@ export type {
 
 export {
   CommunicationChannel,
-  CHANNEL_ENTITY,
+  MESSAGE_TABLE_RESTRICTION,
   CommunicationRequestSchema,
   evaluateEligibility,
   planCommunication,
@@ -379,6 +379,7 @@ export type {
   CommunicationRecipient,
   CommunicationRequest,
   CommunicationWritePlan,
+  MessageTable,
   EligibilityRefusal,
   CommunicationEligibilityOutcome,
   EligibilityContext,
@@ -388,7 +389,7 @@ export type {
 export { COMMUNICATION_NAMESPACE, communicationId, singleSendId, uuidV5 } from './communicationIdentity.js';
 
 export { historyComplete, mergeHistory } from './communicationHistory.js';
-export type { HistoryBuffer, HistoryEntry, MergedHistory } from './communicationHistory.js';
+export type { HistoryBuffer, HistoryCategory, HistoryEntry, MergedHistory } from './communicationHistory.js';
 
 export {
   APPROVAL_STATUS_CODES,
@@ -637,3 +638,10 @@ export {
 export type {
   DrillDownTarget, MeasureClassification, MeasureEntry, ReportDefinitionEntry, ReportingAudience, ReportingGrain,
 } from './reporting/reportingCatalogue.js';
+export {
+  EXTERNAL_PROCESS_HOSTS, EXTERNAL_PROCESS_RECORD_TYPES,
+  externalProcessOf, isConcernTypeCode, isHandOffTo, readExternalReference,
+} from './externalProcessReference.js';
+export type { ExternalProcess, ExternalProcessReference, StoredRelatedRecord } from './externalProcessReference.js';
+export { countPortfolio, dpdChange, pastDueStateOf } from './customerPortfolio.js';
+export type { PastDueState, PortfolioCounts } from './customerPortfolio.js';

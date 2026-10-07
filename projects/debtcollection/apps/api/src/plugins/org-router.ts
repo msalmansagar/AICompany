@@ -14,6 +14,11 @@ declare module 'fastify' {
     resolveOrgClient(request: FastifyRequest, reply: FastifyReply): Promise<DataverseClient | null>;
     hlOrgTarget: OrgTarget;
     bfdOrgTarget: OrgTarget | null;
+    /**
+     * A client bound to a named org, for operations that span both organisations in one request
+     * (an HL Collection Case raising a complaint in BFD Case Management).
+     */
+    clientForOrg(org: OrgTarget): DataverseClient;
   }
 }
 
@@ -45,6 +50,7 @@ export const orgRouterPlugin = fp(async function registerOrgRouter(
 
   app.decorate('hlOrgTarget', hlOrg);
   app.decorate('bfdOrgTarget', bfdOrg);
+  app.decorate('clientForOrg', (org: OrgTarget) => new DataverseClient({ org, getAccessToken: options.getServiceToken }));
 
   app.decorate(
     'resolveOrgClient',

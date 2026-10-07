@@ -26,7 +26,8 @@ export function ReportPanel({ panel, definition, scope, dropped, reporting, reso
   onDrill?: ((scope: ReportingScope) => void) | undefined;
 }) {
   const state = useReport(reporting, { reportId: resolution.isResolved ? resolution.reportId : undefined, scope, isResolved: resolution.isResolved });
-  const isFullWidth = panel.kind !== 'table';
+  // A table with many columns takes the whole row so every column shows without a scrollbar.
+  const isFullWidth = panel.kind !== 'table' || panel.columns.length >= 5;
   return (
     <section className={isFullWidth ? 'section-card report-panel wide' : 'section-card report-panel'} data-testid={`panel-${panel.report}`} data-state={state.status}>
       <h3>{panel.title}</h3>

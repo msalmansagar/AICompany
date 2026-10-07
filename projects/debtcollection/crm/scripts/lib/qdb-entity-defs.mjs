@@ -104,8 +104,6 @@ const caseAttrs = [
   dtAttr('qdb_lastmissyncon',            'Last MIS Sync'),
   dtAttr('qdb_misasofdate',              'MIS As-Of Date'),
 
-  picklistAttr('qdb_risklevel',          'Risk Level',                 'qdb_risk_level'),
-  picklistAttr('qdb_priority',           'Priority',                   'qdb_priority'),
   picklistAttr('qdb_casestage',          'Case Stage',                 'qdb_case_stage'),
 
   dtAttr('qdb_opendate',                 'Open Date',                  'ApplicationRequired'),
@@ -142,11 +140,15 @@ const activityAttrs = [
   dtAttr('qdb_followupdate',             'Follow-up Date'),
   moneyAttr('qdb_amount',                'Amount'),
   boolAttr('qdb_requiresapproval',       'Requires Approval'),
-  picklistAttr('qdb_approvalstatus',     'Approval Status',            'qdb_approval_status'),
+  picklistAttr('qdb_approvalstatus',     'Approval Status',            'qdb_dcp_approval_status'),
   strAttr('qdb_processinstanceid',       'Process Instance',           100),
   strAttr('qdb_formsubmissionref',       'Form Submission Ref',        100),
   strAttr('qdb_relatedrecordtype',       'Related Record Type',        50),
   strAttr('qdb_relatedrecordid',         'Related Record ID',          50),
+  // External process reference (docs/ExternalProcessReference.md): with the two columns above, where
+  // the related record lives and the number its own system gave it. Blank organisation = this one.
+  picklistAttr('qdb_relatedrecordorganization', 'Related Record Organization', 'qdb_organization_code'),
+  strAttr('qdb_relatedrecordnumber',     'Related Record Number',      100),
   dtAttr('qdb_misrevalidatedon',         'MIS Revalidated On'),
 
   // PTP core (physical because the lifecycle is evaluated by rules and background sync).
@@ -273,7 +275,6 @@ const strategyAttrs = [
   moneyAttr('qdb_arrearsto',             'Arrears To'),
   moneyAttr('qdb_exposurefrom',          'Exposure From'),
   moneyAttr('qdb_exposureto',            'Exposure To'),
-  picklistAttr('qdb_risklevel',          'Risk Level',                 'qdb_risk_level'),
   boolAttr('qdb_nplflag',                'NPL Only'),
   intAttr('qdb_brokenptpcountfrom',      'Broken PTP Count From'),
   strAttr('qdb_legalstatus',             'Legal Status',               50),
@@ -322,7 +323,6 @@ const assignmentAttrs = [
   moneyAttr('qdb_arrearsto',             'Arrears To'),
   moneyAttr('qdb_exposurefrom',          'Exposure From'),
   moneyAttr('qdb_exposureto',            'Exposure To'),
-  picklistAttr('qdb_risklevel',          'Risk Level',                 'qdb_risk_level'),
   strAttr('qdb_region',                  'Region',                     100),
   strAttr('qdb_legalstatus',             'Legal Status',               50),
   picklistAttr('qdb_assignmentmethod',   'Assignment Method',          'qdb_assignment_method', 'ApplicationRequired'),
@@ -351,7 +351,7 @@ const templateAttrs = [
   picklistAttr('qdb_producttype',        'Product Type',               'qdb_product_type'),
   dtAttr('qdb_effectivefrom',            'Effective From'),
   dtAttr('qdb_effectiveto',              'Effective To'),
-  picklistAttr('qdb_approvalstatus',     'Approval Status',            'qdb_approval_status', 'ApplicationRequired'),
+  picklistAttr('qdb_approvalstatus',     'Approval Status',            'qdb_dcp_approval_status', 'ApplicationRequired'),
   intAttr('qdb_version',                 'Version',                    'ApplicationRequired'),
   boolAttr('qdb_freetextallowed',        'Free Text Allowed',          'ApplicationRequired'),
   boolAttr('qdb_editingallowed',         'Editing Allowed',            'ApplicationRequired'),

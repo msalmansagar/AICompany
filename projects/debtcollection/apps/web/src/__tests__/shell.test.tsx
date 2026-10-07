@@ -6,6 +6,7 @@ import { FreshnessIndicator, StaleReason } from '../components/Freshness.js';
 import { ICON_NAMES } from '../components/icons.js';
 import { PendingPhaseNotice, formatCount, formatMoney } from '../components/primitives.js';
 import { NavRail } from '../shell/AppShell.js';
+import { navigationFor } from '../shell/navigation.js';
 import {
   DEFAULT_VIEW_ID, GROUP_ORDER, VIEWS, findView, isPending, viewsForRole,
 } from '../shell/routes.js';
@@ -126,14 +127,13 @@ describe('routing survives being a web resource', () => {
 
 describe('the nav rail', () => {
   const renderNav = (role: Parameters<typeof viewsForRole>[0] = 'manager') =>
-    render(<NavRail views={viewsForRole(role)} activeId="cases" onNavigate={() => {}} />);
+    render(<NavRail role={role} activeId="cases" onNavigate={() => {}} />);
 
-  it('renders every visible view', () => {
+  it('renders every entry the shared navigation offers the role, and nothing else', () => {
     renderNav();
-    expect(viewsForRole('manager').length).toBeGreaterThan(0);
-    for (const view of viewsForRole('manager')) {
-      expect(screen.getByTestId(`nav-${view.id}`)).toBeInTheDocument();
-    }
+    const offered = navigationFor('manager').flatMap(group => group.items.map(item => item.id));
+    expect(offered.length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button').map(button => button.dataset['testid']?.replace('nav-', ''))).toEqual(offered);
   });
 
   it('marks the active view for assistive technology', () => {
@@ -141,47 +141,29 @@ describe('the nav rail', () => {
     expect(screen.getByTestId('nav-cases')).toHaveAttribute('aria-current', 'page');
   });
 
-  it('marks a view that is still to be built with the phase that owns it', () => {
-    renderNav();
-    expect(screen.getByTestId('nav-templates')).toHaveAttribute('data-pending', '7');
+  it('highlights Collection Cases while a case is open, because that is where the officer came from', () => {
+    render(<NavRail role="officer" activeId="case" onNavigate={() => {}} />);
+    expect(screen.getByTestId('nav-cases')).toHaveAttribute('aria-current', 'page');
   });
 
-  /** A parked view is not future work, and its badge must not promise a phase. */
-  it('marks a parked view as parked, never with a phase', () => {
+  it('carries no phase or parked badge — engineering words are not business navigation', () => {
     renderNav();
-    expect(screen.getByTestId('nav-restructure').textContent).toContain('Parked');
-    expect(screen.getByTestId('nav-restructure').textContent).not.toContain('P9');
-  });
-
-  it('stops marking the Phase 9 Workout views as pending', () => {
-    renderNav();
-    expect(screen.getByTestId('nav-legal')).not.toHaveAttribute('data-pending');
-  });
-
-  it('stops marking a view as pending once it is built', () => {
-    // The Communication Centre is a Phase 7 view and is implemented. A nav rail that still said
-    // "Phase 7" over a working screen would be the route table contradicting the router.
-    renderNav();
-    expect(screen.getByTestId('nav-comms')).not.toHaveAttribute('data-pending');
-  });
-
-  it('does not mark a Phase 5 view as pending', () => {
-    renderNav();
-    expect(screen.getByTestId('nav-cases')).not.toHaveAttribute('data-pending');
+    expect(screen.getByTestId('nav-rail').textContent).not.toMatch(/\bP\d+\b|Parked/);
   });
 
   it('navigates when a view is chosen', async () => {
     const chosen: string[] = [];
-    render(<NavRail views={viewsForRole('officer')} activeId="myday" onNavigate={id => chosen.push(id)} />);
+    render(<NavRail role="officer" activeId="myday" onNavigate={id => chosen.push(id)} />);
     await userEvent.click(screen.getByTestId('nav-cases'));
     expect(chosen).toEqual(['cases']);
   });
 });
 
 describe('a future-phase screen is preserved, not faked', () => {
-  it('names the phase that owns it', () => {
+  it('says it is not available yet, without naming an internal delivery phase', () => {
     render(<PendingPhaseNotice view={findView('comms')!} />);
-    expect(screen.getByText(/Phase 7 owns this/)).toBeInTheDocument();
+    expect(screen.getByText('Not available yet.')).toBeInTheDocument();
+    expect(screen.getByTestId('pending-comms').textContent).not.toMatch(/Phase \d/);
   });
 
   it('says plainly that no data is shown because none would be real', () => {

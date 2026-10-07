@@ -40,6 +40,14 @@ const ConfigSchema = z.object({
   /** Web API version for the BFD org. Falls back to `DV_API_VERSION` when unset. */
   DV_BFD_API_VERSION: z.string().regex(/^\d+\.\d+$/).optional(),
 
+  /**
+   * The existing "Non Customer" account in BFD Case Management that every HL complaint names as its
+   * customer (QDB's established practice). Configuration, because the record id differs between
+   * organisations; the service still verifies it is active and carries that name before using it.
+   * Unset = HL complaints are refused with a configuration error.
+   */
+  CASE_MANAGEMENT_NON_CUSTOMER_ACCOUNT_ID: z.string().uuid().optional(),
+
   // Auth — OIDC issuer used by BOTH user-token validation and service tokens
   AUTH_PROVIDER: z.enum(['adfs', 'azure-ad']).default('adfs'),
   AUTH_ISSUER_URL: z.string().url(),

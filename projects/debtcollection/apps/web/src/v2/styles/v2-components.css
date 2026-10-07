@@ -93,9 +93,11 @@
 .dcp-v2 .v2-metric-link { cursor: pointer; font: inherit; }
 .dcp-v2 .v2-metric-link:hover { border-color: var(--v2-accent); }
 .dcp-v2 .v2-metric-label { font-size: var(--v2-fs-xs); color: var(--v2-text-muted); }
+.dcp-v2 .v2-metric { min-width: 0; }
+/* A long money figure shrinks and, past that, wraps at the space before the number — never inside it (Issues 2026-09-27). */
 .dcp-v2 .v2-metric-value {
-  font-size: 26px; font-weight: var(--v2-fw-semibold); line-height: 1.15; letter-spacing: -.02em;
-  font-variant-numeric: tabular-nums;
+  font-size: clamp(16px, 2vw, 26px); font-weight: var(--v2-fw-semibold); line-height: 1.15; letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums; min-width: 0; white-space: normal; overflow-wrap: normal; word-break: keep-all; hyphens: none;
 }
 .dcp-v2 .v2-metric-value[data-tone='danger'] { color: var(--v2-danger-strong); }
 .dcp-v2 .v2-metric-value[data-tone='warning'] { color: var(--v2-warning); }

@@ -1,25 +1,16 @@
 /*
- * Workspace V2 — page layouts. The Case Workspace follows the reference: one card holding identity,
- * commands, the position strip and the tabs; the detail beneath.
+ * Workspace V2 — page layouts. The Case Workspace itself is the shared page (styles/caseworkspace.css,
+ * WP3); what remains here under "Case" is what the V2 case preview still draws.
  */
 .dcp-v2 .v2-two-col { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--v2-space-4); align-items: start; }
 @media (max-width: 1119px) { .dcp-v2 .v2-two-col { grid-template-columns: minmax(0, 1fr); } }
 
 /* ── Case ───────────────────────────────────────────────────────────────── */
-.dcp-v2 .v2-case { display: flex; flex-direction: column; gap: var(--v2-space-4); min-width: 0; }
-.dcp-v2 .v2-case-head { display: flex; flex-direction: column; }
-.dcp-v2 .v2-case-identity { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; padding: 16px 20px 10px; }
 .dcp-v2 .v2-avatar {
   width: 46px; height: 46px; border-radius: 50%; flex: none;
   background: var(--v2-accent-soft); color: var(--v2-text);
   display: grid; place-items: center; font-size: 15px; font-weight: var(--v2-fw-bold);
 }
-.dcp-v2 .v2-case-names { flex: 1; min-width: 200px; }
-.dcp-v2 .v2-case-nameline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.dcp-v2 .v2-case-customer { font-size: var(--v2-fs-xl); }
-.dcp-v2 .v2-case-sub { margin: 3px 0 0; font-size: var(--v2-fs-sm); color: var(--v2-text-muted); }
-.dcp-v2 .v2-case-head > .v2-commandbar { padding: 0 20px 12px; }
-
 .dcp-v2 .v2-stats {
   margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 1px; background: var(--v2-divider); border-top: 1px solid var(--v2-divider);
@@ -31,12 +22,6 @@
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .dcp-v2 .v2-stat-value.v2-stat-strong { color: var(--v2-danger-strong); }
-.dcp-v2 .v2-case-freshness { padding: 8px 20px; border-top: 1px solid var(--v2-divider); background: var(--v2-surface-alt); }
-.dcp-v2 .v2-case-freshness .freshness { margin: 0; border: 0; background: transparent; padding: 0; font-size: var(--v2-fs-xs); }
-
-.dcp-v2 .v2-case-panel { display: flex; flex-direction: column; gap: var(--v2-space-4); min-width: 0; }
-.dcp-v2 .v2-case-overview { display: flex; flex-direction: column; gap: var(--v2-space-4); }
-
 /* The next planned action — the reference's dark card, on real plan data. */
 .dcp-v2 .v2-next {
   background: var(--v2-primary); color: #FFFFFF; border-radius: var(--v2-radius-lg); padding: 16px 20px;
@@ -50,20 +35,6 @@
 .dcp-v2 .v2-next-meta { margin: 0; font-size: var(--v2-fs-sm); color: #C2D5F0; }
 .dcp-v2 .v2-btn.v2-btn-on-dark { margin-top: 6px; background: var(--v2-accent); border-color: var(--v2-accent); color: var(--v2-primary); }
 .dcp-v2 .v2-btn.v2-btn-on-dark:hover:not(:disabled) { background: #6FA6EE; }
-
-/* ── Timeline ───────────────────────────────────────────────────────────── */
-.dcp-v2 .v2-timeline { list-style: none; margin: 0; padding: 4px 18px 10px; }
-.dcp-v2 .v2-timeline-item {
-  display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 12px;
-  padding: 11px 0; border-bottom: 1px solid var(--v2-divider-soft);
-}
-.dcp-v2 .v2-timeline-item:last-child { border-bottom: 0; }
-.dcp-v2 .v2-timeline-dot { width: 9px; height: 9px; margin-top: 5px; border-radius: 50%; background: var(--v2-accent); }
-.dcp-v2 .v2-timeline-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.dcp-v2 .v2-timeline-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
-.dcp-v2 .v2-timeline-title { font-size: var(--v2-fs-sm); font-weight: var(--v2-fw-semibold); }
-.dcp-v2 .v2-timeline-when { font-size: var(--v2-fs-xs); color: var(--v2-text-muted); }
-.dcp-v2 .v2-timeline-note { margin: 0; font-size: var(--v2-fs-sm); color: var(--v2-text-2); overflow-wrap: anywhere; }
 
 /* ── Toast: confirms what the server already accepted ───────────────────── */
 .dcp-v2 .v2-toast-region { position: fixed; right: 22px; bottom: 22px; z-index: var(--v2-z-toast); }
@@ -91,6 +62,9 @@
 }
 .dcp-v2 .v2-list-link:hover { background: var(--v2-hover); }
 .dcp-v2 .v2-list-count { font-size: var(--v2-fs-sm); font-weight: var(--v2-fw-semibold); font-variant-numeric: tabular-nums; }
+/* A queue known to be empty steps back; one holding work (or whose count is unknown) stays prominent. */
+.dcp-v2 .v2-list-row-quiet .v2-list-title,
+.dcp-v2 .v2-list-row-quiet .v2-list-count { color: var(--v2-text-muted); font-weight: var(--v2-fw-regular, 400); }
 
 /* ── Queue ──────────────────────────────────────────────────────────────── */
 .dcp-v2 .v2-queue { display: flex; flex-direction: column; gap: var(--v2-space-3); }
@@ -241,6 +215,7 @@
 
 /* ── Collection Cases: Split rows, preview, sortable headers ─────────────── */
 .dcp-v2 .v2-case-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.dcp-v2 .v2-badges { display: inline-flex; align-items: center; gap: 4px; }
 .dcp-v2 .v2-case-row .v2-two-line-sub { display: flex; align-items: center; gap: 4px; }
 .dcp-v2 .v2-chip .v2-bucket-dot { margin-right: 6px; }
 .dcp-v2 .v2-case-preview { padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
@@ -260,6 +235,9 @@
 .dcp-v2 .v2-toolbar-end { margin-left: auto; }
 .dcp-v2 .v2-grid-summary { color: var(--v2-text-2); margin-right: auto; }
 .dcp-v2 .v2-split-list .v2-two-line-sub { min-width: 0; overflow: hidden; }
+/* In a Split row the text truncates; a status pill beside it keeps its full width (Issues 2026-09-27). */
+.dcp-v2 .v2-two-line-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dcp-v2 .v2-split-list .v2-two-line-sub .row-actions { flex: none; }
 
 /* ── Dashboards — Report Engine compositions in the V2 skin ─────────────────── */
 .dcp-v2 .v2-dashboards { display: flex; flex-direction: column; gap: var(--v2-space-3, 12px); }
@@ -272,6 +250,8 @@
 .dcp-v2 .v2-report-footer { margin: 8px 0 0; padding: 0 16px 12px; font-size: var(--v2-fs-xs); line-height: 1.45; }
 .dcp-v2 .v2-report-table { width: 100%; border-collapse: collapse; font-size: var(--v2-fs-sm); }
 .dcp-v2 .v2-report-table th { text-align: left; font-weight: 600; color: var(--v2-text-muted); padding: 8px 16px; border-bottom: 1px solid var(--v2-border); white-space: nowrap; }
+/* A wide report (five columns or more) takes the whole row and tighter cells, so every column shows without a scrollbar. */
+.dcp-v2 .v2-report-wide .v2-report-table th, .dcp-v2 .v2-report-wide .v2-report-table td { padding: 8px 10px; }
 .dcp-v2 .v2-report-table td { padding: 8px 16px; border-bottom: 1px solid var(--v2-border); vertical-align: middle; }
 .dcp-v2 .v2-report-table td:first-child { white-space: nowrap; }
 .dcp-v2 .v2-report-table .v2-num { text-align: right; font-variant-numeric: tabular-nums; }

@@ -30,7 +30,7 @@ function renderView(viewId: 'disputes' | 'legal' | 'claims') {
 }
 
 const activeBucket = () =>
-  document.querySelector('[data-testid^="bucket-"].btn.primary')?.getAttribute('data-testid');
+  document.querySelector('[data-testid^="bucket-"][aria-pressed="true"]')?.getAttribute('data-testid');
 
 afterEach(cleanup);
 

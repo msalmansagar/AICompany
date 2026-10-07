@@ -1,18 +1,18 @@
 import {
-  describeLegalWork, type CustomerTable, type LegalQualificationPolicy, type LegalWorkState,
+  describeLegalWork, type CustomerTable, type ExternalProcessReference, type LegalQualificationPolicy, type LegalRecordFetch, type LegalWorkState,
 } from '@dcp/domain';
-import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import type { ActivityRow } from './caseQueries.js';
-import { loadLitigation } from './legalQueries.js';
+import type { ExternalRecordSummary, ReferenceSummariser } from './externalReferenceService.js';
 
 /**
  * The Legal picture for one case, assembled from what the platform actually holds.
  *
  * Two questions, answered from two different sources and deliberately not merged:
  *
- * **Is there a Litigation Request?** Answered by the `qdb_legalrequestid` lookup and, where it is
- * set, by reading that one record. Never by searching Legal for the customer, the name or the
- * date — each of those would sometimes find a *different* matter and the officer could not tell.
+ * **Is there a Litigation Request?** Answered by the activity's external process reference to BFD
+ * CRM's Legal module and, where it names a record, by that module's own summary of it, read through
+ * the Integration Service. Never by searching Legal for the customer, the name or the date — each
+ * of those would sometimes find a *different* matter and the officer could not tell.
  *
  * **Is this a Legal Recommendation at all?** Answered by the activity type's **code**, not its
  * display name — a label is editable configuration, and a rename would silently empty this screen
@@ -46,6 +46,8 @@ export interface LegalTraceRow {
   recordedOn: string;
   /** Who holds the collection work. Never the Litigation Request's owner. */
   ownerName: string;
+  /** Their id, so an integration user reads as "System". */
+  ownerId?: string;
   /** The activity's own status or outcome — Collection's, not Legal's. */
   activityStatus: string;
   /** Whether the strategy asked for this recommendation, or an officer did. */
@@ -78,39 +80,54 @@ export interface LegalTraceContext {
 /**
  * Builds the Legal rows for a case.
  *
- * Reads at most one Legal record per linked recommendation, by id. Nothing here grows with the
- * book: a case has a handful of Legal Recommendations, and an unlinked one costs no read at all.
+ * One summary call for every referenced Legal record on the case, when the Integration Service is
+ * reachable. Nothing grows with the book, and an activity with no reference costs no read at all.
  */
 export async function loadLegalTraces(
-  adapter: XrmCrmAdapter,
   activities: readonly ActivityRow[],
   context: LegalTraceContext,
+  summarise?: ReferenceSummariser,
 ): Promise<readonly LegalTraceRow[]> {
   const relevant = activities.filter(activity =>
-    Boolean(activity.legalRequestId)
+    activity.handOff === 'Legal'
     || (activity.activityTypeId !== undefined && context.legalTypeIds.has(activity.activityTypeId)));
-
-  return Promise.all(relevant.map(activity => toLegalTraceRow(adapter, activity, context)));
+  const references = relevant.map(activity => activity.externalReference)
+    .filter((reference): reference is ExternalProcessReference => reference?.process === 'Legal');
+  const summaries = summarise && references.length > 0 ? await summarise(references) : new Map<string, ExternalRecordSummary>();
+  return relevant.map(activity => toLegalTraceRow(activity, context, summaries));
 }
 
-async function toLegalTraceRow(
-  adapter: XrmCrmAdapter,
+/** The Legal module's answer about one referenced record, in the shape the trace understands. */
+function fetchOf(reference: ExternalProcessReference | undefined, summaries: ReadonlyMap<string, ExternalRecordSummary>): LegalRecordFetch | undefined {
+  if (reference?.process !== 'Legal') return undefined;
+  const summary = summaries.get(reference.recordId);
+  if (!summary) return { kind: 'unavailable' };
+  if (summary.availability === 'forbidden') return { kind: 'forbidden' };
+  if (summary.availability === 'notFound') return { kind: 'notFound' };
+  return {
+    kind: 'found',
+    record: {
+      reference: summary.recordNumber ?? reference.recordNumber ?? 'Legal request',
+      ...(summary.statusReason ? { status: summary.statusReason } : {}),
+      ...(summary.createdOn ? { createdOn: summary.createdOn } : {}),
+    },
+  };
+}
+
+function toLegalTraceRow(
   activity: ActivityRow,
   context: LegalTraceContext,
-): Promise<LegalTraceRow> {
-  // A read is attempted only where a link exists. No link means nothing to look up — not a
-  // licence to go looking.
-  const fetch = activity.legalRequestId
-    ? await loadLitigation(adapter, activity.legalRequestId)
-    : undefined;
+  summaries: ReadonlyMap<string, ExternalRecordSummary>,
+): LegalTraceRow {
+  const reference = activity.externalReference?.process === 'Legal' ? activity.externalReference : undefined;
+  const fetch = fetchOf(reference, summaries);
 
   const trace = describeLegalWork({
     recommendation: {
       activityId: activity.id,
       lifecycle: lifecycleOf(activity),
       isLegalRecommendation: true,
-      ...(activity.legalRequestId !== undefined
-        ? { litigationRequestId: activity.legalRequestId } : {}),
+      ...(reference !== undefined ? { litigationRequestId: reference.recordId } : {}),
     },
     customer: context.customer,
     policy: context.policy,
@@ -123,6 +140,7 @@ async function toLegalTraceRow(
     recommendation: activity.subject,
     recordedOn: activity.createdOn ? context.formatDate(activity.createdOn) : '—',
     ownerName: activity.ownerName ?? 'Nobody yet',
+    ...(activity.ownerId !== undefined ? { ownerId: activity.ownerId } : {}),
     activityStatus: activity.status ?? 'Open',
     origin: context.describeOrigin(activity),
     trace,

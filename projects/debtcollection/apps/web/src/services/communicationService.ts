@@ -1,9 +1,10 @@
 import {
   evaluateEligibility, planCommunication,
-  type CommunicationRequest, type EligibilityContext, type EligibilityRefusal,
+  type CommunicationRequest, type CommunicationWritePlan, type EligibilityContext, type EligibilityRefusal,
 } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import { ENTITY_SETS, NAVIGATION_PROPERTIES, PARTY_COLLECTIONS, bindLookup } from '../data/schema.js';
+import { routeFor, type ChannelMarker, type MessageRoute, type MessagingConfiguration } from '../data/messagingConfiguration.js';
 import { describeFailure } from '../platform/errors.js';
 
 /**
@@ -20,44 +21,46 @@ import { describeFailure } from '../platform/errors.js';
  */
 
 /**
- * Canonical field name → physical column, per entity.
+ * Where one communication is written: the table, its columns and its two relationship names.
  *
- * Split by entity because `fax` and `email` are different tables with different vocabularies, and a
- * single flat map would let an email field reach a fax row. **The Fax set is exactly QDB's confirmed
- * contract and nothing more** — `qdb_sms_id`, `qdb_sendernumber`, `qdb_smssendto`,
- * `qdb_message_length`, `qdb_totalsmsmessages` and the four recipient lookups all exist on the
- * entity and are deliberately absent here: they belong to QDB's mechanism and to other modules.
+ * SMS and WhatsApp come from the organisation's messaging configuration — BFD Fax with QDB's `qdb_`
+ * columns, Housing Loan Letter with `vrp_address` / `vrp_description` — so this file names no
+ * message column. Email is standard Dynamics everywhere and DCP adds nothing to it.
  */
-const COLUMNS: Readonly<Record<'fax' | 'email', Readonly<Record<string, string>>>> = {
-  fax: {
-    subject: 'subject',
-    faxNumber: 'faxnumber',
-    messageBody: 'qdb_message_body',
-    sender: 'qdb_sender',
-    // WhatsApp only. An SMS row carries none of these three, and that absence is the discriminator.
-    language: 'qdb_language',
-    whatsAppTemplate: 'qdb_whatsapptemplate',
-    otp: 'qdb_otp',
-  },
-  email: {
-    subject: 'subject',
-    description: 'description',
-  },
+interface WriteTarget {
+  entitySet: string;
+  partyCollection: string;
+  regardingToCase: string;
+  columns: Readonly<Record<string, string>>;
+  /** HL's `vrp_type`: stamped on every message so SMS and WhatsApp on one table stay apart. */
+  channelMarker?: ChannelMarker;
+}
+
+const EMAIL_TARGET: WriteTarget = {
+  entitySet: ENTITY_SETS.email,
+  partyCollection: PARTY_COLLECTIONS.email,
+  regardingToCase: NAVIGATION_PROPERTIES.emailToCase,
+  columns: { subject: 'subject', description: 'description' },
 };
 
-/** The `regardingobjectid` navigation property per entity — polymorphic, so never derived (KI-69). */
-const REGARDING_CASE: Readonly<Record<'fax' | 'email', string>> = {
-  fax: NAVIGATION_PROPERTIES.faxToCase,
-  email: NAVIGATION_PROPERTIES.emailToCase,
-};
+/** A message route as a write target. `subject` is native to every activity, so it is always there. */
+function messageTarget(route: MessageRoute): WriteTarget {
+  return {
+    entitySet: route.entitySet,
+    partyCollection: route.partyCollection,
+    regardingToCase: route.regardingToCase,
+    columns: { subject: 'subject', ...route.columns },
+    ...(route.channelMarker ? { channelMarker: route.channelMarker } : {}),
+  };
+}
 
 /** The native participation type for a recipient. The platform sets the sender itself, as mask 9. */
 export const RECIPIENT_PARTY_MASK = 2;
 
-const ENTITY_SET: Readonly<Record<'fax' | 'email', string>> = {
-  fax: ENTITY_SETS.fax,
-  email: ENTITY_SETS.email,
-};
+/** Eligibility plus the organisation's messaging configuration, which decides where a message goes. */
+export interface SendContext extends EligibilityContext {
+  messaging: MessagingConfiguration;
+}
 
 /**
  * A communication is the native row **and** its required structure.
@@ -91,16 +94,26 @@ export class CommunicationService {
   async send(
     activityId: string,
     request: CommunicationRequest,
-    context: EligibilityContext,
+    context: SendContext,
   ): Promise<SendOutcome> {
-    const eligibility = evaluateEligibility(request, context);
+    const route = routeFor(context.messaging, request.channel);
+    const routed: CommunicationRequest = route ? { ...request, messageTable: route.table } : request;
+    const eligibility = evaluateEligibility(routed, context);
     if (!eligibility.eligible) {
       return { status: 'refused', refusals: eligibility.refusals };
     }
 
-    const plan = planCommunication(request);
-    const payload = toNativePayload(plan);
-    const result = await this.adapter.createIdempotent(ENTITY_SET[plan.entity], activityId, payload);
+    const target = route ? messageTarget(route) : EMAIL_TARGET;
+    const plan = planCommunication(routed);
+    const unmapped = unmappedFields(plan, target);
+    if (unmapped.length > 0) {
+      // A value with nowhere to go is a configuration gap: refuse with the reason, write nothing.
+      return { status: 'refused', refusals: [{
+        code: 'ChannelNotConfigured',
+        message: `This organisation has no ${plan.entity} column mapped for ${unmapped.join(', ')}, so nothing was sent. Add a Communication mapping for it.`,
+      }] };
+    }
+    const result = await this.adapter.createIdempotent(target.entitySet, activityId, toNativePayload(plan, target));
 
     /**
      * The row exists. Now make sure the **communication** does.
@@ -111,7 +124,7 @@ export class CommunicationService {
      * customer who was contacted versus one who was not.
      */
     try {
-      const addedParty = await this.ensureRecipient(plan.entity, activityId, plan.recipientParty);
+      const addedParty = await this.ensureRecipient(`${target.entitySet}(${activityId})/${target.partyCollection}`, plan.recipientParty);
       // Repaired means the ROW already existed and its recipient did not — a previous attempt that
       // died half-made. A fresh send also adds a party, but that is not a repair.
       return { status: 'sent', activityId, created: result.created, repaired: addedParty && !result.created };
@@ -138,11 +151,9 @@ export class CommunicationService {
    * identical recipients — which the platform would happily accept.
    */
   private async ensureRecipient(
-    entity: 'fax' | 'email',
-    activityId: string,
+    collection: string,
     party: { table: 'contact' | 'account'; id: string },
   ): Promise<boolean> {
-    const collection = `${ENTITY_SET[entity]}(${activityId})/${PARTY_COLLECTIONS[entity]}`;
     const existing = await this.adapter.readRelated(
       collection, ['activitypartyid', 'participationtypemask', '_partyid_value']);
 
@@ -151,7 +162,7 @@ export class CommunicationService {
       && String(row['_partyid_value'] ?? '').toLowerCase() === party.id.toLowerCase());
     if (alreadyThere) return false;
 
-    await this.attachRecipient(entity, activityId, party);
+    await this.attachRecipient(collection, party);
     return true;
   }
 
@@ -168,19 +179,19 @@ export class CommunicationService {
    * | `POST /faxes(id)/fax_activity_parties` | **204** — the party lands with mask 2 |
    *
    * So the party goes to the **collection-valued navigation property**, whose name is read from
-   * metadata (`fax_activity_parties`, `email_activity_parties`) rather than derived — the same rule
-   * KI-69 established for lookups, applied to relationships.
+   * metadata (`fax_activity_parties`, `letter_activity_parties`, `email_activity_parties`) rather
+   * than derived — the same rule KI-69 established for lookups, applied to relationships. On a
+   * Housing Loan Letter this is the native **To** party that links the HL contact to the SMS.
    *
    * `participationtypemask: 2` is the native "To" value. The platform adds the sender itself.
    */
   private async attachRecipient(
-    entity: 'fax' | 'email',
-    activityId: string,
+    collection: string,
     party: { table: 'contact' | 'account'; id: string },
   ): Promise<void> {
     const partySet = party.table === 'contact' ? ENTITY_SETS.contact : ENTITY_SETS.account;
     await this.adapter.appendToCollection(
-      `${ENTITY_SET[entity]}(${activityId})/${PARTY_COLLECTIONS[entity]}`,
+      collection,
       {
         [`partyid_${party.table}@odata.bind`]: `/${partySet}(${party.id})`,
         participationtypemask: RECIPIENT_PARTY_MASK,
@@ -189,26 +200,31 @@ export class CommunicationService {
   }
 }
 
+/** The plan's fields this target has no column for. `send` refuses on any, before writing. */
+function unmappedFields(plan: CommunicationWritePlan, target: WriteTarget): readonly string[] {
+  return Object.keys(plan.fields).filter(name => !target.columns[name]);
+}
+
 /**
- * Translates a plan into the native payload.
+ * Translates a plan into the native payload, with the channel marker when the target has one.
  *
  * A canonical name with no column mapped for this entity is a programming error, not a value to pass
  * through — the platform would reject it with a message about an undeclared property, which is a
  * slow way to learn about a typo.
  */
-export function toNativePayload(plan: ReturnType<typeof planCommunication>): Record<string, unknown> {
-  const columns = COLUMNS[plan.entity];
-  const payload: Record<string, unknown> = {};
+export function toNativePayload(plan: CommunicationWritePlan, target: WriteTarget): Record<string, unknown> {
+  const payload: Record<string, unknown> = target.channelMarker ? { [target.channelMarker.column]: target.channelMarker.value } : {};
 
   for (const [name, value] of Object.entries(plan.fields)) {
-    const column = columns[name];
-    if (!column) throw new Error(`No ${plan.entity} column is mapped for the field "${name}".`);
+    const column = target.columns[name];
+    // A value with nowhere to go is a configuration gap — say so rather than drop it silently.
+    if (!column) throw new Error(`No ${plan.entity} column is mapped for the field "${name}". Add a Communication mapping for it.`);
     payload[column] = value;
   }
 
   for (const bind of plan.binds) {
     if (bind.lookup !== 'regardingCase') continue;
-    Object.assign(payload, bindLookup(REGARDING_CASE[plan.entity], ENTITY_SETS.collectionCase, bind.id));
+    Object.assign(payload, bindLookup(target.regardingToCase, ENTITY_SETS.collectionCase, bind.id));
   }
 
   return payload;

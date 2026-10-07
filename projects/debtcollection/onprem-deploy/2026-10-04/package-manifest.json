@@ -1,0 +1,330 @@
+{
+  "builtAt": "2026-10-04T18:12:30.918Z",
+  "package": "qdb_debtcollection_1_0_0_0_onprem_unmanaged.zip",
+  "sha256": "5b85a9629b69776b5bab7b7d5a4ce6da5af16be64b16d7c4a3ef8142a56cc4f0",
+  "bytes": 352730,
+  "source": {
+    "file": "source/qdb_debtcollection_cloud_unmanaged.zip",
+    "sha256": "54ff5915a020b2cb11f66c2667d27fc085d33eb0b09d43afb5c90944e0c6bbf9"
+  },
+  "target": "Dynamics 365 CE 9.1 on-prem — HL CRM test and BFD CRM / QDB1 test (one package)",
+  "manifest": {
+    "rootBefore": "<ImportExportXml version=\"9.2.26091.158\" SolutionPackageVersion=\"9.2\" languagecode=\"1033\" generatedBy=\"CrmLive\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" OrganizationVersion=\"9.2.26091.158\" OrganizationSchemaType=\"Full\" CRMServerServiceabilityVersion=\"9.2.26091.00158\">",
+    "rootAfter": "<ImportExportXml version=\"9.0.0.0\" SolutionPackageVersion=\"9.0\" languagecode=\"1033\" generatedBy=\"CrmLive\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">",
+    "removedDependencies": 3,
+    "remainingDependencies": 0
+  },
+  "customizationTransforms": [
+    {
+      "name": "root-organisation-attributes",
+      "why": "OrganizationVersion / OrganizationSchemaType / CRMServerServiceabilityVersion are 9.2 export stamps",
+      "removed": 3
+    },
+    {
+      "name": "empty-autonumber-format",
+      "why": "AutoNumberFormat is empty on every column (no column is auto-numbered)",
+      "removed": 545
+    },
+    {
+      "name": "retrieve-audit-flag",
+      "why": "IsRetrieveAuditEnabled is 0 (off) on every table",
+      "removed": 13
+    },
+    {
+      "name": "teams-integration-flag",
+      "why": "IsMSTeamsIntegrationEnabled is 0 on every table; Teams integration is a Dataverse online feature",
+      "removed": 13
+    },
+    {
+      "name": "role-auto-assigned-flag",
+      "why": "Role IsAutoAssigned is 0 on every role",
+      "removed": 12
+    },
+    {
+      "name": "cascade-archive",
+      "why": "Long-term data retention (archive) does not exist on 9.1; there is nothing to cascade",
+      "removed": 563
+    },
+    {
+      "name": "form-header-density",
+      "why": "headerdensity is a Unified Interface header layout hint; 9.1 renders its default header",
+      "removed": 13
+    },
+    {
+      "name": "option-is-hidden",
+      "why": "IsHidden=\"0\" on options, states and statuses — no option is hidden",
+      "removed": 309
+    },
+    {
+      "name": "retrieve-multiple-audit-flag",
+      "why": "IsRetrieveMultipleAuditEnabled is 0 (off) on every table",
+      "removed": 13
+    },
+    {
+      "name": "sitemap-collapsible-groups",
+      "why": "EnableCollapsibleGroups is False",
+      "removed": 2
+    },
+    {
+      "name": "app-optimized-for",
+      "why": "AppModule OptimizedFor is empty",
+      "removed": 1
+    },
+    {
+      "name": "app-settings",
+      "why": "App settings (AppChannel) require the cloud-only msdyn_AppFrameworkInfraExtensions package",
+      "removed": 1
+    },
+    {
+      "name": "site-map-name",
+      "why": "A 9.1 server refuses an AppModuleSiteMap without <SiteMapName> (\"The SiteMapName in the AppModuleSiteMap is null or empty\", 0x80050109 — HL CRM test import, 2026-10-04); the cloud export keeps the name only in LocalizedNames",
+      "removed": 0,
+      "added": 2
+    },
+    {
+      "name": "foreign-regarding-relationships",
+      "why": "Activity \"Regarding\" relationships to tables that exist only in the cloud sandbox; the target org generates Regarding relationships for its own activity-enabled tables",
+      "removed": 458
+    }
+  ],
+  "xsd": {
+    "schema": "Microsoft CustomizationsSolution.xsd 9.0.0.2090 (linked from the 9.1 on-prem documentation)",
+    "status": "advisory — the published schema predates a current 9.1 server; decisive check = diff against a target-org export",
+    "unrecognised": 0,
+    "findings": [
+      {
+        "message": "The element 'attribute' has invalid child element 'IsSearchable'.",
+        "severity": "Error",
+        "count": 545,
+        "firstLine": 42,
+        "known": true,
+        "reason": "column/table metadata flags with real values; IsRetrievable dates from CRM 2016, which proves the published schema is incomplete for attributes",
+        "pass": 1
+      },
+      {
+        "message": "The element 'entity' has invalid child element 'IsSolutionAware'.",
+        "severity": "Error",
+        "count": 13,
+        "firstLine": 1170,
+        "known": true,
+        "reason": "column/table metadata flags with real values; IsRetrievable dates from CRM 2016, which proves the published schema is incomplete for attributes",
+        "pass": 1
+      },
+      {
+        "message": "The element 'SdkMessageProcessingStep' has invalid child element 'PluginTypeName'.",
+        "severity": "Error",
+        "count": 14,
+        "firstLine": 35711,
+        "known": true,
+        "reason": "step element ORDER differs from the published schema (SdkMessageId first); content unchanged",
+        "pass": 1
+      },
+      {
+        "message": "The element 'AppModuleSiteMap' has invalid child element 'ShowHome'.",
+        "severity": "Error",
+        "count": 2,
+        "firstLine": 36020,
+        "known": true,
+        "reason": "Unified Interface site-map flags",
+        "pass": 1
+      },
+      {
+        "message": "The element 'AppModule' has invalid child element 'statecode'.",
+        "severity": "Error",
+        "count": 1,
+        "firstLine": 36081,
+        "known": true,
+        "reason": "app state, role map and names — real app configuration (incomplete content is a probe artefact)",
+        "pass": 1
+      },
+      {
+        "message": "The element 'attribute' has invalid child element 'IsRetrievable'.",
+        "severity": "Error",
+        "count": 545,
+        "firstLine": 42,
+        "known": true,
+        "reason": "column/table metadata flags with real values; IsRetrievable dates from CRM 2016, which proves the published schema is incomplete for attributes",
+        "pass": 2
+      },
+      {
+        "message": "The element 'AppModule' has incomplete content.",
+        "severity": "Error",
+        "count": 1,
+        "firstLine": 34992,
+        "known": true,
+        "reason": "app state, role map and names — real app configuration (incomplete content is a probe artefact)",
+        "pass": 2
+      }
+    ]
+  },
+  "contents": {
+    "externalTablesRequired": [
+      "Account",
+      "ActivityPointer",
+      "BookableResourceBooking",
+      "BookableResourceBookingHeader",
+      "BulkOperation",
+      "BusinessUnit",
+      "Campaign",
+      "CampaignActivity",
+      "Contact",
+      "Contract",
+      "Entitlement",
+      "EntitlementTemplate",
+      "Incident",
+      "InteractionForEmail",
+      "Invoice",
+      "KnowledgeArticle",
+      "KnowledgeBaseRecord",
+      "Lead",
+      "Mailbox",
+      "Opportunity",
+      "Organization",
+      "Owner",
+      "Quote",
+      "SLA",
+      "SalesOrder",
+      "Service",
+      "Site",
+      "SystemUser",
+      "Team",
+      "TransactionCurrency"
+    ],
+    "globalChoiceNames": [
+      "qdb_activity_category",
+      "qdb_activity_status",
+      "qdb_assignment_method",
+      "qdb_business_object",
+      "qdb_case_stage",
+      "qdb_communication_channel",
+      "qdb_consent_status",
+      "qdb_customer_type",
+      "qdb_dcp_approval_status",
+      "qdb_document_provider",
+      "qdb_dpd_bucket",
+      "qdb_eligibility_outcome",
+      "qdb_exception_reason",
+      "qdb_exception_status",
+      "qdb_language",
+      "qdb_lawful_basis",
+      "qdb_mapping_access",
+      "qdb_mapping_source",
+      "qdb_mis_provider",
+      "qdb_organization_code",
+      "qdb_outcome_category",
+      "qdb_platform_type",
+      "qdb_product_type",
+      "qdb_promise_type",
+      "qdb_ptp_status",
+      "qdb_resolution_type",
+      "qdb_snapshot_policy",
+      "qdb_trigger_event"
+    ],
+    "roleNames": [
+      "QDB DCP Admin User",
+      "QDB DCP Audit Compliance",
+      "QDB DCP Collection Officer",
+      "QDB DCP Finance User",
+      "QDB DCP Head of Collections",
+      "QDB DCP Insurance Officer",
+      "QDB DCP Legal User",
+      "QDB DCP Management",
+      "QDB DCP Relationship Manager",
+      "QDB DCP Restructuring Officer",
+      "QDB DCP Risk Credit User",
+      "QDB DCP Senior Manager"
+    ],
+    "tables": 13,
+    "globalChoices": 28,
+    "roles": 12,
+    "relationships": 105,
+    "pluginSteps": 14,
+    "appModules": 1,
+    "siteMaps": 2,
+    "pluginAssemblyIsolation": "Sandbox",
+    "webResources": [
+      {
+        "file": "qdb_dcp_app_iconsvg92D84587-12B4-F111-AAAC-000D3ABD8313",
+        "bytes": 445
+      },
+      {
+        "file": "qdb_dcp_workspacehtml0BD4FEE5-97B3-F111-AAAC-000D3ABD8313",
+        "bytes": 762602
+      },
+      {
+        "file": "qdb_icon_activityoutcome544560BA-36BB-F111-AAAE-000D3ABD8313",
+        "bytes": 319
+      },
+      {
+        "file": "qdb_icon_assignmentconfigurationA17D3AF6-36BB-F111-AAAE-70A8A55BC6A5",
+        "bytes": 580
+      },
+      {
+        "file": "qdb_icon_collectionactivity1B5DC095-36BB-F111-AAAE-000D3ABD8313",
+        "bytes": 298
+      },
+      {
+        "file": "qdb_icon_collectionactivitytypeFC112FAE-36BB-F111-AAAE-000D3ABD8313",
+        "bytes": 240
+      },
+      {
+        "file": "qdb_icon_collectioncaseA1152284-36BB-F111-AAAE-70A8A55BC6A5",
+        "bytes": 366
+      },
+      {
+        "file": "qdb_icon_collectionstrategy277B11C4-36BB-F111-AAAE-70A8A55BC6A5",
+        "bytes": 354
+      },
+      {
+        "file": "qdb_icon_communicationrun25A6B44D-38BB-F111-AAAE-000D3ABD8313",
+        "bytes": 306
+      },
+      {
+        "file": "qdb_icon_communicationtemplate63134D02-37BB-F111-AAAE-70A8A55BC6A5",
+        "bytes": 327
+      },
+      {
+        "file": "qdb_icon_delinquencysnapshotC126EF9D-36BB-F111-AAAE-70A8A55BC6A5",
+        "bytes": 299
+      },
+      {
+        "file": "qdb_icon_identityexceptionD85E5506-39BB-F111-AAAE-000D3ABCF32D",
+        "bytes": 583
+      },
+      {
+        "file": "qdb_icon_platformconfiguration0C6AFFE3-38BB-F111-AAAE-000D3ABD8313",
+        "bytes": 577
+      },
+      {
+        "file": "qdb_icon_platformmappingC86259F0-38BB-F111-AAAE-000D3ABD8313",
+        "bytes": 651
+      },
+      {
+        "file": "qdb_icon_strategyactionC4516CDA-36BB-F111-AAAE-000D3ABCF32D",
+        "bytes": 301
+      }
+    ],
+    "largestWebResourceBytes": 762602
+  },
+  "entries": [
+    "[Content_Types].xml",
+    "customizations.xml",
+    "solution.xml",
+    "PluginAssemblies/QdbDebtCollectionPlugins-CDA8D141-B0B2-F111-AAAC-000D3ABD8313/QdbDebtCollectionPlugins.dll",
+    "WebResources/qdb_dcp_app_iconsvg92D84587-12B4-F111-AAAC-000D3ABD8313",
+    "WebResources/qdb_dcp_workspacehtml0BD4FEE5-97B3-F111-AAAC-000D3ABD8313",
+    "WebResources/qdb_icon_activityoutcome544560BA-36BB-F111-AAAE-000D3ABD8313",
+    "WebResources/qdb_icon_assignmentconfigurationA17D3AF6-36BB-F111-AAAE-70A8A55BC6A5",
+    "WebResources/qdb_icon_collectionactivity1B5DC095-36BB-F111-AAAE-000D3ABD8313",
+    "WebResources/qdb_icon_collectionactivitytypeFC112FAE-36BB-F111-AAAE-000D3ABD8313",
+    "WebResources/qdb_icon_collectioncaseA1152284-36BB-F111-AAAE-70A8A55BC6A5",
+    "WebResources/qdb_icon_collectionstrategy277B11C4-36BB-F111-AAAE-70A8A55BC6A5",
+    "WebResources/qdb_icon_communicationrun25A6B44D-38BB-F111-AAAE-000D3ABD8313",
+    "WebResources/qdb_icon_communicationtemplate63134D02-37BB-F111-AAAE-70A8A55BC6A5",
+    "WebResources/qdb_icon_delinquencysnapshotC126EF9D-36BB-F111-AAAE-70A8A55BC6A5",
+    "WebResources/qdb_icon_identityexceptionD85E5506-39BB-F111-AAAE-000D3ABCF32D",
+    "WebResources/qdb_icon_platformconfiguration0C6AFFE3-38BB-F111-AAAE-000D3ABD8313",
+    "WebResources/qdb_icon_platformmappingC86259F0-38BB-F111-AAAE-000D3ABD8313",
+    "WebResources/qdb_icon_strategyactionC4516CDA-36BB-F111-AAAE-000D3ABCF32D"
+  ]
+}

@@ -25,6 +25,7 @@ export const ENTITY_SETS = {
   communicationTemplate: 'qdb_communicationtemplates',
   communicationRun: 'qdb_communicationruns',
   fax: 'faxes',
+  letter: 'letters',
   activityParty: 'activityparties',
   email: 'emails',
   identityException: 'qdb_identityexceptions',
@@ -35,8 +36,6 @@ export const ENTITY_SETS = {
   platformMapping: 'qdb_platformmappings',
   contact: 'contacts',
   account: 'accounts',
-  litigationRequest: 'qdb_qdblegals',
-  complaintCase: 'incidents',
 } as const;
 
 /**
@@ -70,11 +69,10 @@ export const NAVIGATION_PROPERTIES = {
   activityToType: 'qdb_activitytypeid_qdb_collectionactivity',
   activityToOutcome: 'qdb_outcomeid_qdb_collectionactivity',
   activityToStrategyAction: 'qdb_strategyactionid_qdb_collectionactivity',
-  activityToLegalRequest: 'qdb_legalrequestid_qdb_collectionactivity',
-  activityToComplaintCase: 'qdb_complaintcaseid_qdb_collectionactivity',
   outcomeToType: 'qdb_activitytypeid',
   runToTemplate: 'qdb_templateid',
   faxToCase: 'regardingobjectid_qdb_collectioncase_fax',
+  letterToCase: 'regardingobjectid_qdb_collectioncase_letter',
   emailToCase: 'regardingobjectid_qdb_collectioncase_email',
   snapshotToCase: 'qdb_collectioncaseid',
   caseToStrategy: 'qdb_strategyid',
@@ -113,6 +111,7 @@ export const NAVIGATION_PROPERTIES = {
  */
 export const PARTY_COLLECTIONS = {
   fax: 'fax_activity_parties',
+  letter: 'letter_activity_parties',
   email: 'email_activity_parties',
 } as const;
 
@@ -121,6 +120,7 @@ export const PARTY_COLLECTION_REGISTRY: readonly {
   entity: string; collection: string;
 }[] = [
   { entity: 'fax', collection: PARTY_COLLECTIONS.fax },
+  { entity: 'letter', collection: PARTY_COLLECTIONS.letter },
   { entity: 'email', collection: PARTY_COLLECTIONS.email },
 ];
 
@@ -131,13 +131,12 @@ export const NAVIGATION_REGISTRY: readonly {
   { entity: 'qdb_collectionactivity', attribute: 'qdb_activitytypeid', navigationProperty: NAVIGATION_PROPERTIES.activityToType },
   { entity: 'qdb_collectionactivity', attribute: 'qdb_outcomeid', navigationProperty: NAVIGATION_PROPERTIES.activityToOutcome },
   { entity: 'qdb_collectionactivity', attribute: 'qdb_strategyactionid', navigationProperty: NAVIGATION_PROPERTIES.activityToStrategyAction },
-  { entity: 'qdb_collectionactivity', attribute: 'qdb_legalrequestid', navigationProperty: NAVIGATION_PROPERTIES.activityToLegalRequest },
-  { entity: 'qdb_collectionactivity', attribute: 'qdb_complaintcaseid', navigationProperty: NAVIGATION_PROPERTIES.activityToComplaintCase },
   { entity: 'qdb_collectionactivity', attribute: 'ownerid', navigationProperty: NAVIGATION_PROPERTIES.activityToOwner },
   { entity: 'qdb_collectioncase', attribute: 'ownerid', navigationProperty: NAVIGATION_PROPERTIES.caseToOwner },
   { entity: 'qdb_activityoutcome', attribute: 'qdb_activitytypeid', navigationProperty: NAVIGATION_PROPERTIES.outcomeToType },
   { entity: 'qdb_communicationrun', attribute: 'qdb_templateid', navigationProperty: NAVIGATION_PROPERTIES.runToTemplate },
   { entity: 'fax', attribute: 'regardingobjectid', navigationProperty: NAVIGATION_PROPERTIES.faxToCase },
+  { entity: 'letter', attribute: 'regardingobjectid', navigationProperty: NAVIGATION_PROPERTIES.letterToCase },
   { entity: 'email', attribute: 'regardingobjectid', navigationProperty: NAVIGATION_PROPERTIES.emailToCase },
   { entity: 'qdb_delinquencysnapshot', attribute: 'qdb_collectioncaseid', navigationProperty: NAVIGATION_PROPERTIES.snapshotToCase },
   { entity: 'qdb_collectioncase', attribute: 'qdb_strategyid', navigationProperty: NAVIGATION_PROPERTIES.caseToStrategy },
@@ -188,12 +187,10 @@ export const ACTIVITY_COLUMNS = [
   '_qdb_strategyactionid_value', 'qdb_origin',
   // Escalation is READ from the platform, never inferred from a passed deadline (WP7).
   'qdb_supervisorescalated',
-  // The authoritative link to QDB's Legal process. Null means no hand-off was recorded — which is
-  // NOT the same as no litigation existing, because the Legal record may simply be unreadable.
-  '_qdb_legalrequestid_value',
-  // The authoritative link to a formal Customer Complaint. Traceability only — never the
-  // mechanism that makes creating one retry-safe.
-  '_qdb_complaintcaseid_value',
+  // The external process reference (docs/ExternalProcessReference.md): a hand-off to BFD CRM's
+  // Case Management or Legal module, by organisation, type, id and number — never a lookup, which
+  // cannot cross organisations. Status is read from the owning module, not stored here.
+  'qdb_relatedrecordtype', 'qdb_relatedrecordid', 'qdb_relatedrecordorganization', 'qdb_relatedrecordnumber',
 ] as const;
 
 export const PTP_COLUMNS = [
@@ -222,7 +219,7 @@ export const STRATEGY_COLUMNS = [
   'qdb_collectionstrategyid', 'qdb_code', 'qdb_name', 'qdb_priority', 'qdb_isactive',
   'qdb_effectivefrom', 'qdb_effectiveto', 'qdb_rulecode', 'qdb_noautomatedcontact', 'qdb_description',
   'qdb_customertype', 'qdb_producttype', 'qdb_dpdfrom', 'qdb_dpdto', 'qdb_arrearsfrom', 'qdb_arrearsto',
-  'qdb_exposurefrom', 'qdb_exposureto', 'qdb_risklevel', 'qdb_nplflag', 'qdb_brokenptpcountfrom',
+  'qdb_exposurefrom', 'qdb_exposureto', 'qdb_nplflag', 'qdb_brokenptpcountfrom',
   'qdb_legalstatus', 'qdb_restructurestatus',
 ] as const;
 
@@ -233,40 +230,6 @@ export const STRATEGY_ACTION_COLUMNS = [
   'qdb_processcode', 'qdb_rulecode', 'qdb_isactive', '_qdb_strategyid_value', '_qdb_activitytypeid_value',
 ] as const;
 
-
-/**
- * The Litigation Request, as Collections needs to see it — **9 columns of 158**.
- *
- * The Legal entity is large and belongs to another process. Reproducing its form here would invite
- * an officer to treat the Collection Workspace as a Legal application, which it is not. These are
- * the fields that answer "what is happening with Legal on this case": its own reference, the
- * authoritative status, when it started, who the customer is, and the amount at stake.
- *
- * `statuscode` is read for its **formatted value**, never mapped through a table here. Its 25
- * reasons are Legal's lifecycle, and a copy would drift the first time Legal adds a stage.
- */
-export const LITIGATION_COLUMNS = [
-  'qdb_qdblegalid', 'qdb_name', 'statecode', 'statuscode', 'createdon',
-  'qdb_startdate', 'qdb_outstandingamount', 'qdb_lawyername', '_qdb_customer_value',
-] as const;
-
-
-/**
- * The formal Complaint, as Collections needs to see it — **8 columns of 330**.
- *
- * `incident` carries 330 attributes, 177 of them custom, and its form is configured for a
- * partner-bank financing application. Reproducing any of that here would invite an officer to treat
- * the Collection Workspace as Case Management, which it is not. These answer one question: what is
- * happening with this customer's complaint?
- *
- * `statuscode` and `casetypecode` are read for their **formatted values**. Case Management owns
- * the 13-status complaint lifecycle and the escalation ladder to the CEO; a copy of either here
- * would be a second state machine that drifts the first time QDB adds a stage.
- */
-export const COMPLAINT_CASE_COLUMNS = [
-  'incidentid', 'ticketnumber', 'title', 'casetypecode', 'statecode', 'statuscode',
-  'createdon', '_customerid_value',
-] as const;
 
 /**
  * The activity-type catalogue, as the Phase 6 forms offer it.
@@ -295,16 +258,14 @@ export const ACTIVITY_OUTCOME_COLUMNS = [
 ] as const;
 
 /**
- * A Fax row as the workspace reads one.
+ * The native activity context every message row is read with, whichever table carries it.
  *
- * Only the columns QDB's confirmed SMS/WhatsApp contract uses, plus the native activity context that
- * makes the row legible in a timeline. The other 25 qdb_ columns on fax belong to QDB's own
- * mechanism and other modules and are neither written nor read.
+ * Only columns every activity has. The organisation's own message columns (BFD Fax `qdb_…`, HL
+ * Letter `vrp_…`) come from its Communication mappings (`messagingConfiguration.ts`) — reading a
+ * fixed `qdb_message_body` is what failed on Housing Loan, whose SMS table is Letter.
  */
-export const FAX_COLUMNS = [
-  'activityid', 'subject', 'faxnumber', 'qdb_message_body', 'qdb_sender',
-  'qdb_language', 'qdb_whatsapptemplate', 'qdb_otp',
-  'statecode', 'statuscode', 'createdon', 'directioncode',
+export const MESSAGE_BASE_COLUMNS = [
+  'activityid', 'subject', 'statecode', 'statuscode', 'createdon', 'directioncode',
   '_regardingobjectid_value', '_ownerid_value',
 ] as const;
 
@@ -368,8 +329,13 @@ export const PLATFORM_CONFIGURATION_COLUMNS = [
   'qdb_environmentcode', 'qdb_customerentity', 'qdb_customerbusinessidfield', 'qdb_facilityentity',
   'qdb_facilitybusinessidfield', 'qdb_eligibilityrulesetcode', 'qdb_strategyrulesetcode',
   'qdb_contactholdrulesetcode', 'qdb_snapshotpolicy', 'qdb_customertype', 'qdb_featureflags',
-  'qdb_misintegrationenabled', 'qdb_misprovider', 'qdb_isactive',
+  'qdb_misintegrationenabled', 'qdb_misprovider', 'qdb_isactive', 'qdb_smsentity', 'qdb_whatsappentity',
 ] as const;
+
+/** `qdb_business_object` option values, read from the organisation's choice (2026-10-05). */
+export const BUSINESS_OBJECT_CODES = {
+  Customer: 100000380, Facility: 100000381, Case: 100000382, Activity: 100000383, Communication: 100000384, Document: 100000385,
+} as const;
 
 export const PLATFORM_MAPPING_COLUMNS = [
   'qdb_platformmappingid', 'qdb_name', 'qdb_businessobject', 'qdb_canonicalfield',
@@ -398,12 +364,13 @@ export const CONTACT_COLUMNS = [
   'emailaddress1', 'address1_city', 'statecode',
   // The native channel restrictions the eligibility gate reads. Dynamics contact PREFERENCES —
   // never relabelled as QDB Collection Contact Hold, which does not exist yet (KI-79).
-  'donotfax', 'donotemail', 'donotphone',
+  // `donotpostalmail` governs SMS / WhatsApp where the organisation sends them as Letter (HL).
+  'donotfax', 'donotpostalmail', 'donotemail', 'donotphone',
 ] as const;
 
 export const ACCOUNT_COLUMNS = [
   'accountid', 'name', 'accountnumber', 'telephone1', 'emailaddress1', 'address1_city', 'statecode',
-  'donotfax', 'donotemail', 'donotphone',
+  'donotfax', 'donotpostalmail', 'donotemail', 'donotphone',
 ] as const;
 
 // ── Choice labels, only where the values are already proven ──────────────────
@@ -496,19 +463,27 @@ export const SNAPSHOT_POLICY_LABELS: Readonly<Record<number, string>> = {
  * Each entry is an entity set and the columns read from it. The verifier normalises `_x_value` back
  * to `x` and drops annotations before asking the organisation whether each attribute exists.
  */
+/**
+ * What a customer's cross-case history reads from a collection activity: the activity columns plus
+ * the promise's own figures, so a promise on the timeline can state its amount and date without a
+ * second read per row. Every column is already registered through PTP_COLUMNS.
+ */
+export const HISTORY_ACTIVITY_COLUMNS = [
+  ...ACTIVITY_COLUMNS, 'qdb_ptpdate', 'qdb_promisedamount', 'qdb_ptpstatus', '_qdb_outcomeid_value',
+] as const;
+
 export const READ_REGISTRY: readonly { entitySet: string; columns: readonly string[] }[] = [
   { entitySet: ENTITY_SETS.collectionCase, columns: CASE_DETAIL_COLUMNS },
   { entitySet: ENTITY_SETS.collectionActivity, columns: PTP_COLUMNS },
   { entitySet: ENTITY_SETS.delinquencySnapshot, columns: SNAPSHOT_COLUMNS },
   { entitySet: ENTITY_SETS.collectionStrategy, columns: STRATEGY_COLUMNS },
   { entitySet: ENTITY_SETS.strategyAction, columns: STRATEGY_ACTION_COLUMNS },
-  { entitySet: ENTITY_SETS.litigationRequest, columns: LITIGATION_COLUMNS },
-  { entitySet: ENTITY_SETS.complaintCase, columns: COMPLAINT_CASE_COLUMNS },
   { entitySet: ENTITY_SETS.collectionActivityType, columns: ACTIVITY_TYPE_COLUMNS },
   { entitySet: ENTITY_SETS.activityOutcome, columns: ACTIVITY_OUTCOME_COLUMNS },
   { entitySet: ENTITY_SETS.communicationTemplate, columns: COMMUNICATION_TEMPLATE_COLUMNS },
   { entitySet: ENTITY_SETS.communicationRun, columns: COMMUNICATION_RUN_COLUMNS },
-  { entitySet: ENTITY_SETS.fax, columns: FAX_COLUMNS },
+  { entitySet: ENTITY_SETS.fax, columns: MESSAGE_BASE_COLUMNS },
+  { entitySet: ENTITY_SETS.letter, columns: MESSAGE_BASE_COLUMNS },
   { entitySet: ENTITY_SETS.email, columns: EMAIL_COLUMNS },
   { entitySet: ENTITY_SETS.activityParty, columns: ACTIVITY_PARTY_COLUMNS },
   { entitySet: ENTITY_SETS.identityException, columns: IDENTITY_EXCEPTION_COLUMNS },

@@ -1,11 +1,12 @@
 import type {
-  CommunicationRequest, EligibilityContext, TemplateChannel,
+  CommunicationRequest, TemplateChannel,
 } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import { retrieveCase, retrieveCustomer, type CaseDetail } from '../data/caseQueries.js';
 import { resolveContactHoldPolicy, type ContactHoldResolution } from '../data/contactHoldPolicy.js';
 import { BulkCommunicationService, type CommunicationRun } from './bulkCommunicationService.js';
-import { CommunicationService } from './communicationService.js';
+import { CommunicationService, type SendContext } from './communicationService.js';
+import { resolveMessagingConfiguration, type MessagingConfiguration } from '../data/messagingConfiguration.js';
 
 /**
  * What the executor needs to know about one recipient, resolved from the organisation.
@@ -33,6 +34,8 @@ export class RecipientResolver {
   /** Contact Hold is a configuration answer per organisation, so it cannot vary within a batch. */
   private readonly holds = new Map<string, ContactHoldResolution>();
 
+  private readonly messaging = new Map<string, MessagingConfiguration>();
+
   constructor(private readonly adapter: XrmCrmAdapter) {}
 
   /** Assembles the message for one recipient. `null` means there is nobody to send to. */
@@ -59,12 +62,15 @@ export class RecipientResolver {
     };
   }
 
-  /** The eligibility context for one recipient, keyed by its case's own organisation (KI-88). */
-  async eligibility(recipientId: string): Promise<EligibilityContext> {
+  /**
+   * The send context for one recipient, keyed by its case's own organisation (KI-88): the Contact
+   * Hold resolution and the table that organisation sends SMS through (Fax on BFD, Letter on HL).
+   */
+  async eligibility(recipientId: string): Promise<SendContext> {
     const detail = await this.caseFor(recipientId);
     const organization = detail?.organization ?? '';
-    const hold = await this.holdFor(organization);
-    return { contactHold: hold.verdict, contactHoldPolicy: hold.policy };
+    const [hold, messaging] = await Promise.all([this.holdFor(organization), this.messagingFor(organization)]);
+    return { contactHold: hold.verdict, contactHoldPolicy: hold.policy, messaging };
   }
 
   private async caseFor(recipientId: string): Promise<CaseDetail | null> {
@@ -79,6 +85,15 @@ export class RecipientResolver {
     if (cached) return cached;
     const resolved = await resolveContactHoldPolicy(this.adapter, organization);
     this.holds.set(organization, resolved);
+    return resolved;
+  }
+
+  /** Messaging configuration is per organisation, so it cannot vary within a batch either. */
+  private async messagingFor(organization: string): Promise<MessagingConfiguration> {
+    const cached = this.messaging.get(organization);
+    if (cached) return cached;
+    const resolved = await resolveMessagingConfiguration(this.adapter, organization);
+    this.messaging.set(organization, resolved);
     return resolved;
   }
 }

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import type { OperationRefusal } from '@dcp/domain';
 import { Icon } from './primitives.js';
 import { generalRefusals, type SaveState } from '../services/useSaveOperation.js';
@@ -19,6 +19,11 @@ import { generalRefusals, type SaveState } from '../services/useSaveOperation.js
 
 // ── Dialog ───────────────────────────────────────────────────────────────────
 
+/**
+ * An action dialog. It opens as a right-docked side pane over the screen it was opened from, the way
+ * Power Platform opens a form, in V1 and V2 alike; the placement lives in the `.dialog` stylesheet
+ * rule so every dialog — activity, promise, bulk run — docks the same way without knowing it.
+ */
 export function Dialog({ title, subtitle, onClose, children, footer, testId, wide = false }: {
   title: string;
   subtitle?: string | undefined;
@@ -28,9 +33,19 @@ export function Dialog({ title, subtitle, onClose, children, footer, testId, wid
   testId: string;
   wide?: boolean;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusOnOpen(dialogRef);
+  const closeOnEscape = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Escape') return;
+    event.stopPropagation();
+    onClose();
+  };
   return (
     <div className="scrim" data-testid={`${testId}-scrim`} role="presentation">
-      <div className={wide ? 'dialog lg' : 'dialog'} role="dialog" aria-modal="true" aria-label={title} data-testid={testId}>
+      <div
+        ref={dialogRef} tabIndex={-1} onKeyDown={closeOnEscape}
+        className={wide ? 'dialog lg' : 'dialog'} role="dialog" aria-modal="true" aria-label={title} data-testid={testId} data-placement="side"
+      >
         <div className="dialog-head">
           <div>
             <h3>{title}</h3>
@@ -45,6 +60,23 @@ export function Dialog({ title, subtitle, onClose, children, footer, testId, wid
       </div>
     </div>
   );
+}
+
+const FIRST_FIELD = '.dialog-body input:not([disabled]), .dialog-body select:not([disabled]), .dialog-body textarea:not([disabled])';
+
+/**
+ * A modal pane takes the keyboard when it opens and gives it back when it closes: focus moves to
+ * the first field (or the pane itself), and returns to whatever opened the pane — the action bar
+ * button — so a keyboard or screen-reader user is never left on a control the scrim now covers.
+ */
+function useFocusOnOpen(dialogRef: RefObject<HTMLDivElement>): void {
+  useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    // preventScroll: taking focus must not scroll the pane past its notices, or the page behind it.
+    (dialog?.querySelector<HTMLElement>(FIRST_FIELD) ?? dialog)?.focus({ preventScroll: true });
+    return () => { if (opener?.isConnected) opener.focus({ preventScroll: true }); };
+  }, [dialogRef]);
 }
 
 // ── Fields ───────────────────────────────────────────────────────────────────

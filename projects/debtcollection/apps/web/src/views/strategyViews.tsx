@@ -9,10 +9,11 @@ import { loadActionPlan, type ActionPlan } from '../data/followUpQueries.js';
 import {
   toPlanItem, toUnattributedItem, type CaseContext, type UnattributedItem,
 } from '../data/actionPlanRows.js';
-import { describeOriginLabel, type ActionPlanItem } from '@dcp/domain';
+import { describeOriginLabel, type ActionPlanItem, type ReportingScope } from '@dcp/domain';
 import {
-  Card, EmptyState, Icon, InfoBanner, KpiRow, PartialCapabilityNotice, formatCount, formatMoney, formatDate,
+  Card, EmptyState, FieldList, Icon, InfoBanner, KpiRow, PartialCapabilityNotice, formatCount, formatMoney, formatDate,
 } from '../components/primitives.js';
+import { Dialog } from '../components/forms.js';
 import { useCrmSession } from '../shell/context.js';
 import type { ViewDefinition } from '../shell/routes.js';
 
@@ -40,7 +41,6 @@ const STRATEGY_COLUMNS: readonly DataGridColumn<StrategyRow>[] = [
   { key: 'arrears', header: 'Arrears', width: '210px', render: r => RANGE(r.arrearsFrom, r.arrearsTo, formatMoney) },
   { key: 'exposure', header: 'Exposure', width: '210px', render: r => RANGE(r.exposureFrom, r.exposureTo, formatMoney) },
   { key: 'segment', header: 'Segment', width: '130px', render: r => r.customerType ?? 'any' },
-  { key: 'risk', header: 'Risk', width: '110px', render: r => r.riskLevel ?? 'any' },
   { key: 'rule', header: 'Gated on', width: '150px', render: r => r.ruleCode ?? '—' },
   { key: 'state', header: 'State', width: '90px', render: r => (r.isActive ? 'Active' : 'Inactive') },
 ];
@@ -66,10 +66,10 @@ export function SegmentationView() {
       </InfoBanner>
       <KpiRow items={[
         { label: 'Active strategies', value: '—', hint: 'Counted by the grid below' },
-        { label: 'Buckets in use', value: '—', hint: 'Derived from published criteria (Phase 8)' },
-        { label: 'Cases governed', value: '—', hint: 'Requires strategy resolution per case (Phase 8)' },
-        { label: 'Uncovered combinations', value: '—', hint: 'A published-matrix analysis (Phase 8)' },
-        { label: 'Last published', value: '—', hint: 'Publishing is Phase 8' },
+        { label: 'Buckets in use', value: '—', hint: 'Derived from published criteria — not available yet' },
+        { label: 'Cases governed', value: '—', hint: 'Needs strategy resolution per case — not available yet' },
+        { label: 'Uncovered combinations', value: '—', hint: 'A published-matrix analysis — not available yet' },
+        { label: 'Last published', value: '—', hint: 'Publishing is not available yet' },
       ]} />
       <Card
         title="Segmentation"
@@ -128,7 +128,7 @@ export function StrategyRulesView({ view }: { view: ViewDefinition }) {
         <DataGrid<StrategyRow, StrategyQuery>
           columns={STRATEGY_COLUMNS} fetchPage={fetchStrategies} query={strategyQuery}
           rowKey={row => row.id} pageSize={50} height={320}
-          onRowClick={row => setSelected(row)}
+          activation="row" onRowClick={row => setSelected(row)}
           emptyMessage="No collection strategy is configured in this organisation."
           data-testid="rules-grid"
         />
@@ -136,7 +136,7 @@ export function StrategyRulesView({ view }: { view: ViewDefinition }) {
 
       <Card
         title={selected ? `Actions — ${selected.name}` : 'Actions — all strategies'}
-        subtitle="What the strategy does once it applies. Authoring these is Phase 8."
+        subtitle="What the strategy plans once it applies. Actions are not created automatically yet: an officer carries out each one."
         actions={selected ? <button type="button" className="btn" onClick={() => setSelected(undefined)}>Show all</button> : undefined}
       >
         <DataGrid<StrategyActionRow, StrategyActionQuery>
@@ -176,7 +176,7 @@ function RuleBuilderPlaceholder() {
         </div>
       </fieldset>
       <p className="hint">
-        Authoring belongs to Phase 8. The thresholds a rule compares against live in the QDB Rule
+        Authoring is not available yet. The thresholds a rule compares against live in the QDB Rule
         Engine, never in this application.
       </p>
     </Card>
@@ -187,7 +187,7 @@ function RuleBuilderPlaceholder() {
 
 const PLAN_COLUMNS: readonly DataGridColumn<StrategyActionRow>[] = [
   { key: 'sequence', header: 'Seq', width: '60px', render: r => formatCount(r.sequence) },
-  { key: 'name', header: 'Recommended action', render: r => r.name },
+  { key: 'name', header: 'Recommended action', isLink: true, render: r => r.name },
   { key: 'strategy', header: 'Strategy', width: '180px', render: r => r.strategyName ?? '—' },
   { key: 'trigger', header: 'Trigger', width: '140px', render: r => r.triggerEvent ?? '—' },
   { key: 'channel', header: 'Channel', width: '120px', render: r => r.channel ?? '—' },
@@ -370,32 +370,93 @@ function UnattributedActivities({ items }: { items: readonly UnattributedItem[] 
   );
 }
 
-export function ActionPlanView({ view }: { view: ViewDefinition }) {
+/**
+ * A row opens the action's full definition in a side pane (user instruction, 2026-09-27) — every
+ * column the organisation holds for it, not the seven the grid has room for — and from there the
+ * Cases list narrowed to the strategy it belongs to. Nothing is accepted or executed: that is Phase 8.
+ */
+export function ActionPlanView({ view, onOpenCases }: {
+  view: ViewDefinition;
+  /** The Cases list in a reporting scope — here, the cases on the chosen action's strategy. */
+  onOpenCases?: ((scope: ReportingScope) => void) | undefined;
+}) {
   const { adapter } = useCrmSession();
   const fetchPage = useMemo(() => createStrategyActionQuery(adapter), [adapter]);
   const query = useMemo<StrategyActionQuery>(() => ({ activeOnly: true }), []);
+  const [selected, setSelected] = useState<StrategyActionRow | undefined>(undefined);
 
   return (
     <div data-testid="view-actionplan">
       <PartialCapabilityNotice view={view} />
       <KpiRow items={[
-        { label: 'Cases with a plan', value: '—', hint: 'Needs per-case strategy resolution (Phase 8)' },
+        { label: 'Cases with a plan', value: '—', hint: 'Needs per-case strategy resolution — not available yet' },
         { label: 'Contact suppressed', value: '—', hint: 'Pending confirmation of the contact-hold source' },
-        { label: 'Escalation advised', value: '—', hint: 'Phase 8' },
-        { label: 'Reminders queued', value: '—', hint: 'Phase 6' },
+        { label: 'Escalation advised', value: '—', hint: 'Not automated yet' },
+        { label: 'Reminders queued', value: '—', hint: 'Not automated yet' },
       ]} />
       <Card
         title="Active plan actions"
-        subtitle="Every action an active strategy can resolve to. Accepting and executing one is Phase 8."
+        subtitle="Every action an active strategy can resolve to. Open one to read its full definition. Actions are not executed automatically yet."
       >
         <DataGrid<StrategyActionRow, StrategyActionQuery>
           columns={PLAN_COLUMNS} fetchPage={fetchPage} query={query}
           rowKey={row => row.id} pageSize={50}
+          selectedKey={selected?.id} onRowClick={setSelected}
           emptyMessage="No active strategy action is configured."
           data-testid="actionplan-grid"
         />
       </Card>
+      {selected && (
+        <StrategyActionPane
+          action={selected} onClose={() => setSelected(undefined)}
+          {...(onOpenCases ? { onOpenCases } : {})}
+        />
+      )}
     </div>
+  );
+}
+
+/** The action as the organisation holds it. Every value is read; the pane decides nothing. */
+function StrategyActionPane({ action, onClose, onOpenCases }: {
+  action: StrategyActionRow;
+  onClose: () => void;
+  onOpenCases?: ((scope: ReportingScope) => void) | undefined;
+}) {
+  const yesOrDash = (value: boolean | undefined) => (value ? 'Yes' : '—');
+  return (
+    <Dialog
+      title={action.name} subtitle={action.strategyName ? `Resolved from ${action.strategyName}` : 'Strategy not recorded'}
+      onClose={onClose} testId="actionplan-action"
+      footer={(
+        <>
+          {onOpenCases && action.strategyId && (
+            <button type="button" className="btn primary" onClick={() => onOpenCases({ strategy: action.strategyId })} data-testid="actionplan-action-cases">
+              Show cases on this strategy
+            </button>
+          )}
+          <button type="button" className="btn" onClick={onClose} data-testid="actionplan-action-close">Close</button>
+        </>
+      )}
+    >
+      <FieldList testId="actionplan-action-fields" fields={[
+        { label: 'Sequence', value: formatCount(action.sequence) },
+        { label: 'Strategy', value: action.strategyName ?? '—' },
+        { label: 'Trigger', value: action.triggerEvent ?? '—' },
+        { label: 'Day offset', value: formatCount(action.dayOffset) },
+        { label: 'Channel', value: action.channel ?? '—' },
+        { label: 'Activity type', value: action.activityType ?? '—' },
+        { label: 'Queue', value: action.queueName ?? '—' },
+        { label: 'Process', value: action.processCode ?? '—' },
+        { label: 'Gated on rule', value: action.ruleCode ?? '—' },
+        { label: 'Mandatory', value: yesOrDash(action.isMandatory) },
+        { label: 'Requires approval', value: yesOrDash(action.requiresApproval) },
+        { label: 'Stops on payment', value: yesOrDash(action.stopOnPayment) },
+        { label: 'Stops on promise', value: yesOrDash(action.stopOnPtp) },
+        { label: 'Escalates if not completed', value: yesOrDash(action.escalateIfNotCompleted) },
+        { label: 'Escalate after', value: action.escalationHours === undefined ? '—' : `${action.escalationHours} h` },
+        { label: 'State', value: action.isActive ? 'Active' : 'Inactive' },
+      ]} />
+    </Dialog>
   );
 }
 

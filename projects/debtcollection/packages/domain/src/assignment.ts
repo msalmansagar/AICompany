@@ -31,7 +31,6 @@ export const AssignmentConfigurationSchema = z.object({
   customerType: z.string().optional(),
   productType: z.string().optional(),
   region: z.string().optional(),
-  riskLevel: z.string().optional(),
   legalStatus: z.string().optional(),
   slaHours: z.number().int().optional(),
   /** Opaque handle the Smart Assignment capability understands. DCP passes it through, unread. */

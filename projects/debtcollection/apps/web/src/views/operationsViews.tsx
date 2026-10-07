@@ -6,10 +6,15 @@ import { countMatching, formatCountResult, useCounts, type CountRequest } from '
 import { ENTITY_SETS } from '../data/schema.js';
 import {
   BucketBar, BucketPill, Card, InfoBanner, KpiRow, OrgBadge, PartialCapabilityNotice, PromiseOutcome, StatusPill,
-  formatCount, formatDate, formatMoney,
+  formatCount, formatDate, formatDay, formatMoney,
 } from '../components/primitives.js';
+import { describeRecorder, useApplicationUsers } from '../data/applicationUsers.js';
 import { useCrmSession } from '../shell/context.js';
+import { CustomerLink } from '../shell/RecordLinks.js';
 import type { ViewDefinition } from '../shell/routes.js';
+import { ListToolbar, SplitLayout, useListLayout } from '../components/listLayout.js';
+import { CasePreview, PreviewHeading, PreviewPrompt } from './previews.js';
+import { CaseCommandDialogs, type CaseCommandDialog } from './CaseCommandDialogs.js';
 
 /**
  * Delinquency Intake, Promise to Pay and Dashboards.
@@ -66,7 +71,7 @@ export function DelinquencyIntakeView() {
         { label: 'Snapshots recorded', value: formatCountResult(counts['snapshots']) },
         { label: 'Open cases', value: formatCountResult(counts['openCases']) },
         { label: 'Identity exceptions', value: formatCountResult(counts['openExceptions']), tone: 'warn' },
-        { label: 'Read today', value: '—', hint: 'A synchronisation run report (Phase 4 service, not yet surfaced)' },
+        { label: 'Read today', value: '—', hint: 'A synchronisation run report — not available yet' },
         { label: 'Failed', value: '—', hint: 'A synchronisation run report' },
       ]} />
 
@@ -111,15 +116,50 @@ const INTAKE_COUNTS: readonly CountRequest[] = [
 
 // ── Promise to Pay ───────────────────────────────────────────────────────────
 
-const PTP_LIST_COLUMNS: readonly DataGridColumn<PtpRow>[] = [
-  { key: 'promised', header: 'Promised for', width: '130px', render: r => <span className="row-lead"><BucketBar bucket={r.caseBucket} />{formatDate(r.ptpDate)}</span> },
-  { key: 'case', header: 'Case', width: '160px', render: r => r.caseNumber ?? '—' },
-  { key: 'amount', header: 'Amount', width: '130px', render: r => formatMoney(r.promisedAmount) },
-  { key: 'type', header: 'Type', width: '90px', render: r => r.promiseType ?? '—' },
-  { key: 'status', header: 'Status', width: '170px', render: r => <PromiseOutcome status={r.ptpStatus} /> },
-  { key: 'received', header: 'Reported paid', width: '130px', render: r => formatMoney(r.amountReceived) },
-  { key: 'owner', header: 'Captured by', width: '160px', render: r => r.ownerName ?? '—' },
+/** The promising customer's name, opening Customer 360; the fallback when no name came back. Shared with V2. */
+export function PromiseCustomer({ row, fallback }: { row: PtpRow; fallback: string }) {
+  if (!row.caseCustomerName) return <>{fallback}</>;
+  return <CustomerLink customerBusinessId={row.caseCustomerBusinessId}>{row.caseCustomerName}</CustomerLink>;
+}
+
+/** The grid, with who recorded each promise named for an officer — `System` for an integration. */
+function ptpListColumns(applicationUsers: ReadonlySet<string>): readonly DataGridColumn<PtpRow>[] {
+  return [
+    { key: 'case', header: 'Case', width: '150px', isLink: true, render: r => <span className="row-lead"><BucketBar bucket={r.caseBucket} />{r.caseNumber ?? '—'}</span> },
+    {
+      key: 'customer', header: 'Customer', render: r => (
+        <span className="two-line">
+          <span className="two-line-main"><PromiseCustomer row={r} fallback="—" /></span>
+          <span className="two-line-sub">{r.subject}</span>
+        </span>
+      ),
+    },
+    { key: 'promised', header: 'Promised for', width: '120px', render: r => formatDay(r.ptpDate) },
+    { key: 'amount', header: 'Amount', width: '120px', numeric: true, render: r => formatMoney(r.promisedAmount) },
+    { key: 'type', header: 'Type', width: '80px', render: r => r.promiseType ?? '—' },
+    { key: 'status', header: 'Status', width: '160px', render: r => <PromiseOutcome status={r.ptpStatus} /> },
+    { key: 'received', header: 'Reported paid', width: '120px', numeric: true, render: r => formatMoney(r.amountReceived) },
+    { key: 'owner', header: 'Recorded by', width: '150px', render: r => describeRecorder(r, applicationUsers) },
+  ];
+}
+
+/** The Split list: who promised what on two lines, and the amount. */
+const PTP_SPLIT_COLUMNS: readonly DataGridColumn<PtpRow>[] = [
+  {
+    key: 'promise', header: 'Promise', render: r => (
+      <span className="row-lead">
+        <BucketBar bucket={r.caseBucket} />
+        <span className="two-line">
+          <span className="two-line-main"><PromiseCustomer row={r} fallback={r.caseNumber ?? '—'} /></span>
+          <span className="two-line-sub">{r.caseNumber ?? '—'} · promised for {formatDay(r.ptpDate)} · {r.subject}</span>
+        </span>
+      </span>
+    ),
+  },
+  { key: 'amount', header: 'Amount', width: '120px', numeric: true, render: r => formatMoney(r.promisedAmount) },
 ];
+
+const PTP_LAYOUT_KEY = 'dcp.v1.promisesLayout';
 
 export function PromiseToPayView({ view, onOpenCase }: {
   view: ViewDefinition;
@@ -129,6 +169,12 @@ export function PromiseToPayView({ view, onOpenCase }: {
   const fetchPage = useMemo(() => createPtpQuery(adapter), [adapter]);
   const counts = useCounts(adapter, PTP_COUNTS);
   const query = useMemo<ActivityQuery>(() => ({}), []);
+  const [layout, chooseLayout] = useListLayout(PTP_LAYOUT_KEY);
+  const [selected, setSelected] = useState<PtpRow | undefined>(undefined);
+  const [dialog, setDialog] = useState<CaseCommandDialog>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const applicationUsers = useApplicationUsers(adapter);
+  const listColumns = useMemo(() => ptpListColumns(applicationUsers), [applicationUsers]);
 
   return (
     <div data-testid="view-ptp">
@@ -153,14 +199,69 @@ export function PromiseToPayView({ view, onOpenCase }: {
         title="Promises"
         subtitle="Every promise recorded across both organisations. Open one to work it on its case."
       >
-        <DataGrid<PtpRow, ActivityQuery>
-          columns={PTP_LIST_COLUMNS} fetchPage={fetchPage} query={query}
-          rowKey={row => row.id} pageSize={50}
-          {...(onOpenCase ? { onRowClick: (row: PtpRow) => { if (row.caseId) onOpenCase(row.caseId); } } : {})}
-          emptyMessage="No promise to pay has been recorded."
-          data-testid="ptp-grid"
-        />
+        <ListToolbar layout={layout} onChangeLayout={chooseLayout} testId="ptp-toolbar" />
+        {layout === 'grid' && (
+          <DataGrid<PtpRow, ActivityQuery>
+            columns={listColumns} fetchPage={fetchPage} query={query}
+            rowKey={row => row.id} pageSize={50}
+            {...(onOpenCase ? { onRowClick: (row: PtpRow) => { if (row.caseId) onOpenCase(row.caseId); } } : {})}
+            emptyMessage="No promise to pay has been recorded."
+            data-testid="ptp-grid"
+          />
+        )}
+        {layout === 'split' && (
+          <SplitLayout
+            testId="ptp-split"
+            list={(
+              <DataGrid<PtpRow, ActivityQuery>
+                columns={PTP_SPLIT_COLUMNS} fetchPage={fetchPage} query={query}
+                rowKey={row => row.id} pageSize={50} rowHeight={58} height={600}
+                selectedKey={selected?.id} activation="row" onRowClick={setSelected} onSelectFirst={setSelected}
+                emptyMessage="No promise to pay has been recorded."
+                data-testid="ptp-list"
+              />
+            )}
+            preview={(
+              <PromisePreview
+                promise={selected} reloadKey={reloadKey} recordedBy={selected ? describeRecorder(selected, applicationUsers) : '—'}
+                onOpenCase={id => onOpenCase?.(id)}
+                onLogAction={() => setDialog('activity')}
+                onCapturePromise={() => setDialog('promise')}
+              />
+            )}
+          />
+        )}
       </Card>
+      <CaseCommandDialogs
+        caseId={selected?.caseId} dialog={dialog} onClose={() => setDialog(null)}
+        onSaved={() => { setDialog(null); setReloadKey(key => key + 1); }}
+      />
+    </div>
+  );
+}
+
+/** The promise as the officer recorded it, above the case it was made on. */
+function PromisePreview({ promise, reloadKey, recordedBy, onOpenCase, onLogAction, onCapturePromise }: {
+  promise: PtpRow | undefined;
+  reloadKey: number;
+  recordedBy: string;
+  onOpenCase: (id: string) => void;
+  onLogAction: () => void;
+  onCapturePromise: () => void;
+}) {
+  if (!promise) return <PreviewPrompt message="Choose a promise to preview its case." testId="ptp-preview-empty" />;
+  return (
+    <div data-testid="ptp-preview" data-promise-id={promise.id}>
+      <div className="preview">
+        <PreviewHeading eyebrow="Promise to pay" title={`${formatMoney(promise.promisedAmount)} promised for ${formatDay(promise.ptpDate)}`}>
+          <p className="preview-sub">{promise.subject}</p>
+          <p className="row-actions"><PromiseOutcome status={promise.ptpStatus} /><span className="preview-sub">recorded by {recordedBy}</span></p>
+        </PreviewHeading>
+      </div>
+      <CasePreview
+        caseId={promise.caseId} reloadKey={reloadKey} onOpen={onOpenCase}
+        onLogAction={onLogAction} onCapturePromise={onCapturePromise} testId="ptp-case-preview"
+      />
     </div>
   );
 }

@@ -115,8 +115,6 @@ export function freshnessFetchXml(scope: OrganizationScope): string {
     : `<condition attribute="qdb_organizationcode" operator="eq" value="${ORG_CODES[scope]}"/>`;
   return '<fetch aggregate="true"><entity name="qdb_collectioncase">'
     + '<attribute name="qdb_misasofdate" alias="asof" aggregate="max"/>'
-    + '<attribute name="qdb_lastmissyncon" alias="syncedto" aggregate="max"/>'
-    + '<attribute name="qdb_lastmissyncon" alias="syncedfrom" aggregate="min"/>'
     + `<filter><condition attribute="statecode" operator="eq" value="0"/>${organisation}</filter>`
     + '</entity></fetch>';
 }
@@ -185,8 +183,6 @@ function asNumber(value: unknown): number {
 
 export interface Freshness {
   asOf?: string | undefined;
-  syncedFrom?: string | undefined;
-  syncedTo?: string | undefined;
 }
 
 /** Reads the whole matrix for a scope, or `null` when the platform did not answer. */
@@ -203,8 +199,8 @@ export async function loadFreshness(adapter: XrmCrmAdapter, scope: OrganizationS
   const rows = await adapter.aggregate(ENTITY_SETS.collectionCase, freshnessFetchXml(scope));
   const row = rows?.[0];
   if (!row) return null;
-  const text = (key: string) => (typeof row[key] === 'string' ? (row[key] as string) : undefined);
-  return { asOf: text('asof'), syncedFrom: text('syncedfrom'), syncedTo: text('syncedto') };
+  const asOf = row['asof'];
+  return { asOf: typeof asOf === 'string' ? asOf : undefined };
 }
 
 /** What a screen reader says for a populated cell. */

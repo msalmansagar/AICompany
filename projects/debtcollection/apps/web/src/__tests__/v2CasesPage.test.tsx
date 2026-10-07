@@ -247,11 +247,12 @@ afterEach(() => {
 // ── Layouts ──────────────────────────────────────────────────────────────────
 
 describe('Split and Grid', () => {
-  it('opens in Split, with the list beside an empty preview', async () => {
+  it('opens in Split, with the first case already previewed beside the list', async () => {
     await openCases();
 
     await screen.findByTestId('v2-cases-list');
-    expect([screen.getByTestId('v2-cases').getAttribute('data-layout'), Boolean(screen.getByTestId('v2-case-preview-empty')), screen.getByTestId('v2-cases-list').className]).toEqual(['split', true, 'v2-grid v2-grid-fits']);
+    const preview = await screen.findByTestId('v2-case-preview', {}, { timeout: 5000 });
+    expect([screen.getByTestId('v2-cases').getAttribute('data-layout'), screen.getAllByRole('row', { selected: true }).length, Boolean(preview.dataset['caseId']), screen.getByTestId('v2-cases-list').className]).toEqual(['split', 1, true, 'v2-grid v2-grid-fits']);
   });
 
   it('switches to Grid and remembers it for this browser', async () => {
@@ -497,8 +498,9 @@ describe('choosing a case in Split', () => {
     expect(stats).toContain('StrategyDEMO-Early stage — soft contact');
     expect(details).toContain('Customer typeIndividual');
     expect(details).toContain('OwnerTester');
-    expect(within(preview).getByTestId('v2-preview-sub').textContent).toBe('DEMO-HL-1000 · facility FAC-0011 · Building Housing');
-    expect(within(preview).getByTestId('stored-position').textContent).toContain('not a live MIS read');
+    // An HL unit is a Loan Account, never a facility (WP6 terminology sweep).
+    expect(within(preview).getByTestId('v2-preview-sub').textContent).toBe('DEMO-HL-1000 · Loan Account FAC-0011 · Building Housing');
+    expect(within(preview).getByTestId('balances-as-of').textContent).toMatch(/^Balances as of \d{1,2} \w+ \d{4}$/);
   });
 
   it('says Strategy Not Assigned and No next action determined when that is the truth', async () => {
@@ -595,6 +597,16 @@ describe('opening a case in Grid', () => {
     await userEvent.click(await screen.findByRole('row', { name: 'Open case DEMO-HL-1000' }));
 
     expect(window.location.hash).toBe('#case/c-0011');
+  });
+
+  it('opens Customer 360, not the case, from the customer\'s name (WP2)', async () => {
+    useGrid();
+    await openCases();
+    const row = await screen.findByRole('row', { name: 'Open case DEMO-HL-1000' });
+
+    await userEvent.click(within(row).getByRole('button', { name: 'Open Customer 360 for Aisha Al-Mansouri' }));
+
+    expect(window.location.hash).toMatch(/^#customer\/289\d+$/);
   });
 
   it('lays out every approved data point and nothing the reference shows that DCP cannot back', async () => {

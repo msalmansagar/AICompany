@@ -106,8 +106,8 @@ export function toApiVersion(rawVersion: string): string {
 export function readCrmContext(xrm: XrmLike | null = findXrm()): CrmContext {
   if (!xrm) {
     throw new CrmContextError(
-      'No Dynamics client API was found on window, parent or top. This workspace is hosted as a CRM web ' +
-      'resource and has no standalone mode: open it through main.aspx rather than a direct /WebResources/ URL.',
+      'No Dynamics client API was found on window, parent or top, and the organisation\'s Web API did not answer ' +
+      'in its place. Open the workspace from the Dynamics sitemap, or sign in to the organisation in this browser first.',
       'NoHost');
   }
 

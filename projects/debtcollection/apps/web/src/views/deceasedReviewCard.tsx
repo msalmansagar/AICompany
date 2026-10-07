@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { DeceasedReviewRow } from '@dcp/domain';
 import { describeFailure } from '../platform/errors.js';
+import { OwnerLabel } from '../components/OwnerLabel.js';
 import { findDeceasedTypeId, loadDeceasedReviewRow, recordDeceasedReview } from '../data/deceasedQueries.js';
 import { useActivityTypeId, useConcludability } from '../data/useConcludability.js';
 import { Card, Icon, InfoBanner } from '../components/primitives.js';
@@ -118,7 +119,7 @@ export function CaseDeceasedReview({ caseId }: { caseId: string }) {
             <td>{row.source}</td>
             <td>{row.asOf}</td>
             <td><span className={deceasedTone(row.state)}>{row.label}</span></td>
-            <td>{row.ownerName}</td>
+            <td><OwnerLabel ownerId={row.ownerId} ownerName={row.ownerName} /></td>
             <td>{row.reviewOutcome}</td>
           </tr>
         </tbody>

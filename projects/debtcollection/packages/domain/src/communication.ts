@@ -25,11 +25,25 @@ export const CommunicationChannel = {
 } as const;
 export type CommunicationChannel = (typeof CommunicationChannel)[keyof typeof CommunicationChannel];
 
-/** Which native entity carries each channel. SMS and WhatsApp share Fax; that is QDB's design. */
-export const CHANNEL_ENTITY: Readonly<Record<CommunicationChannel, 'fax' | 'email'>> = {
-  SMS: 'fax',
-  WhatsApp: 'fax',
-  Email: 'email',
+/**
+ * The native table that carries SMS and WhatsApp in an organisation.
+ *
+ * **Configuration, not design.** BFD / QDB1 sends both as `fax`; Housing Loan CRM sends both as
+ * `letter` (user, 2026-10-05). The organisation's `qdb_platformconfiguration` names the table and
+ * its `qdb_platformmapping` rows name the columns; this module never assumes either.
+ */
+export type MessageTable = 'fax' | 'letter';
+
+/**
+ * The native "do not" preference that governs a message, by the table that carries it.
+ *
+ * The same reasoning the Fax design always used — the restriction of the table the message leaves
+ * through — applied to whichever table that is. On a Housing Loan organisation an SMS is a Letter,
+ * so the customer's "do not send postal mail" governs it.
+ */
+export const MESSAGE_TABLE_RESTRICTION: Readonly<Record<MessageTable, { flag: 'doNotFax' | 'doNotPostalMail'; wording: string }>> = {
+  fax: { flag: 'doNotFax', wording: 'do not fax' },
+  letter: { flag: 'doNotPostalMail', wording: 'do not send postal mail' },
 };
 
 /**
@@ -50,6 +64,7 @@ export interface CommunicationRecipient {
   /** Native Dynamics channel restrictions, read as the platform stores them. */
   restrictions: {
     doNotFax: boolean;
+    doNotPostalMail: boolean;
     doNotEmail: boolean;
     doNotPhone: boolean;
   };
@@ -71,6 +86,11 @@ export interface CommunicationRequest {
   otp?: string;
   /** The collection activity this was initiated from, where there is one. */
   activityId?: string;
+  /**
+   * The table this organisation sends SMS / WhatsApp through, from its configuration. Absent means
+   * the organisation has not configured the channel, and the message is refused rather than guessed.
+   */
+  messageTable?: MessageTable;
 }
 
 // ── Eligibility ──────────────────────────────────────────────────────────────
@@ -79,7 +99,7 @@ export interface EligibilityRefusal {
   code:
     | 'RecipientMissing' | 'MobileMissing' | 'EmailMissing' | 'BodyMissing' | 'SubjectMissing'
     | 'ChannelRestricted' | 'ContactHoldUnverifiable' | 'WhatsAppTemplateMissing' | 'SenderMissing'
-    | 'CaseMissing';
+    | 'CaseMissing' | 'ChannelNotConfigured';
   message: string;
   field?: string;
 }
@@ -167,13 +187,17 @@ function channelRefusals(request: CommunicationRequest): EligibilityRefusal[] {
     return refusals;
   }
 
-  // SMS and WhatsApp both leave through the Fax activity, so `donotfax` is the native restriction
-  // that governs them. That is a consequence of QDB's design, not a choice made here.
+  if (!request.messageTable) {
+    refusals.push({ code: 'ChannelNotConfigured', message: `${channel} is not configured for this organisation, so nothing was sent.` });
+    return refusals;
+  }
   if (!recipient.mobile) {
     refusals.push({ code: 'MobileMissing', message: `${recipient.displayName} has no mobile number on file.`, field: 'recipient' });
   }
-  if (recipient.restrictions.doNotFax) {
-    refusals.push({ code: 'ChannelRestricted', message: `${recipient.displayName} is marked "do not fax" in CRM, which governs SMS and WhatsApp.`, field: 'recipient' });
+  // SMS and WhatsApp leave through the configured table, so that table's native restriction governs them.
+  const restriction = MESSAGE_TABLE_RESTRICTION[request.messageTable];
+  if (recipient.restrictions[restriction.flag]) {
+    refusals.push({ code: 'ChannelRestricted', message: `${recipient.displayName} is marked "${restriction.wording}" in CRM, which governs SMS and WhatsApp here.`, field: 'recipient' });
   }
   if (channel === 'WhatsApp' && !request.whatsAppTemplate?.trim()) {
     refusals.push({ code: 'WhatsAppTemplateMissing', message: 'A WhatsApp message needs its registered template name.', field: 'whatsAppTemplate' });
@@ -208,7 +232,8 @@ function contactHoldRefusals(context: EligibilityContext): EligibilityRefusal[] 
  * lets this module be tested with no platform and run unchanged against on-premise.
  */
 export interface CommunicationWritePlan {
-  entity: 'fax' | 'email';
+  /** The native table: the organisation's configured message table, or `email`. */
+  entity: MessageTable | 'email';
   fields: Record<string, unknown>;
   binds: { lookup: 'regardingCase'; id: string }[];
   /** The party to attach as the recipient. Native activities use ActivityParty, not a lookup. */
@@ -224,25 +249,24 @@ export const CommunicationRequestSchema = z.object({
 /**
  * Plans the native record for one communication.
  *
- * **The field sets are QDB's confirmed contract and are deliberately minimal.**
+ * **The field sets are deliberately minimal**, named canonically; the organisation's mapping turns
+ * each into its column (BFD Fax: `faxnumber`, `qdb_message_body`…; HL Letter: `vrp_address`, …).
  *
- * | Channel | Written |
+ * | Channel | Canonical fields written |
  * |---|---|
- * | SMS | `faxnumber`, `qdb_message_body`, `qdb_sender` |
- * | WhatsApp | those three **plus** `qdb_language`, `qdb_whatsapptemplate`, `qdb_otp` |
+ * | SMS | `recipientNumber`, `messageBody`, `sender` when given |
+ * | WhatsApp | those **plus** `language`, `whatsAppTemplate`, `otp` |
  * | Email | native `subject`, `description`, recipient party |
  *
- * `qdb_sms_id`, `qdb_sendernumber`, `qdb_smssendto`, `qdb_message_length` and the recipient lookups
- * exist on Fax and are **not** written: they belong to QDB's own mechanism and to other modules.
+ * Call only after `evaluateEligibility` has passed — it is what guarantees `messageTable` is set.
  */
 export function planCommunication(request: CommunicationRequest): CommunicationWritePlan {
-  const entity = CHANNEL_ENTITY[request.channel];
   const binds: CommunicationWritePlan['binds'] = [{ lookup: 'regardingCase', id: request.caseId }];
   const recipientParty = { table: request.recipient.table, id: request.recipient.id };
 
   if (request.channel === 'Email') {
     return {
-      entity,
+      entity: 'email',
       fields: {
         subject: request.subject?.trim() ?? '',
         description: request.body.trim(),
@@ -252,18 +276,21 @@ export function planCommunication(request: CommunicationRequest): CommunicationW
     };
   }
 
+  if (!request.messageTable) {
+    throw new Error(`${request.channel} has no configured message table; evaluateEligibility refuses this request.`);
+  }
   const isWhatsApp = request.channel === 'WhatsApp';
   return {
-    entity,
+    entity: request.messageTable,
     fields: {
       // `subject` is native context rather than part of QDB's send contract; it is what makes the
       // row legible in a timeline and in Communication History.
       subject: subjectFor(request),
-      faxNumber: request.recipient.mobile ?? '',
+      recipientNumber: request.recipient.mobile ?? '',
       messageBody: request.body.trim(),
       ...(request.senderCode !== undefined ? { sender: request.senderCode } : {}),
-      // The three WhatsApp-only fields. An SMS row carries none of them, and that absence is the
-      // discriminator QDB confirmed — so it is expressed by omission rather than by a flag.
+      // The three WhatsApp-only fields. An SMS row carries none of them; on BFD Fax that absence is
+      // the discriminator QDB confirmed, so it is expressed by omission rather than by a flag.
       ...(isWhatsApp && request.language ? { language: request.language } : {}),
       ...(isWhatsApp && request.whatsAppTemplate ? { whatsAppTemplate: request.whatsAppTemplate } : {}),
       ...(isWhatsApp && request.otp ? { otp: request.otp } : {}),

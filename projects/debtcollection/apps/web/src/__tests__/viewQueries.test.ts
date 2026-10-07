@@ -108,12 +108,12 @@ describe('a case is shaped from the row the platform actually returns', () => {
   });
 
   it('falls back to the platform formatted value for a choice this build has no table for', () => {
-    const row = { qdb_risklevel: 100000999, [`qdb_risklevel${FORMATTED}`]: 'Watchlist' };
-    expect(readChoice(row, 'qdb_risklevel')).toBe('Watchlist');
+    const row = { qdb_customertype: 100000999, [`qdb_customertype${FORMATTED}`]: 'Watchlist' };
+    expect(readChoice(row, 'qdb_customertype')).toBe('Watchlist');
   });
 
   it('shows nothing rather than a raw option number when neither answers', () => {
-    expect(readChoice({ qdb_risklevel: 100000999 }, 'qdb_risklevel')).toBeUndefined();
+    expect(readChoice({ qdb_customertype: 100000999 }, 'qdb_customertype')).toBeUndefined();
   });
 
   it('names the customer table from the lookup annotation, not from the organisation', () => {
@@ -310,20 +310,21 @@ describe('Customer 360 aggregates without creating a customer master', () => {
     }, 3);
     const aggregate = await loadCustomerAggregate(adapter, '28912345678');
     expect(aggregate.cases.length, 'the aggregate must have read cases').toBe(3);
-    expect(aggregate.totalExposure).toBe(400);
-    expect(aggregate.totalOverdue).toBe(50);
-    expect(aggregate.worstDpd).toBe(95);
+    expect(aggregate.position.totalExposure).toBe(400);
+    expect(aggregate.position.totalOverdue).toBe(50);
+    expect(aggregate.position.worstDpd).toBe(95);
   });
 
-  it('counts a facility once even when two cases name it', async () => {
+  it('counts a loan account or facility once even when two cases name it', async () => {
     const { adapter } = recordingXrm({
       qdb_collectioncase: twoFacilities,
       contact: [{ contactid: 'cust-1', fullname: 'A Customer', statecode: 0 }],
     }, 3);
     const aggregate = await loadCustomerAggregate(adapter, '28912345678');
     expect(aggregate.cases.length).toBe(3);
-    expect(aggregate.facilities).toHaveLength(2);
-    expect(aggregate.facilities.map(f => f.facilityNumber)).toEqual(['HL-1', 'HL-2']);
+    expect(aggregate.financialUnits).toHaveLength(2);
+    // Most days past due first (HL-2 is 95 DPD), then by unit number.
+    expect(aggregate.financialUnits.map(unit => unit.unitNumber)).toEqual(['HL-2', 'HL-1']);
   });
 
   it('resolves the CRM customer from the case lookup annotation', async () => {
@@ -352,8 +353,8 @@ describe('Customer 360 aggregates without creating a customer master', () => {
     }, 1);
     const aggregate = await loadCustomerAggregate(adapter, '28912345678');
     expect(aggregate.cases).toHaveLength(1);
-    expect(aggregate.totalExposure).toBeUndefined();
-    expect(aggregate.worstDpd).toBeUndefined();
+    expect(aggregate.position.totalExposure).toBeUndefined();
+    expect(aggregate.position.worstDpd).toBeUndefined();
   });
 });
 

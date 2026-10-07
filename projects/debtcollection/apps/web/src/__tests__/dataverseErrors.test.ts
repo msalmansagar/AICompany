@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { interpretRejection, OBJECT_DOES_NOT_EXIST } from '../platform/dataverseErrors.js';
 import { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import type { XrmLike } from '../platform/crmContext.js';
-import { loadLitigation } from '../data/legalQueries.js';
-import { loadComplaintCase } from '../data/complaintQueries.js';
 import { loadDeceasedReview } from '../data/deceasedQueries.js';
 
 /**
@@ -89,31 +87,6 @@ function adapterRejecting(rejection: unknown): XrmCrmAdapter {
 }
 
 describe('every by-id read shares the one interpreter', () => {
-  it('Legal reports absence as absence', async () => {
-    const fetch = await loadLitigation(adapterRejecting(clientApiNotFound), 'legal-1');
-
-    expect(fetch.kind).toBe('notFound');
-  });
-
-  it('Legal reports a refusal as withheld, never as absence', async () => {
-    const fetch = await loadLitigation(adapterRejecting({ status: 403 }), 'legal-1');
-
-    expect(fetch.kind).toBe('forbidden');
-  });
-
-  it('Legal reports an unclassified failure as unavailable, never as absence', async () => {
-    const fetch = await loadLitigation(adapterRejecting({ message: 'odd' }), 'legal-1');
-
-    expect(fetch.kind).toBe('unavailable');
-  });
-
-  it('Complaint uses the same interpreter', async () => {
-    expect((await loadComplaintCase(adapterRejecting(clientApiNotFound), 'case-1')).kind)
-      .toBe('notFound');
-    expect((await loadComplaintCase(adapterRejecting({ status: 403 }), 'case-1')).kind)
-      .toBe('forbidden');
-  });
-
   /**
    * The Deceased Review asks its question *by* asking for a record that may not exist, so absence
    * is its normal answer. Before the interpreter existed this threw, and the card showed an error

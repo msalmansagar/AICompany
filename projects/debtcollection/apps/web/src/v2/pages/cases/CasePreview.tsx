@@ -1,15 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { ActionPlanItem } from '@dcp/domain';
+import { useEffect, useState } from 'react';
 import { createActivityQuery, createPtpQuery, type ActivityRow, type CaseDetail, type PtpRow } from '../../../data/caseQueries.js';
-import { loadActionPlan } from '../../../data/followUpQueries.js';
-import { toPlanItem, type CaseContext } from '../../../data/actionPlanRows.js';
+import { useNextAction } from '../../../data/useNextAction.js';
 import { OrgBadge, StatusPill, formatCount, formatDate, formatMoney } from '../../../components/primitives.js';
-import { StoredPositionNotice } from '../../../components/Freshness.js';
+import { BalancesAsOf } from '../../../components/BalancesAsOf.js';
+import { OwnerLabel } from '../../../components/OwnerLabel.js';
 import { useCrmSession } from '../../../shell/context.js';
+import { CaseLink, CustomerLink } from '../../../shell/RecordLinks.js';
 import { formatRecordedAt } from '../../format.js';
 import { BucketBadge, CommandBar, CommandButton, EmptyState, ErrorState, KeyValueList, LoadingSkeleton } from '../../components/primitives.js';
-import { initialsOf } from '../case/CaseHeader.js';
-import { useCaseRecord } from '../case/useCaseRecord.js';
+import { initialsOf } from '../../../components/initials.js';
+import { financialUnitTerms } from '../../../data/financialUnit.js';
+import { useCaseRecord } from '../../../data/useCaseRecord.js';
 import { StrategyName } from './casesColumns.js';
 
 /**
@@ -44,10 +45,11 @@ export function CasePreview({ caseId, reloadKey, onOpen, onLogAction, onCaptureP
         <span className="v2-avatar" aria-hidden="true">{initialsOf(name)}</span>
         <div className="v2-preview-names">
           <h2 className="v2-preview-name" data-testid="v2-preview-customer">
-            {name} <BucketBadge bucket={detail.bucket} /> <StatusPill status={detail.status} /> <OrgBadge org={detail.organization} />
+            <CustomerLink customerBusinessId={detail.customerBusinessId}>{name}</CustomerLink>{' '}
+            <BucketBadge bucket={detail.bucket} /> <StatusPill status={detail.status} /> <OrgBadge org={detail.organization} />
           </h2>
           <p className="v2-preview-sub" data-testid="v2-preview-sub">
-            {detail.caseNumber} · facility {detail.facilityNumber}{detail.productDescription ? ` · ${detail.productDescription}` : ''}
+            <CaseLink caseId={detail.id}>{detail.caseNumber}</CaseLink> · {financialUnitTerms(detail.sourceSystem).noun} {detail.facilityNumber}{detail.productDescription ? ` · ${detail.productDescription}` : ''}
           </p>
         </div>
         <button type="button" className="v2-btn v2-btn-primary" onClick={onOpen} data-testid="v2-preview-open">Open full record</button>
@@ -63,7 +65,7 @@ export function CasePreview({ caseId, reloadKey, onOpen, onLogAction, onCaptureP
       <KeyValueList testId="v2-preview-details" items={[
         { label: 'Customer type', value: detail.customerType ?? '—' },
         { label: 'Status', value: detail.status },
-        { label: 'Owner', value: detail.ownerName ?? '—' },
+        { label: 'Owner', value: <OwnerLabel ownerId={detail.ownerId} ownerName={detail.ownerName} /> },
         { label: 'Source system', value: detail.sourceSystem },
         { label: 'Episode', value: formatCount(detail.episodeNumber) },
         { label: 'Opened', value: detail.openDate ? formatDate(detail.openDate) : '—' },
@@ -71,7 +73,7 @@ export function CasePreview({ caseId, reloadKey, onOpen, onLogAction, onCaptureP
 
       <NextAction detail={detail} reloadKey={reloadKey} />
       <RecentFacts detail={detail} reloadKey={reloadKey} />
-      <StoredPositionNotice asOf={detail.misAsOfDate} syncedOn={detail.lastMisSyncOn} />
+      <BalancesAsOf asOf={detail.misAsOfDate} />
 
       <CommandBar label="Case commands">
         <CommandButton label="Log action" isPrimary onClick={onLogAction} testId="v2-preview-log-action" {...closedReason(detail)} />
@@ -95,36 +97,13 @@ function Stat({ label, value, isStrong = false }: { label: string; value: React.
   );
 }
 
-type NextState = { status: 'loading' } | { status: 'error' } | { status: 'ready'; next?: ActionPlanItem; outstanding: number };
-
 /**
  * The first current item of the case's action plan, in the strategy's own sequence — the same
- * answer the Case Workspace gives. No strategy, or nothing outstanding, is said plainly; nothing is
- * worded from assumptions.
+ * answer the Case Workspace and Customer 360 give, through the one shared hook. No strategy, or
+ * nothing outstanding, is said plainly; nothing is worded from assumptions.
  */
 function NextAction({ detail, reloadKey }: { detail: CaseDetail; reloadKey: number }) {
-  const { adapter } = useCrmSession();
-  const [state, setState] = useState<NextState>({ status: 'loading' });
-  const context = useMemo<CaseContext>(() => ({
-    caseId: detail.id,
-    ...(detail.episodeNumber !== undefined ? { episodeNumber: detail.episodeNumber } : {}),
-    now: new Date(),
-    formatDate,
-  }), [detail.id, detail.episodeNumber]);
-
-  useEffect(() => {
-    if (!detail.strategyId) { setState({ status: 'ready', outstanding: 0 }); return undefined; }
-    let cancelled = false;
-    setState({ status: 'loading' });
-    loadActionPlan(adapter, { caseId: detail.id, strategyId: detail.strategyId })
-      .then(plan => {
-        if (cancelled) return;
-        const outstanding = plan.rows.map(row => toPlanItem(row, context)).filter(item => item.isCurrent);
-        setState({ status: 'ready', outstanding: outstanding.length, ...(outstanding[0] ? { next: outstanding[0] } : {}) });
-      })
-      .catch(() => { if (!cancelled) setState({ status: 'error' }); });
-    return () => { cancelled = true; };
-  }, [adapter, detail.id, detail.strategyId, context, reloadKey]);
+  const state = useNextAction(detail.id, detail.strategyId, detail.episodeNumber, reloadKey);
 
   return (
     <section className="v2-next" aria-label="Next action" data-testid="v2-preview-next">

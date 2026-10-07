@@ -1,0 +1,169 @@
+/* Customer 360 — shared by V1 and V2. Fluent tokens only; colour carries meaning (bucket severity,
+   status), never decoration. No gradients, no oversized cards. */
+
+.c360 { display: flex; flex-direction: column; gap: 12px; min-width: 0; max-width: 100%; overflow-x: clip; }
+
+/* Back to the case Customer 360 was opened from (WP4) — first, and left-aligned, like the case's own Back. */
+.c360-back { align-self: flex-start; }
+
+/* ── Header ─────────────────────────────────────────────────────────── */
+.c360-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 12px 16px; }
+.c360-avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--primary-tint); color: var(--primary-pressed); font-weight: 600; flex: none; }
+.c360-identity { flex: 1 1 280px; min-width: 0; }
+.c360-name { margin: 0; font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
+.c360-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.c360-chip { font-size: 12px; padding: 1px 8px; border: 1px solid var(--border-strong); border-radius: 10px; color: var(--text); background: var(--surface-alt); }
+.c360-chip.muted { color: var(--text-secondary); }
+.c360-chip.warn { border-color: var(--warning); background: var(--warning-bg); }
+.c360-sub { margin: 4px 0 0; display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--text-secondary); font-size: 13px; }
+.c360-header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* ── KPI strip ──────────────────────────────────────────────────────── */
+.c360-kpis { display: flex; flex-wrap: wrap; gap: 8px; }
+.c360-kpi { flex: 1 1 170px; min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 8px 12px; display: flex; flex-direction: column; gap: 2px; }
+.c360-kpi.emphasis { border-color: var(--border-strong); }
+.c360-kpi-label { font-size: 12px; color: var(--text-secondary); }
+.c360-kpi-value { font-size: 18px; font-weight: 600; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; overflow-wrap: anywhere; }
+.c360-kpi.emphasis .c360-kpi-value { font-size: 22px; }
+.c360-kpi-hint { font-size: 11px; color: var(--text-secondary); }
+
+/* ── History filters: category tabs, then the activity-type choice ─────── */
+.c360-history-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.c360-type-filter { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); }
+.c360-type-filter select { min-width: 0; max-width: 220px; }
+
+/* ── Balances date — one quiet line under the figures, not a banner ─────── */
+.c360-balances-as-of { margin: -4px 0 0; text-align: right; }
+
+/* ── Layout ─────────────────────────────────────────────────────────── */
+.c360-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 12px; align-items: start; }
+.c360-col-main, .c360-col-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.c360-sticky-group { display: flex; flex-direction: column; gap: 12px; }
+.c360-slot-units, .c360-slot-history, .c360-slot-summary, .c360-slot-delinquency, .c360-slot-prefs { min-width: 0; }
+
+/* Sticky only when the Summary + Delinquency group can fit the viewport. */
+@media (min-width: 1081px) and (min-height: 860px) {
+  .c360-sticky-group { position: sticky; top: 12px; }
+}
+
+/* Single column: Customer, KPIs, MIS, Units, Summary, History, Preferences, Delinquency. */
+@media (max-width: 1080px) {
+  .c360-layout { grid-template-columns: minmax(0, 1fr); display: flex; flex-direction: column; }
+  .c360-col-main, .c360-col-side, .c360-sticky-group { display: contents; }
+  .c360-slot-units { order: 1; }
+  .c360-slot-summary { order: 2; }
+  .c360-slot-history { order: 3; }
+  .c360-slot-prefs { order: 4; }
+  .c360-slot-delinquency { order: 5; }
+}
+
+/* ── Sections ───────────────────────────────────────────────────────── */
+.c360-units-card, .c360-history, .c360-summary, .c360-delinquency { min-width: 0; }
+.c360 .section-card { margin: 0; min-width: 0; }
+.c360 .section-card h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+.c360-section-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 8px; }
+.c360-section-head h3 { margin: 0; }
+.c360-portfolio { color: var(--text-secondary); font-size: 13px; }
+.c360-empty { color: var(--text-secondary); margin: 8px 0; }
+.c360-hint { color: var(--text-secondary); font-size: 12px; margin: 4px 0; }
+.c360-more { margin-top: 8px; }
+.c360-section-error { margin: 0; }
+.c360-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ── Skeletons ──────────────────────────────────────────────────────── */
+.c360-skeleton-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 12px 16px; }
+.c360-skeleton { display: flex; flex-direction: column; gap: 8px; }
+.c360-skeleton-line { display: block; border-radius: 3px; background: var(--neutral-chip); }
+.c360-skeleton-line:nth-child(2n) { width: 70%; }
+
+/* ── Financial units ────────────────────────────────────────────────── */
+.c360-unit-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.c360-unit { border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px; cursor: pointer; background: var(--surface); min-width: 0; }
+.c360-unit:hover { border-color: var(--border-strong); }
+.c360-unit:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.c360-unit.selected { border-color: var(--primary); box-shadow: inset 3px 0 0 var(--primary); }
+.c360-unit-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.c360-unit-title { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.c360-unit-number { color: var(--text-secondary); font-size: 13px; }
+.c360-selected-tag { font-size: 11px; font-weight: 600; padding: 0 6px; border: 1px solid var(--primary); border-radius: 8px; color: var(--primary-pressed); }
+.c360-metrics { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 6px 0 0; }
+.c360-metric { display: flex; flex-direction: column; min-width: 0; }
+.c360-metric dt { font-size: 11px; color: var(--text-secondary); }
+.c360-metric dd { margin: 0; font-weight: 600; }
+.c360-no-case { margin: 6px 0 0; color: var(--text-secondary); font-size: 13px; }
+.c360-case-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); font-size: 13px; }
+.c360-case-ref { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.c360-case-meta { color: var(--text-secondary); min-width: 0; overflow-wrap: anywhere; }
+.c360-case-actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 6px; }
+.c360-owner-system { border-bottom: 1px dotted var(--text-secondary); cursor: help; }
+
+/* ── Summary, delinquency, preferences ──────────────────────────────── */
+.c360-summary-selected { margin: 0 0 8px; font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.c360-facts { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.c360-fact { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 8px; align-items: baseline; }
+.c360-fact dt { color: var(--text-secondary); font-size: 13px; }
+.c360-fact dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.c360-processes { margin: 10px 0; }
+.c360-processes h4 { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
+.c360-process-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.c360-prefs .c360-fact dt, .c360-prefs .c360-fact dd { font-size: 13px; }
+/* Delinquency History: figures first, then the line, then the stored values. */
+.c360-tiles { margin: 10px 0 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.c360-tile { background: var(--surface-alt); border-radius: var(--radius); padding: 8px 10px; min-width: 0; }
+.c360-tile dt { color: var(--text-secondary); font-size: 12px; }
+.c360-tile dd { margin: 0; }
+.c360-tile-value { font-size: 20px; font-weight: 600; line-height: 1.3; font-variant-numeric: tabular-nums; }
+.c360-tile-caption { color: var(--text-secondary); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c360-dpd-since { margin: 10px 0 0; font-size: 13px; }
+.c360-chart { display: block; width: 100%; height: auto; margin-top: 8px; }
+.c360-chart-line { stroke: var(--primary); stroke-width: 2; }
+.c360-chart-point { fill: var(--primary); }
+.c360-chart-label { font-size: 11px; font-weight: 600; fill: var(--text); }
+.c360-chart-axis { font-size: 10px; fill: var(--text-secondary); }
+.c360-chart-baseline { stroke: var(--border); stroke-width: 1; }
+.c360-values { margin-top: 10px; width: 100%; font-variant-numeric: tabular-nums; }
+
+/* ── History ────────────────────────────────────────────────────────── */
+.c360-filters { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.c360-filter { border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); border-radius: 12px; padding: 2px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+.c360-filter.active { border-color: var(--primary); background: var(--primary-tint); color: var(--primary-pressed); font-weight: 600; }
+.c360-filter:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+/* A timeline: each entry hangs a dot on one vertical line, the dot coloured by the entry's badge tone. */
+.c360-timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.c360-entry { position: relative; min-width: 0; padding-left: 28px; border-bottom: 1px solid var(--border); }
+.c360-entry::before { content: ''; position: absolute; left: 11px; top: 0; bottom: 0; width: 2px; background: var(--border); }
+.c360-entry:first-child::before { top: 18px; }
+.c360-entry:last-child::before { bottom: auto; height: 18px; }
+.c360-entry:only-child::before { display: none; }
+.c360-entry::after { content: ''; position: absolute; left: 7px; top: 14px; width: 10px; height: 10px; border-radius: 50%; background: var(--text-disabled); box-shadow: 0 0 0 3px var(--surface); }
+.c360-entry[data-tone="info"]::after { background: var(--primary); }
+.c360-entry[data-tone="ok"]::after { background: var(--success); }
+.c360-entry[data-tone="warn"]::after { background: var(--warning); }
+.c360-entry[data-tone="bad"]::after { background: var(--error); }
+.c360-entry[data-tone="referral"]::after { background: #8764b8; }
+.c360-entry-open { display: flex; flex-direction: column; gap: 2px; width: 100%; min-width: 0; padding: 10px 8px; border: 0; border-radius: 4px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.c360-entry-open:hover { background: var(--surface-alt); }
+.c360-entry-open:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.c360-entry-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.c360-entry-line time { font-size: 12px; color: var(--text-secondary); }
+.c360-entry-what { font-weight: 600; color: var(--primary-pressed); overflow-wrap: anywhere; }
+.c360-entry-detail { font-size: 13px; color: var(--text); overflow-wrap: anywhere; }
+.c360-entry-where { font-size: 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.c360-entry-type { font-weight: 600; }
+.history-record-fields { display: grid; grid-template-columns: minmax(96px, max-content) 1fr; gap: 8px 16px; margin: 0; }
+.history-record-fields dt { color: var(--text-secondary); font-size: 13px; }
+.history-record-fields dd { margin: 0; overflow-wrap: anywhere; }
+
+/* ── Case chooser ───────────────────────────────────────────────────── */
+.c360-picker { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.c360-picker-option { display: flex; gap: 8px; align-items: baseline; padding: 8px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; }
+.c360-picker-option:focus-within { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+/* ── StatusBadge — six tones, text and border always ───────────────── */
+.sb { display: inline-flex; align-items: center; font-size: 12px; line-height: 18px; padding: 0 8px; border: 1px solid; border-radius: 10px; white-space: nowrap; font-weight: 600; }
+.sb-neutral { color: var(--text-secondary); border-color: var(--border-strong); background: var(--surface-alt); }
+.sb-info { color: var(--primary-pressed); border-color: var(--info); background: var(--info-bg); }
+.sb-warn { color: #7a4a00; border-color: var(--warning); background: var(--warning-bg); }
+.sb-bad { color: var(--error); border-color: var(--error); background: var(--error-bg); }
+.sb-ok { color: var(--success); border-color: var(--success); background: var(--success-bg); }
+.sb-referral { color: #5c2e91; border-color: #8764b8; background: #f4effa; }

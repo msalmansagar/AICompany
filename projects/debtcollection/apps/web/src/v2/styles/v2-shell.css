@@ -21,14 +21,18 @@
 }
 
 /* ── Navigation rail ────────────────────────────────────────────────────── */
+/* Three regions — fixed brand, scrolling menu, fixed profile — are the shared sidebar contract
+   (styles/sidebar.css); the rail itself never scrolls. Its height is the frame's viewport: inside
+   Dynamics the web resource frame is the viewport, so 100dvh (100vh where unsupported) is the host's height. */
 .dcp-v2 .v2-nav {
   width: var(--v2-nav-width);
   background: var(--v2-nav);
-  display: flex; flex-direction: column; gap: 2px;
-  padding: 0 0 12px;
-  position: sticky; top: 0; height: 100vh; overflow-y: auto; overflow-x: hidden;
+  position: sticky; top: 0; height: 100vh; height: 100dvh;
   z-index: var(--v2-z-nav);
 }
+.dcp-v2 .v2-nav-head { flex: none; }
+.dcp-v2 .v2-nav-scroll { padding: 2px 0 8px; }
+.dcp-v2 .v2-nav-foot { padding: 8px 0 12px; border-top: 1px solid var(--v2-nav-hover); }
 
 .dcp-v2 .v2-nav-brand { display: flex; align-items: center; gap: 10px; padding: 16px 16px 12px; }
 .dcp-v2 .v2-nav-logo {
@@ -47,18 +51,15 @@
   font-size: var(--v2-fs-2xs); font-weight: var(--v2-fw-semibold); letter-spacing: .09em; text-transform: uppercase;
 }
 
-.dcp-v2 .v2-nav-item,
-.dcp-v2 .v2-nav-toggle {
+.dcp-v2 .v2-nav-item {
   display: flex; align-items: center; gap: 10px;
   margin: 0 10px; padding: 7px 10px; border: 0; border-radius: var(--v2-radius);
   background: transparent; color: var(--v2-nav-text);
   font-size: var(--v2-fs-sm); text-align: left; cursor: pointer; white-space: nowrap;
 }
-.dcp-v2 .v2-nav-item:hover,
-.dcp-v2 .v2-nav-toggle:hover { background: var(--v2-nav-hover); color: #FFFFFF; }
+.dcp-v2 .v2-nav-item:hover { background: var(--v2-nav-hover); color: #FFFFFF; }
 .dcp-v2 .v2-nav-item[aria-current='page'] { background: var(--v2-nav-active); color: #FFFFFF; font-weight: var(--v2-fw-semibold); }
-.dcp-v2 .v2-nav-item:focus-visible,
-.dcp-v2 .v2-nav-toggle:focus-visible { box-shadow: 0 0 0 2px var(--v2-accent); }
+.dcp-v2 .v2-nav-item:focus-visible { box-shadow: 0 0 0 2px var(--v2-accent); }
 .dcp-v2 .v2-nav-icon { width: 16px; height: 16px; flex: none; display: block; }
 .dcp-v2 .v2-nav-label { flex: 1; overflow: hidden; text-overflow: ellipsis; }
 .dcp-v2 .v2-nav-badge {
@@ -66,10 +67,8 @@
   background: var(--v2-nav-hover); color: var(--v2-nav-subtle);
   font-size: var(--v2-fs-2xs); font-weight: var(--v2-fw-semibold);
 }
-.dcp-v2 .v2-nav-toggle { margin-top: auto; }
-
 .dcp-v2 .v2-nav-user {
-  margin: 8px 14px 0; padding: 10px 12px; border-radius: 8px; background: var(--v2-nav-card);
+  margin: 0 14px; padding: 10px 12px; border-radius: 8px; background: var(--v2-nav-card);
   display: flex; align-items: center; gap: 10px; min-width: 0;
 }
 .dcp-v2 .v2-nav-avatar {
@@ -88,9 +87,8 @@
 .dcp-v2 .v2-shell[data-collapsed='true'] .v2-nav-badge,
 .dcp-v2 .v2-shell[data-collapsed='true'] .v2-nav-usermeta { display: none; }
 .dcp-v2 .v2-shell[data-collapsed='true'] .v2-nav-brand { justify-content: center; padding: 16px 0 12px; }
-.dcp-v2 .v2-shell[data-collapsed='true'] .v2-nav-item,
-.dcp-v2 .v2-shell[data-collapsed='true'] .v2-nav-toggle { justify-content: center; margin: 0 8px; padding: 8px 0; }
-.dcp-v2 .v2-shell[data-collapsed='true'] .v2-nav-user { justify-content: center; margin: 8px 8px 0; padding: 8px 0; }
+.dcp-v2 .v2-shell[data-collapsed='true'] .v2-nav-item { justify-content: center; margin: 0 8px; padding: 8px 0; }
+.dcp-v2 .v2-shell[data-collapsed='true'] .v2-nav-user { justify-content: center; margin: 0 8px; padding: 8px 0; }
 
 @media (max-width: 1179px) {
   .dcp-v2 .v2-nav { width: var(--v2-nav-rail); }
@@ -98,12 +96,25 @@
   .dcp-v2 .v2-nav-section,
   .dcp-v2 .v2-nav-label,
   .dcp-v2 .v2-nav-badge,
-  .dcp-v2 .v2-nav-usermeta,
-  .dcp-v2 .v2-nav-toggle { display: none; }
+  .dcp-v2 .v2-nav-usermeta { display: none; }
   .dcp-v2 .v2-nav-brand { justify-content: center; padding: 16px 0 12px; }
   .dcp-v2 .v2-nav-item { justify-content: center; margin: 0 8px; padding: 8px 0; }
-  .dcp-v2 .v2-nav-user { justify-content: center; margin: auto 8px 0; padding: 8px 0; }
+  .dcp-v2 .v2-nav-user { justify-content: center; margin: 0 8px; padding: 8px 0; }
 }
+
+/* The header's navigation toggle: collapses the rail to icons and back, where Power Platform puts it. */
+.dcp-v2 .v2-nav-toggle,
+.dcp-v2 .v2-burger {
+  display: grid; place-items: center; flex: none;
+  width: var(--v2-control-lg); height: var(--v2-control-lg);
+  border: 1px solid var(--v2-border); border-radius: var(--v2-radius);
+  background: var(--v2-surface); color: var(--v2-text); cursor: pointer;
+}
+.dcp-v2 .v2-nav-toggle:hover,
+.dcp-v2 .v2-burger:hover { background: var(--v2-hover); }
+.dcp-v2 .v2-nav-toggle[aria-pressed='true'] { background: var(--v2-surface-sunken); }
+.dcp-v2 .v2-nav-toggle:focus-visible,
+.dcp-v2 .v2-burger:focus-visible { box-shadow: 0 0 0 2px var(--v2-accent); }
 
 /* Drawer: the rail leaves the grid and slides in over a scrim. */
 .dcp-v2 .v2-scrim { display: none; }
@@ -112,7 +123,7 @@
 @media (max-width: 859px) {
   .dcp-v2 .v2-shell { grid-template-columns: minmax(0, 1fr); }
   .dcp-v2 .v2-nav {
-    position: fixed; left: 0; top: 0; width: 250px; height: 100vh;
+    position: fixed; left: 0; top: 0; width: 250px; height: 100vh; height: 100dvh;
     transform: translateX(-100%); transition: transform .2s ease; box-shadow: var(--v2-shadow-dialog);
     z-index: var(--v2-z-overlay);
   }
@@ -124,17 +135,13 @@
   .dcp-v2 .v2-nav-badge { display: initial; }
   .dcp-v2 .v2-nav-brand { justify-content: flex-start; padding: 16px 16px 12px; }
   .dcp-v2 .v2-nav-item { justify-content: flex-start; margin: 0 10px; padding: 7px 10px; }
-  .dcp-v2 .v2-nav-user { justify-content: flex-start; margin: auto 14px 0; padding: 10px 12px; }
+  .dcp-v2 .v2-nav-user { justify-content: flex-start; margin: 0 14px; padding: 10px 12px; }
   .dcp-v2 .v2-shell[data-drawer='open'] .v2-scrim {
     display: block; position: fixed; inset: 0; border: 0; padding: 0;
     background: rgba(15, 27, 61, .45); z-index: calc(var(--v2-z-overlay) - 1);
   }
-  .dcp-v2 .v2-burger {
-    display: grid; place-items: center; flex: none;
-    width: var(--v2-control-lg); height: var(--v2-control-lg);
-    border: 1px solid var(--v2-border); border-radius: var(--v2-radius);
-    background: var(--v2-surface); color: var(--v2-text); cursor: pointer;
-  }
+  .dcp-v2 .v2-burger { display: grid; }
+  .dcp-v2 .v2-nav-toggle { display: none; }
 }
 
 /* ── Header ─────────────────────────────────────────────────────────────── */

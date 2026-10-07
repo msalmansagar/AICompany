@@ -134,6 +134,8 @@ export interface DeceasedReview {
   /** The activity's own outcome, where configuration supplied one. */
   outcome?: string;
   recordedOn?: string;
+  /** The owner's id, so a screen can name an integration user as the system. */
+  ownerId?: string;
   ownerName?: string;
   notes?: string;
 }
@@ -168,6 +170,8 @@ export interface DeceasedReviewRow {
   /** The review activity's own status or outcome, where one exists. */
   reviewOutcome: string;
   ownerName: string;
+  /** Present when a review exists; the screen uses it to show an integration owner as "System". */
+  ownerId?: string;
   /** Whether an officer may start a review now. False once one exists. */
   canStartReview: boolean;
   /**
@@ -202,6 +206,7 @@ export function toDeceasedReviewRow(input: {
     asOf: indication.asOf ? input.formatDate(indication.asOf) : NOT_RECORDED,
     reviewOutcome: review?.outcome ?? review?.status ?? '—',
     ownerName: review?.ownerName ?? 'Nobody yet',
+    ...(review?.ownerId !== undefined ? { ownerId: review.ownerId } : {}),
     // A review can only be started where there is something to review and nothing already open.
     canStartReview: state === 'AwaitingReview',
     ...(indication.facilityNumber !== undefined

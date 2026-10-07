@@ -107,8 +107,8 @@ describe('reading the CRM context', () => {
     expect(readCrmContext(fakeXrm()).securityRoleIds).toHaveLength(1);
   });
 
-  it('explains that there is no standalone mode when no host is present', () => {
-    expect(() => readCrmContext(null)).toThrow(/no standalone mode/i);
+  it('explains that neither a client API nor the organisation answered when no host is present', () => {
+    expect(() => readCrmContext(null)).toThrow(/Web API did not answer/i);
   });
 
   it('names a missing host NoHost rather than failing obscurely', () => {

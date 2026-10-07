@@ -3,6 +3,7 @@ import { scopeThroughCase } from './activityScope.js';
 import type { CountRequest } from './counts.js';
 import { ENTITY_SETS, PTP_STATUS_LABELS } from './schema.js';
 import { codeFor } from './collectionQueries.js';
+import type { RoleKey } from '../shell/routes.js';
 
 /**
  * My Day's operational oversight — what an officer needs to know now, as lightweight DCP reads.
@@ -24,7 +25,22 @@ export interface MyDayOversightRequest {
   promiseHorizonDays: number;
 }
 
+/**
+ * The case figure My Day leads with, by role. My Day answers "what is mine?": an officer sees the
+ * cases they own; a supervisor's role is the portfolio, so a manager or relationship manager sees
+ * every open case in the chosen CRM scope.
+ */
+export function casesTileFor(role: RoleKey): { key: 'myOpenCases' | 'open'; label: string; hint: string } {
+  return role === 'officer'
+    ? { key: 'myOpenCases', label: 'My open cases', hint: 'Open cases you own' }
+    : { key: 'open', label: 'Open cases', hint: 'In the selected CRM scope' };
+}
+
+/** Identity exceptions are data administration, not an officer's work: shown to managers only. */
+export const seesIdentityExceptions = (role: RoleKey): boolean => role === 'manager';
+
 export const PROMISE_ACTIVE = codeFor(PTP_STATUS_LABELS, 'Active');
+export const PROMISE_BROKEN = codeFor(PTP_STATUS_LABELS, 'Broken');
 
 export function myDayCountRequests(request: MyDayOversightRequest): readonly CountRequest[] {
   const onCase = (clause: string) => (request.scopeFilter ? `${request.scopeFilter} and ${clause}` : clause);
@@ -37,8 +53,13 @@ export function myDayCountRequests(request: MyDayOversightRequest): readonly Cou
     { key: 'followUpsOverdue', entitySet: ENTITY_SETS.collectionActivity, filter: onActivity(`qdb_followupdate ne null and statecode eq 0 and qdb_followupdate lt ${now}`) },
     { key: 'followUpsUpcoming', entitySet: ENTITY_SETS.collectionActivity, filter: onActivity(`qdb_followupdate ne null and statecode eq 0 and qdb_followupdate ge ${now}`) },
     { key: 'promisesDue', entitySet: ENTITY_SETS.collectionActivity, filter: onActivity(`qdb_ptpdate ne null and qdb_ptpstatus eq ${PROMISE_ACTIVE} and qdb_ptpdate ge ${dayStart} and qdb_ptpdate lt ${horizon}`) },
+    { key: 'brokenPromises', entitySet: ENTITY_SETS.collectionActivity, filter: onActivity(`qdb_ptpdate ne null and qdb_ptpstatus eq ${PROMISE_BROKEN}`) },
     { key: 'awaitingAssignment', entitySet: ENTITY_SETS.collectionActivity, filter: onActivity('statecode eq 0 and _ownerid_value eq null') },
-    ...(request.userId ? [{ key: 'myOpenWork', entitySet: ENTITY_SETS.collectionActivity, filter: onActivity(`statecode eq 0 and _ownerid_value eq ${request.userId}`) }] : []),
+    ...(request.userId ? [
+      { key: 'myOpenWork', entitySet: ENTITY_SETS.collectionActivity, filter: onActivity(`statecode eq 0 and _ownerid_value eq ${request.userId}`) },
+      // "My" on My Day means the CRM owner. An officer's page shows the cases they own, not the portfolio.
+      { key: 'myOpenCases', entitySet: ENTITY_SETS.collectionCase, filter: onCase(`statecode eq 0 and _ownerid_value eq ${request.userId}`) },
+    ] : []),
     { key: 'identityExceptions', entitySet: ENTITY_SETS.identityException, filter: 'statecode eq 0' },
   ];
 }

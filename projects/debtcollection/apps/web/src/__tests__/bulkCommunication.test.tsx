@@ -5,6 +5,7 @@ import { serialiseNonSuccesses } from '@dcp/domain';
 import { App } from '../App.js';
 import { STATUS_CODES } from '../services/bulkCommunicationService.js';
 import { FakePlatform, fakeXrm, type Rows } from './bulkPlatform.js';
+import { communicationMappings, LETTER_COLUMN_MAP } from './messagingFixtures.js';
 import type { XrmLike } from '../platform/crmContext.js';
 
 /**
@@ -54,6 +55,7 @@ const contactRows = contactIds.map((id, index) => ({
   emailaddress1: `customer${index + 1}@example.test`,
   statecode: 0,
   donotfax: false,
+  donotpostalmail: false,
   donotemail: false,
   donotphone: false,
 }));
@@ -102,6 +104,9 @@ const permissiveConfiguration = {
   qdb_isactive: true,
   qdb_contactholdrulesetcode: null,
   qdb_featureflags: JSON.stringify({ contactHoldPolicy: 'allow-when-unverifiable' }),
+  // Housing Loan records SMS as Letter: vrp_address carries the mobile, vrp_descriptions the text.
+  qdb_smsentity: 'letter',
+  qdb_whatsappentity: 'letter',
 };
 
 const rows = (templates = [smsTemplate, unapprovedTemplate, emailTemplate]): Rows => ({
@@ -109,8 +114,9 @@ const rows = (templates = [smsTemplate, unapprovedTemplate, emailTemplate]): Row
   contact: contactRows,
   qdb_communicationtemplate: templates,
   qdb_platformconfiguration: [permissiveConfiguration],
+  qdb_platformmapping: communicationMappings('cfg-hl', 'letter', LETTER_COLUMN_MAP),
   qdb_communicationrun: [],
-  fax: [],
+  letter: [],
   email: [],
   qdb_collectionactivity: [],
 });
@@ -129,15 +135,15 @@ function openBulk(source: Rows = rows(), organizationName?: string) {
 async function compose(channel: 'SMS' | 'Email', templateId: string) {
   await userEvent.selectOptions(screen.getByTestId('bulk-channel'), channel);
   const picker = screen.getByTestId('bulk-template');
-  await waitFor(() => expect(picker.textContent).toContain('P7-'));
+  await waitFor(() => expect(picker.textContent).toContain('Overdue'));
   await userEvent.selectOptions(picker, templateId);
   await userEvent.type(screen.getByTestId('bulk-placeholder-branch'), 'Doha');
 }
 
-/** How many native SMS creates the transport has issued. Counted, so a click cannot pass silently. */
-function faxCreates(): number {
+/** How many native SMS creates the transport has issued — Letters, on Housing Loan. Counted, so a click cannot pass silently. */
+function smsCreates(): number {
   return platform.requests.filter(request =>
-    request.method === 'PATCH' && request.url.includes('/faxes(')).length;
+    request.method === 'PATCH' && request.url.includes('/letters(')).length;
 }
 
 /** Confirms the run and waits for the detail screen its creation navigates to. */
@@ -214,26 +220,26 @@ describe('the wording a bulk run may carry', () => {
   it('offers approved templates and never an unapproved one', async () => {
     await openBulk();
     const picker = screen.getByTestId('bulk-template');
-    await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE-EN'));
-    expect(picker.textContent).not.toContain('P7-SMS-UNAPPROVED-EN');
+    await waitFor(() => expect(picker.textContent).toContain('Overdue reminder'));
+    expect(picker.textContent).not.toContain('Never approved');
   });
 
   it('offers the email template only on the email channel', async () => {
     await openBulk();
     const picker = screen.getByTestId('bulk-template');
-    await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE-EN'));
-    expect(picker.textContent).not.toContain('P7-EMAIL-OVERDUE-EN');
+    await waitFor(() => expect(picker.textContent).toContain('Overdue reminder'));
+    expect(picker.textContent).not.toContain('Overdue notice');
 
     await userEvent.selectOptions(screen.getByTestId('bulk-channel'), 'Email');
     await waitFor(() => expect(screen.getByTestId('bulk-template').textContent)
-      .toContain('P7-EMAIL-OVERDUE-EN'));
-    expect(screen.getByTestId('bulk-template').textContent).not.toContain('P7-SMS-OVERDUE-EN');
+      .toContain('Overdue notice'));
+    expect(screen.getByTestId('bulk-template').textContent).not.toContain('Overdue reminder');
   });
 
   it('refuses to confirm while the wording is incomplete', async () => {
     await openBulk();
     const picker = screen.getByTestId('bulk-template');
-    await waitFor(() => expect(picker.textContent).toContain('P7-SMS-OVERDUE-EN'));
+    await waitFor(() => expect(picker.textContent).toContain('Overdue reminder'));
     await userEvent.selectOptions(picker, 't-sms');
 
     expect(screen.getByTestId('bulk-unresolved').textContent).toMatch(/branch/);
@@ -433,12 +439,12 @@ describe('a run survives the browser', () => {
     cleanup();
     window.location.hash = `#comms/bulk/${runId}`;
     render(<App />);
-    const before = faxCreates();
+    const before = smsCreates();
     await userEvent.click(await screen.findByTestId('bulk-run-retry'));
 
     // The retry must actually reach the send path — counting all requests ever made would pass
     // even if the click did nothing, which is the vacuous-guard mistake KI-94 was about.
-    await waitFor(() => expect(faxCreates()).toBeGreaterThan(before), { timeout: 5000 });
+    await waitFor(() => expect(smsCreates()).toBeGreaterThan(before), { timeout: 5000 });
     // And having reached it, it repairs rather than duplicates: the deterministic id is refused.
     expect(platform.acceptedActivityCreates).toBe(3);
   });

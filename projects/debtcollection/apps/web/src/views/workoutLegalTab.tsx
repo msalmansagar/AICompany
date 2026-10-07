@@ -3,6 +3,7 @@ import { AdvancedProcessPanel } from './advancedProcessPanel.js';
 import { CaseConcerns } from './concernsCard.js';
 import { CaseDeceasedReview } from './deceasedReviewCard.js';
 import { CaseLegalTrace } from './legalTraceCard.js';
+import { RaiseComplaintCard } from './CreateComplaintPane.js';
 
 /**
  * The approved *Workout & Legal* tab, delivered in Phase 9 (WP6).
@@ -18,10 +19,12 @@ export function WorkoutLegalTab({ detail }: { detail: CaseDetail }) {
       <AdvancedProcessPanel />
       <CaseLegalTrace
         caseId={detail.id}
+        organization={detail.organization}
         {...(detail.episodeNumber !== undefined ? { episodeNumber: detail.episodeNumber } : {})}
         customer={legalCustomer(detail)}
       />
-      <CaseConcerns caseId={detail.id} />
+      <CaseConcerns caseId={detail.id} organization={detail.organization} />
+      <RaiseComplaintCard caseId={detail.id} organization={detail.organization} />
       <CaseDeceasedReview caseId={detail.id} />
     </>
   );

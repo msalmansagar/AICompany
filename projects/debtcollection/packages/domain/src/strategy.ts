@@ -24,7 +24,6 @@ export const StrategyCriteriaSchema = z.object({
   arrearsTo: z.number().optional(),
   exposureFrom: z.number().optional(),
   exposureTo: z.number().optional(),
-  riskLevel: z.string().optional(),
   nplFlag: z.boolean().optional(),
   brokenPtpCountFrom: z.number().int().optional(),
   legalStatus: z.string().optional(),

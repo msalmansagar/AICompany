@@ -1,0 +1,51 @@
+{
+  "inspectedAt": "2026-10-04T16:36:05.445Z",
+  "clientUrl": "https://mcdynccatdev01/HousingLoan",
+  "apiBase": "https://mcdynccatdev01/HousingLoan/api/data/v9.1",
+  "platform": {
+    "version": "9.1.42.8",
+    "baseLanguage": 1033,
+    "maxUploadFileSizeBytes": 33554432,
+    "webResourceFits": true,
+    "provisionedLanguages": [
+      1033,
+      1025
+    ],
+    "publisherQdb": {
+      "prefix": "qdb",
+      "optionValuePrefix": 10000
+    },
+    "sandboxAssembliesInUse": [
+      "Microsoft.Xrm.SolutionsFramework",
+      "Microsoft.Crm.Sandbox.WorkerProcess",
+      "Qdb.FormEngine.Plugins",
+      "RWB2016.Plugins",
+      "Microsoft.Dynamics.KMOnlineFeatures.Plugins"
+    ]
+  },
+  "collisions": {
+    "solution": null,
+    "tables": [],
+    "choices": [],
+    "roles": [],
+    "webResources": [],
+    "appModule": [],
+    "siteMaps": [],
+    "pluginAssembly": []
+  },
+  "standardTablesMissing": [],
+  "verdict": {
+    "noExistingDcpSolution": true,
+    "noTableCollision": true,
+    "noChoiceCollision": true,
+    "noRoleNameCollision": true,
+    "noWebResourceCollision": true,
+    "noAppOrSiteMapCollision": true,
+    "noAssemblyCollision": true,
+    "allStandardTablesPresent": true,
+    "publisherCompatible": true,
+    "webResourceFits": true,
+    "readyForImport": true
+  },
+  "organisation": "Housing Loan"
+}

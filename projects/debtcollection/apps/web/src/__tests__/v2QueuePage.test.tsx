@@ -79,6 +79,22 @@ afterEach(() => {
   window.location.hash = '';
 });
 
+describe('contextual lists (WP2)', () => {
+  it('opens Promise to Pay from Work Queues, now that it is not a navigation entry for an officer', async () => {
+    await openQueue('#queues/MyAssigned');
+
+    await userEvent.click(screen.getByTestId('v2-queue-open-ptp'));
+
+    expect(window.location.hash).toBe('#ptp');
+  });
+
+  it('keeps the Disputes, Legal and Deceased Review lists as buckets', async () => {
+    await openQueue('#queues/MyAssigned');
+
+    for (const bucket of ['Disputes', 'Legal', 'DeceasedReview']) expect(screen.getByTestId(`v2-chip-${bucket}`)).toBeTruthy();
+  });
+});
+
 describe('the bucket', () => {
   it('comes from the URL', async () => {
     const queue = await openQueue('#queues/Legal');
@@ -115,6 +131,14 @@ describe('the bucket', () => {
 });
 
 describe('the split layout', () => {
+  /** The Split list overflowed its pane and grew a horizontal scrollbar (Issues 2026-09-27). */
+  it('fits the Split list inside its pane, like Cases and Promise to Pay', async () => {
+    await openQueue('#queues/Legal');
+    await screen.findByRole('row', { name: 'Preview Recommend litigation' });
+
+    expect(screen.getByTestId('v2-queue-list').className).toBe('v2-grid v2-grid-fits');
+  });
+
   it('previews the chosen row, then opens its case', async () => {
     await openQueue('#queues/Legal');
 
@@ -126,10 +150,11 @@ describe('the split layout', () => {
     expect(window.location.hash).toBe('#case/c-1');
   });
 
-  it('asks the officer to choose before anything is selected', async () => {
+  it('previews the first piece of work as soon as the list has one', async () => {
     await openQueue('#queues/Legal');
 
-    expect(await screen.findByTestId('v2-queue-preview-empty')).toBeTruthy();
+    const preview = await screen.findByTestId('v2-queue-preview');
+    expect(preview.textContent).toContain('Recommend litigation');
   });
 });
 

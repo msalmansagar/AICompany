@@ -1,14 +1,17 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Icon } from '../../components/primitives.js';
+import { Sidebar } from '../../components/Sidebar.js';
 import { ROLE_LABELS, useCrmSession, useOrg, useRole } from '../../shell/context.js';
 import type { Route } from '../../shell/useHashRoute.js';
 import { useWorkspaceVersion } from '../version/WorkspaceVersionRoot.js';
-import { activeNavId, navigationFor, v2GroupFor, v2LabelFor } from './v2Navigation.js';
+import { activeNavigationId, navigationFor, navigationSectionOf, pageTitleOf } from '../../shell/navigation.js';
+import { initialsOf } from '../../components/initials.js';
 
 /**
  * The V2 application shell: navy navigation rail, a sticky header, and the page.
  *
- * The rail collapses to icons (the user's choice, remembered in this browser, and automatically on a
+ * The rail draws the shared business navigation (`shell/navigation.ts`) — the same sections, words
+ * and order V1 draws — in V2's own style. The rail collapses to icons (the user's choice, remembered in this browser, and automatically on a
  * narrower window) and becomes a drawer on a small one. The header's search is real — it opens the
  * case list searched by case number or customer id — and the scope and role pickers are the same ones
  * V1 uses, so both versions read the same records.
@@ -66,9 +69,9 @@ export function V2Shell({ route, children }: { route: Route & { go: Go }; childr
           type="button" className="v2-scrim" aria-label="Close navigation" tabIndex={-1}
           onClick={() => setDrawerOpen(false)}
         />
-        <V2Nav activeId={activeNavId(route.view.id)} onNavigate={navigate} onToggle={toggleCollapsed} isCollapsed={isCollapsed} />
+        <V2Nav activeViewId={route.view.id} onNavigate={navigate} />
         <div className="v2-main">
-          <V2Header route={route} onOpenDrawer={() => setDrawerOpen(true)} />
+          <V2Header route={route} onOpenDrawer={() => setDrawerOpen(true)} onToggleCollapsed={toggleCollapsed} isCollapsed={isCollapsed} />
           <main ref={main} tabIndex={-1} className="v2-page" data-testid="v2-content" data-view={route.view.id}>{children}</main>
         </div>
       </div>
@@ -76,28 +79,40 @@ export function V2Shell({ route, children }: { route: Route & { go: Go }; childr
   );
 }
 
-function V2Nav({ activeId, onNavigate, onToggle, isCollapsed }: {
-  activeId: string; onNavigate: Go; onToggle: () => void; isCollapsed: boolean;
-}) {
+function V2Nav({ activeViewId, onNavigate }: { activeViewId: string; onNavigate: Go }) {
   const { role } = useRole();
+  const activeId = activeNavigationId(activeViewId, role);
   const { scope } = useOrg();
   const { context } = useCrmSession();
   const groups = navigationFor(role);
 
   return (
-    <nav className="v2-nav" aria-label="Workspace">
-      <div className="v2-nav-brand">
-        <span className="v2-nav-logo" aria-hidden="true">DC</span>
-        <span className="v2-nav-brandtext">
-          <span className="v2-nav-title">Collections</span>
-          <span className="v2-nav-sub">{SCOPE_LABELS[scope]}</span>
-        </span>
-      </div>
-
+    <Sidebar
+      className="v2-nav" label="Workspace" testId="v2-nav-rail"
+      regionClassNames={{ header: 'v2-nav-head', nav: 'v2-nav-scroll', profile: 'v2-nav-foot' }}
+      header={(
+        <div className="v2-nav-brand">
+          <span className="v2-nav-logo" aria-hidden="true">DC</span>
+          <span className="v2-nav-brandtext">
+            <span className="v2-nav-title">Collections</span>
+            <span className="v2-nav-sub">{SCOPE_LABELS[scope]}</span>
+          </span>
+        </div>
+      )}
+      profile={(
+        <div className="v2-nav-user" title={context.userName}>
+          <span className="v2-nav-avatar" aria-hidden="true">{initialsOf(context.userName)}</span>
+          <span className="v2-nav-usermeta">
+            <span className="v2-nav-username">{context.userName}</span>
+            <span className="v2-nav-sub">{ROLE_LABELS[role]}</span>
+          </span>
+        </div>
+      )}
+    >
       <div className="v2-nav-groups">
         {groups.map(group => (
-          <div key={group.label} className="v2-nav-group" role="group" aria-label={group.label}>
-            <div className="v2-nav-section">{group.label}</div>
+          <div key={group.section} className="v2-nav-group" role="group" aria-label={group.section}>
+            <div className="v2-nav-section">{group.section}</div>
             {group.items.map(item => (
               <button
                 key={item.id}
@@ -110,35 +125,23 @@ function V2Nav({ activeId, onNavigate, onToggle, isCollapsed }: {
               >
                 <Icon name={item.icon} className="v2-nav-icon" />
                 <span className="v2-nav-label">{item.label}</span>
-                {item.isParked && <span className="v2-nav-badge">Parked</span>}
               </button>
             ))}
           </div>
         ))}
       </div>
-
-      <button
-        type="button" className="v2-nav-toggle" onClick={onToggle}
-        aria-label={isCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-        title={isCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-        data-testid="v2-nav-toggle"
-      >
-        <Icon name={isCollapsed ? 'forward' : 'back'} className="v2-nav-icon" />
-        <span className="v2-nav-label">Collapse</span>
-      </button>
-
-      <div className="v2-nav-user" title={context.userName}>
-        <span className="v2-nav-avatar" aria-hidden="true">{initialsOf(context.userName)}</span>
-        <span className="v2-nav-usermeta">
-          <span className="v2-nav-username">{context.userName}</span>
-          <span className="v2-nav-sub">{ROLE_LABELS[role]}</span>
-        </span>
-      </div>
-    </nav>
+    </Sidebar>
   );
 }
 
-function V2Header({ route, onOpenDrawer }: { route: Route; onOpenDrawer: () => void }) {
+/**
+ * The header. Its first control is the navigation toggle — the hamburger that collapses the rail to
+ * icons and expands it again, where Power Platform puts it (user instruction, 2026-09-27). On a
+ * narrow window the rail is a drawer instead, and the same spot opens it.
+ */
+function V2Header({ route, onOpenDrawer, onToggleCollapsed, isCollapsed }: {
+  route: Route; onOpenDrawer: () => void; onToggleCollapsed: () => void; isCollapsed: boolean;
+}) {
   const { setSearch, go } = useV2Shell();
   const { role, setRole } = useRole();
   const { scope, setScope } = useOrg();
@@ -154,12 +157,21 @@ function V2Header({ route, onOpenDrawer }: { route: Route; onOpenDrawer: () => v
 
   return (
     <header className="v2-header">
+      <button
+        type="button" className="v2-nav-toggle" onClick={onToggleCollapsed}
+        aria-label={isCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+        title={isCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+        aria-pressed={isCollapsed}
+        data-testid="v2-nav-toggle"
+      >
+        <Icon name="menu" className="v2-nav-icon" />
+      </button>
       <button type="button" className="v2-burger" aria-label="Open navigation" onClick={onOpenDrawer}>
-        <Icon name="grid" className="v2-nav-icon" />
+        <Icon name="menu" className="v2-nav-icon" />
       </button>
       <div className="v2-header-title">
-        <div className="v2-crumb">{v2GroupFor(route.view)}</div>
-        <h1 className="v2-title">{v2LabelFor(route.view)}</h1>
+        <div className="v2-crumb">{navigationSectionOf(route.view)}</div>
+        <h1 className="v2-title">{route.view.id === 'case' ? 'Case' : pageTitleOf(route.view, route.recordId)}</h1>
       </div>
       <div className="v2-header-tools">
         <form className="v2-search" role="search" onSubmit={submit}>
@@ -220,10 +232,6 @@ export function VersionSwitch() {
 const SCOPE_LABELS: Readonly<Record<string, string>> = {
   all: 'HL + BFD', HL: 'Housing Loan', BFD: 'BFD',
 };
-
-function initialsOf(name: string): string {
-  return name.split(/\s+/).filter(Boolean).map(part => part[0]).slice(0, 2).join('').toUpperCase() || '·';
-}
 
 /** A per-browser convenience; blocked storage simply means the default. */
 function readFlag(key: string): boolean {

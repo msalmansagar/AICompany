@@ -29,6 +29,8 @@ export interface ViewRequest {
   recordId?: string | undefined;
   tab?: string | undefined;
   onOpenCase: (id: string) => void;
+  /** A case opened on its Action Plan — both workspaces show it on the shared case's Action Plan tab. */
+  onOpenActionPlan: (id: string) => void;
   /** The Cases list in a reporting scope — a dashboard row's drill-down. In V2 it opens V2's own list. */
   onOpenCases: (scope: ReportingScope) => void;
   onOpenCustomer: (customerBusinessId: string) => void;
@@ -45,6 +47,7 @@ export function V2Workspace({ renderView }: { renderView: ViewRenderer }) {
     ...(route.recordId !== undefined ? { recordId: route.recordId } : {}),
     ...(route.tab !== undefined ? { tab: route.tab } : {}),
     onOpenCase: id => route.go('case', id),
+    onOpenActionPlan: id => route.go('case', id, 'plan'),
     onOpenCases: scope => route.go('cases', FILTER_SEGMENT, encodeCaseListFilters(caseListFiltersFromScope(scope, 'dashboard'))),
     onOpenCustomer: customerBusinessId => route.go('customer', customerBusinessId),
     onOpenComms: id => route.go('comms', id),

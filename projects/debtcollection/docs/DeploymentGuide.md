@@ -125,7 +125,7 @@ package directories are artefacts of the same run.
 | `IsValidForQueue` | metadata read on `qdb_collectioncase` |
 | Steps/images read back | `sdkmessageprocessingsteps` / `sdkmessageprocessingstepimages` query — compare with the manifest count |
 | Smoke | `smoke-plugins.mjs` (15 checks today; add queue-move and uniqueness assertions) |
-| Web resource live | open via `main.aspx?pagetype=webresource&webresourceName=qdb_dcp_workspace.html`; runtime context shows org/version/user |
+| Web resource live | open inside the Debt Collection app (site map); a direct link must carry the app — `main.aspx?appid=<appid>&pagetype=webresource&webresourceName=qdb_dcp_workspace.html`. On 9.1 on-prem the bare link without `appid` opens the classic client and fails (HL CRM test, 2026-10-04); runtime context shows org/version/user |
 | Integration Service | `/health` = 200 with `reachable`; MIS provider echoed |
 | Publish state | second `PublishAllXml` returns success; no pending customizations |
 

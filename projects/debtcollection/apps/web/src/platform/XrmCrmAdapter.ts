@@ -479,6 +479,7 @@ export const DEFAULT_LOGICAL_NAMES: Readonly<Record<string, string>> = {
   qdb_platformmappings: 'qdb_platformmapping',
   // Native activity sets whose logical name is not the set minus a trailing 's'.
   faxes: 'fax',
+  letters: 'letter',
   emails: 'email',
   activityparties: 'activityparty',
   qdb_communicationruns: 'qdb_communicationrun',
@@ -526,8 +527,8 @@ export function buildOptions(query: {
    * queue whose cost grows with its page size is a queue that stops working as the book grows.
    *
    * Takes the single-valued **navigation property**, not the attribute: `$expand` on
-   * `qdb_legalrequestid` is rejected with 400, while
-   * `qdb_legalrequestid_qdb_collectionactivity` works — verified against the organisation,
+   * a lookup attribute is rejected with 400, while its single-valued
+   * navigation property works — verified against the organisation,
    * alongside a filter and an order-by, which is the combination a queue actually issues.
    */
   expand?: readonly string[];

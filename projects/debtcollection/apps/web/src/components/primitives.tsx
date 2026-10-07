@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { ICON_PATHS } from './icons.js';
 import type { ViewDefinition } from '../shell/routes.js';
 import { bucketVisual } from '../data/bucketVisual.js';
+import { formatWithShortMonths } from './shortMonths.js';
 
 /**
  * The shared visual vocabulary, ported from the prototype's `DC.*` helpers.
@@ -47,7 +48,7 @@ export function Card({ title, subtitle, children, actions }: {
 /** The prototype's five KPI tones. A tile with no tone is the neutral default. */
 export type Tone = 'ok' | 'warn' | 'bad' | 'info' | 'muted';
 
-export interface Kpi { label: string; value: string; hint?: string; tone?: Tone }
+export interface Kpi { label: string; value: string; hint?: string; tone?: Tone; /** Shown on hover — the caveat a figure carries. */ title?: string }
 
 /**
  * The KPI row.
@@ -60,7 +61,7 @@ export function KpiRow({ items }: { items: readonly Kpi[] }) {
   return (
     <div className="kpi-row">
       {items.map(kpi => (
-        <div key={kpi.label} className={kpi.tone ? `kpi-tile ${kpi.tone}` : 'kpi-tile'}>
+        <div key={kpi.label} className={kpi.tone ? `kpi-tile ${kpi.tone}` : 'kpi-tile'} title={kpi.title}>
           <div className="kpi-label">{kpi.label}</div>
           <div className="kpi-value">{kpi.value}</div>
           {kpi.hint && <div className="kpi-delta flat">{kpi.hint}</div>}
@@ -108,7 +109,6 @@ export function Pivot({ tabs, activeId, onSelect, testId = 'pivot' }: {
             onClick={() => onSelect(tab.id)}
           >
             {tab.label}
-            {tab.pendingPhase !== undefined && <span className="badge">P{tab.pendingPhase}</span>}
           </button>
         ))}
       </div>
@@ -119,13 +119,16 @@ export function Pivot({ tabs, activeId, onSelect, testId = 'pivot' }: {
   );
 }
 
-/** A tab, section or screen whose functionality a later phase owns. */
+/**
+ * A tab, section or screen whose functionality is not built yet. The owning phase stays in the data
+ * attributes for the team; an officer is told only that it is not available, never a project phase.
+ */
 export function PendingPhasePanel({ phase, what }: { phase: number; what: string }) {
   return (
     <div className="phase-notice" data-testid={`pending-panel-${phase}`} data-owning-phase={phase}>
       <Icon name="info" />
       <div>
-        <strong>Phase {phase} owns this.</strong>
+        <strong>Not available yet.</strong>
         <p>{what}</p>
         <p className="hint">No data is shown here, because none would be real.</p>
       </div>
@@ -223,8 +226,8 @@ export function PromiseOutcome({ status }: { status?: string | undefined }) {
   const claimsPayment = status !== undefined && /kept|broken/i.test(status);
   return (
     <span className="row-actions">
-      <StatusPill status={status} />
-      {claimsPayment && <span className="unverified" title="Payment has not been verified against MIS.">unverified</span>}
+      {status ? <span className={`pill plain ${statusTone(status)}`}>{status}</span> : <span className="pill plain muted">—</span>}
+      {claimsPayment && <span className="unverified" title="What the officer recorded. Payment has not been verified against MIS.">unverified</span>}
     </span>
   );
 }
@@ -286,7 +289,7 @@ export function PendingPhaseNotice({ view }: { view: ViewDefinition }) {
         <strong>
           {view.isParked
             ? 'Parked by QDB — nothing is being built here until QDB resumes it.'
-            : `Not yet implemented — Phase ${view.phase} owns this.`}
+            : 'Not available yet.'}
         </strong>
         {view.pendingSummary && <p>{view.pendingSummary}</p>}
         <p className="hint">
@@ -302,9 +305,14 @@ export function PendingPhaseNotice({ view }: { view: ViewDefinition }) {
 
 const QAR = new Intl.NumberFormat('en-QA', { style: 'currency', currency: 'QAR', maximumFractionDigits: 0 });
 
-/** Formats an amount. Returns an em dash for an absent value rather than `QAR 0`. */
+/**
+ * Formats an amount. Returns an em dash for an absent value rather than `QAR 0`.
+ *
+ * The currency and the number are joined by an ordinary space, not the no-break space `Intl` emits:
+ * a KPI tile may wrap between them, and must never break inside the number (Issues 2026-09-27).
+ */
 export function formatMoney(value: number | undefined | null): string {
-  return value === undefined || value === null ? '—' : QAR.format(value);
+  return value === undefined || value === null ? '—' : QAR.format(value).replace(/ /g, ' ');
 }
 
 /** Millions, for KPI tiles, matching the prototype's `moneyM`. */
@@ -321,4 +329,13 @@ export function formatDate(value: string | undefined | null): string {
   if (!value) return '—';
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '—' : date.toISOString().slice(0, 10);
+}
+
+const DAY = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+/** The same date as an officer says it — `4 Aug 2026` — for a list that is read, not sorted by eye. */
+export function formatDay(value: string | undefined | null): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '—' : formatWithShortMonths(DAY, date).replace(/\u00a0/g, ' ');
 }

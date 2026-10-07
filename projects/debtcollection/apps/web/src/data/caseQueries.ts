@@ -1,5 +1,6 @@
 import {
-  originFromCode, type ActivityOrigin, type ContinuationToken, type Page,
+  externalProcessOf, originFromCode, readExternalReference,
+  type ActivityOrigin, type ContinuationToken, type ExternalProcess, type ExternalProcessReference, type OrganizationCode, type Page,
 } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import {
@@ -86,7 +87,7 @@ export interface CustomerProfile {
    * and the permissive reading. That is safe only because it is not the whole gate: the hold policy
    * fails closed separately.
    */
-  restrictions: { doNotFax: boolean; doNotEmail: boolean; doNotPhone: boolean };
+  restrictions: { doNotFax: boolean; doNotPostalMail: boolean; doNotEmail: boolean; doNotPhone: boolean };
 }
 
 /**
@@ -126,6 +127,7 @@ export async function retrieveCustomer(
     isActive: readNumber(row, 'statecode') === 0,
     restrictions: {
       doNotFax: row['donotfax'] === true,
+      doNotPostalMail: row['donotpostalmail'] === true,
       doNotEmail: row['donotemail'] === true,
       doNotPhone: row['donotphone'] === true,
     },
@@ -153,6 +155,7 @@ export interface ActivityRow {
   strategyActionId?: string;
   /** Absent means the record predates provenance — never that an officer created it. */
   origin?: ActivityOrigin;
+  ownerId?: string;
   ownerName?: string;
   status?: string;
   /** Open / Completed / Cancelled, which settles a work state ahead of any deadline. */
@@ -160,19 +163,15 @@ export interface ActivityRow {
   /** Read from the platform. An escalation is an action that happened, not a deadline that passed. */
   supervisorEscalated?: boolean;
   /**
-   * The Litigation Request this recommendation was handed to, where one was.
-   *
-   * Absent means no hand-off was **recorded**. It does not mean no litigation exists — the Legal
-   * record may be present and simply unreadable by this officer.
+   * The centralised process this activity handed off to (Complaint or Legal, both in BFD CRM), even
+   * while the record is still being created. Absent means no hand-off was recorded.
    */
-  legalRequestId?: string;
+  handOff?: ExternalProcess;
   /**
-   * The formal Complaint this activity raised, where one was raised.
-   *
-   * Absent means no Complaint was recorded from this activity. It is traceability after the fact,
-   * never the thing that decides whether another may be created.
+   * The record the hand-off produced: organisation, id and the owning system's number. Absent while
+   * the hand-off is pending. Status is never stored — it is read from the owning module.
    */
-  complaintCaseId?: string;
+  externalReference?: ExternalProcessReference;
   createdOn?: string;
   caseId?: string;
   caseNumber?: string;
@@ -194,6 +193,8 @@ export interface PtpRow extends ActivityRow {
   caseOrganization?: string;
   caseCustomerType?: string;
   caseCustomerName?: string;
+  /** The customer's business id, so the name can open Customer 360. */
+  caseCustomerBusinessId?: string;
 }
 
 /**
@@ -201,7 +202,7 @@ export interface PtpRow extends ActivityRow {
  * navigation property — one read for a page, not one per row. Honoured on the first page; the
  * continuation is the source's own link and carries it.
  */
-const PTP_CASE_EXPANSION = `${NAVIGATION_PROPERTIES.activityToCase}($select=qdb_casenumber,qdb_currentarrearbucket,qdb_currentdpd,qdb_currenttotalarrears,qdb_organizationcode,qdb_customertype,_qdb_customerid_value)`;
+const PTP_CASE_EXPANSION = `${NAVIGATION_PROPERTIES.activityToCase}($select=qdb_casenumber,qdb_currentarrearbucket,qdb_currentdpd,qdb_currenttotalarrears,qdb_organizationcode,qdb_customertype,_qdb_customerid_value,qdb_customerbusinessid)`;
 
 function readExpandedCase(row: CrmRow): Record<string, Partial<PtpRow>[keyof PtpRow]> {
   const expanded = row[NAVIGATION_PROPERTIES.activityToCase];
@@ -214,7 +215,19 @@ function readExpandedCase(row: CrmRow): Record<string, Partial<PtpRow>[keyof Ptp
     ...optional('caseOrganization', readChoice(caseRow, 'qdb_organizationcode', ORG_LABELS)),
     ...optional('caseCustomerType', readChoice(caseRow, 'qdb_customertype', CUSTOMER_TYPE_LABELS)),
     ...optional('caseCustomerName', readLookupName(caseRow, '_qdb_customerid_value')),
+    ...optional('caseCustomerBusinessId', readText(caseRow, 'qdb_customerbusinessid')),
   };
+}
+
+/** The stored reference columns, read into the shared model; undefined when the activity carries none. */
+function readActivityReference(row: CrmRow): ExternalProcessReference | undefined {
+  const organization = ORG_LABELS[readNumber(row, 'qdb_relatedrecordorganization') ?? -1];
+  return readExternalReference({
+    ...optional('recordType', readText(row, 'qdb_relatedrecordtype')),
+    ...optional('recordId', readText(row, 'qdb_relatedrecordid')),
+    ...optional('recordNumber', readText(row, 'qdb_relatedrecordnumber')),
+    ...(organization === 'HL' || organization === 'BFD' ? { organization: organization as OrganizationCode } : {}),
+  });
 }
 
 export function toActivityRow(row: CrmRow): ActivityRow {
@@ -229,12 +242,13 @@ export function toActivityRow(row: CrmRow): ActivityRow {
     ...optional('activityTypeId', readText(row, '_qdb_activitytypeid_value')),
     ...optional('strategyActionId', readText(row, '_qdb_strategyactionid_value')),
     ...optional('origin', originFromCode(row['qdb_origin'])),
+    ...optional('ownerId', readText(row, '_ownerid_value')),
     ...optional('ownerName', readLookupName(row, '_ownerid_value')),
     ...optional('status', readChoice(row, 'statuscode')),
     ...optional('stateCode', readNumber(row, 'statecode')),
     ...optional('supervisorEscalated', readBoolean(row, 'qdb_supervisorescalated')),
-    ...optional('legalRequestId', readText(row, '_qdb_legalrequestid_value')),
-    ...optional('complaintCaseId', readText(row, '_qdb_complaintcaseid_value')),
+    ...optional('handOff', externalProcessOf(readText(row, 'qdb_relatedrecordtype'))),
+    ...optional('externalReference', readActivityReference(row)),
     ...optional('createdOn', readText(row, 'createdon')),
     ...optional('caseId', readText(row, '_qdb_collectioncaseid_value')),
     ...optional('caseNumber', readLookupName(row, '_qdb_collectioncaseid_value')),

@@ -265,7 +265,7 @@ class pair; there is no `if (org === 'HL')` anywhere in `apps/workspace`. The sa
 | Activities | Collection Activities · Follow-ups · Promise-to-Pay · Field Visits | Officer, RM, Senior Manager, Head |
 | Engagement | Communication Center · **unified Communication History** (§5.1a — SMS/WhatsApp, Email and Warning Letters in one stream) | Officer, RM (send needs privilege), Senior Manager |
 | Strategy | Collection Strategies · Strategy Actions · Assignment | Senior Manager, Head, Admin |
-| Workout & Exit | Restructuring · Legal · Deceased & Insurance · Disputes/Complaints | Officer (raise) · specialist roles (act) |
+| Workout & Exit | Restructuring · Legal · Deceased & Insurance · Disputes · Complaints (raised in QDB's existing Case Management, which owns them — ADR-DCP-21) | Officer (raise) · specialist roles (act) |
 | Oversight | Dashboards · Portfolio MIS · Approvals · Audit/History · SLA/Escalation | Senior Manager, Head, Management, Audit Compliance |
 | Administration | Platform Configuration · Platform Mapping · Activity Types · Outcomes · Strategies · Assignment · Templates · Engine links | Admin User |
 

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { describeBucket, describeCount, describeWorkType, type OperationalBucket, type WorkItem } from '@dcp/domain';
 import { createWorkQueue, loadTypeIds, type TypeIds, type WorkQueueRequest } from '../../../data/operationalQueue.js';
 import { formatCount, formatMoney } from '../../../components/primitives.js';
+import { BalancesAsOf } from '../../../components/BalancesAsOf.js';
+import { OwnerLabel } from '../../../components/OwnerLabel.js';
 import { useCrmSession } from '../../../shell/context.js';
 import type { ViewRequest } from '../../V2Workspace.js';
 import { useV2Shell } from '../../shell/V2Shell.js';
@@ -10,7 +12,10 @@ import { V2DataGrid, type V2Column } from '../../components/V2DataGrid.js';
 import { useDebounced } from '../../hooks/useDebounced.js';
 import { formatRecordedAt } from '../../format.js';
 import { useBucketCounts } from '../home/useBucketCounts.js';
-import { useCaseRecord } from '../case/useCaseRecord.js';
+import { useCaseRecord } from '../../../data/useCaseRecord.js';
+import { readLayout, writeLayout, type ListLayout } from '../../../data/layoutPreference.js';
+import { QUEUE_ORIGIN, queueContext, useLoadedRows, useRestoredListState } from '../../../views/workListContext.js';
+import { startWorkContext } from '../../../data/workContext.js';
 
 /**
  * Work Queues V2 — the operational lists, one bucket at a time.
@@ -35,7 +40,6 @@ const UNAVAILABLE_REASON: Readonly<Partial<Record<OperationalBucket, string>>> =
   AssignmentRequiresAttention: 'Assignment problems are not recorded on the work itself yet, so they cannot be listed here.',
 };
 
-type Layout = 'split' | 'grid';
 const LAYOUT_KEY = 'dcp.v2.queueLayout';
 
 export function V2QueuePage({ request, fixedBucket, intro }: {
@@ -48,9 +52,16 @@ export function V2QueuePage({ request, fixedBucket, intro }: {
   const { adapter, context } = useCrmSession();
   const buckets = useBucketCounts(QUEUE_BUCKETS);
   const bucket = fixedBucket ?? pickBucket(request.recordId);
-  const [search, setSearch] = useState('');
+  const restored = useRestoredListState(QUEUE_ORIGIN);
+  const [search, setSearch] = useState(restored['search'] ?? '');
+  const rows = useLoadedRows<WorkItem>();
+  const openWork = (item: WorkItem) => {
+    const scope = { bucket, ...(context.userId ? { currentUserId: context.userId } : {}), returnHash: window.location.hash || `#queues/${bucket}`, search };
+    startWorkContext(queueContext(rows.current(), item, scope));
+    request.onOpenCase(item.caseId);
+  };
   const query = useDebounced(search.trim(), 300);
-  const [layout, setLayout] = useState<Layout>(() => readLayout());
+  const [layout, setLayout] = useState<ListLayout>(() => readLayout(LAYOUT_KEY));
   const [selected, setSelected] = useState<WorkItem | undefined>(undefined);
   const [typeIds, setTypeIds] = useState<TypeIds | null>(null);
 
@@ -71,7 +82,7 @@ export function V2QueuePage({ request, fixedBucket, intro }: {
     ...(query ? { search: query } : {}),
   }), [bucket, context.userId, query]);
 
-  const chooseLayout = (next: Layout) => { setLayout(next); writeLayout(next); };
+  const chooseLayout = (next: ListLayout) => { setLayout(next); writeLayout(LAYOUT_KEY, next); };
   const reason = UNAVAILABLE_REASON[bucket];
 
   return (
@@ -98,6 +109,12 @@ export function V2QueuePage({ request, fixedBucket, intro }: {
               className="v2-input" type="search" value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Search this list" aria-label="Search this list" data-testid="v2-queue-search"
             />
+            {!fixedBucket && (
+              // Promises are not an activity bucket, so they are a list of their own, reached from here.
+              <button type="button" className="v2-btn" onClick={() => go('ptp')} data-testid="v2-queue-open-ptp">
+                Promise to Pay
+              </button>
+            )}
             <div className="v2-segmented" role="group" aria-label="Layout">
               {(['split', 'grid'] as const).map(option => (
                 <button key={option} type="button" className="v2-segment" aria-pressed={layout === option} onClick={() => chooseLayout(option)} data-testid={`v2-layout-${option}`}>
@@ -114,7 +131,7 @@ export function V2QueuePage({ request, fixedBucket, intro }: {
         {!reason && fetchPage && layout === 'grid' && (
           <V2DataGrid<WorkItem, typeof listQuery>
             columns={GRID_COLUMNS} fetchPage={fetchPage as never} query={listQuery} rowKey={item => item.id}
-            onRowOpen={item => request.onOpenCase(item.caseId)} rowLabel={item => `Open case ${item.caseNumber ?? ''} for ${item.title}`}
+            onRowOpen={openWork} onRows={rows.onRows} rowLabel={item => `Open case ${item.caseNumber ?? ''} for ${item.title}`}
             isFiltered={Boolean(query)} emptyTitle="Nothing in this queue right now." testId="v2-queue-grid"
           />
         )}
@@ -123,12 +140,12 @@ export function V2QueuePage({ request, fixedBucket, intro }: {
             <div className="v2-split-list">
               <V2DataGrid<WorkItem, typeof listQuery>
                 columns={SPLIT_COLUMNS} fetchPage={fetchPage as never} query={listQuery} rowKey={item => item.id}
-                onRowOpen={setSelected} selectedKey={selected?.id ?? ''}
+                onRowOpen={setSelected} selectedKey={selected?.id ?? ''} onSelectFirst={setSelected} onRows={rows.onRows}
                 rowLabel={item => `Preview ${item.title}`}
-                isFiltered={Boolean(query)} emptyTitle="Nothing in this queue right now." height={560} testId="v2-queue-list"
+                isFiltered={Boolean(query)} emptyTitle="Nothing in this queue right now." height={560} testId="v2-queue-list" fitsWidth
               />
             </div>
-            <QueuePreview item={selected} onOpen={id => request.onOpenCase(id)} />
+            <QueuePreview item={selected} onOpen={() => { if (selected) openWork(selected); }} />
           </div>
         )}
       </Card>
@@ -148,7 +165,7 @@ const GRID_COLUMNS: readonly V2Column<WorkItem>[] = [
   { key: 'case', header: 'Case', width: '150px', render: item => item.caseNumber ?? '—' },
   { key: 'customer', header: 'Customer', width: '170px', render: item => item.customerName ?? '—' },
   { key: 'recorded', header: 'Recorded', width: '140px', render: recorded },
-  { key: 'owner', header: 'With', width: '150px', render: item => item.ownerName ?? 'Nobody yet' },
+  { key: 'owner', header: 'With', width: '150px', render: item => <OwnerLabel ownerId={item.ownerId} ownerName={item.ownerName} /> },
   { key: 'state', header: 'State', width: '170px', render: item => item.domainState ?? '—' },
 ];
 
@@ -184,10 +201,10 @@ function QueuePreview({ item, onOpen }: { item?: WorkItem | undefined; onOpen: (
           <KeyValueList items={[
             { label: 'DPD', value: formatCount(record.detail.dpd) },
             { label: 'Arrears', value: formatMoney(record.detail.totalArrears) },
-            { label: 'With', value: item.ownerName ?? 'Nobody yet' },
+            { label: 'With', value: <OwnerLabel ownerId={item.ownerId} ownerName={item.ownerName} /> },
             { label: 'State', value: item.domainState ?? '—' },
           ]} />
-          <p className="v2-toolbar-note">Stored MIS position — not a live MIS read.</p>
+          <BalancesAsOf asOf={record.detail.misAsOfDate} className="v2-toolbar-note" />
         </>
       )}
       {(record.status === 'error' || record.status === 'missing') && <p className="v2-muted">The case could not be read.</p>}
@@ -196,10 +213,3 @@ function QueuePreview({ item, onOpen }: { item?: WorkItem | undefined; onOpen: (
   );
 }
 
-function readLayout(): Layout {
-  try { return window.localStorage.getItem(LAYOUT_KEY) === 'grid' ? 'grid' : 'split'; } catch { return 'split'; }
-}
-
-function writeLayout(layout: Layout): void {
-  try { window.localStorage.setItem(LAYOUT_KEY, layout); } catch { /* a per-browser convenience; the default returns */ }
-}

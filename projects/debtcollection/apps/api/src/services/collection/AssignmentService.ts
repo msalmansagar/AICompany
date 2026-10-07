@@ -19,7 +19,7 @@ const SOURCE = buildLogSource('AssignmentService');
 const ASSIGNMENT_COLUMNS = [
   ASSIGNMENT.id, ASSIGNMENT.name, ASSIGNMENT.method, ASSIGNMENT.priority, ASSIGNMENT.isActive,
   ASSIGNMENT.effectiveFrom, ASSIGNMENT.effectiveTo, ASSIGNMENT.customerType, ASSIGNMENT.productType,
-  ASSIGNMENT.region, ASSIGNMENT.riskLevel, ASSIGNMENT.legalStatus, ASSIGNMENT.slaHours,
+  ASSIGNMENT.region, ASSIGNMENT.legalStatus, ASSIGNMENT.slaHours,
   ASSIGNMENT.smartAssignmentRef,
 ];
 
@@ -120,7 +120,6 @@ function toConfiguration(row: CrmRecord): AssignmentConfiguration {
     ...optional('customerType', labelOf(CUSTOMER_TYPE_VALUES, row[ASSIGNMENT.customerType])),
     ...optional('productType', asString(row[ASSIGNMENT.productType])),
     ...optional('region', asString(row[ASSIGNMENT.region])),
-    ...optional('riskLevel', asString(row[ASSIGNMENT.riskLevel])),
     ...optional('legalStatus', asString(row[ASSIGNMENT.legalStatus])),
     ...optional('slaHours', asNumber(row[ASSIGNMENT.slaHours])),
     ...optional('smartAssignmentRef', asString(row[ASSIGNMENT.smartAssignmentRef])),

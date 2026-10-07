@@ -3,7 +3,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { V2Workspace } from '../v2/V2Workspace.js';
 import { WorkspaceVersionRoot } from '../v2/version/WorkspaceVersionRoot.js';
-import { navigationFor } from '../v2/shell/v2Navigation.js';
+import { navigationFor } from '../shell/navigation.js';
 import { CrmSessionProvider, OrgProvider, RoleProvider } from '../shell/context.js';
 import type { RoleKey } from '../shell/routes.js';
 
@@ -47,25 +47,22 @@ afterEach(() => {
 const itemIds = (role: RoleKey) => navigationFor(role).flatMap(group => group.items.map(item => item.id));
 
 describe('navigation', () => {
-  it('offers an officer only built or parked routes they may see', () => {
-    expect(itemIds('officer')).toEqual([
-      'myday', 'queues', 'cases', 'customer', 'ptp', 'comms',
-      'disputes', 'legal', 'claims', 'restructure', 'actionplan', 'buckets', 'dashboards', 'audit',
-    ]);
+  it('offers an officer the business areas of their day, in the canonical order', () => {
+    expect(itemIds('officer')).toEqual(['myday', 'queues', 'cases', 'customer', 'dashboards']);
   });
 
-  it('adds the manager-only routes for a manager', () => {
-    expect(itemIds('manager')).toEqual(expect.arrayContaining(['rules', 'intake', 'admin']));
+  it('adds oversight, control and the manager tools for a manager', () => {
+    expect(itemIds('manager')).toEqual(expect.arrayContaining(['buckets', 'dashboards', 'approvals', 'audit', 'rules', 'intake', 'admin']));
   });
 
-  it.each(['templates', 'mis', 'approvals', 'case'])('does not advertise %s', id => {
+  it.each(['templates', 'mis', 'case', 'restructure'])('does not advertise %s', id => {
     expect(itemIds('manager')).not.toContain(id);
   });
 
-  it('marks restructuring as parked', () => {
-    renderV2();
+  it('draws no parked or phase badge', () => {
+    renderV2('manager');
 
-    expect(screen.getByTestId('v2-nav-restructure').textContent).toContain('Parked');
+    expect(screen.getByRole('navigation', { name: 'Workspace' }).textContent).not.toMatch(/\bP\d+\b|Parked/);
   });
 
   it('marks the current route', () => {
@@ -84,9 +81,9 @@ describe('navigation', () => {
   it('navigates through the shared router', async () => {
     renderV2();
 
-    await userEvent.click(screen.getByTestId('v2-nav-ptp'));
+    await userEvent.click(screen.getByTestId('v2-nav-customer'));
 
-    expect(window.location.hash).toBe('#ptp');
+    expect(window.location.hash).toBe('#customer');
   });
 });
 
@@ -117,6 +114,13 @@ describe('the header', () => {
 });
 
 describe('the rail', () => {
+  it('is collapsed from the header, not from an entry at the bottom of the rail', () => {
+    renderV2();
+
+    const nav = screen.getByRole('navigation', { name: 'Workspace' });
+    expect([within(nav).queryByText('Collapse'), screen.getByTestId('v2-nav-toggle').closest('header') !== null]).toEqual([null, true]);
+  });
+
   it('collapses and remembers it', async () => {
     renderV2();
 

@@ -23,6 +23,12 @@ export interface CrmSession {
    * and the reporting screens saying the service is unavailable, never a blank or a zero.
    */
   reporting?: IReportingService;
+  /**
+   * A bearer token for the Integration Service, as the signed-in user. Absent until QDB settles how
+   * the browser signs in to it (AD FS on-prem, Entra in the cloud); screens that need the service
+   * then say so instead of failing.
+   */
+  integrationServiceToken?: () => Promise<string>;
 }
 
 const CrmSessionContext = createContext<CrmSession | null>(null);

@@ -6,25 +6,36 @@ import {
 import { createFollowUpQuery, type FollowUpQuery, type FollowUpWindow } from '../data/followUpQueries.js';
 import type { ActivityRow } from '../data/caseQueries.js';
 import { formatCountResult, useCounts, type CountRequest } from '../data/counts.js';
-import { loadOpenArrears, myDayCountRequests } from '../data/myDayOversight.js';
+import { casesTileFor, loadOpenArrears, myDayCountRequests, seesIdentityExceptions } from '../data/myDayOversight.js';
+import { describeRecorder, useApplicationUsers } from '../data/applicationUsers.js';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import type { ReportingScope } from '@dcp/domain';
 import { encodeScope, hasScope } from '../data/caseListScopeUrl.js';
 import { ORG_CODES } from '../data/schema.js';
 import { MyWorkView } from './MyWorkView.js';
 import {
-  BucketBar, BucketPill, Card, EmptyState, InfoBanner, KpiRow, OrgBadge, PendingPhaseNotice, StatusPill,
+  BucketBar, BucketPill, Card, EmptyState, Icon, InfoBanner, KpiRow, OrgBadge, PendingPhaseNotice, StatusPill,
   formatCount, formatDate, formatMoney,
 } from '../components/primitives.js';
-import { useCrmSession, useOrg } from '../shell/context.js';
+import { useCrmSession, useOrg, useRole } from '../shell/context.js';
+import { CustomerLink, navigateTo } from '../shell/RecordLinks.js';
+import { CompleteFollowUpButton, useFollowUpCompletion } from './FollowUpCompletion.js';
+import { CASES_ORIGIN, casesContext, followUpContext, restoredWindow, useLoadedRows, useRestoredListState } from './workListContext.js';
+import { SEARCH_HANDED_OVER, startWorkContext, takeHandedOverSearch } from '../data/workContext.js';
+import { financialUnitTerms } from '../data/financialUnit.js';
 import type { ViewDefinition } from '../shell/routes.js';
+import { ListToolbar, SplitLayout, useListLayout } from '../components/listLayout.js';
+import { AuditEntryPreview, CasePreview } from './previews.js';
+import { CaseCommandDialogs, type CaseCommandDialog } from './CaseCommandDialogs.js';
+import { Dialog } from '../components/forms.js';
 
 /**
  * The workspace's views.
  *
  * Every list here is the same `DataGrid`, which is the point: paging, virtualization, duplicate
  * suppression and stale-response handling are solved once. A view decides what its columns are and
- * what its filters mean, and nothing else.
+ * what its filters mean, and nothing else. Each list offers the two layouts Workspace V2 offers —
+ * **Split**, rows beside a preview of the chosen one, and **Grid**, where a row opens its record.
  */
 
 // ── Collection Cases — the flagship list ─────────────────────────────────────
@@ -32,13 +43,34 @@ import type { ViewDefinition } from '../shell/routes.js';
 const CASE_COLUMNS: readonly DataGridColumn<CaseRow>[] = [
   { key: 'case', header: 'Case', width: '160px', render: r => <span className="row-lead"><BucketBar bucket={r.bucket} />{r.caseNumber}</span> },
   { key: 'org', header: 'CRM', width: '70px', render: r => <OrgBadge org={r.organization} /> },
-  { key: 'customer', header: 'Customer', width: '150px', render: r => r.customerBusinessId },
-  { key: 'facility', header: 'Facility', width: '140px', render: r => r.facilityNumber },
+  { key: 'customer', header: 'Customer', width: '150px', render: r => <CustomerLink customerBusinessId={r.customerBusinessId}>{r.customerBusinessId}</CustomerLink> },
+  // One list holds HL and BFD rows: the header names both units, each row says which it is.
+  { key: 'facility', header: 'Loan Account / Facility', width: '170px', render: r => <span title={financialUnitTerms(r.sourceSystem).noun}>{r.facilityNumber}</span> },
   { key: 'bucket', header: 'Bucket', width: '110px', render: r => <BucketPill bucket={r.bucket} /> },
   { key: 'dpd', header: 'DPD', width: '70px', render: r => formatCount(r.dpd) },
   { key: 'arrears', header: 'Overdue', width: '130px', render: r => formatMoney(r.totalArrears) },
   { key: 'status', header: 'Status', width: '150px', render: r => <StatusPill status={r.status} /> },
 ];
+
+/** The Split list: who and which case on two lines, and the amount at stake. */
+const CASE_SPLIT_COLUMNS: readonly DataGridColumn<CaseRow>[] = [
+  {
+    key: 'case', header: 'Case', render: r => (
+      <span className="row-lead">
+        <BucketBar bucket={r.bucket} />
+        <span className="two-line">
+          <span className="two-line-main">
+            <CustomerLink customerBusinessId={r.customerBusinessId}>{r.customerName ?? r.customerBusinessId}</CustomerLink>
+          </span>
+          <span className="two-line-sub">{r.caseNumber} · {r.organization} · {formatCount(r.dpd)} DPD</span>
+        </span>
+      </span>
+    ),
+  },
+  { key: 'arrears', header: 'Overdue', width: '120px', numeric: true, render: r => formatMoney(r.totalArrears) },
+];
+
+const CASES_LAYOUT_KEY = 'dcp.v1.casesLayout';
 
 /**
  * A reporting scope that arrived in the URL — from a dashboard card — becomes the list's own
@@ -50,8 +82,23 @@ export function CasesView({ onOpenCase, scope = {} }: { onOpenCase?: (id: string
   const { scopeFilter } = useOrg();
   const [bucket, setBucket] = useState(scope.bucket ?? '');
   const [status, setStatus] = useState(scope.caseStatus ?? '');
-  const [search, setSearch] = useState('');
+  const restored = useRestoredListState(CASES_ORIGIN);
+  const [search, setSearch] = useState(() => takeHandedOverSearch() || (restored['search'] ?? ''));
+  useHandedOverSearch(setSearch);
+  const [layout, chooseLayout] = useListLayout(CASES_LAYOUT_KEY);
+  const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
+  const [dialog, setDialog] = useState<CaseCommandDialog>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const scopeId = encodeScope(scope);
+  const rows = useLoadedRows<CaseRow>();
+  const openCase = (id: string) => {
+    if (!onOpenCase) return;
+    const loaded = rows.current();
+    const opened = loaded.items.find(row => row.id === id);
+    const term = search.trim();
+    if (opened) startWorkContext(casesContext(loaded, opened, { search: term, returnHash: window.location.hash || '#cases', listState: { search: term } }));
+    onOpenCase(id);
+  };
 
   useEffect(() => {
     setBucket(scope.bucket ?? '');
@@ -76,6 +123,8 @@ export function CasesView({ onOpenCase, scope = {} }: { onOpenCase?: (id: string
     openOnly: true,
     sort: [{ field: 'qdb_currentdpd', descending: true }],
   }), [effectiveScopeFilter, bucket, status, search, scope.strategy, scope.owner]);
+  // A new question is a new list, so the preview follows it rather than showing a row it no longer holds.
+  useEffect(() => { setSelectedId(undefined); }, [query]);
 
   return (
     <>
@@ -94,7 +143,7 @@ export function CasesView({ onOpenCase, scope = {} }: { onOpenCase?: (id: string
         </div>
       )}
 
-      <div className="action-row" data-testid="case-filters">
+      <ListToolbar layout={layout} onChangeLayout={chooseLayout} testId="case-filters">
         <label>
           Bucket
           <select className="fluent-select" value={bucket} onChange={e => setBucket(e.target.value)} data-testid="filter-bucket">
@@ -116,20 +165,67 @@ export function CasesView({ onOpenCase, scope = {} }: { onOpenCase?: (id: string
             data-testid="filter-search" onChange={e => setSearch(e.target.value)}
           />
         </label>
-      </div>
+      </ListToolbar>
 
-      <DataGrid<CaseRow, CaseQuery>
-        columns={CASE_COLUMNS}
-        fetchPage={fetchPage}
-        query={query}
-        rowKey={row => row.id}
-        pageSize={50}
-        emptyMessage="No open cases match these filters."
-        {...(onOpenCase ? { onRowClick: (row: CaseRow) => onOpenCase(row.id) } : {})}
-        data-testid="cases-grid"
+      {layout === 'grid' && (
+        <DataGrid<CaseRow, CaseQuery>
+          columns={CASE_COLUMNS}
+          fetchPage={fetchPage}
+          query={query}
+          rowKey={row => row.id}
+          pageSize={50}
+          emptyMessage="No open cases match these filters."
+          {...(onOpenCase ? { onRowClick: (row: CaseRow) => openCase(row.id) } : {})}
+          onRows={rows.onRows}
+          data-testid="cases-grid"
+        />
+      )}
+      {layout === 'split' && (
+        <SplitLayout
+          testId="cases-split"
+          list={(
+            <DataGrid<CaseRow, CaseQuery>
+              columns={CASE_SPLIT_COLUMNS}
+              fetchPage={fetchPage}
+              query={query}
+              rowKey={row => row.id}
+              pageSize={50}
+              rowHeight={58}
+              height={600}
+              selectedKey={selectedId}
+              activation="row"
+              onRowClick={row => setSelectedId(row.id)}
+              onSelectFirst={row => setSelectedId(row.id)}
+              onRows={rows.onRows}
+              emptyMessage="No open cases match these filters."
+              data-testid="cases-list"
+            />
+          )}
+          preview={(
+            <CasePreview
+              caseId={selectedId} reloadKey={reloadKey}
+              onOpen={openCase}
+              onLogAction={() => setDialog('activity')}
+              onCapturePromise={() => setDialog('promise')}
+            />
+          )}
+        />
+      )}
+      <CaseCommandDialogs
+        caseId={selectedId} dialog={dialog} onClose={() => setDialog(null)}
+        onSaved={() => { setDialog(null); setReloadKey(key => key + 1); }}
       />
     </>
   );
+}
+
+/** A header search made while this list is already open (the route does not change). */
+function useHandedOverSearch(setSearch: (term: string) => void): void {
+  useEffect(() => {
+    const take = () => { const term = takeHandedOverSearch(); if (term) setSearch(term); };
+    window.addEventListener(SEARCH_HANDED_OVER, take);
+    return () => window.removeEventListener(SEARCH_HANDED_OVER, take);
+  }, [setSearch]);
 }
 
 /** A source system named by the scope narrows the list even when the header picker says both. */
@@ -143,13 +239,30 @@ function scopeFilterFor(sourceSystem: ReportingScope['sourceSystem'], pickerFilt
 const AUDIT_COLUMNS: readonly DataGridColumn<AuditRow>[] = [
   { key: 'when', header: 'When', width: '170px', render: r => formatDate(r.createdOn) },
   { key: 'source', header: 'Source', width: '220px', render: r => r.source ?? '—' },
-  { key: 'subject', header: 'Entry', render: r => r.subject ?? '—' },
+  { key: 'subject', header: 'Entry', isLink: true, render: r => r.subject ?? '—' },
   { key: 'exception', header: '', width: '40px', render: r => (r.isException ? '!' : '') },
 ];
+
+/** The Split list: the entry on two lines, and when it was written. */
+const AUDIT_SPLIT_COLUMNS: readonly DataGridColumn<AuditRow>[] = [
+  {
+    key: 'entry', header: 'Entry', render: r => (
+      <span className="two-line">
+        <span className="two-line-main">{r.isException ? '! ' : ''}{r.subject ?? '—'}</span>
+        <span className="two-line-sub">{r.source ?? '—'}</span>
+      </span>
+    ),
+  },
+  { key: 'when', header: 'When', width: '110px', render: r => formatDate(r.createdOn) },
+];
+
+const AUDIT_LAYOUT_KEY = 'dcp.v1.auditLayout';
 
 export function AuditView() {
   const { adapter } = useCrmSession();
   const [search, setSearch] = useState('');
+  const [layout, chooseLayout] = useListLayout(AUDIT_LAYOUT_KEY);
+  const [selected, setSelected] = useState<AuditRow | undefined>(undefined);
   const fetchPage = useMemo(() => createAuditQuery(adapter), [adapter]);
   const query = useMemo<AuditQuery>(() => (search ? { search } : {}), [search]);
 
@@ -158,7 +271,7 @@ export function AuditView() {
       title="Audit trail"
       subtitle="Append-only technical and integration evidence. The largest table in the organisation, and never loaded whole."
     >
-      <div className="action-row">
+      <ListToolbar layout={layout} onChangeLayout={chooseLayout} testId="audit-filters">
         <label>
           Source
           <input
@@ -166,16 +279,50 @@ export function AuditView() {
             data-testid="audit-search" onChange={e => setSearch(e.target.value)}
           />
         </label>
-      </div>
-      <DataGrid<AuditRow, AuditQuery>
-        columns={AUDIT_COLUMNS}
-        fetchPage={fetchPage}
-        query={query}
-        rowKey={row => row.id}
-        pageSize={100}
-        emptyMessage="No log entries match."
-        data-testid="audit-grid"
-      />
+      </ListToolbar>
+      {layout === 'grid' && (
+        <DataGrid<AuditRow, AuditQuery>
+          columns={AUDIT_COLUMNS}
+          fetchPage={fetchPage}
+          query={query}
+          rowKey={row => row.id}
+          pageSize={100}
+          selectedKey={selected?.id}
+          onRowClick={setSelected}
+          emptyMessage="No log entries match."
+          data-testid="audit-grid"
+        />
+      )}
+      {layout === 'split' && (
+        <SplitLayout
+          testId="audit-split"
+          list={(
+            <DataGrid<AuditRow, AuditQuery>
+              columns={AUDIT_SPLIT_COLUMNS}
+              fetchPage={fetchPage}
+              query={query}
+              rowKey={row => row.id}
+              pageSize={100}
+              rowHeight={58}
+              height={600}
+              selectedKey={selected?.id}
+              activation="row"
+              onRowClick={setSelected}
+              onSelectFirst={setSelected}
+              emptyMessage="No log entries match."
+              data-testid="audit-list"
+            />
+          )}
+          preview={<AuditEntryPreview entry={selected} />}
+        />
+      )}
+      {layout === 'grid' && selected && (
+        <Dialog title={selected.subject ?? 'Log entry'} onClose={() => setSelected(undefined)} testId="audit-entry" footer={
+          <button type="button" className="btn" onClick={() => setSelected(undefined)}>Close</button>
+        }>
+          <AuditEntryPreview entry={selected} testId="audit-entry-detail" />
+        </Dialog>
+      )}
     </Card>
   );
 }
@@ -193,6 +340,8 @@ export function MyDayView({ onOpenCase }: { onOpenCase?: (id: string) => void })
     [scopeFilter, context.userId, now]);
   const counts = useCounts(adapter, requests);
   const arrears = useOpenArrears(adapter, scopeFilter);
+  const { role } = useRole();
+  const casesTile = casesTileFor(role);
 
   return (
     <>
@@ -205,14 +354,17 @@ export function MyDayView({ onOpenCase }: { onOpenCase?: (id: string) => void })
         semantics are on the tile: what "overdue", "due" and "my" mean here is stated, not assumed.
       */}
       <KpiRow items={[
-        { label: 'Open cases', value: formatCountResult(counts['open']), hint: 'In the selected CRM scope' },
-        { label: 'Current arrears', value: arrears.status === 'ready' ? formatMoney(arrears.value) : '—', hint: arrears.status === 'unknown' ? 'The platform could not sum the portfolio' : 'Stored MIS position over open cases' },
+        { label: casesTile.label, value: formatCountResult(counts[casesTile.key]), hint: casesTile.hint },
+        { label: 'Current arrears', value: arrears.status === 'ready' ? formatMoney(arrears.value) : '—', hint: arrears.status === 'unknown' ? 'The platform could not sum the portfolio' : 'Latest MIS balances, open cases' },
         { label: 'My open work', value: formatCountResult(counts['myOpenWork']), hint: 'Open activities owned by you' },
         { label: 'Follow-ups overdue', value: formatCountResult(counts['followUpsOverdue']), tone: 'warn', hint: 'Follow-up date before now' },
         { label: 'Follow-ups upcoming', value: formatCountResult(counts['followUpsUpcoming']), hint: 'Follow-up date from now on' },
-        { label: `Promises due, ${PROMISE_HORIZON_DAYS} days`, value: formatCountResult(counts['promisesDue']), hint: 'Recorded status Active; not a verified payment' },
+        { label: `Promises due, ${PROMISE_HORIZON_DAYS} days`, value: formatCountResult(counts['promisesDue']), hint: 'Promised for today onward' },
+        { label: 'Broken promises', value: formatCountResult(counts['brokenPromises']), tone: 'warn', hint: 'Recorded as broken' },
         { label: 'Awaiting assignment', value: formatCountResult(counts['awaitingAssignment']), hint: 'Open activities with no owner' },
-        { label: 'Identity exceptions', value: formatCountResult(counts['identityExceptions']), tone: 'warn', hint: 'Open, both CRMs' },
+        ...(seesIdentityExceptions(role)
+          ? [{ label: 'Identity exceptions', value: formatCountResult(counts['identityExceptions']), tone: 'warn' as const, hint: 'Open, both CRMs' }]
+          : []),
       ]} />
       <FollowUpsPanel {...(onOpenCase ? { onOpenCase } : {})} />
       <Card
@@ -227,14 +379,18 @@ export function MyDayView({ onOpenCase }: { onOpenCase?: (id: string) => void })
 
 // ── Follow-ups ───────────────────────────────────────────────────────────────
 
-const FOLLOW_UP_COLUMNS: readonly DataGridColumn<ActivityRow>[] = [
-  { key: 'due', header: 'Follow-up', width: '110px', render: r => formatDate(r.followUpDate) },
-  { key: 'case', header: 'Case', width: '160px', render: r => r.caseNumber ?? '—' },
-  { key: 'type', header: 'Type', width: '140px', render: r => r.activityType ?? '—' },
-  { key: 'subject', header: 'Subject', render: r => r.subject },
-  { key: 'owner', header: 'Owner', width: '150px', render: r => r.ownerName ?? '—' },
-  { key: 'status', header: 'Status', width: '120px', render: r => <StatusPill status={r.status} /> },
-];
+/** The follow-up columns; an integration-owned activity is shown as "System", never by its technical name. */
+function followUpColumns(applicationUsers: ReadonlySet<string>, onComplete: (row: ActivityRow) => void): readonly DataGridColumn<ActivityRow>[] {
+  return [
+    { key: 'due', header: 'Follow-up', width: '110px', render: r => formatDate(r.followUpDate) },
+    { key: 'case', header: 'Case', width: '160px', isLink: true, render: r => r.caseNumber ?? '—' },
+    { key: 'type', header: 'Type', width: '140px', render: r => r.activityType ?? '—' },
+    { key: 'subject', header: 'Subject', render: r => r.subject },
+    { key: 'owner', header: 'Owner', width: '150px', render: r => describeRecorder(r, applicationUsers) },
+    { key: 'status', header: 'Status', width: '120px', render: r => <StatusPill status={r.status} /> },
+    { key: 'complete', header: '', width: '100px', render: r => <CompleteFollowUpButton row={r} onComplete={onComplete} /> },
+  ];
+}
 
 /** The windows an officer works in. `all` is offered so nothing is hidden by a default. */
 const FOLLOW_UP_WINDOWS: readonly { id: FollowUpWindow; label: string }[] = [
@@ -255,7 +411,7 @@ const FOLLOW_UP_WINDOWS: readonly { id: FollowUpWindow; label: string }[] = [
  * `now` is pinned for the life of the panel rather than re-read on each render, so scrolling the
  * list does not silently move the boundary underneath it and drop a row between two pages.
  *
- * Opening a row goes to its case, where the Actions tab completes or updates the activity. There is
+ * Opening a row goes to its case, where the Action Plan completes or updates the activity. There is
  * no separate follow-up entity: a follow-up is a date on the activity that created it, which is what
  * makes "complete the activity" and "clear the follow-up" the same act.
  */
@@ -263,17 +419,27 @@ function FollowUpsPanel({ onOpenCase }: { onOpenCase?: (id: string) => void }) {
   const { adapter } = useCrmSession();
   const { scopeFilter } = useOrg();
   const fetchPage = useMemo(() => createFollowUpQuery(adapter), [adapter]);
-  const [window, setWindow] = useState<FollowUpWindow>('overdue');
+  const [window, setWindow] = useState<FollowUpWindow>(() => restoredWindow());
   const [now] = useState(() => new Date());
 
+  const completion = useFollowUpCompletion();
+  const rows = useLoadedRows<ActivityRow>();
+  const openRow = (row: ActivityRow) => {
+    if (!row.caseId || !onOpenCase) return;
+    startWorkContext(followUpContext(rows.current(), row, window));
+    onOpenCase(row.caseId);
+  };
+  // The reload key is part of the question, so a completion re-reads the list from its first page.
   const query = useMemo<FollowUpQuery>(() => ({
-    window, now, ...(scopeFilter ? { scopeFilter } : {}),
-  }), [window, now, scopeFilter]);
+    window, now, ...(scopeFilter ? { scopeFilter } : {}), reloadKey: completion.reloadKey,
+  }), [window, now, scopeFilter, completion.reloadKey]);
+  const applicationUsers = useApplicationUsers(adapter);
+  const columns = useMemo(() => followUpColumns(applicationUsers, completion.open), [applicationUsers, completion.open]);
 
   return (
     <Card
       title="Follow-ups"
-      subtitle="Activities an officer has committed to return to. Completing the activity clears its follow-up."
+      subtitle="Activities an officer has committed to return to. Complete one here, or open its case."
       actions={
         <div className="chips" data-testid="followup-windows">
           {FOLLOW_UP_WINDOWS.map(option => (
@@ -291,11 +457,10 @@ function FollowUpsPanel({ onOpenCase }: { onOpenCase?: (id: string) => void }) {
       }
     >
       <DataGrid<ActivityRow, FollowUpQuery>
-        columns={FOLLOW_UP_COLUMNS} fetchPage={fetchPage} query={query}
+        columns={columns} fetchPage={fetchPage} query={query}
         rowKey={row => row.id} pageSize={50} height={320}
-        {...(onOpenCase
-          ? { onRowClick: (row: ActivityRow) => { if (row.caseId) onOpenCase(row.caseId); } }
-          : {})}
+        {...(onOpenCase ? { onRowClick: openRow } : {})}
+        onRows={rows.onRows}
         emptyMessage={
           window === 'overdue'
             ? 'Nothing is overdue. Follow-ups appear here once their date has passed.'
@@ -303,6 +468,8 @@ function FollowUpsPanel({ onOpenCase }: { onOpenCase?: (id: string) => void }) {
         }
         data-testid="myday-followups"
       />
+      {completion.notice && <p className="cw-notice" role="status" data-testid="followup-notice">{completion.notice}</p>}
+      {completion.pane}
     </Card>
   );
 }
@@ -341,6 +508,12 @@ export function QueuesView({ onOpenCase }: { onOpenCase?: (id: string) => void }
         * asks for, and the shell guard was right to insist.
         */}
       <MyWorkView {...(onOpenCase ? { onOpenCase } : {})} />
+      {/* Promises are not an activity bucket, so they are a list of their own, reached from here. */}
+      <div className="queue-related">
+        <button type="button" className="btn" onClick={() => navigateTo('ptp')} data-testid="queue-open-ptp">
+          <Icon name="promise" /> Promise to Pay
+        </button>
+      </div>
       <Card title="Queue contents" subtitle="All open cases across both organisations.">
         <CasesView {...(onOpenCase ? { onOpenCase } : {})} />
       </Card>
@@ -365,7 +538,7 @@ export function PendingView({ view }: { view: ViewDefinition }) {
           icon={view.icon}
           message={view.isParked
             ? `${view.label} is parked by QDB. The screen is preserved here so the approved workspace is complete; nothing further arrives until QDB resumes it.`
-            : `${view.label} is part of Phase ${view.phase}. The screen is preserved here so the approved workspace is complete; its behaviour arrives with that phase.`}
+            : `${view.label} is not available yet. The screen is kept here so the workspace is complete.`}
         />
       </Card>
     </div>

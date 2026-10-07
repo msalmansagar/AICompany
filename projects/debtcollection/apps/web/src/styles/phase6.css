@@ -33,10 +33,11 @@
    (KI-53). So a recorded outcome carries this alongside its status pill, in the muted secondary
    colour rather than a success colour. */
 .unverified {
-  font-size: 11px;
+  font-size: 10.5px;
   color: var(--text-secondary);
-  font-style: italic;
+  letter-spacing: .2px;
   white-space: nowrap;
+  cursor: help;
 }
 
 /* Configuration the outcome drives, shown on the completion form so an officer can see *why* a note

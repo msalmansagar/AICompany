@@ -1,0 +1,46 @@
+{
+  "verifiedAt": "2026-10-04T14:04:39.350Z",
+  "boundTo": "qdb_dcp_approval_status",
+  "beforeCount": 4,
+  "afterCount": 4,
+  "changed": [],
+  "unexpected": [],
+  "after": [
+    {
+      "table": "qdb_communicationtemplate",
+      "entitySet": "qdb_communicationtemplates",
+      "id": "fd7d398c-d5b4-f111-aaac-000d3abd8313",
+      "businessId": "P7-SMS-OVERDUE-EN",
+      "name": "P7 synthetic — overdue reminder (English)",
+      "column": "qdb_approvalstatus",
+      "value": 1
+    },
+    {
+      "table": "qdb_communicationtemplate",
+      "entitySet": "qdb_communicationtemplates",
+      "id": "fe7d398c-d5b4-f111-aaac-000d3abd8313",
+      "businessId": "P7-SMS-FOLLOWUP-EN",
+      "name": "P7 synthetic — follow-up call arranged (English)",
+      "column": "qdb_approvalstatus",
+      "value": 1
+    },
+    {
+      "table": "qdb_communicationtemplate",
+      "entitySet": "qdb_communicationtemplates",
+      "id": "0f31b08f-d5b4-f111-aaac-70a8a55bc6a5",
+      "businessId": "P7-SMS-OVERDUE-AR",
+      "name": "P7 synthetic — overdue reminder (Arabic)",
+      "column": "qdb_approvalstatus",
+      "value": 1
+    },
+    {
+      "table": "qdb_communicationtemplate",
+      "entitySet": "qdb_communicationtemplates",
+      "id": "1031b08f-d5b4-f111-aaac-70a8a55bc6a5",
+      "businessId": "P7-EMAIL-OVERDUE-EN",
+      "name": "P7 synthetic — overdue notice (English)",
+      "column": "qdb_approvalstatus",
+      "value": 1
+    }
+  ]
+}

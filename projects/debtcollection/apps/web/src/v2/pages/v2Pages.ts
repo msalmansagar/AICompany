@@ -1,6 +1,5 @@
 import type { ComponentType } from 'react';
 import type { ViewRequest } from '../V2Workspace.js';
-import { V2CasePage } from './case/V2CasePage.js';
 import { V2HomePage } from './home/V2HomePage.js';
 import { V2QueuePage } from './queue/V2QueuePage.js';
 import { V2CasesPage } from './cases/V2CasesPage.js';
@@ -16,8 +15,11 @@ import { V2DeceasedPage, V2DisputesPage, V2LegalPage } from './queue/V2WorkoutQu
  */
 export type V2Page = ComponentType<{ request: ViewRequest }>;
 
+/**
+ * `case` is not here: both workspaces draw the one shared Case Workspace (WP3), V2 inside its frame.
+ * `V2CasePage` is kept, unrouted, until the shared page is accepted, then retired (WP6).
+ */
 export const V2_PAGES: Readonly<Record<string, V2Page>> = {
-  case: V2CasePage,
   myday: V2HomePage,
   queues: V2QueuePage,
   cases: V2CasesPage,

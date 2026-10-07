@@ -153,10 +153,17 @@ describe('every Phase 5 view in the route table has an implementation', () => {
   /** Controls for functionality that does not exist are not offered, even disabled. */
   it('offers no Refer to legal or Propose restructure command', async () => {
     await openView('restructure');
-    await screen.findByTestId('cmd-log-action');
+    await screen.findByTestId('cmd-refresh');
 
     expect([screen.queryByTestId('cmd-refer-to-legal'), screen.queryByTestId('cmd-propose-restructure')])
       .toEqual([null, null]);
+  });
+
+  it('keeps case commands off the global command bar — the case action bar does them in place (WP6)', async () => {
+    await openView('restructure');
+    await screen.findByTestId('cmd-refresh');
+
+    expect(['cmd-log-action', 'cmd-capture-ptp', 'cmd-send-message'].map(id => screen.queryByTestId(id))).toEqual([null, null, null]);
   });
 
   it('says restructuring is parked by QDB, not waiting on a phase', async () => {
@@ -200,13 +207,13 @@ const CASE_ROW = {
   [`_qdb_strategyid_value${FORMATTED}`]: 'Early stage',
 };
 
-describe('the Case Workspace keeps all seven approved tabs', () => {
-  const TABS = ['summary', 'actions', 'ptp', 'comms', 'documents', 'workout', 'audit'];
+describe('the Case Workspace keeps every record a case had (WP3)', () => {
+  // Summary became the working surface above the tabs; Documents was a placeholder with nothing in it.
+  const TABS = ['actions', 'ptp', 'comms', 'plan', 'workout', 'history', 'details', 'audit'];
 
   beforeEach(() => install(fakeXrm({ qdb_collectioncase: [CASE_ROW] })));
 
-  it('renders every tab from the approved design', async () => {
-    expect(TABS, 'the approved design names seven tabs').toHaveLength(7);
+  it('renders every record tab, and no others', async () => {
     await openView('case', 'c-1');
     const pivot = await screen.findByTestId('case-pivot');
     for (const tab of TABS) expect(screen.getByTestId(`case-pivot-tab-${tab}`)).toBeTruthy();
@@ -214,35 +221,31 @@ describe('the Case Workspace keeps all seven approved tabs', () => {
     expect(pivot.querySelectorAll('[role="tab"]')).toHaveLength(TABS.length);
   });
 
-  it('shows the case it was asked for', async () => {
+  it('shows the case it was asked for, with its stored details one tab away', async () => {
     await openView('case', 'c-1');
     const view = await screen.findByTestId('view-case');
-    expect(view.getAttribute('data-case-id')).toBe('c-1');
-    expect(screen.getByTestId('case-summary-fields').textContent).toContain('COL-HL-000123');
+    await userEvent.click(screen.getByTestId('case-pivot-tab-details'));
+    expect([view.getAttribute('data-case-id'), screen.getByTestId('case-summary-fields').textContent?.includes('COL-HL-000123')]).toEqual(['c-1', true]);
   });
 
-  it('says the position is stored rather than a live MIS read', async () => {
+  it('says which date the balances are from, with no MIS position bar', async () => {
     await openView('case', 'c-1');
-    const notice = await screen.findByTestId('stored-position');
-    expect(notice.textContent).toContain('not a live MIS read');
-    expect(within(notice).getByTestId('stored-asof').textContent).toContain('2026-09-17');
+    const line = await screen.findByTestId('balances-as-of');
+    expect([line.textContent, screen.queryByTestId('stored-position')]).toEqual(['Balances as of 17 Sep 2026', null]);
   });
 
-  it('names the owning phase on a tab a later phase owns', async () => {
+  it('messages the customer from the case: Communications embeds the case\'s own composer (WP2)', async () => {
     await openView('case', 'c-1');
     await screen.findByTestId('view-case');
     await userEvent.click(screen.getByTestId('case-pivot-tab-comms'));
-    const panel = await screen.findByTestId('pending-panel-7');
-    expect(panel.textContent).toContain('Phase 7');
-    expect(panel.textContent).toContain('no send is simulated');
+    expect(await screen.findByTestId('view-comms')).toBeTruthy();
+    expect(screen.queryByTestId('pending-panel-7')).toBeNull();
   });
 
-  it('shows no data on a later-phase tab', async () => {
+  it('names no internal delivery phase anywhere on the case', async () => {
     await openView('case', 'c-1');
-    await screen.findByTestId('view-case');
-    await userEvent.click(screen.getByTestId('case-pivot-tab-documents'));
-    expect(screen.queryByTestId('case-actions')).toBeNull();
-    expect((await screen.findByTestId('pending-panel-7')).textContent).toContain('none would be real');
+    const view = await screen.findByTestId('view-case');
+    expect(view.textContent).not.toMatch(/Phase \d|\bP\d\b/);
   });
 
   /**
@@ -281,40 +284,36 @@ describe('the Case Workspace keeps all seven approved tabs', () => {
 
 // ── Customer 360 ─────────────────────────────────────────────────────────────
 
-describe('Customer & Loan 360 aggregates and admits what it cannot source', () => {
+describe('Customer 360 aggregates and admits what it cannot source', () => {
   beforeEach(() => install(fakeXrm({
     qdb_collectioncase: [CASE_ROW],
     contact: [{ contactid: 'cust-1', fullname: 'A Customer', statecode: 0, telephone1: '+974 5555 0000' }],
   })));
 
-  it('shows the customer gathered from their cases', async () => {
+  it('shows the customer gathered from their cases, named from the CRM contact', async () => {
     await openView('customer', '28912345678');
     const view = await screen.findByTestId('view-customer');
     expect(view.getAttribute('data-customer-id')).toBe('28912345678');
-    expect(screen.getByTestId('customer-fields').textContent).toContain('contact');
+    expect(screen.getByTestId('c360-tags').textContent).toContain('Housing Loan · Contact');
   });
 
-  it('lists one row per facility', async () => {
+  it('lists one card per loan account, named as a loan account and not a facility', async () => {
     await openView('customer', '28912345678');
-    const table = await screen.findByTestId('customer-facilities');
-    const rows = table.querySelectorAll('tbody tr');
-    expect(rows.length, 'the facility table must have rows before its columns mean anything').toBe(1);
-    expect(rows[0]!.getAttribute('data-facility')).toBe('HL-99001');
+    const units = await screen.findAllByTestId('c360-unit');
+    expect(units).toHaveLength(1);
+    expect([units[0]!.getAttribute('data-unit'), units[0]!.getAttribute('data-kind'), /Facility/.test(units[0]!.textContent ?? '')]).toEqual(['HL-99001', 'loanAccount', false]);
   });
 
-  it('keeps collateral, guarantor and insurance as columns and marks them unsourced', async () => {
+  it('omits collateral, guarantor and insurance rather than showing placeholders for what has no source', async () => {
     await openView('customer', '28912345678');
-    const table = await screen.findByTestId('customer-facilities');
-    const headers = [...table.querySelectorAll('thead th')].map(th => th.textContent);
-    expect(headers).toContain('Collateral');
-    expect(headers).toContain('Guarantor');
-    expect(headers).toContain('Insurance');
-    expect(table.querySelectorAll('.not-sourced').length).toBe(3);
+    await screen.findByTestId('view-customer');
+    expect(screen.getByTestId('view-customer').textContent).not.toMatch(/Collateral|Guarantor|Insurance|not yet sourced/);
   });
 
-  it('offers a case list rather than a customer master when no customer is named', async () => {
+  it('lists the customers with arrears rather than a customer master when no customer is named', async () => {
     await openView('customer');
-    await waitFor(() => expect(screen.getByText(/no customer master of its own/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('view-customers')).toBeTruthy());
+    expect(screen.getByText(/no customer master of its own/i)).toBeTruthy();
   });
 });
 
@@ -363,7 +362,7 @@ describe('a KPI is a platform count or an em dash, never an invention', () => {
     const tiles = await screen.findAllByText('Current arrears');
     const tile = tiles[0]!.closest('.kpi-tile')!;
     await waitFor(() => expect(tile.querySelector('.kpi-value')!.textContent).toBe(formatMoney(CASE_ROW.qdb_currenttotalarrears + 1_000)));
-    expect(tile.textContent).toContain('Stored MIS position');
+    expect(tile.textContent).toContain('Latest MIS balances, open cases');
   });
 
   it('shows an em dash, never zero, when the platform refuses the sum', async () => {
@@ -383,7 +382,8 @@ describe('a KPI is a platform count or an em dash, never an invention', () => {
   it('states what each My Day tile counts, and claims no SLA', async () => {
     await openView('myday');
     const labels = (await screen.findAllByText(/./, { selector: '.kpi-label' })).map(el => el.textContent);
-    expect(labels).toEqual(['Open cases', 'Current arrears', 'My open work', 'Follow-ups overdue', 'Follow-ups upcoming', 'Promises due, 7 days', 'Awaiting assignment', 'Identity exceptions']);
+    // The default role is officer: their own cases, and no identity exceptions (a manager's concern).
+    expect(labels).toEqual(['My open cases', 'Current arrears', 'My open work', 'Follow-ups overdue', 'Follow-ups upcoming', 'Promises due, 7 days', 'Broken promises', 'Awaiting assignment']);
     expect(document.body.textContent).not.toMatch(/SLA breached|Overdue balance/);
   });
 

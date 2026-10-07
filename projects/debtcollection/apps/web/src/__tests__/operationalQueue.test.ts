@@ -72,17 +72,17 @@ describe('a bucket is an OData clause, never a browser-side classification', () 
     expect(bucketFilter('Escalated', { typeIds })).toContain('qdb_supervisorescalated eq true');
   });
 
-  it('narrows complaints by the authoritative link, not a label', () => {
+  it('narrows complaints by the authoritative hand-off reference, not a label', () => {
     const filter = bucketFilter('Complaints', { typeIds });
 
-    expect(filter).toContain('_qdb_complaintcaseid_value ne null');
+    expect(filter).toContain("qdb_relatedrecordtype eq 'incident'");
     expect(filter).not.toMatch(/subject|contains\(.*complaint/i);
   });
 
   it('narrows disputes to concern work with NO complaint behind it', () => {
     const filter = bucketFilter('Disputes', { typeIds });
 
-    expect(filter).toContain('_qdb_complaintcaseid_value eq null');
+    expect(filter).toContain("(qdb_relatedrecordtype eq null or qdb_relatedrecordtype ne 'incident')");
     expect(filter).toContain(CONCERN_TYPE);
   });
 
@@ -128,22 +128,21 @@ describe('buckets that cannot be served honestly are not served', () => {
 
 // ── Downstream state costs one request, not fifty ────────────────────────────
 
-describe('downstream state arrives in the same request', () => {
-  it('expands the Legal and Complaint navigation properties', async () => {
+describe('a page costs one request, and holds no copy of another module’s state', () => {
+  it('reads no other module’s record: no expansion of Legal or Case Management', async () => {
     const { adapter, requested } = adapterReturning([activity()]);
     await createWorkQueue(adapter, typeIds)({ bucket: 'Legal', pageSize: 50 });
 
     const read = requested.find(r => r.startsWith('qdb_collectionactivity'));
-    expect(read).toContain('$expand=');
-    expect(read).toContain('qdb_legalrequestid_qdb_collectionactivity');
-    expect(read).toContain('qdb_complaintcaseid_qdb_collectionactivity');
+    expect(read).not.toContain('$expand=');
+    expect(read).toContain("qdb_relatedrecordtype eq 'qdb_qdblegal'");
   });
 
   it('issues exactly one request for a whole page of rows', async () => {
     // Fifty rows that each carry a Litigation Request must not become fifty-one requests.
     const rows = Array.from({ length: 50 }, (_, index) => activity({
       activityid: `act-${index}`,
-      qdb_legalrequestid_qdb_collectionactivity: { qdb_name: 'LEG-1', statuscode: 1 },
+      qdb_relatedrecordtype: 'qdb_qdblegal',
     }));
     const { adapter, requested } = adapterReturning(rows);
 
@@ -153,15 +152,13 @@ describe('downstream state arrives in the same request', () => {
     expect(requested.filter(r => r.startsWith('qdb_'))).toHaveLength(1);
   });
 
-  it('passes the downstream status through untouched', () => {
+  it('shows an open hand-off’s own state and types it by the reference', () => {
     const item = toWorkItem(activity({
-      qdb_complaintcaseid_qdb_collectionactivity: {
-        ticketnumber: 'CAS-1', [`statuscode${FORMATTED}`]: 'Pending for Quality Review',
-      },
+      qdb_relatedrecordtype: 'incident', [`statuscode${FORMATTED}`]: 'In Progress',
     }), typeIds);
 
-    expect(item.domainState).toBe('Pending for Quality Review');
-    expect(item.type, 'the link is authoritative for the work type').toBe('CustomerComplaint');
+    expect(item.domainState).toBe('In Progress');
+    expect(item.type, 'the hand-off is authoritative for the work type').toBe('CustomerComplaint');
   });
 });
 

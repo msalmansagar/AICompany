@@ -46,6 +46,12 @@ export interface ODataError {
 export interface RequestOptions {
   /** Propagated from the incoming request for end-to-end tracing. */
   correlationId?: string;
+  /**
+   * The CRM user (systemuserid) the call is made on behalf of. Sent as `MSCRMCallerID`, which
+   * cloud and on-prem 9.x both honour, so CRM security decides what that user may read or write.
+   * The service identity must hold the delegate privilege for this to be accepted.
+   */
+  callerId?: string;
 }
 
 export interface BatchOperation {

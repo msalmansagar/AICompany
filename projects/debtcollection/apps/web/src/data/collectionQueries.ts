@@ -47,6 +47,7 @@ export interface CaseRow {
   strategyId?: string;
   strategyName?: string;
   ownerName?: string;
+  ownerId?: string;
 }
 
 export function toCaseRow(row: CrmRow): CaseRow {
@@ -78,6 +79,7 @@ export function toCaseRow(row: CrmRow): CaseRow {
     ...optional('strategyId', readText(row, '_qdb_strategyid_value')),
     ...optional('strategyName', readLookupName(row, '_qdb_strategyid_value')),
     ...optional('ownerName', readLookupName(row, '_ownerid_value')),
+    ...optional('ownerId', readText(row, '_ownerid_value')),
   };
 }
 

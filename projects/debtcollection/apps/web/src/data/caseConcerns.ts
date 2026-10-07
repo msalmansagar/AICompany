@@ -1,126 +1,127 @@
 import {
-  toComplaintRow, toDisputeRow,
-  type CaseTypeResolution, type CollectionDispute, type ConcernRow, type Page,
+  isConcernTypeCode, toComplaintRow, toDisputeRow,
+  type CollectionDispute, type ConcernRow, type ExternalProcessReference, type Page,
 } from '@dcp/domain';
 import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
 import { ACTIVITY_COLUMNS, ENTITY_SETS } from './schema.js';
 import { CASE_CARD_PAGE_SIZE, escapeOData, mapPage } from './collectionQueries.js';
 import { toActivityRow, type ActivityRow } from './caseQueries.js';
 import { loadActivityTypes } from './configurationCatalog.js';
-import { loadComplaintCase, loadComplaintCaseType } from './complaintQueries.js';
+import type { ExternalRecordSummary, ReferenceSummariser } from './externalReferenceService.js';
 
 /**
  * One case's disputes and complaints, kept apart.
  *
  * The two are different business concepts and DCP must never derive one from the other. What makes
- * that possible without guessing is the **link**: an activity that raised a formal Complaint
- * carries `qdb_complaintcaseid`, and one that did not, did not.
+ * that possible without guessing is the **hand-off**: an activity that raised a formal Complaint
+ * carries an external process reference to Case Management (record type `incident`), and one that
+ * did not, did not.
  *
- * That is worth stating plainly, because the configuration cannot answer it. Phase 6 ships a single
- * activity type labelled `Complaint / Dispute` (**KI-118**), so the type says an activity concerns
- * one of the two and cannot say which. The authoritative link does. An activity of that type with
- * no Complaint behind it is a **Collection Dispute**; one with a Complaint behind it raised a
- * **formal Customer Complaint**. Nothing parses the display name to decide.
+ * The configuration cannot answer it: Phase 6 ships a single activity type labelled
+ * `Complaint / Dispute` (**KI-118**), so the type says an activity concerns one of the two and
+ * cannot say which. An activity of that type with no hand-off is a **Collection Dispute**; one with
+ * a hand-off raised a **formal Customer Complaint** in BFD CRM's Case Management, which owns it.
  */
 
-/**
- * The code suffix that identifies the combined dispute/complaint activity type.
- *
- * The single place `P6-DISPUTE` semantics live, exactly as `isLegalRecommendationCode` is for
- * Legal. The **code** is matched, never the display name — a rename in configuration would
- * otherwise empty this screen silently, which is the KI-52 failure shape.
- *
- * This is a contained compatibility mechanism, not a pattern to spread: KI-118 records that QDB
- * still has to split the type, and when it does, only this constant changes.
- */
-const CONCERN_CODE_SUFFIX = 'DISPUTE';
-
-/**
- * A **separator** is required before the suffix, and that is not fussiness.
- *
- * A bare "ends with DISPUTE" also matches the display name `Complaint / Dispute` — the very label
- * this function exists to avoid depending on. Requiring `-DISPUTE` (or the whole code to be
- * `DISPUTE`) keeps it matching codes like `P6-DISPUTE` and `DEMO-DISPUTE` and nothing that
- * happens to end in the word.
- */
-export function isConcernTypeCode(code: string | undefined): boolean {
-  if (!code) return false;
-  const upper = code.trim().toUpperCase();
-  return upper === CONCERN_CODE_SUFFIX || upper.endsWith(`-${CONCERN_CODE_SUFFIX}`);
-}
+export { isConcernTypeCode };
 
 export interface CaseConcerns {
   /** Contested collection information. DCP's own, and nothing downstream. */
   disputes: readonly ConcernRow[];
-  /** Formal Complaints raised from this case, as Case Management holds them. */
+  /** Formal Complaints raised from this case, as Case Management reports them. */
   complaints: readonly ConcernRow[];
-  /** Resolved once from metadata, so the UI can say whether raising one is even possible. */
-  caseType: CaseTypeResolution;
   /** Whether the case holds more concern activities than one card reads. */
   hasMore: boolean;
 }
 
+/** The complaint row, plus where to open it when Case Management's link is known. */
+export type ComplaintConcernRow = ConcernRow & { openUrl?: string };
+
 /**
- * Reads both, from one narrowed activity read plus at most one Case read per linked complaint.
- *
- * The activity read is narrowed by the platform to the activities that could be either — a
- * concern-typed activity, **or** any activity carrying a Complaint link. The second clause matters:
- * traceability follows the link, so an activity whose type was later changed must not lose its
- * Complaint.
+ * Reads both from one narrowed activity read, plus — when the Integration Service is reachable —
+ * one summary call for the whole card. Without it the rows still say a Complaint exists and give
+ * its number; only the owning module's current status is missing, and the row says so.
  */
 export async function loadCaseConcerns(
   adapter: XrmCrmAdapter,
   caseId: string,
+  summarise?: ReferenceSummariser,
 ): Promise<CaseConcerns> {
-  const [caseType, concernTypeIds] = await Promise.all([
-    loadComplaintCaseType(adapter),
-    readConcernTypeIds(adapter),
-  ]);
-  const page = await readConcernActivities(adapter, caseId, concernTypeIds);
-
+  const page = await readConcernActivities(adapter, caseId, await readConcernTypeIds(adapter));
+  const handOffs = page.items.filter(activity => activity.handOff === 'Complaint');
+  const summaries = await readSummaries(handOffs, summarise);
   const formatDate = (iso: string) => iso.slice(0, 10);
-  const disputes: ConcernRow[] = [];
-  const complaints: ConcernRow[] = [];
+  return {
+    disputes: page.items.filter(activity => activity.handOff === undefined).map(activity => toDisputeRow(toCollectionDispute(activity), formatDate)),
+    complaints: handOffs.map(activity => toComplaintConcernRow(activity, summaries, formatDate)),
+    hasMore: page.hasMore,
+  };
+}
 
-  for (const activity of page.items) {
-    if (!activity.complaintCaseId) {
-      disputes.push(toDisputeRow(toCollectionDispute(activity), formatDate));
-      continue;
-    }
-    complaints.push(await toComplaintConcernRow(adapter, activity, formatDate));
-  }
-
-  return { disputes, complaints, caseType, hasMore: page.hasMore };
+async function readSummaries(activities: readonly ActivityRow[], summarise?: ReferenceSummariser): Promise<ReadonlyMap<string, ExternalRecordSummary>> {
+  const references = activities.map(activity => activity.externalReference).filter((ref): ref is ExternalProcessReference => ref !== undefined);
+  if (!summarise || references.length === 0) return new Map();
+  return summarise(references);
 }
 
 /**
- * A linked Complaint, read through its lookup.
- *
- * Where the read is refused — the expected answer for a real Collection Officer, since no DCP role
- * holds `prvReadIncident` (KI-120) — the row still says a Complaint **exists**. Reporting it as
- * absent would tell an officer no complaint had been raised when one had.
+ * A Complaint row. Three honest states:
+ *   the hand-off has no record yet — it is being raised, or Case Management refused it;
+ *   the record is known and Case Management reported it — its own number and status;
+ *   the record is known but its status could not be read — the number, and why not.
  */
-async function toComplaintConcernRow(
-  adapter: XrmCrmAdapter,
+function toComplaintConcernRow(
   activity: ActivityRow,
+  summaries: ReadonlyMap<string, ExternalRecordSummary>,
   formatDate: (iso: string) => string,
-): Promise<ConcernRow> {
-  const fetched = await loadComplaintCase(adapter, activity.complaintCaseId!);
-  if (fetched.kind === 'found') return toComplaintRow(fetched.record, formatDate);
+): ComplaintConcernRow {
+  const reference = activity.externalReference;
+  if (!reference) return pendingComplaintRow(activity, formatDate);
+  const summary = summaries.get(reference.recordId);
+  if (summary?.availability === 'found') {
+    return {
+      ...toComplaintRow({
+        caseNumber: summary.recordNumber ?? reference.recordNumber ?? 'Complaint',
+        ...(summary.statusReason ? { status: summary.statusReason } : {}),
+        ...(summary.createdOn ? { createdOn: summary.createdOn } : {}),
+      }, formatDate),
+      openUrl: summary.openUrl,
+    };
+  }
+  return unreadComplaintRow(activity, reference, summary, formatDate);
+}
 
-  const detail = fetched.kind === 'forbidden'
-    ? 'You do not have access to its details'
-    : fetched.kind === 'notFound'
-      ? 'It could not be found'
-      : 'Its details could not be loaded just now';
-
+function pendingComplaintRow(activity: ActivityRow, formatDate: (iso: string) => string): ComplaintConcernRow {
+  const refused = activity.stateCode === 2;
   return {
     key: activity.id,
     concern: 'CustomerComplaint',
-    heading: 'Complaint raised',
+    heading: refused ? 'Complaint not created' : 'Complaint being raised',
+    detail: refused ? 'Case Management refused it; nothing was created' : 'Case Management has not confirmed the Case yet',
+    recordedOn: activity.createdOn ? formatDate(activity.createdOn) : 'Not recorded',
+    status: activity.status ?? (refused ? 'Cancelled' : 'In Progress'),
+  };
+}
+
+function unreadComplaintRow(
+  activity: ActivityRow,
+  reference: ExternalProcessReference,
+  summary: ExternalRecordSummary | undefined,
+  formatDate: (iso: string) => string,
+): ComplaintConcernRow {
+  const detail = summary?.availability === 'forbidden'
+    ? 'You do not have access to its details'
+    : summary?.availability === 'notFound'
+      ? 'Case Management no longer holds it'
+      : 'Its current status is shown in Case Management';
+  return {
+    key: activity.id,
+    concern: 'CustomerComplaint',
+    heading: `Complaint ${reference.recordNumber ?? 'raised'}`,
     detail,
     recordedOn: activity.createdOn ? formatDate(activity.createdOn) : 'Not recorded',
     status: 'Not shown',
+    ...(summary?.openUrl ? { openUrl: summary.openUrl } : {}),
   };
 }
 
@@ -139,18 +140,15 @@ async function readConcernTypeIds(adapter: XrmCrmAdapter): Promise<ReadonlySet<s
   return new Set(types.filter(type => isConcernTypeCode(type.code)).map(type => type.id));
 }
 
+/** Concern-typed activities, or any activity that handed off to Case Management whatever its type. */
 async function readConcernActivities(
   adapter: XrmCrmAdapter,
   caseId: string,
   concernTypeIds: ReadonlySet<string>,
 ): Promise<Page<ActivityRow>> {
-  const typeClause = [...concernTypeIds]
-    .map(id => `_qdb_activitytypeid_value eq ${escapeOData(id)}`)
-    .join(' or ');
-  const concernSide = typeClause
-    ? `(_qdb_complaintcaseid_value ne null or (${typeClause}))`
-    : '_qdb_complaintcaseid_value ne null';
-
+  const typeClause = [...concernTypeIds].map(id => `_qdb_activitytypeid_value eq ${escapeOData(id)}`).join(' or ');
+  const complaintHandOff = "qdb_relatedrecordtype eq 'incident'";
+  const concernSide = typeClause ? `(${complaintHandOff} or (${typeClause}))` : complaintHandOff;
   return mapPage(
     await adapter.retrievePage(ENTITY_SETS.collectionActivity, {
       select: [...ACTIVITY_COLUMNS],
@@ -165,9 +163,8 @@ async function readConcernActivities(
 /**
  * The concern type, for asking whether a dispute or complaint activity can be concluded.
  *
- * Disputes and complaints share one configured type on this organisation — the label reads
- * *Complaint / Dispute* — so one id answers for both cards. What separates the two concepts is the
- * Complaint link, never the type.
+ * Disputes and complaints share one configured type on this organisation, so one id answers for
+ * both cards. What separates the two concepts is the hand-off, never the type.
  */
 export async function findConcernTypeId(adapter: XrmCrmAdapter): Promise<string | undefined> {
   const ids = await readConcernTypeIds(adapter);

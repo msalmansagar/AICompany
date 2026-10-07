@@ -84,7 +84,7 @@ function legalAspects(evidence: AdvancedProcessEvidence): readonly ProcessAspect
   return [
     {
       id: 'legal-record', process: 'Legal', aspect: 'Record a Legal recommendation',
-      capability: 'Actionable', explanation: 'Logged from the Actions tab with Log action.',
+      capability: 'Actionable', explanation: 'Logged on the case with Log action.',
     },
     legalHandoffAspect(evidence.legalQualificationConfigured),
     {
@@ -134,7 +134,7 @@ function disputeAspects(evidence: AdvancedProcessEvidence): readonly ProcessAspe
   return [
     {
       id: 'dispute-record', process: 'Dispute', aspect: 'Record a collection dispute',
-      capability: 'Actionable', explanation: 'Logged from the Actions tab with Log action.',
+      capability: 'Actionable', explanation: 'Logged on the case with Log action.',
     },
     conclusionAspect('dispute-conclude', 'Dispute', evidence.outcomeCounts.dispute),
     {
@@ -155,7 +155,7 @@ function complaintAspects(): readonly ProcessAspect[] {
     {
       id: 'complaint-raise', process: 'Complaint', aspect: 'Raise a formal complaint',
       capability: 'Blocked',
-      explanation: 'Raising one from the workspace needs security QDB has not granted; Case Management raises them.',
+      explanation: 'Raised with Create complaint on Housing Loan cases, through the Integration Service, once that service is hosted and signed in to. Case Management then owns it.',
     },
   ];
 }
