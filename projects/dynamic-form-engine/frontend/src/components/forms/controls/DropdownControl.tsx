@@ -10,6 +10,9 @@ import { optionsApi } from '../../../api/optionsApi';
 import type { ControlProps } from '../FieldRenderer';
 import { useDisabledOptions } from './useDisabledOptions';
 
+// One shared empty list: a fresh [] per render would change resolvedOptions every render.
+const NO_OPTIONS: OptionValue[] = [];
+
 const useStyles = makeStyles({
   dropdown: {
     width: '100%',
@@ -30,12 +33,17 @@ export function DropdownControl({
   const disabledOptions = useDisabledOptions(field.id);
 
   const filteredByRule = ruleState.filteredOptions[field.id];
-  const staticOptions = field.options ?? [];
+  // A CRM option source replaces the static rows outright. The CRM publisher still emits a
+  // field's qdb_form_option_value rows next to its source, so preferring them showed the
+  // stale hand-copied list instead of the live option set.
+  const hasOptionSource = Boolean(field.optionSourceEntity && field.optionSourceAttribute);
+  const staticOptions = hasOptionSource ? NO_OPTIONS : (field.options ?? NO_OPTIONS);
   const resolvedOptions = filteredByRule ?? dynamicOptions ?? staticOptions;
 
-  // Load options dynamically when none are defined statically
+  // Load options from the server for a CRM option source, or when none are defined statically.
   useEffect(() => {
-    if (staticOptions.length > 0 || filteredByRule) return;
+    if (filteredByRule) return;
+    if (!hasOptionSource && staticOptions.length > 0) return;
 
     let cancelled = false;
 
@@ -51,7 +59,7 @@ export function DropdownControl({
     return () => {
       cancelled = true;
     };
-  }, [field.id, staticOptions.length, filteredByRule]);
+  }, [field.id, hasOptionSource, staticOptions.length, filteredByRule]);
 
   const rawValue = fieldValues[field.schemaName];
 

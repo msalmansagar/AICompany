@@ -1,7 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
 import { DropdownControl } from './DropdownControl';
+import { optionsApi } from '../../../api/optionsApi';
 import type { ControlProps } from '../FieldRenderer';
 import type { FieldDefinition, FormFieldValues } from '@qdb/shared';
 
@@ -43,10 +44,25 @@ function makeDropdownField(): FieldDefinition {
   } as unknown as FieldDefinition;
 }
 
-function renderDropdown(fieldValues: FormFieldValues) {
+// A field pointing at a live CRM option set. The plugin still publishes its static
+// qdb_form_option_value rows alongside, so both are present in the published JSON.
+function makeOptionSourceField(): FieldDefinition {
+  return {
+    ...makeDropdownField(),
+    optionSourceEntity: 'qdb_servicerequest',
+    optionSourceAttribute: 'qdb_keychallengesinoperationstoday',
+  } as FieldDefinition;
+}
+
+const LIVE_OPTIONS = [
+  { value: '100000000', label: 'Cash flow', displayOrder: 0, isDefault: false, isActive: true },
+  { value: '100000001', label: 'Hiring', displayOrder: 1, isDefault: false, isActive: true },
+];
+
+function renderDropdown(fieldValues: FormFieldValues, field: FieldDefinition = makeDropdownField()) {
   mockFieldValues.current = fieldValues;
   const props: ControlProps = {
-    field: makeDropdownField(),
+    field,
     inputId: 'service-type',
     isRequired: false,
     isReadonly: false,
@@ -75,5 +91,37 @@ describe('DropdownControl', () => {
     renderDropdown({ service_type: '99' });
 
     expect(screen.getByRole('combobox')).toHaveValue('');
+  });
+});
+
+describe('DropdownControl with a CRM option source', () => {
+  beforeEach(() => {
+    vi.mocked(optionsApi.getOptions).mockReset();
+    vi.mocked(optionsApi.getOptions).mockResolvedValue({ data: LIVE_OPTIONS } as never);
+  });
+
+  it('getOptions_optionSourceWithStaticRows_fetchesTheLiveOptionSet', () => {
+    renderDropdown({ service_type: null }, makeOptionSourceField());
+
+    expect(optionsApi.getOptions).toHaveBeenCalledWith('field-1', 'demo');
+  });
+
+  it('render_optionSourceWithStaticRows_showsTheLiveLabel', async () => {
+    renderDropdown({ service_type: '100000001' }, makeOptionSourceField());
+
+    await waitFor(() => expect(screen.getByRole('combobox')).toHaveValue('Hiring'));
+  });
+
+  it('render_optionSourceWithStaticRows_ignoresTheStaticRows', async () => {
+    renderDropdown({ service_type: '1' }, makeOptionSourceField());
+    await waitFor(() => expect(optionsApi.getOptions).toHaveBeenCalled());
+
+    expect(screen.getByRole('combobox')).toHaveValue('');
+  });
+
+  it('getOptions_staticRowsWithoutSource_isNotCalled', () => {
+    renderDropdown({ service_type: null });
+
+    expect(optionsApi.getOptions).not.toHaveBeenCalled();
   });
 });

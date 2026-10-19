@@ -32,7 +32,7 @@ import type {
   FieldPlacement,
   RuleTriggerEvent,
 } from '@qdb/shared';
-import { isRenderableImageUrl, RULE_TRIGGER_EVENTS, decodeRuleJson } from '@qdb/shared';
+import { isRenderableImageUrl, RULE_TRIGGER_EVENTS, decodeRuleJson, optionSetMetadataCast } from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
 import { ButtonAssembler, SCOPED_BUTTON_ENTITY, type RawScopedButton, type IndexedButtons } from './ButtonAssembler.js';
 import { logger } from '../utils/logger.js';
@@ -690,9 +690,12 @@ export class CrmMetadataService extends CrmBaseService {
     requestedLcid?: number,
   ): Promise<OptionValue[]> {
     try {
-      const response = await this.crmFetch<CrmPicklistAttributeResponse>(
-        `/EntityDefinitions(LogicalName='${entity}')/Attributes(LogicalName='${attribute}')/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$expand=OptionSet`,
-      );
+      // The OptionSet is only reachable through the attribute's own metadata type: a Picklist
+      // cast on a multi-select choice answers 404.
+      const attributePath = `/EntityDefinitions(LogicalName='${entity}')/Attributes(LogicalName='${attribute}')`;
+      const typed = await this.crmFetch<CrmAttributeTypeResponse>(`${attributePath}?$select=AttributeTypeName`);
+      const cast = optionSetMetadataCast(typed.AttributeTypeName?.Value ?? 'unknown');
+      const response = await this.crmFetch<CrmPicklistAttributeResponse>(`${attributePath}/${cast}?$expand=OptionSet`);
       const options = response.OptionSet?.Options ?? [];
       return options
         .filter((o) => o.Value != null)
@@ -703,8 +706,8 @@ export class CrmMetadataService extends CrmBaseService {
           isDefault: false,
           isActive: true,
         }));
-    } catch {
-      logger.warn({ entity, attribute }, 'Failed to fetch CRM optionset values — returning empty list');
+    } catch (error) {
+      logger.warn({ error, entity, attribute }, 'Failed to fetch CRM optionset values — returning empty list');
       return [];
     }
   }
@@ -1849,6 +1852,10 @@ interface CrmPicklistOption {
   Label?: {
     LocalizedLabels?: Array<{ Label: string; LanguageCode: number }>;
   };
+}
+
+interface CrmAttributeTypeResponse {
+  AttributeTypeName?: { Value?: string };
 }
 
 interface CrmPicklistAttributeResponse {
