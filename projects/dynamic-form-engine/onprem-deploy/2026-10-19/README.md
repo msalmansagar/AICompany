@@ -3,11 +3,14 @@
 Supersedes `../2026-09-17/` for the two web resources. **No plugin assembly in this kit** —
 keep the DLL the org already runs.
 
-This kit fixes one on-prem defect:
+This kit fixes two defects:
 
-**Web API calls fail with HTTP 500 on Dynamics 9.1 on-premise** (reported on
-`mcdynccatdev01`). The designer and the in-CRM runtime called `/api/data/v9.2/...`
-directly, and a 9.1 server does not serve v9.2.
+1. **Web API calls fail with HTTP 500 on Dynamics 9.1 on-premise** (reported on
+   `mcdynccatdev01`). The designer and the in-CRM runtime called `/api/data/v9.2/...`
+   directly, and a 9.1 server does not serve v9.2.
+2. **A dropdown with a CRM option source shows its static rows, or nothing.** A field with
+   `qdb_option_source_entity` + `qdb_option_source_attribute` should list the live choices of
+   that CRM attribute; it showed the hand-copied `qdb_form_option_value` rows instead.
 
 ---
 
@@ -15,14 +18,14 @@ directly, and a 9.1 server does not serve v9.2.
 
 | File | What it is | How it is deployed |
 |---|---|---|
-| `FormDesignerWebResource_1.4.0.zip` | Unmanaged solution with the single-file designer (`qdb_/form-designer/index.html`) and the in-CRM runtime (`qdb_form_runtime.html`), plus the sitemap entry and the Form Designer role. | Settings → Solutions → Import |
+| `FormDesignerWebResource_1.4.1.zip` | Unmanaged solution with the single-file designer (`qdb_/form-designer/index.html`) and the in-CRM runtime (`qdb_form_runtime.html`), plus the sitemap entry and the Form Designer role. | Settings → Solutions → Import |
 
 Both web resources are byte-identical to what runs on the cloud org since 2026-10-19
-(designer sha256 `37cbd42b2db3e705…`, runtime `c8db1b42f6aebf3f…`).
+(designer sha256 `37cbd42b2db3e705…`, runtime `a9f15fd8d4d41b3c…`).
 
 ---
 
-## The defect
+## Defect 1 — the v9.2 Web API path
 
 **Root cause.** Most calls go through `Xrm.WebApi`, which picks the right version itself.
 A few cannot, and those fetched `/api/data/v9.2/` with the version hard-coded:
@@ -46,6 +49,30 @@ CRM's own UI.
 
 ---
 
+## Defect 2 — the option source
+
+**Root cause — three faults, any one enough to break it.**
+
+1. The plugin publishes a field's `qdb_form_option_value` rows even when the field has a CRM
+   source, and the dropdown used those rows whenever there were any — so the live list was
+   never asked for. That is why it "only worked when the options were duplicated".
+2. The live list was read by casting the attribute to `PicklistAttributeMetadata`. Dataverse
+   answers that with 404 for a **multi-select** choice (and for Status/State), and the 404
+   became an empty dropdown with no message.
+3. On this server the request also went to `/api/data/v9.2/` — defect 1.
+
+**Fix.** When both source columns are set, the dropdown now ignores the static rows and shows
+the attribute's live choices, in CRM's order, labels in the user's language. The attribute's
+type is read first and the matching cast is used (Choice, Choices, Status, State). If the
+source cannot be read, the browser console says so (`[DFE-options] …`) instead of failing
+silently. Fields without a source keep using `qdb_form_option_value`, ordered by
+`qdb_display_order`. No plugin change is needed.
+
+**Scope.** This fix is for the **Dropdown** field type, as reported. Multi-select, radio and
+checkbox-group fields still use only the static rows.
+
+---
+
 ## Why the plugin DLL is not included
 
 The current plugin publishes a grid column's **Is Editable** setting (DEF-002). Entry-grid
@@ -58,7 +85,7 @@ keep the assembly the org already runs; this kit does not need it.
 
 ## Order
 
-1. **Import `FormDesignerWebResource_1.4.0.zip`** as unmanaged, choosing **Maintain
+1. **Import `FormDesignerWebResource_1.4.1.zip`** as unmanaged, choosing **Maintain
    customizations** if prompted.
 2. **Publish All Customizations.**
 3. Open the designer **only** through
@@ -79,3 +106,9 @@ With the browser's developer tools open on the **Network** tab:
    `/api/data/v9.1/` requests only.
 
 No request to `/api/data/v9.2/` should appear from the designer or the runtime.
+
+5. Open a form with a dropdown whose `qdb_option_source_entity` / `qdb_option_source_attribute`
+   are set (for example `qdb_servicerequest` / `qdb_keychallengesinoperationstoday`). The
+   dropdown lists exactly the choices defined on that CRM attribute — not the rows in
+   `qdb_form_option_value` — and the Network tab shows two `/api/data/v9.1/EntityDefinitions…`
+   requests for it. No form needs re-publishing for this; it is read live on every open.
