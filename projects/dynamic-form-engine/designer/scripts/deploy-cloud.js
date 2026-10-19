@@ -288,7 +288,8 @@ async function main() {
 
   console.log('\n' + '─'.repeat(48));
   console.log('Deployment complete.');
-  console.log(`\nOpen: ${orgUrl}/WebResources/qdb_/form-designer/index.html\n`);
+  // Only main.aspx exposes parent.Xrm; the raw /WebResources/ path loads without it and hides base-resolution faults.
+  console.log(`\nOpen: ${orgUrl}/main.aspx?pagetype=webresource&webresourceName=qdb_%2Fform-designer%2Findex.html\n`);
 }
 
 main().catch(err => { console.error(err); process.exit(1); });
