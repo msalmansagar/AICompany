@@ -35,6 +35,7 @@ export {
   isMultiValueFieldType,
   isBooleanFieldType,
 } from './fields/defaultValue.js';
+export { webApiVersionFor, webApiBaseUrlFor } from './dataverse/webApiVersion.js';
 export { calculateContrastRatio } from './utils/contrastRatio.js';
 export { isRenderableImageUrl, renderableImageUrl } from './utils/imageUrl.js';
 export type { ContrastResult } from './utils/contrastRatio.js';

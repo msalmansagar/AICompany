@@ -29,8 +29,6 @@ interface ODataLabel {
   UserLocalizedLabel?: { Label?: string };
 }
 
-const API_VERSION = 'v9.2';
-
 export class MetadataService {
   constructor(private readonly crm: CrmContextService) {}
 
@@ -79,10 +77,10 @@ export class MetadataService {
   }
 
   private buildUrl(pathAndQuery: string): string {
-    const base = this.crm.getClientUrl().replace(/\/$/, '');
-    return this.crm.isRestMode()
-      ? `${base}/api/designer/metadata/${pathAndQuery}`
-      : `${base}/api/data/${API_VERSION}/${pathAndQuery}`;
+    if (this.crm.isRestMode()) {
+      return `${this.crm.getClientUrl().replace(/\/$/, '')}/api/designer/metadata/${pathAndQuery}`;
+    }
+    return `${this.crm.getWebApiBaseUrl()}/${pathAndQuery}`;
   }
 
   private async fetchMetadata(pathAndQuery: string): Promise<unknown[]> {

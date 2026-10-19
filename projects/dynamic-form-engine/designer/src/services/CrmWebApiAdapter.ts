@@ -14,8 +14,11 @@ import { ConcurrencyConflictError } from './concurrency/ConcurrencyConflictError
 export class CrmWebApiAdapter implements IWebApiAdapter {
   constructor(
     private readonly xrmWebApi: typeof Xrm.WebApi,
-    /** Org base URL. Passed in because the global Xrm is undefined inside the web resource. */
-    private readonly clientUrl: string,
+    /**
+     * Org Web API base URL at the org's own version (e.g. https://host/org/api/data/v9.1).
+     * Passed in because the global Xrm is undefined inside the web resource.
+     */
+    private readonly webApiBaseUrl: string,
   ) {}
 
   async createRecord(entityLogicalName: string, data: WebApiRecord): Promise<WebApiCreateResult> {
@@ -62,7 +65,7 @@ export class CrmWebApiAdapter implements IWebApiAdapter {
    * that publish successfully already do, and matches updateRecordConditional below.
    */
   async executeAction(actionName: string, parameters: ActionParameters): Promise<ActionResult> {
-    const response = await fetch(`${this.clientUrl}/api/data/v9.2/${actionName}`, {
+    const response = await fetch(`${this.webApiBaseUrl}/${actionName}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -107,7 +110,7 @@ export class CrmWebApiAdapter implements IWebApiAdapter {
 
     let response: Response;
     try {
-      response = await fetch(`${this.clientUrl}/api/data/v9.2/${entitySetName}(${stripBraces(id)})`, {
+      response = await fetch(`${this.webApiBaseUrl}/${entitySetName}(${stripBraces(id)})`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

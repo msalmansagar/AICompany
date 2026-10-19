@@ -1,3 +1,4 @@
+import { webApiBaseUrlFor } from '@qdb/shared';
 import type { IWebApiAdapter } from './IWebApiAdapter';
 import { CrmWebApiAdapter } from './CrmWebApiAdapter';
 import { RestWebApiAdapter } from './RestWebApiAdapter';
@@ -21,16 +22,22 @@ export class CrmContextService {
 
   constructor(xrm: typeof Xrm | null, authToken: string | null = null) {
     this.xrm = xrm;
-    // The adapter is handed the client URL rather than reaching for a global Xrm: inside the
-    // web resource iframe that global is undefined (Xrm lives on window.parent), and the
+    // The adapter is handed the Web API base URL rather than reaching for a global Xrm: inside
+    // the web resource iframe that global is undefined (Xrm lives on window.parent), and the
     // resolution has already happened by the time we get here.
     this.webApiAdapter = xrm
-      ? new CrmWebApiAdapter(xrm.WebApi, xrm.Utility.getGlobalContext().getClientUrl())
+      ? new CrmWebApiAdapter(xrm.WebApi, this.getWebApiBaseUrl())
       : new RestWebApiAdapter(authToken);
   }
 
   getWebApi(): IWebApiAdapter {
     return this.webApiAdapter;
+  }
+
+  /** The org's Web API base URL at the org's own version — on-prem 9.1 rejects v9.2. */
+  getWebApiBaseUrl(): string {
+    const globalContext = this.xrm?.Utility.getGlobalContext();
+    return webApiBaseUrlFor(this.getClientUrl(), globalContext?.getVersion?.());
   }
 
   getClientUrl(): string {

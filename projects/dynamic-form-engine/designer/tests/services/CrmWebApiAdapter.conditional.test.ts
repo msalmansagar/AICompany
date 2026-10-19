@@ -15,7 +15,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { CrmWebApiAdapter } from '@/services/CrmWebApiAdapter';
 import { ConcurrencyConflictError } from '@/services/concurrency/ConcurrencyConflictError';
 
-const CLIENT_URL = 'https://org.crm4.dynamics.com';
+const WEB_API_BASE_URL = 'https://org.crm4.dynamics.com/api/data/v9.2';
 const FORM_ID = '11111111-1111-1111-1111-111111111111';
 const ETAG = 'W/"201971618"';
 
@@ -26,7 +26,7 @@ function buildAdapter() {
   return new CrmWebApiAdapter({
     createRecord: vi.fn(), updateRecord: vi.fn(), deleteRecord: vi.fn(),
     retrieveRecord: vi.fn(), retrieveMultipleRecords: vi.fn(),
-  } as unknown as typeof Xrm.WebApi, CLIENT_URL);
+  } as unknown as typeof Xrm.WebApi, WEB_API_BASE_URL);
 }
 
 beforeEach(() => {
@@ -70,7 +70,7 @@ describe('CrmWebApiAdapter.updateRecordConditional', () => {
     );
 
     const [url] = mockFetch.mock.calls[0];
-    expect(url).toBe(`${CLIENT_URL}/api/data/v9.2/qdb_form_definitions(${FORM_ID})`);
+    expect(url).toBe(`${WEB_API_BASE_URL}/qdb_form_definitions(${FORM_ID})`);
   });
 
   it('stripsBracesFromTheId', async () => {
