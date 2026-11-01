@@ -313,6 +313,19 @@ No agents called.
     through this workflow's gates instead. Recon reads only public
     pages and the user's own account — never scrape behind a login.
 
+12. REA (reverse engineering) — AUTHORISED TARGETS ONLY: the `rea` MCP
+    server (morluto/rea, MIT, pinned rea-agents@6.8.0 in .mcp.json) and
+    the reverse-engineer-anything skill are installed. Use them only on
+    artifacts MSS or the client owns or has authorised in writing: our
+    own or a client's CRM plugin DLLs, deployed web resources, solution
+    exports, HAR captures of our own calls. Never on a third party's
+    product, never to bypass licensing, DRM or access controls, and
+    nothing recovered from a third party's code goes into a deliverable.
+    Runtime, network-capture and device tools act on real systems: name
+    the target and get the user's go-ahead first, as for live-org work.
+    Registration lives in .mcp.json; never run `rea setup` (it writes
+    user-level config) — bump the pinned version there instead.
+
 ## Output section headers
 
 [BA] [CEO — BRD Review] [GitHub Research] [Architect]

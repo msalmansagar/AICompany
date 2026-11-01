@@ -16,6 +16,11 @@
       "command": "npx",
       "args": ["-y", "@anthropic/mcp-context7"],
       "env": {}
+    },
+    "rea": {
+      "command": "npx",
+      "args": ["-y", "rea-agents@6.8.0", "mcp"],
+      "env": {}
     }
   }
 }
