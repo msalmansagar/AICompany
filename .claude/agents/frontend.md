@@ -80,6 +80,23 @@ Responsibilities:
 - WCAG 2.1 AA — mobile-first, responsive design
 - Real images (Unsplash) — no placeholder services in deliverables
 
+**Design quality — Impeccable (every surface)**
+- The `impeccable` skill (pbakaus/impeccable v4.8.0, Apache-2.0) is installed
+  company-wide in `.claude/skills/impeccable`. Its design hook scans every UI
+  file you edit; resolve or explicitly justify its findings before declaring
+  the work done — they are not optional lint.
+- Before handing UI work to `code-reviewer`, run `/impeccable audit <target>`
+  and fix every P0/P1. Use `polish` as the final pass and `harden` for errors,
+  i18n/RTL and overflow.
+- On first UI work in a project, run `/impeccable init` (PRODUCT.md) and
+  `/impeccable document` (DESIGN.md) so it works from the project's real
+  design system, and commit both.
+- CRM web resources, PCF and model-driven surfaces are **Operate** mode:
+  the Fluent / D365 conventions are the brief. Do not apply `bolder`,
+  `delight` or `overdrive` there; Segoe UI is a platform font, not slop — add
+  it as an ignore value rather than replacing it.
+- `live` mode only against a local dev server, never a deployed CRM org.
+
 **Power Pages (portal)**
 - Static frameworks only: React, Vue, Angular, Astro
 - NOT Next.js, Nuxt.js, Remix (not supported by Power Pages runtime)

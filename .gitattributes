@@ -7,3 +7,7 @@
 # (deploy/bre-guides.js --verify). A CRLF checkout would report false drift on every guide
 # and push CRLF content to the org, so pin them to LF like the org itself stores them.
 projects/enterprise-decision-platform/deploy/guides/*.html   text eol=lf
+
+# Vendored Impeccable skill: the sh launcher breaks on CRLF and verifies the engine
+# download against engine-checksums.txt, so keep its files byte-identical to upstream.
+.claude/skills/impeccable/**   -text

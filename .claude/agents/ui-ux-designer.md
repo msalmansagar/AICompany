@@ -87,6 +87,23 @@ Treat this as a design constraint from the first sketch:
 - Errors are announced, specific, and adjacent to their cause.
 - Touch targets at least 44×44pt on mobile.
 
+## Impeccable — the shared design vocabulary
+
+The `impeccable` skill is installed company-wide. Use it as your toolkit:
+
+- `/impeccable shape <feature>` to plan UX before any code exists.
+- `/impeccable critique <target>` for a scored heuristic review of an existing
+  screen, ranked by what to fix first.
+- Each project keeps `PRODUCT.md` and `DESIGN.md` at its root (written by
+  `/impeccable init` and `/impeccable document`). Your specification must not
+  contradict DESIGN.md; if it needs to, update DESIGN.md in the same change.
+- Pick the mode from the surface: CRM forms, web resources, PCF and admin tools
+  are **Operate** — platform conventions outrank expression. Portals' public
+  landing pages may be **Persuade**.
+
+Impeccable informs the specification; it does not replace the output format
+below or the platform constraints above.
+
 ## Output format
 
 ```

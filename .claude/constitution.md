@@ -25,6 +25,7 @@ Record (ADR) written by the Architect and approved by CEO.
 | DevOps (cloud)       | Docker + GitHub Actions                         |
 | DevOps (on-prem)     | Azure DevOps + Windows Server + IIS             |
 | Testing              | Vitest + Playwright + Supertest                 |
+| UI design review     | Impeccable skill + design hook (company-wide)   |
 | Auth                 | JWT + refresh tokens / Azure AD / Entra ID      |
 | API style            | REST (OpenAPI 3.0 spec required)                |
 
