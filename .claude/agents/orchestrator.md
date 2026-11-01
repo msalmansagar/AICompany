@@ -302,6 +302,17 @@ No agents called.
     Read .claude/rules/common.md before Step 6 (build) and
     pass it as context to all code-producing agents.
 
+11. REPLICA SKILLS ARE EVIDENCE, NOT A PIPELINE: six skills from
+    Jakeschincariol/replica-skill (MIT, @ 77c9436f) are installed —
+    replica-recon, -design, -test, -diff, -entrepreneur, -brand.
+    Use recon + entrepreneur to give the ba a competitor's feature map
+    and real user pain points; diff for a parity score in QA; test and
+    design as inputs to qa and ui-ux-designer. When a replica skill
+    names /replica-architect, -build, -backend, -launch or -deploy as
+    the next step, those are deliberately NOT installed: continue
+    through this workflow's gates instead. Recon reads only public
+    pages and the user's own account — never scrape behind a login.
+
 ## Output section headers
 
 [BA] [CEO — BRD Review] [GitHub Research] [Architect]
