@@ -1,0 +1,119 @@
+{
+  "$comment": "TC-3 replay fixtures: every rule version in org5869857f, read-only capture. Do not edit by hand.",
+  "capturedOnUtc": "2026-09-28T16:22:16.887Z",
+  "org": "https://org5869857f.crm4.dynamics.com",
+  "versions": [
+    {
+      "ruleVersionId": "1a4a23bd-4f77-f111-ab0e-000d3abcff60",
+      "ruleId": "c9f1a5a9-4f77-f111-ab0e-70a8a55bc6a5",
+      "versionNumber": 1,
+      "lifecycleState": 100000003,
+      "createdOn": "2026-07-04T02:26:24Z",
+      "pcrm": "{\"schemaVersion\":\"1.0\",\"ruleId\":\"loan-approval-sample\",\"name\":\"Loan Approval — Sample\",\"targetEntity\":\"qdb_loanapplication\",\"inputs\":[{\"name\":\"loanAmount\",\"type\":\"Currency\",\"binding\":\"loanAmount\"},{\"name\":\"riskRating\",\"type\":\"Text\",\"binding\":\"riskRating\"}],\"outputs\":[{\"name\":\"approvalLevel\",\"type\":\"Text\"},{\"name\":\"manualReview\",\"type\":\"Boolean\"}],\"logic\":{\"type\":\"decisionTable\",\"hitPolicy\":\"First\",\"tableInputs\":[{\"field\":\"loanAmount\"},{\"field\":\"riskRating\"}],\"outputColumns\":[\"approvalLevel\",\"manualReview\"],\"rows\":[{\"priority\":4,\"cells\":[{\"operator\":\"GreaterThan\",\"value\":500000},{\"operator\":\"Equals\",\"value\":\"High\"}],\"outputs\":{\"approvalLevel\":\"CEO\",\"manualReview\":true}},{\"priority\":3,\"cells\":[{\"operator\":\"GreaterThan\",\"value\":500000},{\"operator\":\"Equals\",\"value\":\"Low\"}],\"outputs\":{\"approvalLevel\":\"CFO\",\"manualReview\":false}},{\"priority\":2,\"cells\":[{\"operator\":\"Between\",\"value\":100000,\"value2\":500000},{\"any\":true}],\"outputs\":{\"approvalLevel\":\"Manager\",\"manualReview\":false}},{\"priority\":1,\"cells\":[{\"operator\":\"LessThan\",\"value\":100000},{\"any\":true}],\"outputs\":{\"approvalLevel\":\"Officer\",\"manualReview\":false}}]}}"
+    },
+    {
+      "ruleVersionId": "133121d0-5177-f111-ab0e-000d3abcff60",
+      "ruleId": "113121d0-5177-f111-ab0e-000d3abcff60",
+      "versionNumber": 1,
+      "lifecycleState": 100000001,
+      "createdOn": "2026-07-04T02:41:14Z",
+      "pcrm": "{\"schemaVersion\":\"1.0\",\"ruleId\":\"all-node-types-sample\",\"name\":\"All Node Types — Sample\",\"targetEntity\":\"qdb_loanapplication\",\"inputs\":[{\"name\":\"adjustedAmount\",\"type\":\"Decimal\",\"binding\":\"adjustedAmount\"},{\"name\":\"riskRating\",\"type\":\"Text\",\"binding\":\"riskRating\"}],\"outputs\":[{\"name\":\"approvalLevel\",\"type\":\"Text\"},{\"name\":\"manualReview\",\"type\":\"Boolean\"}],\"logic\":{\"type\":\"decisionTable\",\"hitPolicy\":\"First\",\"tableInputs\":[{\"field\":\"adjustedAmount\"},{\"field\":\"riskRating\"}],\"outputColumns\":[\"approvalLevel\",\"manualReview\"],\"rows\":[{\"priority\":4,\"cells\":[{\"operator\":\"GreaterThan\",\"value\":500000},{\"operator\":\"Equals\",\"value\":\"High\"}],\"outputs\":{\"approvalLevel\":\"CEO\",\"manualReview\":true}},{\"priority\":3,\"cells\":[{\"operator\":\"GreaterThan\",\"value\":500000},{\"operator\":\"Equals\",\"value\":\"Low\"}],\"outputs\":{\"approvalLevel\":\"CFO\",\"manualReview\":false}},{\"priority\":2,\"cells\":[{\"operator\":\"Between\",\"value\":100000,\"value2\":500000},{\"any\":true}],\"outputs\":{\"approvalLevel\":\"Manager\",\"manualReview\":false}},{\"priority\":1,\"cells\":[{\"operator\":\"LessThan\",\"value\":100000},{\"any\":true}],\"outputs\":{\"approvalLevel\":\"Officer\",\"manualReview\":false}}]}}"
+    },
+    {
+      "ruleVersionId": "e11bd318-b277-f111-ab0e-000d3abcff60",
+      "ruleId": null,
+      "versionNumber": 1,
+      "lifecycleState": null,
+      "createdOn": "2026-07-04T14:10:32Z",
+      "pcrm": "{\"schemaVersion\":\"1.0\",\"ruleId\":\"all-node-types-—-sample\",\"name\":\"All Node Types — Sample\",\"targetEntity\":\"qdb_loanapplication\",\"inputs\":[{\"name\":\"loanAmount\",\"type\":\"Decimal\",\"binding\":\"loanAmount\"},{\"name\":\"riskRating\",\"type\":\"Text\",\"binding\":\"riskRating\"}],\"variables\":[{\"name\":\"loanAmount\",\"type\":\"Text\",\"formula\":\"loanAmount\"},{\"name\":\"riskRating\",\"type\":\"Text\",\"formula\":\"riskRating\"},{\"name\":\"adjustedAmount\",\"type\":\"Text\",\"formula\":\"loanAmount * 1.05\"}],\"outputs\":[{\"name\":\"Approval Level\",\"type\":\"Text\"},{\"name\":\"Manual Review\",\"type\":\"Text\"}],\"logic\":{\"type\":\"decisionTable\",\"hitPolicy\":\"First\",\"tableInputs\":[{\"field\":\"adjustedAmount\"},{\"field\":\"riskRating\"}],\"outputColumns\":[\"Approval Level\",\"Manual Review\"],\"rows\":[{\"priority\":4,\"cells\":[{\"operator\":\"GreaterThan\",\"value\":500000},{\"operator\":\"Equals\",\"value\":\"High\"}],\"outputs\":{\"Approval Level\":\"CEO\",\"Manual Review\":true}},{\"priority\":3,\"cells\":[{\"operator\":\"GreaterThan\",\"value\":500000},{\"operator\":\"Equals\",\"value\":\"Low\"}],\"outputs\":{\"Approval Level\":\"CFO\",\"Manual Review\":false}},{\"priority\":2,\"cells\":[{\"operator\":\"Between\",\"value\":100000,\"value2\":500000},{\"any\":true}],\"outputs\":{\"Approval Level\":\"Manager\",\"Manual Review\":false}},{\"priority\":1,\"cells\":[{\"operator\":\"LessThan\",\"value\":100000},{\"any\":true}],\"outputs\":{\"Approval Level\":\"Officer\",\"Manual Review\":false}}]}}"
+    },
+    {
+      "ruleVersionId": "9cc69f74-bb77-f111-ab0e-70a8a55bc6a5",
+      "ruleId": "9ac69f74-bb77-f111-ab0e-70a8a55bc6a5",
+      "versionNumber": 1,
+      "lifecycleState": 100000003,
+      "createdOn": "2026-07-04T15:17:31Z",
+      "pcrm": "{\"schemaVersion\":\"1.0\"}"
+    },
+    {
+      "ruleVersionId": "26f45b83-be77-f111-ab0e-000d3abcff60",
+      "ruleId": "23f45b83-be77-f111-ab0e-000d3abcff60",
+      "versionNumber": 1,
+      "lifecycleState": 100000003,
+      "createdOn": "2026-07-04T15:39:25Z",
+      "pcrm": "{\"schemaVersion\":\"1.0\"}"
+    },
+    {
+      "ruleVersionId": "84f6944e-bf77-f111-ab0e-000d3abcff60",
+      "ruleId": "82f6944e-bf77-f111-ab0e-000d3abcff60",
+      "versionNumber": 1,
+      "lifecycleState": 100000003,
+      "createdOn": "2026-07-04T15:45:07Z",
+      "pcrm": "{\"schemaVersion\":\"1.0\"}"
+    },
+    {
+      "ruleVersionId": "92a32275-0e7b-f111-ab0e-000d3abd8313",
+      "ruleId": "20398577-0e7b-f111-ab0e-70a8a55bc6a5",
+      "versionNumber": 1,
+      "lifecycleState": null,
+      "createdOn": "2026-07-08T20:49:12Z",
+      "pcrm": "{\"schemaVersion\":\"1.0\",\"ruleId\":\"all-node-types-—-sample\",\"name\":\"All Node Types — Sample\",\"targetEntity\":\"qdb_payment_authorization_ticket\",\"inputs\":[{\"name\":\"qdb_lc_tenor_period\",\"type\":\"OptionSet\",\"binding\":\"qdb_lc_tenor_period\"},{\"name\":\"qdb_detail\",\"type\":\"Text\",\"binding\":\"qdb_detail\"}],\"variables\":[],\"outputs\":[{\"name\":\"result\",\"type\":\"Text\"}],\"logic\":{\"type\":\"decisionTable\",\"hitPolicy\":\"First\",\"tableInputs\":[{\"field\":\"qdb_lc_tenor_period\"}],\"outputColumns\":[\"result\"],\"rows\":[{\"priority\":1,\"cells\":[{\"operator\":\"Equals\",\"valueField\":\"qdb_detail\"}],\"outputs\":{\"result\":null}}]}}"
+    },
+    {
+      "ruleVersionId": "08ad23cc-1f7b-f111-ab0e-000d3abd8313",
+      "ruleId": "cd0591cd-1f7b-f111-ab0e-70a8a55bc6a5",
+      "versionNumber": 1,
+      "lifecycleState": 100000003,
+      "createdOn": "2026-07-08T22:53:20Z",
+      "pcrm": "{\"schemaVersion\":\"1.0\",\"ruleId\":\"credit-vs-revenue\",\"name\":\"Credit vs Revenue\",\"targetEntity\":\"account\",\"inputs\":[{\"name\":\"creditlimit\",\"type\":\"Decimal\",\"binding\":\"creditlimit\"},{\"name\":\"revenue\",\"type\":\"Text\",\"binding\":\"revenue\"}],\"variables\":[],\"outputs\":[{\"name\":\"result\",\"type\":\"Text\"}],\"logic\":{\"type\":\"decisionTable\",\"hitPolicy\":\"First\",\"tableInputs\":[{\"field\":\"creditlimit\"}],\"outputColumns\":[\"result\"],\"rows\":[{\"priority\":2,\"cells\":[{\"operator\":\"GreaterThan\",\"valueField\":\"revenue\"}],\"outputs\":{\"result\":\"Over-leveraged\"}},{\"priority\":1,\"cells\":[{\"any\":true}],\"outputs\":{\"result\":\"OK\"}}]}}"
+    },
+    {
+      "ruleVersionId": "e4e1a94f-da7d-f111-ab0e-000d3abcf32d",
+      "ruleId": "ade7ce50-da7d-f111-ab0e-000d3abd8313",
+      "versionNumber": 1,
+      "lifecycleState": 100000003,
+      "createdOn": "2026-07-12T10:13:28Z",
+      "pcrm": "{\"schemaVersion\":\"1.0\",\"ruleId\":\"demo-uw-decision\",\"name\":\"Demo — Underwriting Decision (chained)\",\"targetEntity\":\"account\",\"inputs\":[{\"name\":\"tier\",\"type\":\"Text\"}],\"variables\":[],\"outputs\":[{\"name\":\"decision\",\"type\":\"Text\"}],\"logic\":{\"type\":\"decisionTable\",\"hitPolicy\":\"First\",\"tableInputs\":[{\"field\":\"tier\"}],\"outputColumns\":[\"decision\"],\"rows\":[{\"priority\":2,\"cells\":[{\"operator\":\"Equals\",\"value\":\"review\"}],\"outputs\":{\"decision\":\"manual-review\"},\"reasonCodes\":[\"HIGH_RISK\"]},{\"priority\":1,\"cells\":[{\"any\":true}],\"outputs\":{\"decision\":\"auto-approve\"},\"reasonCodes\":[]}]}}"
+    },
+    {
+      "ruleVersionId": "f55c2e51-da7d-f111-ab0e-70a8a55bc6a5",
+      "ruleId": "f35c2e51-da7d-f111-ab0e-70a8a55bc6a5",
+      "versionNumber": 1,
+      "lifecycleState": 100000003,
+      "createdOn": "2026-07-12T10:13:28Z",
+      "pcrm": "{\"schemaVersion\":\"1.0\",\"ruleId\":\"demo-risk-tier\",\"name\":\"Demo — Risk Tier (AND/OR)\",\"targetEntity\":\"account\",\"inputs\":[{\"name\":\"creditonhold\",\"type\":\"Boolean\",\"binding\":\"creditonhold\"},{\"name\":\"revenue\",\"type\":\"Decimal\",\"binding\":\"revenue\"},{\"name\":\"numberofemployees\",\"type\":\"Decimal\",\"binding\":\"numberofemployees\"}],\"variables\":[],\"outputs\":[{\"name\":\"tier\",\"type\":\"Text\"}],\"logic\":{\"type\":\"conditionSet\",\"rules\":[{\"when\":{\"op\":\"or\",\"negate\":false,\"conditions\":[{\"field\":\"creditonhold\",\"operator\":\"Equals\",\"value\":true}],\"groups\":[{\"op\":\"and\",\"negate\":false,\"conditions\":[{\"field\":\"revenue\",\"operator\":\"GreaterThan\",\"value\":1000000},{\"field\":\"numberofemployees\",\"operator\":\"GreaterThanOrEqual\",\"value\":50}],\"groups\":[]}]},\"then\":{\"tier\":\"review\"}}],\"otherwise\":{\"tier\":\"standard\"}}}"
+    },
+    {
+      "ruleVersionId": "6c0ab9af-287f-f111-ab0e-70a8a55bc6a5",
+      "ruleId": null,
+      "versionNumber": 1,
+      "lifecycleState": null,
+      "createdOn": "2026-07-14T02:07:04Z",
+      "pcrm": "{\"schemaVersion\":\"1.0\",\"ruleId\":\"all-node-types-—-sample\",\"name\":\"All Node Types — Sample\",\"targetEntity\":\"qdb_loanapplication\",\"inputs\":[{\"name\":\"loanAmount\",\"type\":\"Decimal\",\"binding\":\"loanAmount\"},{\"name\":\"riskRating\",\"type\":\"Text\",\"binding\":\"riskRating\"}],\"variables\":[{\"name\":\"loanAmount\",\"type\":\"Text\",\"formula\":\"loanAmount\"},{\"name\":\"riskRating\",\"type\":\"Text\",\"formula\":\"riskRating\"},{\"name\":\"adjustedAmount\",\"type\":\"Text\",\"formula\":\"loanAmount * 1.05\"}],\"outputs\":[{\"name\":\"Approval Level\",\"type\":\"Text\"},{\"name\":\"Manual Review\",\"type\":\"Text\"}],\"logic\":{\"type\":\"decisionTable\",\"hitPolicy\":\"First\",\"tableInputs\":[{\"field\":\"adjustedAmount\"},{\"field\":\"riskRating\"}],\"outputColumns\":[\"Approval Level\",\"Manual Review\"],\"rows\":[{\"priority\":4,\"cells\":[{\"operator\":\"GreaterThan\",\"value\":500000},{\"operator\":\"Equals\",\"value\":\"High\"}],\"outputs\":{\"Approval Level\":\"CEO\",\"Manual Review\":true}},{\"priority\":3,\"cells\":[{\"operator\":\"GreaterThan\",\"value\":500000},{\"operator\":\"Equals\",\"value\":\"Low\"}],\"outputs\":{\"Approval Level\":\"CFO\",\"Manual Review\":false}},{\"priority\":2,\"cells\":[{\"operator\":\"Between\",\"value\":100000,\"value2\":500000},{\"any\":true}],\"outputs\":{\"Approval Level\":\"Manager\",\"Manual Review\":false}},{\"priority\":1,\"cells\":[{\"operator\":\"LessThan\",\"value\":100000},{\"any\":true}],\"outputs\":{\"Approval Level\":\"Officer\",\"Manual Review\":false}}]}}"
+    },
+    {
+      "ruleVersionId": "17cb42bf-287f-f111-ab0e-70a8a55bc6a5",
+      "ruleId": null,
+      "versionNumber": 1,
+      "lifecycleState": null,
+      "createdOn": "2026-07-14T02:07:24Z",
+      "pcrm": "{\"schemaVersion\":\"1.0\",\"ruleId\":\"all-node-types-—-sample\",\"name\":\"All Node Types — Sample\",\"targetEntity\":\"qdb_loanapplication\",\"inputs\":[{\"name\":\"loanAmount\",\"type\":\"Decimal\",\"binding\":\"loanAmount\"},{\"name\":\"riskRating\",\"type\":\"Text\",\"binding\":\"riskRating\"}],\"variables\":[{\"name\":\"loanAmount\",\"type\":\"Text\",\"formula\":\"loanAmount\"},{\"name\":\"riskRating\",\"type\":\"Text\",\"formula\":\"riskRating\"},{\"name\":\"adjustedAmount\",\"type\":\"Text\",\"formula\":\"loanAmount * 1.05\"}],\"outputs\":[{\"name\":\"Approval Level\",\"type\":\"Text\"},{\"name\":\"Manual Review\",\"type\":\"Text\"}],\"logic\":{\"type\":\"decisionTable\",\"hitPolicy\":\"First\",\"tableInputs\":[{\"field\":\"adjustedAmount\"},{\"field\":\"riskRating\"}],\"outputColumns\":[\"Approval Level\",\"Manual Review\"],\"rows\":[{\"priority\":4,\"cells\":[{\"operator\":\"GreaterThan\",\"value\":500000},{\"operator\":\"Equals\",\"value\":\"High\"}],\"outputs\":{\"Approval Level\":\"CEO\",\"Manual Review\":true}},{\"priority\":3,\"cells\":[{\"operator\":\"GreaterThan\",\"value\":500000},{\"operator\":\"Equals\",\"value\":\"Low\"}],\"outputs\":{\"Approval Level\":\"CFO\",\"Manual Review\":false}},{\"priority\":2,\"cells\":[{\"operator\":\"Between\",\"value\":100000,\"value2\":500000},{\"any\":true}],\"outputs\":{\"Approval Level\":\"Manager\",\"Manual Review\":false}},{\"priority\":1,\"cells\":[{\"operator\":\"LessThan\",\"value\":100000},{\"any\":true}],\"outputs\":{\"Approval Level\":\"Officer\",\"Manual Review\":false}}]}}"
+    },
+    {
+      "ruleVersionId": "4583e6c8-6983-f111-ab0f-000d3abd8313",
+      "ruleId": "4383e6c8-6983-f111-ab0f-000d3abd8313",
+      "versionNumber": 1,
+      "lifecycleState": 100000003,
+      "createdOn": "2026-07-19T12:03:02Z",
+      "pcrm": "{\"schemaVersion\":\"1.0\",\"ruleId\":\"underwriting-decision-—-full-engine-(demo)\",\"name\":\"Underwriting Decision — Full Engine (demo)\",\"targetEntity\":\"qdb_loanapplication\",\"inputs\":[{\"name\":\"loanAmount\",\"type\":\"Decimal\",\"binding\":\"loanAmount\"},{\"name\":\"annualIncome\",\"type\":\"Decimal\",\"binding\":\"annualIncome\"},{\"name\":\"creditScore\",\"type\":\"Decimal\",\"binding\":\"creditScore\"},{\"name\":\"employmentYears\",\"type\":\"Decimal\",\"binding\":\"employmentYears\"},{\"name\":\"existingMonthlyDebt\",\"type\":\"Decimal\",\"binding\":\"existingMonthlyDebt\"},{\"name\":\"requestedTermMonths\",\"type\":\"Decimal\",\"binding\":\"requestedTermMonths\"},{\"name\":\"applicantAge\",\"type\":\"Decimal\",\"binding\":\"applicantAge\"},{\"name\":\"collateralValue\",\"type\":\"Decimal\",\"binding\":\"collateralValue\"},{\"name\":\"hasBankruptcy\",\"type\":\"Boolean\",\"binding\":\"hasBankruptcy\"},{\"name\":\"region\",\"type\":\"Text\",\"binding\":\"region\"}],\"variables\":[{\"name\":\"monthlyIncome\",\"type\":\"Text\",\"formula\":\"annualIncome / 12\"},{\"name\":\"dti\",\"type\":\"Text\",\"formula\":\"existingMonthlyDebt / (annualIncome / 12)\"},{\"name\":\"lti\",\"type\":\"Text\",\"formula\":\"loanAmount / annualIncome\"},{\"name\":\"ltv\",\"type\":\"Text\",\"formula\":\"loanAmount / collateralValue\"},{\"name\":\"estMonthlyPayment\",\"type\":\"Text\",\"formula\":\"loanAmount / requestedTermMonths\"},{\"name\":\"creditScore\",\"type\":\"Text\",\"formula\":\"creditScore\"},{\"name\":\"employmentYears\",\"type\":\"Text\",\"formula\":\"employmentYears\"},{\"name\":\"applicantAge\",\"type\":\"Text\",\"formula\":\"applicantAge\"},{\"name\":\"loanAmount\",\"type\":\"Text\",\"formula\":\"loanAmount\"},{\"name\":\"annualIncome\",\"type\":\"Text\",\"formula\":\"annualIncome\"},{\"name\":\"hasBankruptcy\",\"type\":\"Text\",\"formula\":\"hasBankruptcy\"},{\"name\":\"region\",\"type\":\"Text\",\"formula\":\"region\"},{\"name\":\"riskBand\",\"type\":\"Text\",\"formula\":\"if(creditScore >= 720 && existingMonthlyDebt <= 2000 && loanAmount <= annualIncome * 3, 'Low', if(creditScore >= 660 && loanAmount <= annualIncome * 4, 'Medium', 'High'))\"}],\"outputs\":[{\"name\":\"Approval Level\",\"type\":\"Text\"},{\"name\":\"Rate Premium %\",\"type\":\"Text\"},{\"name\":\"Manual Review\",\"type\":\"Text\"}],\"logic\":{\"type\":\"decisionTable\",\"hitPolicy\":\"First\",\"tableInputs\":[{\"field\":\"riskBand\"},{\"field\":\"lti\"},{\"field\":\"creditScore\"}],\"outputColumns\":[\"Approval Level\",\"Rate Premium %\",\"Manual Review\"],\"rows\":[{\"priority\":6,\"cells\":[{\"operator\":\"Equals\",\"value\":\"Low\"},{\"operator\":\"LessThanOrEqual\",\"value\":3},{\"operator\":\"GreaterThanOrEqual\",\"value\":720}],\"outputs\":{\"Approval Level\":\"Auto\",\"Rate Premium %\":0,\"Manual Review\":false}},{\"priority\":5,\"cells\":[{\"operator\":\"Equals\",\"value\":\"Low\"},{\"operator\":\"Between\",\"value\":3,\"value2\":4},{\"operator\":\"GreaterThanOrEqual\",\"value\":680}],\"outputs\":{\"Approval Level\":\"Refer\",\"Rate Premium %\":0.5,\"Manual Review\":true}},{\"priority\":4,\"cells\":[{\"operator\":\"Equals\",\"value\":\"Medium\"},{\"operator\":\"LessThanOrEqual\",\"value\":4},{\"operator\":\"GreaterThanOrEqual\",\"value\":680}],\"outputs\":{\"Approval Level\":\"Refer\",\"Rate Premium %\":1,\"Manual Review\":true}},{\"priority\":3,\"cells\":[{\"operator\":\"Equals\",\"value\":\"Medium\"},{\"operator\":\"GreaterThan\",\"value\":4},{\"any\":true}],\"outputs\":{\"Approval Level\":\"Decline\",\"Rate Premium %\":0,\"Manual Review\":false}},{\"priority\":2,\"cells\":[{\"operator\":\"Equals\",\"value\":\"High\"},{\"any\":true},{\"any\":true}],\"outputs\":{\"Approval Level\":\"Decline\",\"Rate Premium %\":0,\"Manual Review\":false}},{\"priority\":1,\"cells\":[{\"any\":true},{\"any\":true},{\"any\":true}],\"outputs\":{\"Approval Level\":\"Refer\",\"Rate Premium %\":1.5,\"Manual Review\":true}}]}}"
+    },
+    {
+      "ruleVersionId": "975efceb-4885-f111-ab0f-70a8a55bc6a5",
+      "ruleId": "965efceb-4885-f111-ab0f-70a8a55bc6a5",
+      "versionNumber": 1,
+      "lifecycleState": null,
+      "createdOn": "2026-07-21T21:12:48Z",
+      "pcrm": "{\"schemaVersion\":\"1.0\",\"ruleId\":\"account-credit-tier\",\"name\":\"Account Credit Tier\",\"targetEntity\":\"account\",\"inputs\":[{\"name\":\"revenue\",\"type\":\"Decimal\",\"binding\":\"revenue\"}],\"variables\":[],\"outputs\":[{\"name\":\"Credit Tier\",\"type\":\"Text\"},{\"name\":\"Discount %\",\"type\":\"Text\"}],\"logic\":{\"type\":\"decisionTable\",\"hitPolicy\":\"First\",\"tableInputs\":[{\"field\":\"revenue\"}],\"outputColumns\":[\"Credit Tier\",\"Discount %\"],\"rows\":[{\"priority\":3,\"cells\":[{\"operator\":\"GreaterThanOrEqual\",\"value\":1000000}],\"outputs\":{\"Credit Tier\":\"Gold\",\"Discount %\":15}},{\"priority\":2,\"cells\":[{\"operator\":\"GreaterThanOrEqual\",\"value\":250000}],\"outputs\":{\"Credit Tier\":\"Silver\",\"Discount %\":10}},{\"priority\":1,\"cells\":[{\"any\":true}],\"outputs\":{\"Credit Tier\":\"Bronze\",\"Discount %\":5}}]}}"
+    }
+  ]
+}

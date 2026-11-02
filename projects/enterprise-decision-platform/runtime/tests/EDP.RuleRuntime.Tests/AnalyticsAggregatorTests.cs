@@ -31,6 +31,14 @@ namespace EDP.RuleRuntime.Tests
         }
 
         [Fact]
+        public void Aggregate_RejectedInputs_AreCountedApartFromErrors()
+        {
+            var rows = new[] { Log("rejected", 1, To), Log("error", 1, To), Log("matched", 1, To) };
+            var s = AnalyticsAggregator.Aggregate(rows, From, To);
+            Assert.Equal((1, 1, 3), (s.Rejected, s.Error, s.Total));
+        }
+
+        [Fact]
         public void Latency_reports_average_percentiles_and_max()
         {
             var durations = new long[] { 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 };

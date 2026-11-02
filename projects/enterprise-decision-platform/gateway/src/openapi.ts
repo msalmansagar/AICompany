@@ -70,8 +70,19 @@ export const openApiDocument = {
       },
       RuleRef: {
         type: 'object',
-        description: 'Address a rule by one of: published version, rule id, or rule name.',
-        properties: { versionId: { type: 'string', format: 'uuid' }, id: { type: 'string', format: 'uuid' }, name: { type: 'string' } },
+        description: 'Address a rule by one of: published version, rule id, rule key, or rule name.',
+        properties: {
+          versionId: { type: 'string', format: 'uuid' },
+          id: { type: 'string', format: 'uuid' },
+          key: {
+            type: 'string',
+            pattern: '^[a-z0-9]+([._-][a-z0-9]+)*$',
+            minLength: 3,
+            maxLength: 100,
+            description: 'Human-readable lower-case key (IC-3: pattern matches the shared contract).',
+          },
+          name: { type: 'string' },
+        },
       },
       EvaluateRequest: {
         type: 'object',
@@ -115,6 +126,25 @@ export const openApiDocument = {
           meta: { $ref: '#/components/schemas/Meta' },
           matched: { type: 'boolean' },
           outputs: { type: 'object', additionalProperties: true, example: { creditTier: 'Gold', discount: 15 } },
+          outcome: {
+            type: 'string',
+            enum: ['MATCHED', 'NO_MATCH', 'INPUT_REJECTED', 'ENGINE_ERROR'],
+            description: 'Decision outcome literal (FR-B2-06). IC-3: equals the contract literals.',
+          },
+          provenance: {
+            type: ['object', 'null'],
+            description: 'Parsed provenance from ProvenanceJson (FR-B4-02, ADR-20).',
+            properties: {
+              executionId: { type: 'string' },
+              ruleId: { type: ['string', 'null'] },
+              ruleKey: { type: ['string', 'null'] },
+              ruleVersionId: { type: ['string', 'null'] },
+              versionNumber: { type: ['number', 'null'] },
+              contentHash: { type: 'string' },
+              evaluatedOnUtc: { type: 'string' },
+              correlationId: { type: ['string', 'null'] },
+            },
+          },
           trace: {},
           diagnostics: {},
         },

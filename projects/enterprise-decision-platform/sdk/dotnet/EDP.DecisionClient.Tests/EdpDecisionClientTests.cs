@@ -111,5 +111,71 @@ namespace Edp.DecisionClient.Tests
             Assert.False(doc.RootElement.TryGetProperty("meta", out _)); // meta omitted when null
             Assert.Equal("00000000-0000-0000-0000-000000000001", doc.RootElement.GetProperty("rule").GetProperty("versionId").GetString());
         }
+
+        // ── RuleRef.Key (FR-B3-10) ─────────────────────────────────────────────
+
+        [Fact]
+        public async Task ByKey_sends_key_in_rule_envelope()
+        {
+            var (client, handler) = Make(HttpStatusCode.OK, "{\"meta\":{},\"matched\":true,\"outputs\":{}}");
+            await client.EvaluateAsync(RuleRef.ByKey("account.credit-tier"));
+            using var doc = JsonDocument.Parse(handler.LastBody!);
+            Assert.Equal("account.credit-tier", doc.RootElement.GetProperty("rule").GetProperty("key").GetString());
+        }
+
+        [Fact]
+        public async Task ByKey_throws_when_key_contains_uppercase()
+        {
+            var handler = new FakeHandler(HttpStatusCode.OK, "{}");
+            var client = new EdpDecisionClient("https://gw.example.com/", httpClient: new HttpClient(handler));
+            await Assert.ThrowsAsync<ArgumentException>(() => client.EvaluateAsync(RuleRef.ByKey("Invalid-Key")));
+        }
+
+        [Fact]
+        public async Task ByKey_throws_when_key_is_shorter_than_3_chars()
+        {
+            var handler = new FakeHandler(HttpStatusCode.OK, "{}");
+            var client = new EdpDecisionClient("https://gw.example.com/", httpClient: new HttpClient(handler));
+            await Assert.ThrowsAsync<ArgumentException>(() => client.EvaluateAsync(RuleRef.ByKey("ab")));
+        }
+
+        [Fact]
+        public async Task ByKey_throws_when_correlationId_exceeds_100_chars()
+        {
+            var handler = new FakeHandler(HttpStatusCode.OK, "{}");
+            var client = new EdpDecisionClient("https://gw.example.com/", httpClient: new HttpClient(handler));
+            var longId = new string('x', 101);
+            await Assert.ThrowsAsync<ArgumentException>(() => client.EvaluateAsync(RuleRef.ByName("r"), correlationId: longId));
+        }
+
+        [Fact]
+        public async Task Evaluate_parses_outcome_and_provenance()
+        {
+            var json = """
+            {
+                "meta": {"correlationId": "c1", "requestId": "r1", "executionId": "exec-1", "elapsedMs": 10},
+                "matched": true,
+                "outputs": {"decision": "approve"},
+                "outcome": "MATCHED",
+                "provenance": {
+                    "executionId": "exec-1",
+                    "ruleId": "rule-1",
+                    "ruleKey": "account.credit-tier",
+                    "ruleVersionId": "ver-1",
+                    "versionNumber": 3,
+                    "contentHash": "abc123",
+                    "evaluatedOnUtc": "2026-09-28T10:00:00Z",
+                    "correlationId": "corr-1"
+                }
+            }
+            """;
+            var (client, _) = Make(HttpStatusCode.OK, json);
+            var result = await client.EvaluateAsync(RuleRef.ByKey("account.credit-tier"));
+            Assert.Equal(DecisionOutcome.Matched, result.Outcome);
+            Assert.NotNull(result.Provenance);
+            Assert.Equal("account.credit-tier", result.Provenance!.RuleKey);
+            Assert.Equal(3, result.Provenance.VersionNumber);
+            Assert.Equal("abc123", result.Provenance.ContentHash);
+        }
     }
 }

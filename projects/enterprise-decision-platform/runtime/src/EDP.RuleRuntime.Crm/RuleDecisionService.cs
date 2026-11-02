@@ -7,6 +7,7 @@ using Microsoft.Xrm.Sdk.Query;
 using EDP.RuleRuntime;
 using EDP.RuleRuntime.Crm.Sinks;
 using EDP.RuleRuntime.Execution;
+using EDP.RuleRuntime.Inputs;
 using EDP.RuleRuntime.Snapshots;
 using EDP.RuleRuntime.Crm.Retrieval;
 using EDP.RuleRuntime.Metadata;
@@ -44,17 +45,33 @@ namespace EDP.RuleRuntime.Crm
         /// Published (governance gate, F-01); only Validate/Test may resolve a Draft.
         /// </summary>
         public string ResolvePcrm(Guid ruleVersionId, bool requirePublished = true)
+            => ReadVersion(ruleVersionId, requirePublished).GetAttributeValue<string>("qdb_edp_pcrmjson");
+
+        /// <summary>
+        /// Resolve a Published rule version together with the identity its provenance reports
+        /// (FR-B4-02): rule id, version number and the rule's key. The key is empty until backfilled.
+        /// </summary>
+        public ExecutableRuleVersion ResolveExecutable(Guid ruleVersionId)
+        {
+            var version = ReadVersion(ruleVersionId, requirePublished: true);
+            var rule = version.GetAttributeValue<EntityReference>("qdb_edp_ruleid");
+            var ruleKey = rule == null ? null
+                : _service.Retrieve("qdb_edp_rule", rule.Id, new ColumnSet("qdb_edp_rulekey")).GetAttributeValue<string>("qdb_edp_rulekey");
+            return new ExecutableRuleVersion(version.GetAttributeValue<string>("qdb_edp_pcrmjson"), ruleVersionId, rule?.Id,
+                version.GetAttributeValue<int?>("qdb_edp_versionnumber"), ruleKey);
+        }
+
+        private Entity ReadVersion(Guid ruleVersionId, bool requirePublished)
         {
             var record = _service.Retrieve("qdb_edp_ruleversion", ruleVersionId,
-                new Microsoft.Xrm.Sdk.Query.ColumnSet("qdb_edp_pcrmjson", "qdb_edp_lifecyclestate"));
+                new ColumnSet("qdb_edp_pcrmjson", "qdb_edp_lifecyclestate", "qdb_edp_ruleid", "qdb_edp_versionnumber"));
 
             if (requirePublished && record.GetAttributeValue<OptionSetValue>("qdb_edp_lifecyclestate")?.Value != LifecyclePublished)
                 throw new InvalidOperationException($"Rule version {ruleVersionId} is not Published and cannot be executed.");
 
-            var pcrm = record.GetAttributeValue<string>("qdb_edp_pcrmjson");
-            if (string.IsNullOrWhiteSpace(pcrm))
+            if (string.IsNullOrWhiteSpace(record.GetAttributeValue<string>("qdb_edp_pcrmjson")))
                 throw new InvalidOperationException($"Rule version {ruleVersionId} has no PCRM payload.");
-            return pcrm!;
+            return record;
         }
 
         /// <summary>
@@ -63,7 +80,14 @@ namespace EDP.RuleRuntime.Crm
         /// the decision is produced; it never affects the returned result.
         /// </summary>
         public DecisionOutcome Evaluate(string pcrmJson, Entity target, Guid? ruleVersionId, Guid actorId, DateTime nowUtc)
-            => EvaluateInputs(pcrmJson, BuildInputs(pcrmJson, target, nowUtc), ruleVersionId, actorId, nowUtc);
+        {
+            var doc = ParseDocument(pcrmJson);
+            var inputs = BindAnchorInputs(doc, target);
+            // FR-B2-07: a retrieval never runs on inputs that fail a strict rule's contract.
+            if (!_runtime.ValidateInputs(pcrmJson, inputs, InputOrigin.Record).IsRejected)
+                AddRetrievedPopulations(doc, inputs, nowUtc);
+            return Decide(pcrmJson, inputs, new DecisionCall(ruleVersionId, actorId, nowUtc, InputOrigin.Record));
+        }
 
         /// <summary>
         /// Assemble the fact set a rule will see, and capture it (FR-F30).
@@ -73,30 +97,50 @@ namespace EDP.RuleRuntime.Crm
         /// same snapshot reproduces the verdict (FR-F31) even after the population has moved on.
         /// </summary>
         public FactSnapshot CaptureFacts(string pcrmJson, Entity target, DateTime nowUtc)
-            => FactSnapshot.Capture(BuildInputs(pcrmJson, target, nowUtc), nowUtc);
+        {
+            var doc = ParseDocument(pcrmJson);
+            var inputs = BindAnchorInputs(doc, target);
+            AddRetrievedPopulations(doc, inputs, nowUtc);
+            return FactSnapshot.Capture(inputs, nowUtc);
+        }
 
         /// <summary>
         /// Evaluate against a pre-built input dictionary (e.g. from a Custom API
         /// InputsJson parameter) — lets a decision be tested without a target record.
         /// </summary>
         public DecisionOutcome EvaluateInputs(string pcrmJson, IDictionary<string, object?> inputs, Guid? ruleVersionId, Guid actorId, DateTime nowUtc)
+            => Decide(pcrmJson, inputs, new DecisionCall(ruleVersionId, actorId, nowUtc, InputOrigin.Caller));
+
+        private DecisionOutcome Decide(string pcrmJson, IDictionary<string, object?> inputs, DecisionCall call)
         {
-            var result = _runtime.Execute(pcrmJson, inputs, nowUtc);
+            var result = _runtime.Execute(pcrmJson, inputs, call.NowUtc, call.Origin);
 
             var executionLogId = _trace.WriteTrace(new TraceRecord
             {
-                RuleVersionId = ruleVersionId,
-                ResolvedVersion = ruleVersionId?.ToString() ?? "adhoc",
-                Outcome = result.Success ? (result.Matched ? "matched" : "no-match") : "error",
+                RuleVersionId = call.RuleVersionId,
+                ResolvedVersion = call.RuleVersionId?.ToString() ?? "adhoc",
+                Outcome = TraceOutcome(result.Outcome),
                 DurationMs = result.ElapsedMilliseconds,
-                Actor = actorId.ToString(),
-                ExecutedOnUtc = nowUtc,
+                Actor = call.ActorId.ToString(),
+                ExecutedOnUtc = call.NowUtc,
                 TraceJson = result.Trace != null
                     ? JsonSerializer.Serialize(result.Trace.Steps.Select(s => new { kind = s.Kind, description = s.Description, result = s.Result }))
                     : null
             });
 
             return new DecisionOutcome(result, executionLogId);
+        }
+
+        /// <summary>The execution-log outcome label; a rejected input is recorded as "rejected" (FR-B2-06).</summary>
+        public static string TraceOutcome(RuleOutcome outcome)
+        {
+            switch (outcome)
+            {
+                case RuleOutcome.Matched: return "matched";
+                case RuleOutcome.NoMatch: return "no-match";
+                case RuleOutcome.InputRejected: return "rejected";
+                default: return "error";
+            }
         }
 
         /// <summary>
@@ -197,7 +241,9 @@ namespace EDP.RuleRuntime.Crm
             switch (e.ValueKind)
             {
                 case JsonValueKind.String: return e.GetString();
-                case JsonValueKind.Number: return e.GetDecimal();
+                // Read straight to decimal (Option A); a number decimal cannot hold is kept, not
+                // crashed on, so a strict rule can reject it as EDP062 (a lenient rule still throws).
+                case JsonValueKind.Number: return e.TryGetDecimal(out var number) ? (object)number : new UnrepresentableNumber(e.GetRawText());
                 case JsonValueKind.True: return true;
                 case JsonValueKind.False: return false;
 
@@ -215,24 +261,28 @@ namespace EDP.RuleRuntime.Crm
             }
         }
 
-        private IDictionary<string, object?> BuildInputs(string pcrmJson, Entity target, DateTime nowUtc)
-        {
-            var doc = JsonSerializer.Deserialize<PcrmDocument>(pcrmJson, JsonOptions)
-                      ?? throw new InvalidOperationException("PCRM payload could not be parsed.");
+        private static PcrmDocument ParseDocument(string pcrmJson)
+            => JsonSerializer.Deserialize<PcrmDocument>(pcrmJson, JsonOptions)
+               ?? throw new InvalidOperationException("PCRM payload could not be parsed.");
 
+        /// <summary>
+        /// Bind every input from the target record. A declared fact is carried as null and is never
+        /// read from the record, even when a column of the same name exists (FR-B1-04, FR-B1-10).
+        /// </summary>
+        private IDictionary<string, object?> BindAnchorInputs(PcrmDocument doc, Entity target)
+        {
             var relatedByRelationship = LoadRelatedRecords(doc, target);
 
             var inputs = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
             foreach (var input in doc.Inputs)
             {
+                if (input.IsDeclaredFact) { inputs[input.Name] = null; continue; }
                 if (input.Aggregate != null) { inputs[input.Name] = ResolveAggregate(target, input); continue; }
                 var binding = string.IsNullOrWhiteSpace(input.Binding) ? input.Name : input.Binding!;
                 var source = IsNavigated(input) ? relatedByRelationship[input.Via!.Relationship] : target;
                 var crmValue = source != null && source.Contains(binding) ? source[binding] : null;
                 inputs[input.Name] = CrmValueConverter.ToRuntime(crmValue);
             }
-
-            AddRetrievedPopulations(doc, inputs, nowUtc);
             return inputs;
         }
 

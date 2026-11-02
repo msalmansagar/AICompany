@@ -22,6 +22,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The shared Rule Engine contract (IC-3): one definition embedded here, imported by the designer, checked against the SDKs. -->
+    <EmbeddedResource Include="../../../contract/rule-engine-contract.json" LogicalName="EDP.RuleRuntime.Contract.rule-engine-contract.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="NCalcSync" Version="5.4.2" />
     <PackageReference Include="System.Text.Json" Version="9.0.4" />
   </ItemGroup>

@@ -13,10 +13,18 @@ function lastCall(fetchMock: typeof fetch): [string, RequestInit] {
 
 describe('EdpClient', () => {
   it('evaluate: builds the canonical envelope and posts to the gateway', async () => {
-    const fetchMock = fakeFetch(200, { meta: { correlationId: 'c1', requestId: 'r1', executionId: 'e1', elapsedMs: 12 }, matched: true, outputs: { creditTier: 'Gold', discount: 15 } });
+    const fetchMock = fakeFetch(200, {
+      meta: { correlationId: 'c1', requestId: 'r1', executionId: 'e1', elapsedMs: 12 },
+      matched: true,
+      outputs: { creditTier: 'Gold', discount: 15 },
+    });
     const client = new EdpClient({ baseUrl: 'https://gw.example.com/', apiKey: 'k', fetch: fetchMock });
 
-    const result = await client.evaluate({ rule: { name: 'Account Credit Tier' }, input: { revenue: 1500000 }, correlationId: 'c1' });
+    const result = await client.evaluate({
+      rule: { name: 'Account Credit Tier' },
+      input: { revenue: 1500000 },
+      correlationId: 'c1',
+    });
 
     expect(result.matched).toBe(true);
     expect(result.outputs).toEqual({ creditTier: 'Gold', discount: 15 });
@@ -33,7 +41,11 @@ describe('EdpClient', () => {
   });
 
   it('test: posts to the test endpoint', async () => {
-    const fetchMock = fakeFetch(200, { meta: { correlationId: 'c', requestId: 'r', executionId: null }, matched: true, outputs: {} });
+    const fetchMock = fakeFetch(200, {
+      meta: { correlationId: 'c', requestId: 'r', executionId: null },
+      matched: true,
+      outputs: {},
+    });
     const client = new EdpClient({ baseUrl: 'https://gw.example.com', apiKey: 'k', fetch: fetchMock });
     await client.test({ rule: { versionId: '00000000-0000-0000-0000-000000000001' }, input: { revenue: 100 } });
     expect(lastCall(fetchMock)[0]).toBe('https://gw.example.com/v1/decisions/test');
@@ -50,17 +62,30 @@ describe('EdpClient', () => {
   });
 
   it('evaluateRuleSet: posts the set id + input', async () => {
-    const fetchMock = fakeFetch(200, { meta: { correlationId: 'c', requestId: 'r' }, result: { policy: 'FirstMatch', matchedCount: 1 } });
+    const fetchMock = fakeFetch(200, {
+      meta: { correlationId: 'c', requestId: 'r' },
+      result: { policy: 'FirstMatch', matchedCount: 1 },
+    });
     const client = new EdpClient({ baseUrl: 'https://gw.example.com', apiKey: 'k', fetch: fetchMock });
-    const res = await client.evaluateRuleSet({ ruleSetId: '00000000-0000-0000-0000-000000000009', input: { revenue: 5 } });
+    const res = await client.evaluateRuleSet({
+      ruleSetId: '00000000-0000-0000-0000-000000000009',
+      input: { revenue: 5 },
+    });
     expect((res.result as { matchedCount: number }).matchedCount).toBe(1);
     const [url, init] = lastCall(fetchMock);
     expect(url).toBe('https://gw.example.com/v1/rule-sets/evaluate');
-    expect(JSON.parse(init.body as string)).toEqual({ ruleSetId: '00000000-0000-0000-0000-000000000009', input: { revenue: 5 } });
+    expect(JSON.parse(init.body as string)).toEqual({
+      ruleSetId: '00000000-0000-0000-0000-000000000009',
+      input: { revenue: 5 },
+    });
   });
 
   it('getSchema: posts the rule ref to the schema endpoint', async () => {
-    const fetchMock = fakeFetch(200, { meta: {}, inputs: [{ name: 'revenue' }], outputs: [{ name: 'creditTier' }] });
+    const fetchMock = fakeFetch(200, {
+      meta: {},
+      inputs: [{ name: 'revenue' }],
+      outputs: [{ name: 'creditTier' }],
+    });
     const client = new EdpClient({ baseUrl: 'https://gw.example.com', apiKey: 'k', fetch: fetchMock });
     const res = await client.getSchema({ rule: { name: 'Account Credit Tier' } });
     expect(res.inputs).toEqual([{ name: 'revenue' }]);
@@ -93,7 +118,72 @@ describe('EdpClient', () => {
   it('throws a typed error on a non-2xx response', async () => {
     const fetchMock = fakeFetch(404, { error: { code: 'rule_not_found', message: 'no published version' } });
     const client = new EdpClient({ baseUrl: 'https://gw.example.com', apiKey: 'k', fetch: fetchMock });
-    await expect(client.evaluate({ rule: { name: 'Missing' } })).rejects.toMatchObject({ name: 'EdpDecisionError', code: 'rule_not_found', status: 404 });
+    await expect(client.evaluate({ rule: { name: 'Missing' } })).rejects.toMatchObject({
+      name: 'EdpDecisionError',
+      code: 'rule_not_found',
+      status: 404,
+    });
     await expect(client.evaluate({ rule: { name: 'Missing' } })).rejects.toBeInstanceOf(EdpDecisionError);
+  });
+
+  // ── RuleRef.key (FR-B3-10) ──────────────────────────────────────────────────
+
+  it('evaluate: sends rule.key as key in the envelope', async () => {
+    const fetchMock = fakeFetch(200, { meta: { correlationId: 'c', requestId: 'r' }, matched: true, outputs: {} });
+    const client = new EdpClient({ baseUrl: 'https://gw.example.com', apiKey: 'k', fetch: fetchMock });
+    await client.evaluate({ rule: { key: 'account.credit-tier' } });
+    const body = JSON.parse(lastCall(fetchMock)[1].body as string);
+    expect(body.rule).toEqual({ key: 'account.credit-tier' });
+  });
+
+  it('evaluate: throws client-side when rule.key contains upper-case', async () => {
+    const client = new EdpClient({ baseUrl: 'https://gw.example.com', fetch: vi.fn() });
+    await expect(client.evaluate({ rule: { key: 'Invalid-Key' } })).rejects.toBeInstanceOf(EdpDecisionError);
+  });
+
+  it('evaluate: throws client-side when rule.key is shorter than 3 characters', async () => {
+    const client = new EdpClient({ baseUrl: 'https://gw.example.com', fetch: vi.fn() });
+    await expect(client.evaluate({ rule: { key: 'ab' } })).rejects.toMatchObject({ code: 'invalid_rule_key' });
+  });
+
+  it('evaluate: throws client-side when correlationId exceeds 100 characters', async () => {
+    const client = new EdpClient({ baseUrl: 'https://gw.example.com', fetch: vi.fn() });
+    const longId = 'x'.repeat(101);
+    await expect(client.evaluate({ rule: { name: 'r' }, correlationId: longId })).rejects.toMatchObject({
+      code: 'invalid_correlation_id',
+    });
+  });
+
+  it('evaluate: accepts correlationId of exactly 100 characters', async () => {
+    const fetchMock = fakeFetch(200, { meta: { correlationId: 'c', requestId: 'r' }, matched: false, outputs: {} });
+    const client = new EdpClient({ baseUrl: 'https://gw.example.com', apiKey: 'k', fetch: fetchMock });
+    const longId = 'x'.repeat(100);
+    await expect(client.evaluate({ rule: { name: 'r' }, correlationId: longId })).resolves.toBeDefined();
+  });
+
+  // ── Outcome + Provenance (FR-B2-06, FR-B4-02) ───────────────────────────────
+
+  it('evaluate: parses outcome and provenance from the gateway response', async () => {
+    const provenance = {
+      executionId: 'exec-1',
+      ruleId: 'rule-1',
+      ruleKey: 'account.credit-tier',
+      ruleVersionId: 'ver-1',
+      versionNumber: 3,
+      contentHash: 'abc123',
+      evaluatedOnUtc: '2026-09-28T10:00:00Z',
+      correlationId: 'corr-1',
+    };
+    const fetchMock = fakeFetch(200, {
+      meta: { correlationId: 'c1', requestId: 'r1', executionId: 'exec-1', elapsedMs: 10 },
+      matched: true,
+      outputs: { decision: 'approve' },
+      outcome: 'MATCHED',
+      provenance,
+    });
+    const client = new EdpClient({ baseUrl: 'https://gw.example.com', apiKey: 'k', fetch: fetchMock });
+    const result = await client.evaluate({ rule: { key: 'account.credit-tier' } });
+    expect(result.outcome).toBe('MATCHED');
+    expect(result.provenance).toEqual(provenance);
   });
 });

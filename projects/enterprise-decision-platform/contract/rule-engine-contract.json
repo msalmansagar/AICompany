@@ -1,0 +1,49 @@
+{
+  "description": "Shared Rule Engine contract definitions (EDP-RE-ENH-001, ADR-19/20/21, IC-3). The runtime embeds this file; the designer imports it; the SDKs are checked against it in CI. Change it here and nowhere else.",
+  "contractVersion": "1.1.0",
+  "strictContract": {
+    "schemaVersion": "1.1",
+    "inputContract": "strict",
+    "lenientInputContract": "lenient"
+  },
+  "inputTypes": [
+    { "name": "Text", "strict": "string", "label": "Text" },
+    { "name": "Decimal", "strict": "decimal", "label": "Decimal number" },
+    { "name": "Currency", "strict": "decimal", "label": "Currency" },
+    { "name": "WholeNumber", "strict": "integer", "label": "Whole number" },
+    { "name": "Boolean", "strict": "boolean", "label": "Yes / No" },
+    { "name": "Date", "strict": "date", "label": "Date (YYYY-MM-DD)" },
+    { "name": "DateTime", "strict": "datetime", "label": "Date and time (ISO-8601 with offset)" },
+    { "name": "Choice", "strict": "code", "label": "Choice (numeric code)" },
+    { "name": "OptionSet", "strict": "code", "label": "Option set (numeric code)" },
+    { "name": "Collection", "strict": "collection", "label": "Collection (list)" },
+    { "name": "Lookup", "strict": null, "label": "Lookup (not available in strict rules)" }
+  ],
+  "outcomes": ["MATCHED", "NO_MATCH", "INPUT_REJECTED", "ENGINE_ERROR"],
+  "ruleKey": {
+    "pattern": "^[a-z0-9]+([._-][a-z0-9]+)*$",
+    "minLength": 3,
+    "maxLength": 100
+  },
+  "correlationId": { "minLength": 1, "maxLength": 100 },
+  "contentHash": {
+    "algorithm": "SHA-256",
+    "excludedTopLevelProperties": ["schemaVersion", "ruleId", "name", "description"],
+    "excludedTopLevelPropertyPrefix": "x-",
+    "maxExponentMagnitude": 1000
+  },
+  "diagnostics": {
+    "EDP060": "Required input is missing.",
+    "EDP061": "Input is null but the rule declares it not nullable.",
+    "EDP062": "Input value does not match its declared type.",
+    "EDP063": "A whole-number or choice input has a fractional value.",
+    "EDP064": "Declared fact: supplied by the caller or an upstream rule, never read from the record.",
+    "EDP065": "A strict input contract requires schemaVersion 1.1.",
+    "EDP066": "This input type cannot be declared in a strict rule in Release 1.",
+    "EDP067": "An input was supplied that the rule does not declare; it was ignored.",
+    "EDP068": "A numeric literal in a strict rule is not exactly representable as a decimal.",
+    "EDP069": "A declared fact cannot also carry a binding, relationship or aggregate.",
+    "EDP070": "The supplied rule identifiers refer to different rules.",
+    "EDP071": "The RuleKey is not in the required format."
+  }
+}

@@ -34,7 +34,12 @@ export function registerDecisionRoutes(app: FastifyInstance, runtime: DecisionRu
     if (!p.ok) return badRequest(reply, c, p.error);
     try {
       const versionId = await resolveVersion(runtime, p.value.rule);
-      const outcome = await runtime.evaluate({ versionId, input: p.value.input, includeTrace: p.value.options.includeTrace });
+      const outcome = await runtime.evaluate({
+        versionId,
+        input: p.value.input,
+        includeTrace: p.value.options.includeTrace,
+        correlationId: p.value.meta?.correlationId,
+      });
       return reply.code(200).send(decisionResponse(c, outcome, p.value.options.includeTrace));
     } catch (error) {
       return fail(reply, c, error);
@@ -48,7 +53,12 @@ export function registerDecisionRoutes(app: FastifyInstance, runtime: DecisionRu
     if (!p.ok) return badRequest(reply, c, p.error);
     try {
       const versionId = await resolveVersion(runtime, p.value.rule);
-      const outcome = await runtime.test({ versionId, input: p.value.input, includeTrace: p.value.options.includeTrace });
+      const outcome = await runtime.test({
+        versionId,
+        input: p.value.input,
+        includeTrace: p.value.options.includeTrace,
+        correlationId: p.value.meta?.correlationId,
+      });
       return reply.code(200).send(decisionResponse(c, outcome, p.value.options.includeTrace));
     } catch (error) {
       return fail(reply, c, error);
@@ -130,8 +140,11 @@ export function registerDecisionRoutes(app: FastifyInstance, runtime: DecisionRu
 
 // --- helpers ------------------------------------------------------------------
 
-async function resolveVersion(runtime: DecisionRuntime, rule: { versionId?: string; id?: string; name?: string }): Promise<string> {
-  return rule.versionId ?? (await runtime.resolvePublishedVersion(rule)).versionId;
+async function resolveVersion(
+  runtime: DecisionRuntime,
+  rule: { versionId?: string; id?: string; name?: string; key?: string },
+): Promise<string> {
+  return rule.versionId ?? (await runtime.resolvePublishedVersion({ id: rule.id, name: rule.name, key: rule.key })).versionId;
 }
 
 function decisionResponse(c: Ctx, outcome: EvaluateOutcome, includeTrace: boolean): EvaluateResponse {
@@ -140,6 +153,8 @@ function decisionResponse(c: Ctx, outcome: EvaluateOutcome, includeTrace: boolea
     matched: outcome.matched,
     outputs: outcome.outputs,
     diagnostics: outcome.diagnostics,
+    outcome: outcome.outcome,
+    provenance: outcome.provenance,
     ...(includeTrace ? { trace: outcome.trace } : {}),
   };
 }
@@ -171,9 +186,16 @@ function badRequest(reply: FastifyReply, c: Ctx, error: ZodError): FastifyReply 
 
 function fail(reply: FastifyReply, c: Ctx, error: unknown): FastifyReply {
   const code = error instanceof RuntimeError ? error.code : 'runtime_error';
-  const status = code === 'rule_not_found' ? 404 : 502;
+  const status = resolveHttpStatus(code);
   return reply.code(status).send({
     meta: { correlationId: c.correlationId, requestId: c.id },
     error: { code, message: error instanceof Error ? error.message : 'Decision operation failed.' },
   });
+}
+
+function resolveHttpStatus(code: string): number {
+  if (code === 'rule_not_found') return 404;
+  // EDP070 (conflicting identifiers) and EDP071 (malformed key) are caller errors — HTTP 400.
+  if (code === 'edp_070' || code === 'edp_071') return 400;
+  return 502;
 }

@@ -714,3 +714,17 @@ ILRepack or advisory surface at all.*
 recur: **checking `TargetFrameworks` instead of the transitive dependency graph**, and
 **applying adopt-over-build before examining the integration seam**. The rule is sound; it
 just cannot be applied from the package page alone.*
+
+---
+
+## EDP-RE-ENH-001 addendum: Rule Engine 1.1.0 contract (2026-09-28)
+
+Researched by `github-researcher` before implementation. No internal component in `.claude/COMPONENT-REGISTRY.md` covers either need.
+
+| ID | Library | Role | Verdict | Rationale |
+|---|---|---|---|---|
+| DEP-014 | cyberphone/json-canonicalization (RFC 8785 JCS reference; ~120★, Apache-2.0, no NuGet) | `ContentHash` canonical form (ADR-20) | **BUILD** | Below the star threshold and not published for netstandard2.0. JCS formats numbers as IEEE-754 doubles, which conflicts with the exact-decimal requirement. We deliberately add NFC, uniform `\u00xx` escapes, null-property dropping and metadata exclusion. Only the UTF-16 key-sort rule is taken from the RFC text. Built as ~120 lines of C# plus ~150 lines of TS, verified against shared vectors |
+| DEP-015 | json-everything / JsonSchema.Net 9.x (~1,300★, MIT) | Strict fact-type validation (ADR-19) | **BLOCKED → BUILD** | Transitively requires System.Text.Json 10.x (JsonPointer.Net 7.x), the same wall as NCalc 6 / Json.Logic 6 for the net462 sandbox. Every EDP type would still need custom keywords. Built on `JsonElement.TryGetDecimal` (STJ 9.0.4, already referenced; exact, no double) |
+| DEP-016 | Newtonsoft.Json.Schema | Strict fact-type validation | **REJECT** | Commercial licence |
+| DEP-017 | ajv-validator/ajv (~14,800★, MIT) | JSON Schema in JS | **Not used for this feature** | It is suited to structural JSON Schema work in the gateway, but EDP's seven types need custom rules, and JS numbers are doubles at `JSON.parse` regardless of library |
+| DEP-018 | .NET `SHA256` / `string.Normalize` · Node `crypto` / `String.prototype.normalize` | SHA-256 and NFC | **BUILT-IN** | Available in netstandard2.0, net462 and Node 20; no package |

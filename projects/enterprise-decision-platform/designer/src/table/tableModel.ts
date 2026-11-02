@@ -1,6 +1,9 @@
 // Model + PCRM serialization for the metadata-bound decision-table editor (ADR-D05).
 // This authoring surface produces PCRM directly — no GoRules translation.
 
+import { STRICT_SCHEMA_VERSION, STRICT_INPUT_CONTRACT, LENIENT_INPUT_CONTRACT } from '../contract';
+import { type DeclaredFact, mergeDeclaredFacts } from '../facts/declaredFacts';
+
 // field = CRM logical name (on the anchor, on `via.entity` when related, or the child field for `agg`).
 export interface InputCol { field: string; label: string; type: string; via?: InputVia; agg?: InputAgg; }
 // N:1 navigation: this column reads `field` on the related entity reached by the anchor's lookup.
@@ -136,7 +139,17 @@ export function arity(cat: string, op?: string): 0 | 1 | 2 {
 }
 
 // ---- serialization to PCRM ----
-export function tableToPcrm(model: TableModel, meta: { name: string; targetEntity: string }): unknown {
+
+export interface TablePcrmMeta {
+  name: string;
+  targetEntity: string;
+  /** Absent = strict for new rules (FR-B2-03). */
+  inputContract?: 'strict' | 'lenient';
+  /** Declared facts to merge into inputs (FR-B1-07). */
+  declaredFacts?: DeclaredFact[];
+}
+
+export function tableToPcrm(model: TableModel, meta: TablePcrmMeta): unknown {
   // A field-to-field operand references another column by its input name. If it names an
   // existing column it's already an input; only a bare anchor-field name needs adding.
   const referenced = new Set<string>();
@@ -157,12 +170,18 @@ export function tableToPcrm(model: TableModel, meta: { name: string; targetEntit
     .filter((f) => f && !model.inputs.some((i) => inputName(i) === f))
     .map((f) => ({ name: f, type: 'Text', binding: f }));
 
+  // New rules default to strict (FR-B2-03). Merge declared facts (FR-B1-07).
+  const isStrict = (meta.inputContract ?? 'strict') !== 'lenient';
+  const boundInputs = [...inputCols, ...extraInputs];
+  const mergedInputs = mergeDeclaredFacts(boundInputs, meta.declaredFacts ?? []);
+
   return {
-    schemaVersion: '1.0',
+    schemaVersion: isStrict ? STRICT_SCHEMA_VERSION : '1.0',
+    inputContract: isStrict ? STRICT_INPUT_CONTRACT : LENIENT_INPUT_CONTRACT,
     ruleId: meta.name.trim().toLowerCase().replace(/\s+/g, '-') || 'rule',
     name: meta.name,
     targetEntity: meta.targetEntity,
-    inputs: [...inputCols, ...extraInputs],
+    inputs: mergedInputs,
     variables: [],
     outputs: model.outputs.map((o) => ({ name: o.name, type: o.type })),
     logic: {

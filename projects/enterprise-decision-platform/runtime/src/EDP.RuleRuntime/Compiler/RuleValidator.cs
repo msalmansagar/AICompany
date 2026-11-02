@@ -40,6 +40,7 @@ namespace EDP.RuleRuntime.Compiler
                 ValidateConditionSet(doc.Logic, symbols, diagnostics);
 
             ValidateReasonCodes(doc.Logic, diagnostics);
+            diagnostics.AddRange(InputContractRules.Validate(doc));
             return diagnostics;
         }
 

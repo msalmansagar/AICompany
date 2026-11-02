@@ -118,6 +118,12 @@
           "displayName": "Child Collection Name"
         },
         {
+          "name": "CorrelationId",
+          "type": "String",
+          "optional": true,
+          "displayName": "Correlation Id"
+        },
+        {
           "name": "InputsJson",
           "type": "String",
           "optional": true,
@@ -169,9 +175,19 @@
           "displayName": "Matched"
         },
         {
+          "name": "Outcome",
+          "type": "String",
+          "displayName": "Outcome"
+        },
+        {
           "name": "OutputsJson",
           "type": "String",
           "displayName": "Outputs JSON"
+        },
+        {
+          "name": "ProvenanceJson",
+          "type": "String",
+          "displayName": "Provenance JSON"
         },
         {
           "name": "ReasonCodesJson",
@@ -497,6 +513,12 @@
           "displayName": "Rule Id"
         },
         {
+          "name": "RuleKey",
+          "type": "String",
+          "optional": true,
+          "displayName": "Rule Key"
+        },
+        {
           "name": "RuleName",
           "type": "String",
           "optional": true,
@@ -614,6 +636,12 @@
           "displayName": "RuleId"
         },
         {
+          "name": "RuleKey",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleKey"
+        },
+        {
           "name": "RuleName",
           "type": "String",
           "optional": true,
@@ -651,6 +679,12 @@
           "type": "String",
           "optional": true,
           "displayName": "Rule Id"
+        },
+        {
+          "name": "RuleKey",
+          "type": "String",
+          "optional": true,
+          "displayName": "Rule Key"
         },
         {
           "name": "RuleName",
@@ -729,6 +763,12 @@
           "type": "String",
           "optional": true,
           "displayName": "RuleId"
+        },
+        {
+          "name": "RuleKey",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleKey"
         },
         {
           "name": "RuleName",

@@ -1,0 +1,78 @@
+{
+  "$comment": "HD-2 approved RuleKey mapping for the 14 rules that existed before Release 1 (BRD EDP-RE-ENH-001 v1.1, Appendix A; sponsor ratification 2026-09-28). Approved strings: never change silently. Order = ascending createdon, then rule id.",
+  "approvedBy": "Sponsor ratification of EDP-RE-ENH-001 (HD-2), 2026-09-28",
+  "sourceOfTruth": "brd-edp-re-enh-001-release1-contract.md#appendix-a",
+  "org": "https://org5869857f.crm4.dynamics.com",
+  "entries": [
+    {
+      "ruleId": "c9f1a5a9-4f77-f111-ab0e-70a8a55bc6a5",
+      "displayName": "Loan Approval — Sample",
+      "ruleKey": "sample.loan-approval"
+    },
+    {
+      "ruleId": "113121d0-5177-f111-ab0e-000d3abcff60",
+      "displayName": "All Node Types — Sample",
+      "ruleKey": "sample.all-node-types.1"
+    },
+    {
+      "ruleId": "da1bd318-b277-f111-ab0e-000d3abcff60",
+      "displayName": "All Node Types — Sample",
+      "ruleKey": "sample.all-node-types.2"
+    },
+    {
+      "ruleId": "9ac69f74-bb77-f111-ab0e-70a8a55bc6a5",
+      "displayName": "Governance Test Rule",
+      "ruleKey": "test.governance"
+    },
+    {
+      "ruleId": "23f45b83-be77-f111-ab0e-000d3abcff60",
+      "displayName": "Two-Stage Gov Test",
+      "ruleKey": "test.two-stage-governance.1"
+    },
+    {
+      "ruleId": "82f6944e-bf77-f111-ab0e-000d3abcff60",
+      "displayName": "Two-Stage Gov Test",
+      "ruleKey": "test.two-stage-governance.2"
+    },
+    {
+      "ruleId": "20398577-0e7b-f111-ab0e-70a8a55bc6a5",
+      "displayName": "All Node Types — Sample",
+      "ruleKey": "sample.all-node-types.3"
+    },
+    {
+      "ruleId": "cd0591cd-1f7b-f111-ab0e-70a8a55bc6a5",
+      "displayName": "Credit vs Revenue",
+      "ruleKey": "sample.credit-vs-revenue"
+    },
+    {
+      "ruleId": "ade7ce50-da7d-f111-ab0e-000d3abd8313",
+      "displayName": "Demo — Underwriting Decision (chained)",
+      "ruleKey": "demo.underwriting-decision.chained"
+    },
+    {
+      "ruleId": "f35c2e51-da7d-f111-ab0e-70a8a55bc6a5",
+      "displayName": "Demo — Risk Tier (AND/OR)",
+      "ruleKey": "demo.risk-tier"
+    },
+    {
+      "ruleId": "6b0ab9af-287f-f111-ab0e-70a8a55bc6a5",
+      "displayName": "All Node Types — Sample",
+      "ruleKey": "sample.all-node-types.4"
+    },
+    {
+      "ruleId": "16cb42bf-287f-f111-ab0e-70a8a55bc6a5",
+      "displayName": "All Node Types — Sample",
+      "ruleKey": "sample.all-node-types.5"
+    },
+    {
+      "ruleId": "4383e6c8-6983-f111-ab0f-000d3abd8313",
+      "displayName": "Underwriting Decision — Full Engine (demo)",
+      "ruleKey": "demo.underwriting-decision.full"
+    },
+    {
+      "ruleId": "965efceb-4885-f111-ab0f-70a8a55bc6a5",
+      "displayName": "Account Credit Tier",
+      "ruleKey": "sample.account-credit-tier"
+    }
+  ]
+}

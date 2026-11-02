@@ -61,6 +61,11 @@
           "required": false
         },
         {
+          "name": "CorrelationId",
+          "type": "String",
+          "required": false
+        },
+        {
           "name": "InputsJson",
           "type": "String",
           "required": false
@@ -103,7 +108,15 @@
           "type": "Boolean"
         },
         {
+          "name": "Outcome",
+          "type": "String"
+        },
+        {
           "name": "OutputsJson",
+          "type": "String"
+        },
+        {
+          "name": "ProvenanceJson",
           "type": "String"
         },
         {
@@ -335,6 +348,11 @@
           "required": false
         },
         {
+          "name": "RuleKey",
+          "type": "String",
+          "required": false
+        },
+        {
           "name": "RuleName",
           "type": "String",
           "required": false
@@ -419,6 +437,11 @@
           "required": false
         },
         {
+          "name": "RuleKey",
+          "type": "String",
+          "required": false
+        },
+        {
           "name": "RuleName",
           "type": "String",
           "required": false
@@ -443,6 +466,11 @@
       "inputs": [
         {
           "name": "RuleId",
+          "type": "String",
+          "required": false
+        },
+        {
+          "name": "RuleKey",
           "type": "String",
           "required": false
         },
@@ -499,6 +527,11 @@
         },
         {
           "name": "RuleId",
+          "type": "String",
+          "required": false
+        },
+        {
+          "name": "RuleKey",
           "type": "String",
           "required": false
         },

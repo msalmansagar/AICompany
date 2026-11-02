@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { translate } from './toPcrm';
+import { STRICT_SCHEMA_VERSION, STRICT_INPUT_CONTRACT, LENIENT_INPUT_CONTRACT } from '../contract';
 
 const meta = { name: 'Loan Approval', targetEntity: 'qdb_loanapplication' };
 
@@ -118,5 +119,62 @@ describe('translate — unparseable switch conditions', () => {
     for (const rule of (pcrm as any).logic.rules) {
       expect(rule.when.conditions.length).toBeGreaterThan(0);
     }
+  });
+});
+
+// ── B2: strict defaults — values come from the contract, not hardcoded (IC-3) ──
+
+describe('translate — strict input contract defaults (B2, FR-B2-03)', () => {
+  it('should_emit_strict_schemaVersion_and_inputContract_for_new_rules_by_default', () => {
+    const { pcrm } = translate(tableGraph(), meta);
+    // New rules default to strict (absent inputContract = strict).
+    expect(pcrm.schemaVersion).toBe(STRICT_SCHEMA_VERSION);
+    expect(pcrm.inputContract).toBe(STRICT_INPUT_CONTRACT);
+  });
+
+  it('should_emit_lenient_when_inputContract_is_lenient', () => {
+    const { pcrm } = translate(tableGraph(), { ...meta, inputContract: 'lenient' });
+    expect(pcrm.schemaVersion).toBe('1.0');
+    expect(pcrm.inputContract).toBe(LENIENT_INPUT_CONTRACT);
+  });
+
+  it('should_derive_schemaVersion_and_inputContract_from_contract_not_hardcoded', () => {
+    // If the contract changes these values, the PCRM output must follow automatically.
+    const { pcrm: strict } = translate(tableGraph(), { ...meta, inputContract: 'strict' });
+    const { pcrm: lenient } = translate(tableGraph(), { ...meta, inputContract: 'lenient' });
+    expect(strict.schemaVersion).toBe(STRICT_SCHEMA_VERSION);
+    expect(strict.inputContract).toBe(STRICT_INPUT_CONTRACT);
+    expect(lenient.inputContract).toBe(LENIENT_INPUT_CONTRACT);
+  });
+});
+
+// ── B1: declared facts (FR-B1-07) ─────────────────────────────────────────────
+
+describe('translate — declared facts (B1, FR-B1-07)', () => {
+  it('should_emit_declared_facts_with_source_declared_and_no_binding', () => {
+    const facts = [{ name: 'tier', type: 'Text', required: false, nullable: true }];
+    const { pcrm } = translate(tableGraph(), { ...meta, declaredFacts: facts });
+    const tierInput = (pcrm.inputs as any[]).find((i) => i.name === 'tier');
+    expect(tierInput).toBeDefined();
+    expect(tierInput.source).toBe('declared');
+    expect(tierInput.binding).toBeUndefined();
+  });
+
+  it('should_declared_fact_win_over_bound_input_of_same_name_FR_B1_10', () => {
+    // Schema has loanAmount as a bound input; if also declared, the declared fact wins.
+    const facts = [{ name: 'loanAmount', type: 'Decimal', required: true, nullable: false }];
+    const { pcrm } = translate(tableGraph(), { ...meta, declaredFacts: facts });
+    const matches = (pcrm.inputs as any[]).filter((i) => i.name === 'loanAmount');
+    expect(matches).toHaveLength(1);
+    expect(matches[0].source).toBe('declared');
+  });
+
+  it('should_preserve_other_bound_inputs_when_facts_are_added', () => {
+    const facts = [{ name: 'tier', type: 'Text', required: false, nullable: true }];
+    const { pcrm } = translate(tableGraph(), { ...meta, declaredFacts: facts });
+    // riskRating is a bound input from the schema; it must still be present
+    const bound = (pcrm.inputs as any[]).find((i) => i.name === 'riskRating');
+    expect(bound).toBeDefined();
+    expect(bound.source).toBeUndefined();
   });
 });

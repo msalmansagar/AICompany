@@ -1,6 +1,8 @@
 // Model + PCRM serialization for the Condition-builder authoring surface (Expression Trees).
 // Produces a `conditionSet` PCRM — the runtime already executes AND / OR / nested groups / NOT.
 import { category, pcrmType, type OutputCol } from '../table/tableModel';
+import { STRICT_SCHEMA_VERSION, STRICT_INPUT_CONTRACT, LENIENT_INPUT_CONTRACT } from '../contract';
+import { type DeclaredFact, mergeDeclaredFacts } from '../facts/declaredFacts';
 
 /** A single test: field <op> value(s). field is a CRM logical name. */
 export interface Clause { field: string; fieldType: string; operator: string; value?: string; value2?: string; }
@@ -89,24 +91,38 @@ function outcomeToPcrm(map: OutcomeMap, outputs: OutputCol[]): Record<string, un
   return Object.fromEntries(outputs.map((o) => [o.name, coerce(map[o.name], o.type === 'Number' ? 'number' : o.type === 'Boolean' ? 'boolean' : 'text')]));
 }
 
-export function conditionsToPcrm(model: ConditionModel, meta: { name: string; targetEntity: string }): unknown {
+export interface ConditionsPcrmMeta {
+  name: string;
+  targetEntity: string;
+  /** Absent = strict for new rules (FR-B2-03). */
+  inputContract?: 'strict' | 'lenient';
+  /** Declared facts to merge into inputs (FR-B1-07). */
+  declaredFacts?: DeclaredFact[];
+}
+
+export function conditionsToPcrm(model: ConditionModel, meta: ConditionsPcrmMeta): unknown {
   const fields = new Map<string, string>();
   collectFields(model.when, fields);
   const collections = new Set<string>();
   collectCollections(model.when, collections);
   const hasElse = Object.values(model.otherwise).some((v) => v !== undefined && v !== '');
 
+  // New rules default to strict (FR-B2-03). Merge declared facts (FR-B1-07).
+  const isStrict = (meta.inputContract ?? 'strict') !== 'lenient';
+  const boundInputs = [
+    ...[...fields].map(([field, type]) => ({ name: field, type: pcrmType(type), binding: field })),
+    // A quantified collection is supplied by the caller or by an F2 retrieval, so it is declared
+    // WITHOUT a binding — there is no anchor attribute to read it from.
+    ...[...collections].map((name) => ({ name, type: 'Text' })),
+  ];
+
   return {
-    schemaVersion: '1.0',
+    schemaVersion: isStrict ? STRICT_SCHEMA_VERSION : '1.0',
+    inputContract: isStrict ? STRICT_INPUT_CONTRACT : LENIENT_INPUT_CONTRACT,
     ruleId: meta.name.trim().toLowerCase().replace(/\s+/g, '-') || 'rule',
     name: meta.name,
     targetEntity: meta.targetEntity,
-    inputs: [
-      ...[...fields].map(([field, type]) => ({ name: field, type: pcrmType(type), binding: field })),
-      // A quantified collection is supplied by the caller or by an F2 retrieval, so it is declared
-      // WITHOUT a binding — there is no anchor attribute to read it from.
-      ...[...collections].map((name) => ({ name, type: 'Text' })),
-    ],
+    inputs: mergeDeclaredFacts(boundInputs, meta.declaredFacts ?? []),
     variables: [],
     outputs: model.outputs.map((o) => ({ name: o.name, type: o.type })),
     logic: {

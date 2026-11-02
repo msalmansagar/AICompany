@@ -15,6 +15,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="../../../contract/content-hash-vectors.json" Link="contract/content-hash-vectors.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../replay/*.json" LinkBase="replay" CopyToOutputDirectory="PreserveNewest" />
+    <Compile Include="../../tools/EDP.RuleRuntime.Replay/Replay*.cs" LinkBase="Replay" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\EDP.RuleRuntime\EDP.RuleRuntime.csproj" />
   </ItemGroup>
 
