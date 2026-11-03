@@ -1,20 +1,21 @@
 import { Handle, Position } from '@xyflow/react';
+import { AssignIcon, assignTypeFromLabel } from './assignIcons';
 import type { NodeProps } from '@xyflow/react';
 import { getAssignToLabel } from '../types/ViewTypes';
 import type { ExecStepData } from '../services/ExecutiveGraphBuilder';
 import type { LayoutDir } from '../services/WorkflowGraphBuilder';
 
 const ASSIGN_ACCENT: Record<string, string> = {
-  'Specific User': '#2563eb',
-  'Team':          '#16a34a',
-  'Round Robin':   '#7c3aed',
+  'Specific User': 'var(--primary)',
+  'Team':          'var(--success)',
+  'Round Robin':   'var(--accent-branch)',
 };
 
 export function ExecStepNode({ data, selected }: NodeProps) {
   const { step, layoutDir } = data as unknown as ExecStepData;
   const isLR = (layoutDir as LayoutDir | undefined) === 'LR';
   const assignLabel = getAssignToLabel(step.assignToCode);
-  const accentColor = ASSIGN_ACCENT[assignLabel] ?? '#6366f1';
+  const accentColor = ASSIGN_ACCENT[assignLabel] ?? 'var(--primary)';
 
   return (
     <div style={container(selected ?? false, accentColor)}>
@@ -33,7 +34,14 @@ export function ExecStepNode({ data, selected }: NodeProps) {
           <span style={nameText}>{step.name || 'Unnamed Step'}</span>
         </div>
         <div style={chipRow}>
-          <span style={chip(accentColor)}>{assignLabel}</span>
+          <span
+            style={{ ...chip(accentColor), display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 18, padding: 0 }}
+            title={assignLabel}
+            aria-label={assignLabel}
+            role="img"
+          >
+            <AssignIcon type={assignTypeFromLabel(assignLabel)} />
+          </span>
           {(assignLabel === 'Specific User' ? step.assignedUserName
             : assignLabel === 'Team' ? step.teamName
             : step.roundRobinTeamName) && (
@@ -64,15 +72,15 @@ function truncate(s: string, max: number): string {
 }
 
 function handleStyle(color: string): React.CSSProperties {
-  return { background: color, width: 10, height: 10, border: '2px solid #fff', borderRadius: '50%' };
+  return { background: color, width: 10, height: 10, border: '2px solid var(--border)', borderRadius: '50%' };
 }
 
 function container(selected: boolean, accent: string): React.CSSProperties {
   return {
     width: 300,
     height: 78,
-    background: '#fff',
-    border: selected ? `2px solid ${accent}` : '1.5px solid #e2e8f0',
+    background: 'var(--surface)',
+    border: selected ? `2px solid ${accent}` : '1.5px solid var(--border)',
     borderRadius: 8,
     boxShadow: selected
       ? `0 0 0 3px ${accent}26, 0 4px 12px rgba(0,0,0,0.1)`
@@ -115,7 +123,7 @@ const header: React.CSSProperties = {
 function seqBadge(color: string): React.CSSProperties {
   return {
     background: color,
-    color: '#fff',
+    color: 'var(--text-on-primary)',
     borderRadius: 4,
     fontSize: 10,
     fontWeight: 700,
@@ -128,7 +136,7 @@ function seqBadge(color: string): React.CSSProperties {
 const nameText: React.CSSProperties = {
   fontSize: 14,
   fontWeight: 700,
-  color: '#0f172a',
+  color: 'var(--text)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -157,7 +165,7 @@ function chip(color: string): React.CSSProperties {
 
 const ownerChip: React.CSSProperties = {
   fontSize: 10,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',

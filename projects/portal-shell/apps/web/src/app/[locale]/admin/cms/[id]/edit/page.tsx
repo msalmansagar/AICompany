@@ -1,0 +1,36 @@
+import React from 'react';
+import { notFound } from 'next/navigation';
+import { serverGet } from '../../../../../../lib/api-client';
+import { CmsEditorClient } from './CmsEditorClient';
+import type { CmsContent } from '@portal/types';
+import type { Metadata } from 'next';
+
+interface EditPageProps {
+  params: Promise<{ locale: string; id: string }>;
+}
+
+export async function generateMetadata({ params }: EditPageProps): Promise<Metadata> {
+  const { id } = await params;
+  let title = 'Edit Content';
+  try {
+    const res = await serverGet<{ data: CmsContent }>(`/api/admin/cms/${id}`);
+    title = `Edit — ${res.data.title}`;
+  } catch {
+    // Non-fatal — fall through to default title
+  }
+  return { title };
+}
+
+export default async function AdminCmsEditPage({ params }: EditPageProps) {
+  const { id } = await params;
+
+  let content: CmsContent;
+  try {
+    const res = await serverGet<{ data: CmsContent }>(`/api/admin/cms/${id}`);
+    content = res.data;
+  } catch {
+    notFound();
+  }
+
+  return <CmsEditorClient content={content} />;
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { conditionsToPcrm, emptyConditions, type ConditionModel, type Clause } from './conditionModel';
+import { conditionsToPcrm, emptyConditions, type ConditionModel, type Clause, type Group, type Quantifier } from './conditionModel';
 
 const clause = (field: string, operator: string, value?: string, fieldType = 'Decimal'): Clause => ({ field, fieldType, operator, value });
 const meta = { name: 'Risk', targetEntity: 'account' };
@@ -61,5 +61,68 @@ describe('conditionsToPcrm', () => {
     expect((conditionsToPcrm(base, meta) as any).logic.otherwise).toBeUndefined();
     const withElse = model({ ...base, otherwise: { result: 'B' } });
     expect((conditionsToPcrm(withElse, meta) as any).logic.otherwise).toEqual({ result: 'B' });
+  });
+});
+
+// ---- quantifiers (EDP-FACT-001 F1 authoring) --------------------------------------------
+
+describe('quantifiers', () => {
+  const beneficiaryPresent = (): Group => ({
+    op: 'and',
+    clauses: [{ field: 'beneficiaryName', fieldType: 'Text', operator: 'IsNotEmpty' }],
+    groups: [],
+  });
+
+  const withQuantifier = (q: Partial<Quantifier> = {}): ConditionModel => ({
+    ...emptyConditions(),
+    when: {
+      op: 'and',
+      clauses: [],
+      groups: [],
+      quantifiers: [{ kind: 'all', collection: 'invoices', where: beneficiaryPresent(), ...q }],
+    },
+  });
+
+  const logicOf = (m: ConditionModel) => (conditionsToPcrm(m, { name: 'g1', targetEntity: 'qdb_disbursement' }) as any).logic;
+  const inputsOf = (m: ConditionModel) => (conditionsToPcrm(m, { name: 'g1', targetEntity: 'qdb_disbursement' }) as any).inputs;
+
+  it('emits a quantifier onto the group', () => {
+    const quantifiers = logicOf(withQuantifier()).rules[0].when.quantifiers;
+    expect(quantifiers).toHaveLength(1);
+    expect(quantifiers[0].kind).toBe('all');
+    expect(quantifiers[0].collection).toBe('invoices');
+    expect(quantifiers[0].where.conditions[0].field).toBe('beneficiaryName');
+  });
+
+  it('declares the collection as an input with NO binding, since no anchor attribute holds it', () => {
+    const collection = inputsOf(withQuantifier()).find((i: any) => i.name === 'invoices');
+    expect(collection).toBeDefined();
+    expect(collection.binding).toBeUndefined();
+  });
+
+  it('does NOT declare element fields as inputs — they belong to the element, not the anchor', () => {
+    // Declaring beneficiaryName as an input would bind it to the disbursement record, which is
+    // the wrong record entirely.
+    expect(inputsOf(withQuantifier()).some((i: any) => i.name === 'beneficiaryName')).toBe(false);
+  });
+
+  it('drops a quantifier with no collection named', () => {
+    expect(logicOf(withQuantifier({ collection: '  ' })).rules[0].when.quantifiers).toHaveLength(0);
+  });
+
+  it('drops a quantifier whose body tests nothing', () => {
+    const empty: Group = { op: 'and', clauses: [], groups: [] };
+    expect(logicOf(withQuantifier({ where: empty })).rules[0].when.quantifiers).toHaveLength(0);
+  });
+
+  it('still emits quantifiers as an empty array when there are none', () => {
+    expect(logicOf(emptyConditions()).rules[0].when.quantifiers).toEqual([]);
+  });
+
+  it('collects a collection quantified inside another quantifier', () => {
+    const nested = withQuantifier({
+      where: { op: 'and', clauses: [], groups: [], quantifiers: [{ kind: 'some', collection: 'lines', where: beneficiaryPresent() }] },
+    });
+    expect(inputsOf(nested).some((i: any) => i.name === 'lines')).toBe(true);
   });
 });

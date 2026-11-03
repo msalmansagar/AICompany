@@ -1,6 +1,6 @@
 # ADR-14: Version-Pin Least-Privilege via Field-Level Security; Justification-Boundary Plugin Deferred
 
-**Status:** Proposed — pending Wave-0 verification and Architect/CEO ratification
+**Status:** **Accepted** by the human sponsor 2026-08-19, closing QA condition C4. The layer-1 justification residual it discloses is unchanged: the pin guard plugin is merged and not deployed.
 **Date:** 2026-07-19
 **Decided by:** Solution Architect (proposed during Wave-0 production hardening)
 **Amends:** ADR-12 (layers 1 and 3). Companion to ADR-09. Verified by C-005 (Phase 6).

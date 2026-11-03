@@ -1,13 +1,7 @@
 // Test Scenario Library — persists named test scenarios (inputs + expected outputs)
 // to qdb_edp_ruletest, per rule. Foundation for regression testing.
 
-function apiBase(): string {
-  const w = window as any;
-  const ctx = w.Xrm?.Utility?.getGlobalContext?.() ?? w.parent?.Xrm?.Utility?.getGlobalContext?.();
-  if (ctx?.getClientUrl) return ctx.getClientUrl() + '/api/data/v9.2';
-  if (location.hostname.endsWith('.dynamics.com')) return '/api/data/v9.2';
-  return '/dataverse';
-}
+import { apiBase } from '../dataverse/apiBase';
 async function req<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   const res = await fetch(`${apiBase()}${encodeURI(path)}`, {
     method, credentials: 'include',

@@ -1,15 +1,10 @@
 import type { NodeTypes } from '@xyflow/react';
-import { StartNode } from './StartNode';
-import { StepNode } from './StepNode';
-import { OutcomeNode } from './OutcomeNode';
-import { EndNode } from './EndNode';
 import { ViewStepNode } from './ViewStepNode';
 import { ViewOutcomeNode } from './ViewOutcomeNode';
 import { ViewStartNode } from './ViewStartNode';
 import { ViewEndNode } from './ViewEndNode';
 import { ViewDecisionNode } from './ViewDecisionNode';
 import { ExecStepNode } from './ExecStepNode';
-import { TechStepNode } from './TechStepNode';
 import { SwimlaneNode, SwimStepNode } from './SwimlaneNode';
 import { EditStepNode } from './EditStepNode';
 import { SimStepNode } from './SimStepNode';
@@ -22,28 +17,29 @@ import { SopSwimlaneNode } from './SopSwimlaneNode';
 import { TechNewStepNode } from './TechNewStepNode';
 import { TechNewOutcomeNode } from './TechNewOutcomeNode';
 import { RouteGatewayNode } from './RouteGatewayNode';
+import { StageBandNode } from './StageBandNode';
+import { ParallelGroupNode } from './ParallelGroupNode';
+import { OverviewStageNode } from './OverviewStageNode';
+import { HierarchyStepNode } from './HierarchyStepNode';
 
 export const nodeTypes: NodeTypes = {
-  // Legacy edit-mode nodes (kept for compatibility)
-  start: StartNode,
-  step: StepNode,
-  outcome: OutcomeNode,
-  end: EndNode,
-
   // View mode — shared start/end
   viewStart: ViewStartNode,
   viewEnd: ViewEndNode,
 
   // Business view
   viewStep: ViewStepNode,
+  stageBand: StageBandNode,
+  parallelGroup: ParallelGroupNode,
+  overviewStage: OverviewStageNode,
   viewOutcome: ViewOutcomeNode,
   viewDecision: ViewDecisionNode,
 
+  // Hierarchy view
+  hierStep: HierarchyStepNode,
+
   // Executive view
   execStep: ExecStepNode,
-
-  // Technical view
-  techStep: TechStepNode,
 
   // Technical (New) view
   techNewStep: TechNewStepNode,

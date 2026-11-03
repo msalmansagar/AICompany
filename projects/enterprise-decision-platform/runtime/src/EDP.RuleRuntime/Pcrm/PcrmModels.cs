@@ -17,6 +17,13 @@ namespace EDP.RuleRuntime.Pcrm
         [JsonPropertyName("targetEntity")] public string TargetEntity { get; set; } = "";
         [JsonPropertyName("inputs")] public List<PcrmInput> Inputs { get; set; } = new List<PcrmInput>();
         [JsonPropertyName("variables")] public List<PcrmVariable> Variables { get; set; } = new List<PcrmVariable>();
+
+        /// <summary>
+        /// Declared population retrievals (EDP-FACT-001 F2). Each produces a named collection the
+        /// rule can quantify over. Boundary B-6 governs the shape: retrieval FINDS records, it
+        /// never RELATES them — there is no join, no subquery, and the primitive set is closed.
+        /// </summary>
+        [JsonPropertyName("retrievals")] public List<PcrmRetrieval> Retrievals { get; set; } = new List<PcrmRetrieval>();
         [JsonPropertyName("outputs")] public List<PcrmOutput> Outputs { get; set; } = new List<PcrmOutput>();
         [JsonPropertyName("logic")] public PcrmLogic Logic { get; set; } = new PcrmLogic();
     }
@@ -117,6 +124,30 @@ namespace EDP.RuleRuntime.Pcrm
         [JsonPropertyName("negate")] public bool Negate { get; set; }
         [JsonPropertyName("conditions")] public List<PcrmCondition> Conditions { get; set; } = new List<PcrmCondition>();
         [JsonPropertyName("groups")] public List<PcrmGroup> Groups { get; set; } = new List<PcrmGroup>();
+
+        /// <summary>
+        /// Quantification over a collection — the third kind of child a group may hold,
+        /// alongside conditions and nested groups (ADR-16). Combined by the group's own
+        /// AND/OR operator exactly as the other two are.
+        /// </summary>
+        [JsonPropertyName("quantifiers")] public List<PcrmQuantifier> Quantifiers { get; set; } = new List<PcrmQuantifier>();
+    }
+
+    /// <summary>
+    /// A boolean quantifier: do <c>some</c>, <c>all</c> or <c>none</c> of a collection's
+    /// elements satisfy <see cref="Where"/>? The body is an ordinary group, so the whole
+    /// operator set, coercion model and trace apply inside it unchanged.
+    /// </summary>
+    public sealed class PcrmQuantifier
+    {
+        /// <summary>some | all | none.</summary>
+        [JsonPropertyName("kind")] public string Kind { get; set; } = "some";
+
+        /// <summary>Name of the input or variable holding the collection.</summary>
+        [JsonPropertyName("collection")] public string Collection { get; set; } = "";
+
+        /// <summary>Predicate evaluated once per element, with the element's fields in scope.</summary>
+        [JsonPropertyName("where")] public PcrmGroup Where { get; set; } = new PcrmGroup();
     }
 
     public sealed class PcrmCondition

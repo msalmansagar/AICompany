@@ -1,6 +1,18 @@
 import type { WorkflowDesignerState } from '@/store/workflowStore';
 import { analyseBranchRegions } from '@/validators/branchRegions';
 import type { BranchFinding } from '@/validators/branchRegions';
+import type { AssignToType } from '@/types/WorkflowTypes';
+import { ASSIGN_TO_LABELS, assigneeIsMissing } from '@/services/taskAssignment';
+import { hasRealCondition } from '@/services/routeFilter';
+import { findSaveBlockers } from '@/services/saveBlockers';
+
+/** What is missing when a step's chosen assignment mode has no assignee. */
+const MISSING_ASSIGNEE_REASON: Record<AssignToType, string> = {
+  user: 'no user is selected',
+  team: 'no team is selected',
+  roundRobin: 'no round robin team is selected',
+  readFromParent: 'the parent table, its lookup and the owner field are not all set',
+};
 
 export type ViolationCode =
   | 'NO_PROCESS'
@@ -13,13 +25,16 @@ export type ViolationCode =
   | 'INVALID_ASSIGNMENT'
   | 'MISSING_FETCHXML'
   | 'DEAD_LOOP'
-  | 'MISSING_START'
   | 'MISSING_END'
   | 'INVALID_NEXT_STEP'
   | 'MISSING_TASK_SUBJECT'
   | 'DUPLICATE_OUTCOME_NAME'
   | 'TOO_MANY_OUTCOMES'
-  | 'MISSING_FALLBACK_ROUTE'  | 'BRANCH_SELF_PARENT'
+  | 'ALL_OUTCOMES_CONDITIONAL'
+  | 'MISSING_FALLBACK_ROUTE'
+  | 'MULTIPLE_DEFAULT_ROUTES'
+  | 'ROUTE_WITHOUT_CONDITION'
+  | 'BRANCH_SELF_PARENT'
   | 'BRANCH_PARENT_CYCLE'
   | 'BRANCH_PARENT_MISSING'
   | 'BRANCH_FILTER_MISSING'
@@ -35,7 +50,29 @@ export interface Violation {
   nodeType?: 'step' | 'outcome';
   /** All node IDs affected by this violation (e.g. all steps in a dead loop). */
   affectedNodeIds?: string[];
-  severity: 'error' | 'warning';
+  /**
+   * error blocks publish and rings the card; warning needs acknowledging at
+   * publish; info is a hygiene note — it never blocks, never needs an ack,
+   * and never colours a card.
+   */
+  severity: 'error' | 'warning' | 'info';
+}
+
+/**
+ * The node ids the canvas should ring with the error border. Warnings stay
+ * out: painting them red made a process with three advisory findings look
+ * broken everywhere, which buried the one violation that actually was.
+ */
+export function collectErrorNodeIds(violations: Violation[]): Set<string> {
+  const errorNodeIds = new Set<string>();
+  for (const violation of violations) {
+    if (violation.severity !== 'error') continue;
+    if (violation.nodeId && (!violation.nodeType || violation.nodeType === 'step')) {
+      errorNodeIds.add(violation.nodeId);
+    }
+    for (const id of violation.affectedNodeIds ?? []) errorNodeIds.add(id);
+  }
+  return errorNodeIds;
 }
 
 /**
@@ -50,7 +87,9 @@ const BRANCH_SEVERITY: Record<BranchFinding['code'], Violation['severity']> = {
   BRANCH_PARENT_MISSING: 'error',
   BRANCH_FILTER_MISSING: 'error',
   BRANCH_NO_JOIN_GUARD: 'warning',
-  ORPHAN_JOIN_GUARD: 'warning',
+  // A guard that finds no branches simply finds none — the engine is
+  // indifferent and nothing can go wrong at runtime. Pure hygiene.
+  ORPHAN_JOIN_GUARD: 'info',
 };
 
 export class ValidationService {
@@ -70,14 +109,15 @@ export class ValidationService {
     }
 
     this.checkMissingStepNames(steps, violations);
-    this.checkStartNode(steps, violations);
     this.checkEndNodes(state, violations);
     this.checkOrphanSteps(state, violations);
     this.checkNoOutcomes(state, violations);
     this.checkNoTerminalOutcome(state, violations);
+    this.checkAllOutcomesConditional(state, violations);
     this.checkDuplicateSequence(steps, violations);
     this.checkInvalidAssignment(steps, violations);
     this.checkMissingFetchXml(state, violations);
+    this.checkRoutesTheEngineWouldReject(state, violations);
     this.checkInvalidNextStep(state, violations);
     this.checkDeadLoops(state, violations);
     this.checkMissingTaskSubject(steps, violations);
@@ -134,18 +174,21 @@ export class ValidationService {
     }
   }
 
-  private checkStartNode(
-    steps: WorkflowDesignerState['steps'][string][],
-    violations: Violation[]
-  ): void {
-    const hasStart = steps.some((s) => s.sequenceNo === 1);
-    if (!hasStart) {
-      violations.push({
-        code: 'MISSING_START',
-        message: 'No step has sequence number 1 (start step).',
-        severity: 'error',
-      });
+  /**
+   * The step an instance starts on: the lowest sequence number. The engine,
+   * the canvases and stepOrder all agree on this; the retired MISSING_START
+   * check instead demanded a literal sequence number 1 and reported working
+   * processes (numbered 2, 3, 4 on the live org) as broken — then cascaded
+   * into a false ORPHAN_STEP on the entry step itself.
+   */
+  private entryStepIdOf(steps: WorkflowDesignerState['steps'][string][]): string | null {
+    let entry: { id: string; sequenceNo: number } | null = null;
+    for (const step of steps) {
+      if (!entry || step.sequenceNo < entry.sequenceNo) {
+        entry = { id: step.crmId, sequenceNo: step.sequenceNo };
+      }
     }
+    return entry?.id ?? null;
   }
 
   /**
@@ -177,11 +220,12 @@ export class ValidationService {
   ): void {
     const allNextStepIds = this.buildReachableStepIds(state);
     const stepsWithOutcomes = new Set(Object.values(state.outcomes).map((o) => o.stepId));
+    const entryStepId = this.entryStepIdOf(Object.values(state.steps));
 
     for (const step of Object.values(state.steps)) {
       const hasOutcome = stepsWithOutcomes.has(step.crmId);
       const isReachableAsNext = allNextStepIds.has(step.crmId);
-      const isStartStep = step.sequenceNo === 1;
+      const isStartStep = step.crmId === entryStepId;
 
       if (!hasOutcome && !isStartStep && !isReachableAsNext) {
         violations.push({
@@ -200,9 +244,10 @@ export class ValidationService {
   ): void {
     const allNextStepIds = this.buildReachableStepIds(state);
     const steps = Object.values(state.steps);
+    const entryStepId = this.entryStepIdOf(steps);
 
     for (const step of steps) {
-      const isStart = step.sequenceNo === 1;
+      const isStart = step.crmId === entryStepId;
       if (!isStart && !allNextStepIds.has(step.crmId)) {
         violations.push({
           code: 'ORPHAN_STEP',
@@ -211,6 +256,35 @@ export class ValidationService {
           severity: 'warning',
         });
       }
+    }
+  }
+
+  /**
+   * A step whose every outcome carries a condition has no default path: when
+   * no condition matches, the instance is stuck on the step forever. The same
+   * rule already exists one level down for routes (MISSING_FALLBACK_ROUTE);
+   * this is the outcome-level counterpart.
+   */
+  private checkAllOutcomesConditional(
+    state: Pick<WorkflowDesignerState, 'steps' | 'outcomes'>,
+    violations: Violation[]
+  ): void {
+    const outcomesByStep = new Map<string, number[]>();
+    for (const outcome of Object.values(state.outcomes)) {
+      const counts = outcomesByStep.get(outcome.stepId) ?? [0, 0];
+      counts[0] += 1;
+      if (outcome.applyFilter) counts[1] += 1;
+      outcomesByStep.set(outcome.stepId, counts);
+    }
+    for (const [stepId, [total, conditional]] of outcomesByStep) {
+      if (total === 0 || conditional < total) continue;
+      const name = state.steps[stepId]?.name ?? stepId;
+      violations.push({
+        code: 'ALL_OUTCOMES_CONDITIONAL',
+        message: `Every outcome of "${name}" is conditional. Add an unconditional outcome as the fallback, or an instance is stuck when no condition matches.`,
+        nodeId: stepId,
+        severity: 'warning',
+      });
     }
   }
 
@@ -257,30 +331,15 @@ export class ValidationService {
     violations: Violation[]
   ): void {
     for (const step of steps) {
-      if (step.assignTo === 'user' && !step.assignedUserId) {
-        violations.push({
-          code: 'INVALID_ASSIGNMENT',
-          message: `Step "${step.name}" is assigned to "Specific User" but no user is selected.`,
-          nodeId: step.crmId,
-          severity: 'error',
-        });
-      }
-      if (step.assignTo === 'team' && !step.teamId) {
-        violations.push({
-          code: 'INVALID_ASSIGNMENT',
-          message: `Step "${step.name}" is assigned to "Team" but no team is selected.`,
-          nodeId: step.crmId,
-          severity: 'error',
-        });
-      }
-      if (step.assignTo === 'roundRobin' && !step.roundRobinTeamId) {
-        violations.push({
-          code: 'INVALID_ASSIGNMENT',
-          message: `Step "${step.name}" is assigned to "Round Robin" but no round robin team is selected.`,
-          nodeId: step.crmId,
-          severity: 'error',
-        });
-      }
+      if (!assigneeIsMissing(step)) continue;
+      violations.push({
+        code: 'INVALID_ASSIGNMENT',
+        message:
+          `Step "${step.name}" is assigned to "${ASSIGN_TO_LABELS[step.assignTo]}" but ` +
+          `${MISSING_ASSIGNEE_REASON[step.assignTo]}. The engine would create the task unowned.`,
+        nodeId: step.crmId,
+        severity: 'error',
+      });
     }
   }
 
@@ -291,7 +350,7 @@ export class ValidationService {
     for (const outcome of Object.values(state.outcomes)) {
       if (!outcome.applyFilter) continue;
       const hasFilter = Object.values(state.routes).some(
-        (r) => r.outcomeId === outcome.crmId && r.filter.trim().length > 0
+        (r) => r.outcomeId === outcome.crmId && hasRealCondition(r.filter)
       );
       if (!hasFilter) {
         violations.push({
@@ -497,6 +556,26 @@ export class ValidationService {
     }
   }
 
+  /**
+   * Surfaces, on the canvas, the states the engine refuses to store.
+   *
+   * Shares its logic with the pre-save gate so the message a user sees while editing
+   * is the same one that would stop the save, rather than a second opinion.
+   */
+  private checkRoutesTheEngineWouldReject(
+    state: Pick<WorkflowDesignerState, 'outcomes' | 'routes'>,
+    violations: Violation[]
+  ): void {
+    for (const blocker of findSaveBlockers(state)) {
+      violations.push({
+        code: blocker.routeId ? 'ROUTE_WITHOUT_CONDITION' : 'MULTIPLE_DEFAULT_ROUTES',
+        message: blocker.message,
+        nodeId: blocker.outcomeId,
+        nodeType: 'outcome',
+        severity: 'error',
+      });
+    }
+  }
   private checkMissingFallbackRoute(
     state: Pick<WorkflowDesignerState, 'steps' | 'outcomes' | 'routes'>,
     violations: Violation[]
@@ -505,7 +584,7 @@ export class ValidationService {
       if (!outcome.applyFilter) continue;
       const outcomeRoutes = Object.values(state.routes).filter((r) => r.outcomeId === outcome.crmId);
       if (outcomeRoutes.length < 2) continue; // single route — missing FetchXML caught elsewhere
-      const hasFallback = outcomeRoutes.some((r) => !r.filter.trim());
+      const hasFallback = outcomeRoutes.some((r) => r.isDefault);
       if (!hasFallback) {
         const stepName = state.steps[outcome.stepId]?.name ?? outcome.stepId;
         violations.push({

@@ -1,10 +1,14 @@
 import type { ISopAdapter } from './ISopAdapter';
+import { DESIGNER_LAYOUT_SUBJECT } from './designerLayout';
+import { DESIGNER_STATE_SUBJECT } from './designerState';
 import { deriveProcessFromSop } from './deriveProcessFromSop';
 import { escapeODataLiteral } from './odataEscape';
+import { buildUserLookupFilter } from './userLookupFilter';
+import { EMPTY_FILTER } from './routeFilter';
 import { logError } from './logError';
 import { mapEscalationConfig, ESCALATION_CONFIG_ENTITY, mapEscalationFields, buildEscalationBody, buildEscalationConfigBindPatch, ESCALATION_SELECT_COLUMNS, ESCALATION_CONFIG_SET, ESCALATION_CONFIG_ID, ODATA_FORMATTED_VALUE_ANNOTATION as FMT } from './escalationFields';
-import { mapWorkflowHooks, buildWorkflowHookBindPatches, hookSelectColumns, mapCallableWorkflow, CALLABLE_WORKFLOW_QUERY, WORKFLOW_SET, STEP_HOOKS, OUTCOME_HOOKS, ROUTE_HOOKS, PROCESS_HOOKS } from './workflowHooks';
-import type { CallableWorkflowOption } from './workflowHooks';
+import { mapWorkflowHooks, buildWorkflowHookBindPatches, hookSelectColumns, mapCallableWorkflow, mapCallableAction, dedupeActionsByMessage, CALLABLE_WORKFLOW_QUERY, CALLABLE_ACTION_QUERY, WORKFLOW_SET, STEP_HOOKS, OUTCOME_HOOKS, ROUTE_HOOKS, PROCESS_HOOKS } from './workflowHooks';
+import type { CallableActionOption, CallableWorkflowOption } from './workflowHooks';
 import { mapBranchFields, buildBranchBody, buildParentStepBindPatch, mapOutcomeConcurrency, buildOutcomeConcurrencyBody, BRANCH_SELECT_COLUMNS, OUTCOME_CONCURRENCY_SELECT_COLUMNS } from './branchFields';
 import type {
   CrmRole,
@@ -27,7 +31,12 @@ import type { SopStatus } from '@/types/SopTypes';
 import type { CrmEnvironmentService } from './CrmEnvironmentService';
 import { assertGuid } from './assertGuid';
 import { withRetry } from './withRetry';
-import { ASSIGN_TO_CODES } from '@/types/WorkflowTypes';
+import {
+  ASSIGNMENT_LOOKUP_COLUMNS,
+  ASSIGNMENT_SELECT_COLUMNS,
+  buildAssignmentBody,
+  mapAssignmentFields,
+} from './taskAssignment';
 import type {
   WorkflowProcess,
   WorkflowStep,
@@ -123,7 +132,10 @@ export class DataverseAdapter implements ISopAdapter {
       const result = await withRetry(() =>
         this.xrm.WebApi.retrieveMultipleRecords(
           LOGICAL.process,
-          '?$select=qdb_work_item_record_typeid,qdb_name,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,${hookSelectColumns(PROCESS_HOOKS)}&$top=100&$orderby=qdb_name asc'
+          // createdby is expanded so the name comes back the same way on both adapters,
+          // rather than depending on formatted-value annotations being present.
+          `?$select=qdb_work_item_record_typeid,qdb_name,createdon,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,${hookSelectColumns(PROCESS_HOOKS)}` +
+          `&$expand=createdby($select=fullname)&$top=100&$orderby=qdb_name asc`
         )
       );
       return result.entities.map(mapProcess);
@@ -138,7 +150,7 @@ export class DataverseAdapter implements ISopAdapter {
       this.xrm.WebApi.retrieveRecord(
         LOGICAL.process,
         id,
-        '?$select=qdb_work_item_record_typeid,qdb_name,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,${hookSelectColumns(PROCESS_HOOKS)}'
+        `?$select=qdb_work_item_record_typeid,qdb_name,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,${hookSelectColumns(PROCESS_HOOKS)}`
       )
     );
     return mapProcess(raw as Record<string, unknown>);
@@ -148,6 +160,74 @@ export class DataverseAdapter implements ISopAdapter {
     const body = await this.buildProcessBodyResolved(data);
     const result = await withRetry(() => this.xrm.WebApi.createRecord(LOGICAL.process, body));
     return result.id;
+  }
+
+  async loadDesignerLayout(processId: string): Promise<string | null> {
+    assertGuid(processId, 'processId');
+    const result = await this.xrm.WebApi.retrieveMultipleRecords(
+      'annotation',
+      `?$select=annotationid,notetext&$filter=_objectid_value eq ${processId} and subject eq '${DESIGNER_LAYOUT_SUBJECT}'&$top=1&$orderby=modifiedon desc`
+    );
+    return (result.entities[0]?.notetext as string | undefined) ?? null;
+  }
+
+  async saveDesignerLayout(processId: string, layoutJson: string): Promise<void> {
+    assertGuid(processId, 'processId');
+    const existing = await this.xrm.WebApi.retrieveMultipleRecords(
+      'annotation',
+      `?$select=annotationid&$filter=_objectid_value eq ${processId} and subject eq '${DESIGNER_LAYOUT_SUBJECT}'&$top=1`
+    );
+    const found = existing.entities[0];
+    if (found) {
+      await this.xrm.WebApi.updateRecord('annotation', found.annotationid as string, { notetext: layoutJson });
+      return;
+    }
+    await this.xrm.WebApi.createRecord('annotation', {
+      subject: DESIGNER_LAYOUT_SUBJECT,
+      notetext: layoutJson,
+      [`objectid_qdb_work_item_record_type@odata.bind`]: `/qdb_work_item_record_types(${processId})`,
+    });
+  }
+
+  async loadDesignerState(processId: string): Promise<string | null> {
+    assertGuid(processId, 'processId');
+    const result = await this.xrm.WebApi.retrieveMultipleRecords(
+      'annotation',
+      `?$select=notetext&$filter=_objectid_value eq ${processId} and subject eq '${DESIGNER_STATE_SUBJECT}'&$top=1&$orderby=modifiedon desc`
+    );
+    return (result.entities[0]?.notetext as string | undefined) ?? null;
+  }
+
+  async saveDesignerState(processId: string, stateJson: string): Promise<void> {
+    assertGuid(processId, 'processId');
+    const existing = await this.xrm.WebApi.retrieveMultipleRecords(
+      'annotation',
+      `?$select=annotationid&$filter=_objectid_value eq ${processId} and subject eq '${DESIGNER_STATE_SUBJECT}'&$top=1`
+    );
+    const found = existing.entities[0];
+    if (found) {
+      await this.xrm.WebApi.updateRecord('annotation', found.annotationid as string, { notetext: stateJson });
+      return;
+    }
+    await this.xrm.WebApi.createRecord('annotation', {
+      subject: DESIGNER_STATE_SUBJECT,
+      notetext: stateJson,
+      [`objectid_qdb_work_item_record_type@odata.bind`]: `/qdb_work_item_record_types(${processId})`,
+    });
+  }
+
+  async loadAllDesignerStates(): Promise<Record<string, string>> {
+    const result = await this.xrm.WebApi.retrieveMultipleRecords(
+      'annotation',
+      `?$select=notetext,_objectid_value&$filter=subject eq '${DESIGNER_STATE_SUBJECT}'&$orderby=modifiedon desc`
+    );
+    const byProcess: Record<string, string> = {};
+    for (const note of result.entities) {
+      const id = note._objectid_value as string | undefined;
+      const text = note.notetext as string | undefined;
+      if (id && text && !byProcess[id]) byProcess[id] = text;
+    }
+    return byProcess;
   }
 
   async updateProcess(id: string, data: Partial<Omit<WorkflowProcess, 'crmId'>>): Promise<void> {
@@ -189,7 +269,7 @@ export class DataverseAdapter implements ISopAdapter {
     const result = await withRetry(() =>
       this.xrm.WebApi.retrieveMultipleRecords(
         LOGICAL.step,
-        `?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,_qdb_roundrobinteam_value,${ESCALATION_SELECT_COLUMNS},${BRANCH_SELECT_COLUMNS},${hookSelectColumns(STEP_HOOKS)}&$filter=_qdb_record_type_value eq ${processId}&$orderby=qdb_sequenceno asc`
+        `?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_allowbulkapproval,${ASSIGNMENT_SELECT_COLUMNS},${ESCALATION_SELECT_COLUMNS},${BRANCH_SELECT_COLUMNS},${hookSelectColumns(STEP_HOOKS)}&$filter=_qdb_record_type_value eq ${processId}&$orderby=qdb_sequenceno asc`
       )
     );
     return result.entities.map(mapStep);
@@ -216,14 +296,17 @@ export class DataverseAdapter implements ISopAdapter {
   private async buildStepBodyResolved(data: Partial<Omit<WorkflowStep, 'crmId'>>): Promise<Record<string, unknown>> {
     const body = buildStepBody(data);
     const E = 'qdb_work_item_steps';
-    const [re, rf, pe, au, tm, rr, rt] = await Promise.all([
+    const [re, rf, pe, au, tm, rr, rt, pae, paf, pau] = await Promise.all([
       data.recordEntityId   ? this.resolveNavProp(E, 'qdb_recordentity')   : Promise.resolve(''),
       data.regardingFieldId ? this.resolveNavProp(E, 'qdb_regardingfield') : Promise.resolve(''),
       data.parentEntityId   ? this.resolveNavProp(E, 'qdb_parententity')   : Promise.resolve(''),
-      data.assignedUserId   ? this.resolveNavProp(E, 'qdb_assigned_user')  : Promise.resolve(''),
-      data.teamId           ? this.resolveNavProp(E, 'qdb_team')           : Promise.resolve(''),
-      data.roundRobinTeamId ? this.resolveNavProp(E, 'qdb_roundrobinteam') : Promise.resolve(''),
+      data.assignedUserId   ? this.resolveNavProp(E, ASSIGNMENT_LOOKUP_COLUMNS.assignedUser)    : Promise.resolve(''),
+      data.teamId           ? this.resolveNavProp(E, ASSIGNMENT_LOOKUP_COLUMNS.team)            : Promise.resolve(''),
+      data.roundRobinTeamId ? this.resolveNavProp(E, ASSIGNMENT_LOOKUP_COLUMNS.roundRobinTeam)  : Promise.resolve(''),
       data.processId        ? this.resolveNavProp(E, 'qdb_record_type')    : Promise.resolve(''),
+      data.parentAssignEntityId    ? this.resolveNavProp(E, ASSIGNMENT_LOOKUP_COLUMNS.parentEntity)    : Promise.resolve(''),
+      data.parentAssignFieldId     ? this.resolveNavProp(E, ASSIGNMENT_LOOKUP_COLUMNS.parentField)     : Promise.resolve(''),
+      data.parentAssignUserFieldId ? this.resolveNavProp(E, ASSIGNMENT_LOOKUP_COLUMNS.parentUserField) : Promise.resolve(''),
     ]);
     if (data.recordEntityId   && re) body[`${re}@odata.bind`] = `/${SET.crmEntity}(${data.recordEntityId})`;
     if (data.regardingFieldId && rf) body[`${rf}@odata.bind`] = `/${SET.crmField}(${data.regardingFieldId})`;
@@ -232,6 +315,9 @@ export class DataverseAdapter implements ISopAdapter {
     if (data.teamId           && tm) body[`${tm}@odata.bind`] = `/teams(${data.teamId})`;
     if (data.roundRobinTeamId && rr) body[`${rr}@odata.bind`] = `/qdb_roundrobinteams(${data.roundRobinTeamId})`;
     if (data.processId        && rt) body[`${rt}@odata.bind`] = `/${SET.process}(${data.processId})`;
+    if (data.parentAssignEntityId    && pae) body[`${pae}@odata.bind`] = `/${SET.crmEntity}(${data.parentAssignEntityId})`;
+    if (data.parentAssignFieldId     && paf) body[`${paf}@odata.bind`] = `/${SET.crmField}(${data.parentAssignFieldId})`;
+    if (data.parentAssignUserFieldId && pau) body[`${pau}@odata.bind`] = `/${SET.crmField}(${data.parentAssignUserFieldId})`;
     Object.assign(
       body,
       await buildEscalationConfigBindPatch(data, (e, a) => this.resolveNavProp(e, a), E, ESCALATION_CONFIG_SET)
@@ -300,7 +386,7 @@ export class DataverseAdapter implements ISopAdapter {
     const result = await withRetry(() =>
       this.xrm.WebApi.retrieveMultipleRecords(
         LOGICAL.route,
-        `?$select=qdb_outcomeworktasksid,qdb_name,qdb_subject,qdb_sequencenumber,qdb_filter,_qdb_outcome_value,_qdb_nextworkitemstep_value,${hookSelectColumns(ROUTE_HOOKS)}&$filter=_qdb_outcome_value eq ${outcomeId}&$orderby=qdb_sequencenumber asc`
+        `?$select=qdb_outcomeworktasksid,qdb_name,qdb_subject,qdb_sequencenumber,qdb_filter,qdb_isdefaultcondition,_qdb_outcome_value,_qdb_nextworkitemstep_value,${hookSelectColumns(ROUTE_HOOKS)}&$filter=_qdb_outcome_value eq ${outcomeId}&$orderby=qdb_sequencenumber asc`
       )
     );
     return result.entities.map(mapRoute);
@@ -432,15 +518,55 @@ export class DataverseAdapter implements ISopAdapter {
     return new Map();
   }
 
+  async getLookupValueName(
+    entityLogicalName: string,
+    attributeLogicalName: string,
+    recordId: string
+  ): Promise<string | null> {
+    const base = `${this.env.getClientUrl()}/api/data/${this.env.getApiVersion()}`;
+    const getJson = async <T>(url: string): Promise<T> => {
+      const r = await fetch(url, { credentials: 'include', headers: buildODataHeaders() });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json() as Promise<T>;
+    };
+    try {
+      const attr = await getJson<{ Targets?: string[] }>(
+        `${base}/EntityDefinitions(LogicalName='${entityLogicalName}')/Attributes(LogicalName='${attributeLogicalName}')` +
+        '/Microsoft.Dynamics.CRM.LookupAttributeMetadata?$select=Targets'
+      );
+      const id = recordId.replace(/[{}]/g, '').toLowerCase();
+      // A lookup can point at several entities (owner-style); the record only
+      // exists in one of them, so each target is tried until one answers.
+      for (const target of attr.Targets ?? []) {
+        try {
+          const def = await getJson<{ EntitySetName: string; PrimaryNameAttribute: string }>(
+            `${base}/EntityDefinitions(LogicalName='${target}')?$select=EntitySetName,PrimaryNameAttribute`
+          );
+          const row = await getJson<Record<string, unknown>>(
+            `${base}/${def.EntitySetName}(${id})?$select=${def.PrimaryNameAttribute}`
+          );
+          const name = row[def.PrimaryNameAttribute];
+          if (typeof name === 'string' && name.trim()) return name;
+        } catch {
+          continue;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   async getUsers(search?: string): Promise<UserOption[]> {
     try {
-      const searchFilter = search
-        ? ` and (contains(fullname,'${escapeODataLiteral(search)}') or contains(domainname,'${escapeODataLiteral(search)}'))`
-        : '';
+      const filter = buildUserLookupFilter(
+        search ? escapeODataLiteral(search) : undefined,
+        ['fullname', 'domainname']
+      );
       const result = await withRetry(() =>
         this.xrm.WebApi.retrieveMultipleRecords(
           LOGICAL.user,
-          `?$select=systemuserid,fullname,domainname&$filter=isdisabled eq false${searchFilter}&$top=5000&$orderby=fullname asc`
+          `?$select=systemuserid,fullname,domainname&$filter=${filter}&$top=5000&$orderby=fullname asc`
         )
       );
       return result.entities.map((u) => ({
@@ -478,6 +604,17 @@ export class DataverseAdapter implements ISopAdapter {
       return result.entities.map(mapCallableWorkflow);
     } catch (err) {
       throw asError(err, 'getCallableWorkflows');
+    }
+  }
+
+  async getCallableTaskActions(): Promise<CallableActionOption[]> {
+    try {
+      const result = await withRetry(() =>
+        this.xrm.WebApi.retrieveMultipleRecords('workflow', `?${CALLABLE_ACTION_QUERY.split('?')[1]}`)
+      );
+      return dedupeActionsByMessage(result.entities.map(mapCallableAction));
+    } catch (err) {
+      throw asError(err, 'getCallableTaskActions');
     }
   }
 
@@ -768,7 +905,7 @@ export class DataverseAdapter implements ISopAdapter {
     const result = await withRetry(() =>
       this.xrm.WebApi.retrieveMultipleRecords(
         LOGICAL.sopStep,
-        `?$select=qdb_sopstepid,qdb_name,qdb_description,qdb_sequenceno,qdb_steptypecode,qdb_executionchannel,qdb_decisionlabel,_qdb_sop_id_value,_qdb_role_id_value,${ESCALATION_SELECT_COLUMNS}&$filter=_qdb_sop_id_value eq ${sopId}&$orderby=qdb_sequenceno asc`
+        `?$select=qdb_sopstepid,qdb_name,qdb_description,qdb_sequenceno,qdb_steptypecode,qdb_executionchannel,qdb_decisionlabel,_qdb_sop_id_value,_qdb_role_id_value&$filter=_qdb_sop_id_value eq ${sopId}&$orderby=qdb_sequenceno asc`
       )
     );
     return result.entities.map(mapSopStep);
@@ -788,8 +925,6 @@ export class DataverseAdapter implements ISopAdapter {
     if (data.roleId) {
       body[`qdb_role_id@odata.bind`] = `/${SET.role}(${data.roleId})`;
     }
-    Object.assign(body, buildEscalationBody(data));
-    Object.assign(body, await buildEscalationConfigBindPatch(data, (e, a) => this.resolveNavProp(e, a), LOGICAL.sopStep, ESCALATION_CONFIG_SET));
     const result = await withRetry(() => this.xrm.WebApi.createRecord(LOGICAL.sopStep, body));
     return result.id;
   }
@@ -806,8 +941,6 @@ export class DataverseAdapter implements ISopAdapter {
     if (data.roleId !== undefined) {
       body[`qdb_role_id@odata.bind`] = data.roleId ? `/${SET.role}(${data.roleId})` : null;
     }
-    Object.assign(body, buildEscalationBody(data));
-    Object.assign(body, await buildEscalationConfigBindPatch(data, (e, a) => this.resolveNavProp(e, a), LOGICAL.sopStep, ESCALATION_CONFIG_SET));
     await withRetry(() => this.xrm.WebApi.updateRecord(LOGICAL.sopStep, id, body));
   }
 
@@ -924,6 +1057,8 @@ function mapProcess(raw: Record<string, unknown>): WorkflowProcess {
   return {
     workflowHooks: mapWorkflowHooks(raw, PROCESS_HOOKS),
     crmId: (raw['qdb_work_item_record_typeid'] as string) ?? '',
+    createdOn: (raw['createdon'] as string | null) ?? null,
+    createdByName: readCreatedByName(raw),
     name: (raw['qdb_name'] as string) ?? '',
     recordEntity: (raw['_qdb_recordentity_value'] as string) ?? '',
     recordEntityName: (raw[`_qdb_recordentity_value${FMT}`] as string | null) ?? null,
@@ -938,7 +1073,6 @@ function mapProcess(raw: Record<string, unknown>): WorkflowProcess {
 }
 
 function mapStep(raw: Record<string, unknown>): WorkflowStep {
-  const assignCode = (raw['qdb_task_assign_to'] as number) ?? ASSIGN_TO_CODES.user;
   return {
     crmId: (raw['qdb_work_item_stepsid'] as string) ?? '',
     name: (raw['qdb_name'] as string) ?? '',
@@ -952,24 +1086,13 @@ function mapStep(raw: Record<string, unknown>): WorkflowStep {
     regardingFieldName: (raw['_qdb_regardingfield_value@OData.Community.Display.V1.FormattedValue'] as string | null) ?? null,
     parentEntityId: (raw['_qdb_parententity_value'] as string | null) ?? null,
     parentEntityName: (raw['_qdb_parententity_value@OData.Community.Display.V1.FormattedValue'] as string | null) ?? null,
-    assignTo: mapAssignCode(assignCode),
-    assignedUserId: (raw['_qdb_assigned_user_value'] as string | null) ?? null,
-    assignedUserName: (raw[`_qdb_assigned_user_value${FMT}`] as string | null) ?? null,
-    teamId: (raw['_qdb_team_value'] as string | null) ?? null,
-    teamName: (raw[`_qdb_team_value${FMT}`] as string | null) ?? null,
-    roundRobinTeamId: (raw['_qdb_roundrobinteam_value'] as string | null) ?? null,
-    roundRobinTeamName: (raw[`_qdb_roundrobinteam_value${FMT}`] as string | null) ?? null,
+    allowBulkApproval: (raw['qdb_allowbulkapproval'] as boolean) ?? false,
     processId: (raw['_qdb_record_type_value'] as string) ?? '',
+    ...mapAssignmentFields(raw),
     ...mapEscalationFields(raw),
     ...mapBranchFields(raw),
     workflowHooks: mapWorkflowHooks(raw, STEP_HOOKS),
   };
-}
-
-function mapAssignCode(code: number): WorkflowStep['assignTo'] {
-  if (code === ASSIGN_TO_CODES.team) return 'team';
-  if (code === ASSIGN_TO_CODES.roundRobin) return 'roundRobin';
-  return 'user';
 }
 
 function mapOutcome(raw: Record<string, unknown>): WorkflowOutcome {
@@ -989,6 +1112,7 @@ function mapRoute(raw: Record<string, unknown>): WorkflowRoute {
   return {
     workflowHooks: mapWorkflowHooks(raw, ROUTE_HOOKS),
     crmId: (raw['qdb_outcomeworktasksid'] as string) ?? '',
+    isDefault: (raw['qdb_isdefaultcondition'] as boolean) ?? false,
     name: (raw['qdb_name'] as string) ?? '',
     subject: (raw['qdb_subject'] as string) ?? '',
     sequenceNumber: (raw['qdb_sequencenumber'] as number) ?? 0,
@@ -1012,10 +1136,8 @@ function buildStepBody(data: Partial<Omit<WorkflowStep, 'crmId'>>): Record<strin
   if (data.sequenceNo !== undefined) body['qdb_sequenceno'] = data.sequenceNo;
   if (data.taskSubject !== undefined) body['qdb_tasksubject'] = data.taskSubject;
   if (data.taskDescription !== undefined) body['qdb_taskdescription'] = data.taskDescription;
-  if (data.assignTo !== undefined) {
-    body['qdb_task_assign_to'] = ASSIGN_TO_CODES[data.assignTo];
-    body['qdb_enableroundrobin'] = data.assignTo === 'roundRobin';
-  }
+  if (data.allowBulkApproval !== undefined) body['qdb_allowbulkapproval'] = data.allowBulkApproval;
+  Object.assign(body, buildAssignmentBody(data));
   Object.assign(body, buildEscalationBody(data));
   Object.assign(body, buildBranchBody(data));
   return body;
@@ -1036,15 +1158,24 @@ function buildRouteBody(data: Partial<Omit<WorkflowRoute, 'crmId'>>): Record<str
   if (data.subject !== undefined) body['qdb_subject'] = data.subject;
   if (data.sequenceNumber !== undefined) body['qdb_sequencenumber'] = data.sequenceNumber;
   if (data.filter !== undefined) {
-    const hasFilter = data.filter.length > 0;
-    body['qdb_filter'] = hasFilter ? data.filter : '<filter type="and"></filter>';
-    body['qdb_isdefaultcondition'] = !hasFilter;
+    body['qdb_filter'] = data.filter.length > 0 ? data.filter : EMPTY_FILTER;
+  }
+  // Written from the model, never inferred from the filter. A default route stores
+  // EMPTY_FILTER, which is a non-empty string, so inferring flipped the flag off on
+  // every reload and the engine then rejected the save for having no condition.
+  if (data.isDefault !== undefined) {
+    body['qdb_isdefaultcondition'] = data.isDefault;
   }
   if (data.outcomeId) {
     body['qdb_Outcome@odata.bind'] = `/${SET.outcome}(${data.outcomeId})`;
   }
-  if (data.nextStepId) {
-    body['qdb_NextWorkItemStep@odata.bind'] = `/${SET.step}(${data.nextStepId})`;
+  // "Not supplied" and "deliberately cleared" are different. Omitting the bind on an
+  // update leaves the previous next step in place, so a route could never be turned
+  // back into a dead end once one had been set.
+  if (data.nextStepId !== undefined) {
+    body['qdb_NextWorkItemStep@odata.bind'] = data.nextStepId
+      ? `/${SET.step}(${data.nextStepId})`
+      : null;
   }
   return body;
 }
@@ -1144,4 +1275,10 @@ function asError(err: unknown, context: string): Error {
     return new Error(`[${context}] ${msg}`);
   }
   return new Error(`[${context}] ${String(err)}`);
+}
+
+/** The expanded createdby record, or null when the caller did not ask for it. */
+function readCreatedByName(raw: Record<string, unknown>): string | null {
+  const createdBy = raw['createdby'] as { fullname?: string } | null | undefined;
+  return createdBy?.fullname ?? null;
 }

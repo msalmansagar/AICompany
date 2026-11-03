@@ -1,15 +1,20 @@
 import { emptyWorkflowHooks, OUTCOME_HOOKS, STEP_HOOKS } from '@/services/workflowHooks';
+import { stepAccent } from '@/styles/stepAccents';
 import { useEffect, useState, useCallback } from 'react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import type { AssignToType, TeamOption, UserOption, WorkflowOutcome } from '@/types/WorkflowTypes';
 import { SearchableDropdown } from '@/components/common/SearchableDropdown';
-import { confirm } from '@/components/ui/ConfirmDialog';
+import { LookupField } from '@/components/common/LookupDialog';
 import { EscalationSection } from './EscalationSection';
 import { WorkflowHooksSection } from './WorkflowHooksSection';
 import { BranchSection } from './BranchSection';
+import { ParentAssignmentSection } from './ParentAssignmentSection';
+import { ASSIGN_TO_LABELS, ASSIGN_TO_TYPES, emptyAssignmentFields } from '@/services/taskAssignment';
 import { branchChildrenOf, emptyOutcomeConcurrency } from '@/services/branchFields';
 import { FetchXmlBuilderDialog } from '@/components/FetchXmlBuilder/FetchXmlBuilderDialog';
+import { StepOverviewTab } from './StepOverviewTab';
+import { onStepPanelTabRequest } from './stepPanelBus';
 import { useFetchXmlEntityContext } from '@/hooks/useFetchXmlEntityContext';
 
 interface StepPropertiesPanelProps {
@@ -25,25 +30,23 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
     stepOrder,
     outcomes,
     outcomeOrder,
+    process,
     setStep,
     addOutcome,
-    deleteStep,
     moveStepUp,
     moveStepDown,
     selectNode,
-    clearSelection,
   } = useWorkflowStore((s) => ({
     steps: s.steps,
     stepOrder: s.stepOrder,
     outcomes: s.outcomes,
     outcomeOrder: s.outcomeOrder,
+    process: s.process,
     setStep: s.setStep,
     addOutcome: s.addOutcome,
-    deleteStep: s.deleteStep,
     moveStepUp: s.moveStepUp,
     moveStepDown: s.moveStepDown,
     selectNode: s.selectNode,
-    clearSelection: s.clearSelection,
   }));
 
   const step = stepId ? steps[stepId] : null;
@@ -56,11 +59,26 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
   const [showBranchFilterBuilder, setShowBranchFilterBuilder] = useState(false);
   const fetchXmlContext = useFetchXmlEntityContext(adapter);
   const [addingDecision, setAddingDecision] = useState(false);
+
+  // Which tab of the panel is open. Survives step switches on purpose —
+
+  // comparing the same facet across steps is the common flow.
+
+  const [activeTab, setActiveTab] = useState<PanelTab>('overview');
+
+  // The floating step toolbar steers the panel onto a tab (CWFD-018) —
+  // including a request made in the same click that mounted this panel.
+  useEffect(() => onStepPanelTabRequest(setActiveTab), []);
   const [newDecisionName, setNewDecisionName] = useState('');
   const [newDecisionTarget, setNewDecisionTarget] = useState<string>('__end__');
 
   const loadAssignees = useCallback(
     async (assignTo: AssignToType) => {
+      // Read From Parent resolves its owner at runtime, so there is no list to pick from.
+      if (assignTo === 'readFromParent') {
+        setAssigneeOptions([]);
+        return;
+      }
       setIsLoadingAssignees(true);
       try {
         if (assignTo === 'user') {
@@ -90,7 +108,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
 
   if (!step) {
     return (
-      <div style={panelStyle}>
+      <div className="panel">
         <div style={emptyStyle}>No step selected</div>
       </div>
     );
@@ -104,16 +122,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
       : step.roundRobinTeamId;
 
   const handleAssignToChange = (at: AssignToType) => {
-    setStep({
-      ...step,
-      assignTo: at,
-      assignedUserId: null,
-      assignedUserName: null,
-      teamId: null,
-      teamName: null,
-      roundRobinTeamId: null,
-      roundRobinTeamName: null,
-    });
+    setStep({ ...step, ...emptyAssignmentFields(), assignTo: at });
   };
 
   const handleAssigneeChange = (id: string, name: string) => {
@@ -171,38 +180,70 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
     setNewDecisionTarget('__end__');
   };
 
-  const handleDeleteStep = () => {
-    void confirm({
-      title: 'Delete step',
-      message: 'Delete this step? All connected decisions will also be deleted.',
-      tone: 'danger',
-    }).then((confirmed) => {
-      if (!confirmed) return;
-      deleteStep(step.crmId);
-      clearSelection();
-    });
-  };
-
   return (
-    <div style={panelStyle}>
+    <div className="panel" style={{ borderTop: `3px solid ${stepAccent(step.crmId)}` }}>
       <div style={panelHeaderStyle}>Step Properties</div>
+      <div style={tabRowStyle} role="tablist" aria-label="Step property groups">
+        {PANEL_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            className={activeTab === tab.id ? 'pivot-tab active' : 'pivot-tab'}
+            style={tabBtnStyle}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
       <div style={panelBodyStyle}>
+        {activeTab === 'overview' && <StepOverviewTab step={step} />}
+        {activeTab === 'general' && (<>
 
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Name</label>
+          <label className="lbl">Name</label>
           <input
             type="text"
             value={step.name}
             onChange={(e) => setStep({ ...step, name: e.target.value })}
-            style={inputStyle}
+            className="fluent-input"
             placeholder="Step name"
           />
         </div>
 
+        {/* CWFD-016 B1: the Loan process shipped 35 "missing task subject"
+            warnings the editor could point at but not fix — the wizard could
+            set these fields, the editor could not. */}
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Order</label>
+          <label className="lbl">Task Subject</label>
+          <input
+            type="text"
+            value={step.taskSubject}
+            onChange={(e) => setStep({ ...step, taskSubject: e.target.value })}
+            className="fluent-input"
+            placeholder={step.name || 'What the assignee sees on their task'}
+          />
+          <span className="hint-inline">The title of the task the engine creates for this step.</span>
+        </div>
+
+        <div style={fieldGroupStyle}>
+          <label className="lbl">Task Description</label>
+          <textarea
+            value={step.taskDescription}
+            onChange={(e) => setStep({ ...step, taskDescription: e.target.value })}
+            className="fluent-input"
+            rows={3}
+            placeholder="Instructions for whoever works the task"
+            style={taskDescriptionStyle}
+          />
+        </div>
+
+        <div style={fieldGroupStyle}>
+          <label className="lbl">Order</label>
           <div style={orderRowStyle}>
-            <span style={seqChipStyle}>#{stepIndex + 1}</span>
+            <span style={seqChipStyle}>#{step.sequenceNo}</span>
             <button
               type="button"
               style={buildMoveBtn(canMoveUp)}
@@ -224,10 +265,12 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
           </div>
         </div>
 
-        <div style={dividerStyle} />
+        </>)}
+
+        {activeTab === 'assignment' && (<>
 
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Assign To</label>
+          <label className="lbl">Assign To</label>
           <div style={toggleGroupStyle}>
             {ASSIGN_TO_OPTIONS.map((opt) => (
               <button
@@ -245,7 +288,14 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
           </div>
         </div>
 
-        {isLoadingAssignees ? (
+        {step.assignTo === 'readFromParent' ? (
+          <ParentAssignmentSection
+            value={step}
+            onChange={(patch) => setStep({ ...step, ...patch })}
+            adapter={adapter}
+            taskEntityId={process?.recordEntity ?? null}
+          />
+        ) : isLoadingAssignees ? (
           <div style={spinnerRowStyle}>
             <span style={spinnerStyle} />
             Loading…
@@ -260,9 +310,24 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
           />
         )}
 
-        <div style={dividerStyle} />
+        <label style={bulkApprovalRowStyle}>
+          <input
+            type="checkbox"
+            checked={step.allowBulkApproval}
+            onChange={(event) => setStep({ ...step, allowBulkApproval: event.target.checked })}
+          />
+          <span style={bulkApprovalLabelStyle}>Allow bulk approval</span>
+        </label>
+        <span style={bulkApprovalHintStyle}>
+          Completing one task also closes every other task submitted with it, copying this
+          task&rsquo;s decision onto each.
+        </span>
 
-        <div style={sectionLabelStyle}>
+        </>)}
+
+        {activeTab === 'general' && (<>
+
+        <div className="panel-section">
           Decisions
           <span style={countBadgeStyle}>{stepOutcomes.length}</span>
         </div>
@@ -277,6 +342,9 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
               onClick={() => selectNode(`outcome_${o.crmId}`)}
               title="Click to edit"
             >
+              <span style={decisionAvatarStyle(stepAccent(o.crmId))} aria-hidden>
+                {initialsOf(o.name)}
+              </span>
               <div style={decisionInfoStyle}>
                 <span style={decisionNameStyle}>{o.name || '(unnamed)'}</span>
                 <span style={decisionTargetStyle}>
@@ -298,29 +366,29 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
               value={newDecisionName}
               onChange={(e) => setNewDecisionName(e.target.value)}
               placeholder="Decision name (optional)"
-              style={inputStyle}
+              className="fluent-input"
               autoFocus
             />
-            <label style={labelStyle}>Goes to</label>
-            <select
-              value={newDecisionTarget}
-              onChange={(e) => setNewDecisionTarget(e.target.value)}
-              style={selectStyle}
-            >
-              <option value="__end__">— End —</option>
-              {otherSteps.map((s) => (
-                <option key={s!.crmId} value={s!.crmId}>
-                  {s!.sequenceNo}. {s!.name}
-                </option>
-              ))}
-            </select>
+            <LookupField
+              label="Goes to"
+              placeholder="— End —"
+              dialogTitle="Where does this decision go?"
+              clearLabel="— End — (the process finishes here)"
+              options={otherSteps.map((s) => ({
+                id: s!.crmId,
+                name: s!.name,
+                hint: `Step ${s!.sequenceNo}`,
+              }))}
+              value={newDecisionTarget === '__end__' ? null : newDecisionTarget}
+              onChange={(id) => setNewDecisionTarget(id || '__end__')}
+            />
             <div style={addFormActionsStyle}>
-              <button type="button" style={addConfirmBtnStyle} onClick={handleAddDecision}>
+              <button type="button" className="btn sm primary" style={{ flex: 1 }} onClick={handleAddDecision}>
                 Add
               </button>
               <button
                 type="button"
-                style={cancelBtnStyle}
+                className="btn sm"
                 onClick={() => setAddingDecision(false)}
               >
                 Cancel
@@ -330,7 +398,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
         ) : (
           <button
             type="button"
-            style={addDecisionBtnStyle}
+            className="btn sm block"
             onClick={() => setAddingDecision(true)}
           >
             + Add Decision
@@ -347,8 +415,9 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
           onEditCondition={() => setShowBranchFilterBuilder(true)}
         />
 
-        <div style={dividerStyle} />
+        </>)}
 
+        {activeTab === 'automation' && (
         <WorkflowHooksSection
           value={step.workflowHooks}
           onChange={(workflowHooks) => setStep({ ...step, workflowHooks })}
@@ -356,20 +425,16 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
           adapter={adapter}
           scopeNote="Runs for every task this step creates. The engine also runs any workflow set on the outcome and on the process, so more than one can fire."
         />
+        )}
 
-        <div style={dividerStyle} />
-
+        {activeTab === 'sla' && (
         <EscalationSection
           value={step}
           onChange={(patch) => setStep({ ...step, ...patch })}
           adapter={adapter}
           />
+        )}
 
-        <div style={dividerStyle} />
-
-        <button type="button" style={deleteBtnStyle} onClick={handleDeleteStep}>
-          Delete Step
-        </button>
       </div>
 
       {showBranchFilterBuilder && (
@@ -390,30 +455,82 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
   );
 }
 
-const ASSIGN_TO_OPTIONS: Array<{ value: AssignToType; label: string }> = [
-  { value: 'user', label: 'User' },
-  { value: 'team', label: 'Team' },
-  { value: 'roundRobin', label: 'Round Robin' },
+type PanelTab = 'overview' | 'general' | 'assignment' | 'sla' | 'automation';
+
+const PANEL_TABS: Array<{ id: PanelTab; label: string }> = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'general', label: 'General' },
+  { id: 'assignment', label: 'Assignment' },
+  { id: 'sla', label: 'SLA' },
+  { id: 'automation', label: 'Automation' },
 ];
 
-const panelStyle: React.CSSProperties = {
-  width: 280,
-  flexShrink: 0,
-  background: '#0f172a',
-  borderLeft: '1px solid #1e293b',
+const tabRowStyle: React.CSSProperties = {
   display: 'flex',
-  flexDirection: 'column',
-  overflow: 'hidden',
+  gap: 0,
+  padding: '0 4px',
+  borderBottom: '1px solid var(--border)',
+  flexShrink: 0,
+};
+
+/** First letter of the first and last words — "Assign To EPD PM" → "AP". */
+function initialsOf(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '·';
+  const first = words[0][0] ?? '';
+  const last = words.length > 1 ? (words[words.length - 1][0] ?? '') : (words[0][1] ?? '');
+  return (first + last).toUpperCase();
+}
+
+function decisionAvatarStyle(accent: string): React.CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 24,
+    height: 24,
+    borderRadius: '50%',
+    flexShrink: 0,
+    fontSize: 9.5,
+    fontWeight: 700,
+    color: accent,
+    background: `color-mix(in srgb, ${accent} 16%, var(--surface))`,
+    border: `1px solid color-mix(in srgb, ${accent} 45%, transparent)`,
+  };
+}
+
+const tabBtnStyle: React.CSSProperties = {
+  fontSize: 10.5,
+  padding: '7px 5px',
+  whiteSpace: 'nowrap',
+};
+
+const ASSIGN_TO_OPTIONS: Array<{ value: AssignToType; label: string }> = ASSIGN_TO_TYPES.map(
+  (value) => ({ value, label: ASSIGN_TO_LABELS[value] })
+);
+
+const bulkApprovalRowStyle: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', paddingTop: 10,
+};
+const bulkApprovalLabelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text)' };
+const bulkApprovalHintStyle: React.CSSProperties = {
+  fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.4, paddingTop: 2,
+};
+
+const taskDescriptionStyle: React.CSSProperties = {
+  resize: 'vertical',
+  minHeight: 64,
+  fontFamily: 'inherit',
 };
 
 const panelHeaderStyle: React.CSSProperties = {
   padding: '10px 14px',
   fontSize: 11,
   fontWeight: 700,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   textTransform: 'uppercase',
   letterSpacing: '0.05em',
-  borderBottom: '1px solid #1e293b',
+  borderBottom: '1px solid var(--border-strong)',
   flexShrink: 0,
 };
 
@@ -423,6 +540,9 @@ const panelBodyStyle: React.CSSProperties = {
   flexDirection: 'column',
   gap: 12,
   overflowY: 'auto',
+  // Without this the flex item will not shrink below its content, so overflowY
+  // never engages and the panel is clipped instead of scrolling.
+  minHeight: 0,
   flex: 1,
 };
 
@@ -432,61 +552,29 @@ const fieldGroupStyle: React.CSSProperties = {
   gap: 4,
 };
 
-const labelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: '#64748b',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-};
-
-const inputStyle: React.CSSProperties = {
-  height: 30,
-  padding: '0 8px',
-  background: '#1e293b',
-  border: '1px solid #334155',
-  borderRadius: 4,
-  color: '#e2e8f0',
-  fontSize: 12,
-  outline: 'none',
-  width: '100%',
-  boxSizing: 'border-box',
-};
-
-const selectStyle: React.CSSProperties = {
-  height: 30,
-  padding: '0 8px',
-  background: '#1e293b',
-  border: '1px solid #334155',
-  borderRadius: 4,
-  color: '#e2e8f0',
-  fontSize: 12,
-  outline: 'none',
-  width: '100%',
-  boxSizing: 'border-box',
-};
-
+// Two columns: the four mode names do not fit on one row of a 280px panel.
 const toggleGroupStyle: React.CSSProperties = {
-  display: 'flex',
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
   gap: 4,
 };
 
 const toggleBtnStyle: React.CSSProperties = {
-  flex: 1,
   height: 28,
+  padding: '0 4px',
   fontSize: 11,
   fontWeight: 500,
-  border: '1px solid #334155',
+  border: '1px solid var(--border)',
   borderRadius: 4,
   background: 'transparent',
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   cursor: 'pointer',
 };
 
 const toggleBtnActiveStyle: React.CSSProperties = {
-  background: '#1d4ed8',
-  borderColor: '#3b82f6',
-  color: '#fff',
+  background: 'var(--primary-pressed)',
+  borderColor: 'var(--primary)',
+  color: 'var(--text-on-primary)',
 };
 
 const spinnerRowStyle: React.CSSProperties = {
@@ -494,15 +582,15 @@ const spinnerRowStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 6,
   fontSize: 12,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
 };
 
 const spinnerStyle: React.CSSProperties = {
   display: 'inline-block',
   width: 12,
   height: 12,
-  border: '2px solid #334155',
-  borderTopColor: '#2563eb',
+  border: '2px solid var(--border)',
+  borderTopColor: 'var(--primary)',
   borderRadius: '50%',
 };
 
@@ -515,8 +603,8 @@ const orderRowStyle: React.CSSProperties = {
 const seqChipStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
-  color: '#94a3b8',
-  background: '#334155',
+  color: 'var(--text-disabled)',
+  background: 'var(--surface-alt)',
   borderRadius: 4,
   padding: '3px 8px',
   flexShrink: 0,
@@ -529,34 +617,23 @@ function buildMoveBtn(enabled: boolean): React.CSSProperties {
     fontSize: 11,
     fontWeight: 500,
     borderRadius: 4,
-    border: '1px solid #334155',
+    border: '1px solid var(--border)',
     background: 'transparent',
-    color: enabled ? '#e2e8f0' : '#475569',
+    color: enabled ? 'var(--text)' : 'var(--text-secondary)',
     cursor: enabled ? 'pointer' : 'not-allowed',
     opacity: enabled ? 1 : 0.4,
   };
 }
 
 const dividerStyle: React.CSSProperties = {
-  borderTop: '1px solid #1e293b',
+  borderTop: '1px solid var(--border-strong)',
   margin: '2px 0',
-};
-
-const sectionLabelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: '#64748b',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
 };
 
 const countBadgeStyle: React.CSSProperties = {
   fontSize: 10,
-  background: '#334155',
-  color: '#94a3b8',
+  background: 'var(--surface-alt)',
+  color: 'var(--text-disabled)',
   borderRadius: 8,
   padding: '0 5px',
   fontWeight: 700,
@@ -567,8 +644,8 @@ const decisionRowStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 6,
   padding: '7px 8px',
-  background: '#1e293b',
-  border: '1px solid #334155',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 5,
   cursor: 'pointer',
   textAlign: 'left',
@@ -586,7 +663,7 @@ const decisionInfoStyle: React.CSSProperties = {
 const decisionNameStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
-  color: '#e2e8f0',
+  color: 'var(--text)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -594,15 +671,15 @@ const decisionNameStyle: React.CSSProperties = {
 
 const decisionTargetStyle: React.CSSProperties = {
   fontSize: 10,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
 };
 
 const conditionalBadgeStyle: React.CSSProperties = {
   fontSize: 9,
   fontWeight: 700,
-  color: '#fbbf24',
-  background: '#451a03',
-  border: '1px solid #92400e',
+  color: 'var(--warning)',
+  background: 'var(--warning-bg)',
+  border: '1px solid var(--warning)',
   borderRadius: 3,
   padding: '1px 5px',
   flexShrink: 0,
@@ -610,7 +687,7 @@ const conditionalBadgeStyle: React.CSSProperties = {
 
 const arrowStyle: React.CSSProperties = {
   fontSize: 14,
-  color: '#475569',
+  color: 'var(--text-secondary)',
   flexShrink: 0,
 };
 
@@ -619,8 +696,8 @@ const addFormStyle: React.CSSProperties = {
   flexDirection: 'column',
   gap: 6,
   padding: '10px',
-  background: '#1e293b',
-  border: '1px solid #334155',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 6,
 };
 
@@ -629,61 +706,9 @@ const addFormActionsStyle: React.CSSProperties = {
   gap: 6,
 };
 
-const addConfirmBtnStyle: React.CSSProperties = {
-  flex: 1,
-  height: 28,
-  fontSize: 11,
-  fontWeight: 600,
-  borderRadius: 4,
-  border: 'none',
-  background: '#1d4ed8',
-  color: '#fff',
-  cursor: 'pointer',
-};
-
-const cancelBtnStyle: React.CSSProperties = {
-  height: 28,
-  padding: '0 12px',
-  fontSize: 11,
-  fontWeight: 500,
-  borderRadius: 4,
-  border: '1px solid #334155',
-  background: 'transparent',
-  color: '#94a3b8',
-  cursor: 'pointer',
-};
-
-const addDecisionBtnStyle: React.CSSProperties = {
-  height: 28,
-  width: '100%',
-  fontSize: 11,
-  fontWeight: 600,
-  borderRadius: 4,
-  border: '1px dashed #334155',
-  background: 'transparent',
-  color: '#64748b',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-};
-
-const deleteBtnStyle: React.CSSProperties = {
-  height: 30,
-  width: '100%',
-  fontSize: 11,
-  fontWeight: 600,
-  borderRadius: 4,
-  border: '1px solid #7f1d1d',
-  background: 'transparent',
-  color: '#ef4444',
-  cursor: 'pointer',
-  marginTop: 4,
-};
-
 const emptyStyle: React.CSSProperties = {
   padding: 16,
   fontSize: 12,
-  color: '#475569',
+  color: 'var(--text-secondary)',
   fontStyle: 'italic',
 };

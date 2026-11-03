@@ -8,7 +8,11 @@ import {
   configuredHookCount,
   workflowHookSummary,
   mapCallableWorkflow,
+  mapCallableAction,
+  dedupeActionsByMessage,
+  HOOK_INVOCATION,
   CALLABLE_WORKFLOW_QUERY,
+  CALLABLE_ACTION_QUERY,
   STEP_HOOKS,
   OUTCOME_HOOKS,
   ROUTE_HOOKS,
@@ -162,6 +166,58 @@ describe('hook labels', () => {
   it('should_describe_each_hook_in_the_makers_terms_not_the_columns', () => {
     expect(HOOK_LABELS.onTaskCompletion).toBe('When the task is completed');
     expect(HOOK_LABELS.onTaskOnHold).toBe('When the task is put on hold');
+  });
+});
+
+describe('how the engine invokes each hook', () => {
+  it('should_treat_the_on_hold_hook_as_an_action_because_the_engine_sends_it_as_a_message', () => {
+    expect(HOOK_INVOCATION.onTaskOnHold).toBe('action');
+  });
+
+  it('should_treat_the_completion_hook_as_a_workflow', () => {
+    expect(HOOK_INVOCATION.onTaskCompletion).toBe('workflow');
+  });
+});
+
+describe('callable actions', () => {
+  it('should_offer_actions_not_workflows', () => {
+    expect(CALLABLE_ACTION_QUERY).toContain('category eq 3');
+  });
+
+  it('should_only_offer_actions_bound_to_the_task_table', () => {
+    expect(CALLABLE_ACTION_QUERY).toContain("primaryentity eq 'qdb_task'");
+  });
+
+  it('should_request_the_unique_name_the_engine_builds_its_message_from', () => {
+    expect(CALLABLE_ACTION_QUERY).toContain('uniquename');
+  });
+
+  it('should_map_an_action_to_the_message_the_engine_will_send', () => {
+    expect(mapCallableAction({
+      workflowid: 'act-1',
+      name: '[PC] Get Task Context',
+      uniquename: 'PCGetTaskContext',
+    })).toEqual({
+      id: 'act-1',
+      name: '[PC] Get Task Context',
+      messageName: 'qdb_PCGetTaskContext',
+    });
+  });
+
+  it('should_drop_a_second_row_resolving_to_the_same_message', () => {
+    const duplicated = [
+      { id: 'a', name: 'Get Task Context', messageName: 'qdb_PCGetTaskContext' },
+      { id: 'b', name: 'Get Task Context', messageName: 'qdb_PCGetTaskContext' },
+    ];
+    expect(dedupeActionsByMessage(duplicated)).toHaveLength(1);
+  });
+
+  it('should_keep_actions_that_resolve_to_different_messages', () => {
+    const distinct = [
+      { id: 'a', name: 'One', messageName: 'qdb_One' },
+      { id: 'b', name: 'Two', messageName: 'qdb_Two' },
+    ];
+    expect(dedupeActionsByMessage(distinct)).toHaveLength(2);
   });
 });
 

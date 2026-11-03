@@ -1,5 +1,11 @@
 import { useState } from 'react';
 import { WorkflowHooksSection } from './WorkflowHooksSection';
+import { RouteConfigDialog } from './RouteConfigDialog';
+import { useReactFlow } from '@xyflow/react';
+import { centerOnNode } from '@/components/common/canvasNavigation';
+import { useFetchXmlEntityContext } from '@/hooks/useFetchXmlEntityContext';
+import type { RouteDraft } from '@/services/routeDraftValidation';
+import { hasRealCondition } from '@/services/routeFilter';
 import { OUTCOME_HOOKS, ROUTE_HOOKS, emptyWorkflowHooks } from '@/services/workflowHooks';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import { useWorkflowStore } from '@/store/workflowStore';
@@ -20,6 +26,7 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
     stepOrder,
     setOutcome,
     addRoute,
+    deleteRoute,
     deleteOutcome,
     selectNode,
     clearSelection,
@@ -31,23 +38,37 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
     stepOrder: s.stepOrder,
     setOutcome: s.setOutcome,
     addRoute: s.addRoute,
+    deleteRoute: s.deleteRoute,
     deleteOutcome: s.deleteOutcome,
     selectNode: s.selectNode,
     clearSelection: s.clearSelection,
   }));
 
   const [addingRoute, setAddingRoute] = useState(false);
-  const [newRouteName, setNewRouteName] = useState('');
-  const [newRouteTarget, setNewRouteTarget] = useState<string>('__end__');
-  const [newRouteIsFallback, setNewRouteIsFallback] = useState(false);
-  const [addRouteError, setAddRouteError] = useState<string | null>(null);
+  const reactFlow = useReactFlow();
+
+  // Req 12: a route's target is a door — click it and the canvas goes there.
+  const navigateToStep = (stepId: string) => {
+    selectNode(`step_${stepId}`);
+    centerOnNode(reactFlow, `step_${stepId}`);
+  };
+  const fetchXmlContext = useFetchXmlEntityContext(adapter);
+  /** Deleting a route removes a Dataverse record, so it goes through the same
+   * confirmation the decision delete uses rather than a bespoke pattern. */
+  const handleDeleteRoute = (route: WorkflowRoute) => {
+    void confirm({
+      title: 'Delete route',
+      message: `Delete route "${route.name || '(unnamed)'}"? Its condition will be lost.`,
+      tone: 'danger',
+    }).then((confirmed) => { if (confirmed) deleteRoute(route.crmId); });
+  };
 
   const rawId = outcomeId?.replace('outcome_', '') ?? null;
   const outcome = rawId ? outcomes[rawId] : null;
 
   if (!outcome) {
     return (
-      <div style={panelStyle}>
+      <div className="panel">
         <div style={panelHeaderStyle}>Decision Properties</div>
         <div style={emptyStyle}>No decision selected</div>
       </div>
@@ -55,7 +76,6 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
   }
 
   const title = outcome.applyFilter ? 'Decision Properties' : 'Transition Properties';
-  const targetStep = outcome.nextStepId ? steps[outcome.nextStepId] : null;
 
   const outcomeRoutes: WorkflowRoute[] = (routeOrder[outcome.crmId] ?? [])
     .map((id) => routes[id])
@@ -65,33 +85,25 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
     .map((id) => steps[id])
     .filter((s) => s !== undefined);
 
-  const handleAddRoute = () => {
-    // A route persists as a qdb_outcomeworktasks record only if it targets a
-    // real step — the save path skips routes with no next step, so block here
-    // with a clear message rather than letting the route silently vanish.
-    if (newRouteTarget === '__end__') {
-      setAddRouteError('A route must lead to a step. Pick a target step — routes to "End" cannot be saved.');
-      return;
-    }
-    const maxSeq = outcomeRoutes.reduce((m, r) => Math.max(m, r.sequenceNumber), 0);
+  /** Takes a route the Route Configuration screen has already validated. */
+  const handleAddRoute = (draft: RouteDraft) => {
     const routeId = `tmp_${crypto.randomUUID()}`;
     addRoute({
       crmId: routeId,
-      name: newRouteName.trim(),
+      name: draft.name.trim(),
       subject: '',
-      sequenceNumber: maxSeq + 1,
-      filter: '',
+      sequenceNumber: draft.sequenceNumber,
+      filter: draft.filter,
       workflowHooks: emptyWorkflowHooks(ROUTE_HOOKS),
       outcomeId: outcome.crmId,
-      nextStepId: newRouteTarget,
+      nextStepId: draft.nextStepId,
+      isDefault: draft.isDefault,
     });
-    selectNode(`route_edge_${routeId}`);
     setAddingRoute(false);
-    setNewRouteName('');
-    setNewRouteTarget('__end__');
-    setNewRouteIsFallback(false);
-    setAddRouteError(null);
+    selectNode(`route_edge_${routeId}`);
   };
+
+  const nextSequence = outcomeRoutes.reduce((m, r) => Math.max(m, r.sequenceNumber), 0) + 1;
 
   const handleToggleConditional = () => {
     const nextApplyFilter = !outcome.applyFilter;
@@ -110,6 +122,7 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
         workflowHooks: emptyWorkflowHooks(ROUTE_HOOKS),
         outcomeId: outcome.crmId,
         nextStepId: outcome.nextStepId ?? null,
+        isDefault: false,
       });
       selectNode(`route_edge_${routeId}`);
     }
@@ -128,38 +141,23 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
   };
 
   return (
-    <div style={panelStyle}>
+    <div className="panel">
       <div style={panelHeaderStyle}>{title}</div>
       <div style={panelBodyStyle}>
 
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Name</label>
+          <label className="lbl">Name</label>
           <input
             type="text"
             value={outcome.name}
             onChange={(e) => setOutcome({ ...outcome, name: e.target.value })}
-            style={inputStyle}
+            className="fluent-input"
             placeholder="Decision name"
           />
         </div>
 
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Goes To</label>
-          <div style={targetChipStyle}>
-            {targetStep ? `${targetStep.sequenceNo}. ${targetStep.name}` : '— End of workflow —'}
-          </div>
-        </div>
-
-        <WorkflowHooksSection
-          value={outcome.workflowHooks}
-          onChange={(workflowHooks) => setOutcome({ ...outcome, workflowHooks })}
-          kinds={OUTCOME_HOOKS}
-          adapter={adapter}
-          scopeNote="Runs for the task this outcome leads to, in addition to anything set on that step."
-        />
-
-        <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Concurrent branches</label>
+          <label className="lbl">Concurrent branches</label>
           <button
             type="button"
             role="switch"
@@ -187,7 +185,7 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
         </div>
 
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Conditional Routing</label>
+          <label className="lbl">Conditional Routing</label>
           <button
             type="button"
             role="switch"
@@ -199,129 +197,144 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
           </button>
         </div>
 
+        {/* Where this decision leads. With conditional routing on, each route carries its
+            own target and this one is not consulted, so showing it would be misleading.
+            CWFD-016 B4: this used to be a read-only chip — re-pointing a transition
+            meant deleting the decision and drawing it again. */}
+        {!outcome.applyFilter && (
+          <div style={fieldGroupStyle}>
+            <label className="lbl">Next Step</label>
+            <select
+              className="fluent-select"
+              value={outcome.nextStepId ?? '__end__'}
+              onChange={(e) =>
+                setOutcome({
+                  ...outcome,
+                  nextStepId: e.target.value === '__end__' ? null : e.target.value,
+                })
+              }
+              aria-label="Where this decision leads"
+            >
+              <option value="__end__">— End of workflow —</option>
+              {stepOrder
+                .filter((id) => id !== outcome.stepId)
+                .map((id) => steps[id])
+                .filter(Boolean)
+                .map((candidate) => (
+                  <option key={candidate.crmId} value={candidate.crmId}>
+                    {candidate.sequenceNo}. {candidate.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+        )}
+
         {outcome.applyFilter && (
           <>
             <div style={dividerStyle} />
-            <div style={sectionLabelStyle}>
+            <div className="panel-section">
               Routes
               <span style={countBadgeStyle}>{outcomeRoutes.length}</span>
             </div>
 
             {outcomeRoutes.map((route) => {
               const nextStep = route.nextStepId ? steps[route.nextStepId] : null;
-              const isFallback = !route.filter?.trim();
+              const isFallback = route.isDefault;
               return (
-                <button
-                  key={route.crmId}
-                  type="button"
-                  style={buildRouteRowStyle(isFallback)}
-                  onClick={() => selectNode(`route_edge_${route.crmId}`)}
-                  title="Click to edit condition"
-                >
-                  <span style={routeSeqStyle}>{route.sequenceNumber}</span>
-                  <div style={routeInfoStyle}>
-                    <span style={routeNameStyle}>{route.name || '(unnamed)'}</span>
-                    <span style={routeCondStyle}>
-                      {isFallback ? 'else (fallback)' : '✎ Has condition — click to edit'}
-                    </span>
-                    <span style={routeNextStyle}>
-                      → {nextStep ? `${nextStep.sequenceNo}. ${nextStep.name}` : 'End'}
-                    </span>
-                  </div>
-                  <span style={routeArrowStyle}>›</span>
-                </button>
-              );
-            })}
-
-            {addingRoute ? (
-              <div style={addFormStyle}>
-                <input
-                  type="text"
-                  value={newRouteName}
-                  onChange={(e) => setNewRouteName(e.target.value)}
-                  placeholder="Route name (optional)"
-                  style={inputStyle}
-                  autoFocus
-                />
-                <label style={labelStyle}>Goes to</label>
-                <select
-                  value={newRouteTarget}
-                  onChange={(e) => {
-                    setNewRouteTarget(e.target.value);
-                    if (e.target.value !== '__end__') setAddRouteError(null);
-                  }}
-                  style={selectStyle}
-                >
-                  <option value="__end__">— End —</option>
-                  {availableSteps.map((s) => (
-                    <option key={s!.crmId} value={s!.crmId}>
-                      {s!.sequenceNo}. {s!.name}
-                    </option>
-                  ))}
-                </select>
-                {addRouteError && (
-                  <span style={addRouteErrorStyle} role="alert">{addRouteError}</span>
-                )}
-                <label style={checkRowStyle}>
-                  <input
-                    type="checkbox"
-                    checked={newRouteIsFallback}
-                    onChange={(e) => setNewRouteIsFallback(e.target.checked)}
-                  />
-                  <span style={checkLabelStyle}>Fallback (no condition)</span>
-                </label>
-                <div style={addFormActionsStyle}>
-                  <button type="button" style={addConfirmBtnStyle} onClick={handleAddRoute}>
-                    Add Route
+                <div key={route.crmId} style={buildRouteRowStyle(isFallback)}>
+                  <button
+                    type="button"
+                    style={routeOpenStyle}
+                    onClick={() => selectNode(`route_edge_${route.crmId}`)}
+                    title="Open this route"
+                  >
+                    <span style={routeSeqStyle}>{route.sequenceNumber}</span>
+                    <div style={routeInfoStyle}>
+                      <span style={routeNameStyle}>{route.name || '(unnamed)'}</span>
+                      <span style={routeCondStyle}>{describeRouteCondition(route)}</span>
+                      {nextStep ? (
+                        <button
+                          type="button"
+                          style={routeNavStyle}
+                          title={`Go to "${nextStep.name}" on the canvas`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            navigateToStep(nextStep.crmId);
+                          }}
+                        >
+                          → {nextStep.sequenceNo}. {nextStep.name}
+                        </button>
+                      ) : (
+                        <span style={routeNextStyle}>→ End</span>
+                      )}
+                    </div>
+                    <span style={routeArrowStyle}>›</span>
                   </button>
                   <button
                     type="button"
-                    style={cancelBtnStyle}
-                    onClick={() => { setAddingRoute(false); setAddRouteError(null); }}
+                    style={routeDeleteStyle()}
+                    aria-label={`Delete route ${route.name || 'unnamed'}`}
+                    title="Delete this route"
+                    onClick={() => handleDeleteRoute(route)}
                   >
-                    Cancel
+                    ✕
                   </button>
                 </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                style={addRouteBtnStyle}
-                onClick={() => { setAddingRoute(true); setAddRouteError(null); }}
-              >
-                + Add Route
-              </button>
-            )}
+              );
+            })}
+
+            <button
+              type="button"
+              className="btn sm block"
+              onClick={() => setAddingRoute(true)}
+            >
+              + Add Route
+            </button>
           </>
         )}
 
+        {/* Workflow stays last: it is the least-used section and pushing the routing
+            configuration below it buried the part people came here to change. */}
+        <WorkflowHooksSection
+          value={outcome.workflowHooks}
+          onChange={(workflowHooks) => setOutcome({ ...outcome, workflowHooks })}
+          kinds={OUTCOME_HOOKS}
+          adapter={adapter}
+          scopeNote="Runs for the task this outcome leads to, in addition to anything set on that step."
+        />
+
         <div style={dividerStyle} />
-        <button type="button" style={deleteBtnStyle} onClick={handleDelete}>
+        <button type="button" className="btn sm block danger" onClick={handleDelete}>
           Delete Decision
         </button>
+
+        {/* Mounted only while open, so every Add Route starts from a clean form rather
+            than whatever the previous one was left holding. */}
+        {addingRoute && (
+          <RouteConfigDialog
+            availableSteps={availableSteps}
+            suggestedSequence={nextSequence}
+            hasExistingFallback={outcomeRoutes.some((r) => r.isDefault)}
+            entityLogicalName={fetchXmlContext.entityLogicalName}
+            objectTypeCode={fetchXmlContext.objectTypeCode}
+            clientUrl={fetchXmlContext.clientUrl}
+            onSave={handleAddRoute}
+            onDismiss={() => setAddingRoute(false)}
+          />
+        )}
       </div>
     </div>
   );
 }
 
-const panelStyle: React.CSSProperties = {
-  width: 280,
-  flexShrink: 0,
-  background: '#0f172a',
-  borderLeft: '1px solid #1e293b',
-  display: 'flex',
-  flexDirection: 'column',
-  overflow: 'hidden',
-};
-
 const panelHeaderStyle: React.CSSProperties = {
   padding: '10px 14px',
   fontSize: 11,
   fontWeight: 700,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   textTransform: 'uppercase',
   letterSpacing: '0.05em',
-  borderBottom: '1px solid #1e293b',
+  borderBottom: '1px solid var(--border-strong)',
   flexShrink: 0,
 };
 
@@ -331,6 +344,9 @@ const panelBodyStyle: React.CSSProperties = {
   flexDirection: 'column',
   gap: 12,
   overflowY: 'auto',
+  // Without this the flex item will not shrink below its content, so overflowY
+  // never engages and the panel is clipped instead of scrolling.
+  minHeight: 0,
   flex: 1,
 };
 
@@ -338,49 +354,6 @@ const fieldGroupStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 4,
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: '#64748b',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-};
-
-const inputStyle: React.CSSProperties = {
-  height: 30,
-  padding: '0 8px',
-  background: '#1e293b',
-  border: '1px solid #334155',
-  borderRadius: 4,
-  color: '#e2e8f0',
-  fontSize: 12,
-  outline: 'none',
-  width: '100%',
-  boxSizing: 'border-box',
-};
-
-const selectStyle: React.CSSProperties = {
-  height: 30,
-  padding: '0 8px',
-  background: '#1e293b',
-  border: '1px solid #334155',
-  borderRadius: 4,
-  color: '#e2e8f0',
-  fontSize: 12,
-  outline: 'none',
-  width: '100%',
-  boxSizing: 'border-box',
-};
-
-const targetChipStyle: React.CSSProperties = {
-  padding: '4px 8px',
-  background: '#1e293b',
-  border: '1px solid #334155',
-  borderRadius: 4,
-  color: '#94a3b8',
-  fontSize: 12,
 };
 
 const toggleStyle: React.CSSProperties = {
@@ -395,41 +368,68 @@ const toggleStyle: React.CSSProperties = {
 };
 
 const toggleOnStyle: React.CSSProperties = {
-  background: '#1e3a5f',
-  color: '#60a5fa',
-  border: '1px solid #1d4ed8',
+  background: 'var(--primary-tint)',
+  color: 'var(--primary)',
+  border: '1px solid var(--primary-pressed)',
 };
 
 const toggleOffStyle: React.CSSProperties = {
-  background: '#334155',
-  color: '#94a3b8',
+  background: 'var(--surface-alt)',
+  color: 'var(--text-disabled)',
   border: 'none',
 };
 
 const dividerStyle: React.CSSProperties = {
-  borderTop: '1px solid #1e293b',
+  borderTop: '1px solid var(--border-strong)',
   margin: '2px 0',
-};
-
-const sectionLabelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: '#64748b',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
 };
 
 const countBadgeStyle: React.CSSProperties = {
   fontSize: 10,
-  background: '#334155',
-  color: '#94a3b8',
+  background: 'var(--surface-alt)',
+  color: 'var(--text-disabled)',
   borderRadius: 8,
   padding: '0 5px',
   fontWeight: 700,
 };
+
+/** What the row says about a route: the fallback, a real condition, or neither. */
+function describeRouteCondition(route: WorkflowRoute): string {
+  if (route.isDefault) return 'Default — used when no other route matches';
+  if (!hasRealCondition(route.filter)) return '⚠ No condition set';
+  return '✎ Has condition — click to edit';
+}
+
+const routeOpenStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  flex: 1,
+  minWidth: 0,
+  border: 'none',
+  background: 'transparent',
+  cursor: 'pointer',
+  textAlign: 'left',
+  padding: 0,
+  font: 'inherit',
+  color: 'inherit',
+};
+
+function routeDeleteStyle(): React.CSSProperties {
+  return {
+    flexShrink: 0,
+    marginLeft: 6,
+    fontSize: 12,
+    fontWeight: 600,
+    lineHeight: 1,
+    padding: '3px 7px',
+    borderRadius: 4,
+    border: '1px solid var(--border)',
+    background: 'transparent',
+    color: 'var(--text-secondary)',
+    cursor: 'pointer',
+  };
+}
 
 function buildRouteRowStyle(isFallback: boolean): React.CSSProperties {
   return {
@@ -437,8 +437,8 @@ function buildRouteRowStyle(isFallback: boolean): React.CSSProperties {
     alignItems: 'flex-start',
     gap: 8,
     padding: '7px 8px',
-    background: isFallback ? '#052e16' : '#1e293b',
-    border: `1px solid ${isFallback ? '#166534' : '#334155'}`,
+    background: isFallback ? 'var(--success-bg)' : 'var(--surface)',
+    border: `1px solid ${isFallback ? 'var(--success)' : 'var(--border)'}`,
     borderRadius: 5,
     cursor: 'pointer',
     textAlign: 'left',
@@ -450,8 +450,8 @@ const routeSeqStyle: React.CSSProperties = {
   minWidth: 18,
   height: 18,
   borderRadius: 3,
-  background: '#334155',
-  color: '#94a3b8',
+  background: 'var(--surface-alt)',
+  color: 'var(--text-disabled)',
   fontSize: 9,
   fontWeight: 700,
   display: 'flex',
@@ -472,7 +472,7 @@ const routeInfoStyle: React.CSSProperties = {
 const routeNameStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
-  color: '#e2e8f0',
+  color: 'var(--text)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -480,7 +480,24 @@ const routeNameStyle: React.CSSProperties = {
 
 const routeCondStyle: React.CSSProperties = {
   fontSize: 10,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+};
+
+// The clickable form of the target line — same size, link affordance.
+const routeNavStyle: React.CSSProperties = {
+  background: 'transparent',
+  border: 'none',
+  padding: 0,
+  fontFamily: 'inherit',
+  fontSize: 10.5,
+  color: 'var(--primary)',
+  textAlign: 'left',
+  textDecoration: 'underline',
+  textUnderlineOffset: 2,
+  cursor: 'pointer',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -488,105 +505,27 @@ const routeCondStyle: React.CSSProperties = {
 
 const routeNextStyle: React.CSSProperties = {
   fontSize: 10,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
 };
 
 const routeArrowStyle: React.CSSProperties = {
   fontSize: 14,
-  color: '#475569',
+  color: 'var(--text-secondary)',
   flexShrink: 0,
   lineHeight: 1,
   marginTop: 2,
 };
 
-const addFormStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 6,
-  padding: '10px',
-  background: '#1e293b',
-  border: '1px solid #334155',
-  borderRadius: 6,
-};
 
-const checkRowStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
-  cursor: 'pointer',
-};
 
-const checkLabelStyle: React.CSSProperties = {
-  fontSize: 11,
-  color: '#94a3b8',
-};
 
-const addRouteErrorStyle: React.CSSProperties = {
-  fontSize: 10,
-  color: '#f87171',
-  lineHeight: 1.4,
-};
 
-const addFormActionsStyle: React.CSSProperties = {
-  display: 'flex',
-  gap: 6,
-};
 
-const addConfirmBtnStyle: React.CSSProperties = {
-  flex: 1,
-  height: 28,
-  fontSize: 11,
-  fontWeight: 600,
-  borderRadius: 4,
-  border: 'none',
-  background: '#1d4ed8',
-  color: '#fff',
-  cursor: 'pointer',
-};
 
-const cancelBtnStyle: React.CSSProperties = {
-  height: 28,
-  padding: '0 12px',
-  fontSize: 11,
-  fontWeight: 500,
-  borderRadius: 4,
-  border: '1px solid #334155',
-  background: 'transparent',
-  color: '#94a3b8',
-  cursor: 'pointer',
-};
-
-const addRouteBtnStyle: React.CSSProperties = {
-  height: 28,
-  width: '100%',
-  fontSize: 11,
-  fontWeight: 600,
-  borderRadius: 4,
-  border: '1px dashed #334155',
-  background: 'transparent',
-  color: '#64748b',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-};
-
-const deleteBtnStyle: React.CSSProperties = {
-  height: 30,
-  width: '100%',
-  fontSize: 11,
-  fontWeight: 600,
-  borderRadius: 4,
-  border: '1px solid #7f1d1d',
-  background: 'transparent',
-  color: '#ef4444',
-  cursor: 'pointer',
-  marginTop: 4,
-};
 
 const emptyStyle: React.CSSProperties = {
   padding: 16,
   fontSize: 12,
-  color: '#475569',
+  color: 'var(--text-secondary)',
   fontStyle: 'italic',
 };

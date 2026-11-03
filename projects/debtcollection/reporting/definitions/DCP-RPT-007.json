@@ -1,0 +1,23 @@
+{
+  "code": "DCP-RPT-007",
+  "name": "DCP — Open activities by owner",
+  "description": "Open collection activities grouped by owner; the row with no owner is work awaiting assignment. Grain: ACTIVITY. Source: qdb_collectionactivity · ownerid, statecode. Both CRMs — the activity carries no organisation. Narrowed by activity type when supplied. DCP catalogue DCP-RPT-007.",
+  "version": 1,
+  "mainEntity": "qdb_collectionactivity",
+  "category": "Operational",
+  "rowLimit": 5000,
+  "grain": "ACTIVITY",
+  "mode": "generated",
+  "entity": { "logicalName": "qdb_collectionactivity", "alias": "t" },
+  "columns": [
+    { "name": "Owner", "attribute": "ownerid", "alias": "owner", "dataType": "Lookup", "aggregate": "None", "groupOrder": 1, "sortOrder": 1 },
+    { "name": "Open activities", "attribute": "activityid", "alias": "activities", "dataType": "Integer", "aggregate": "Count", "sortOrder": 2 }
+  ],
+  "filters": [
+    { "name": "Open activities only", "field": "statecode", "operator": "Equals", "value": "0", "valueType": "Number" },
+    { "name": "Activity type", "field": "qdb_activitytypeid", "operator": "Equals", "value": "ActivityType", "runtimePrompt": true }
+  ],
+  "parameters": [
+    { "name": "ActivityType", "label": "Activity type (id)", "type": "Lookup", "required": false }
+  ]
+}

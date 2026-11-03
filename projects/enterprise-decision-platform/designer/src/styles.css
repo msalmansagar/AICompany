@@ -698,6 +698,19 @@ h1, h2, h3 { text-wrap: balance; }
 .cb-group { align-self: stretch; border: 1px solid var(--n-stroke2); border-left: 3px solid var(--brand); border-radius: var(--radius); background: var(--n-bg1); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 .cb-group.neg { border-left-color: var(--danger); }
 .cb-group .cb-group { background: var(--n-bg2); }
+
+/* Quantifier — "for each element of <collection>, ALL/SOME/NONE satisfy ...".
+   Marked with its own accent so an author can see at a glance that the conditions inside it
+   are scoped to a DIFFERENT record than the ones outside. */
+.cb-quant { align-self: stretch; border: 1px solid var(--n-stroke2); border-left: 3px solid var(--warn, #b7791f); border-radius: var(--radius); background: var(--n-bg2); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.cb-quant-h { display: flex; align-items: center; gap: 8px; }
+.cb-quant-h .spacer { flex: 1; }
+.cb-quant-kind { font-weight: 700; }
+.cb-quant-coll { flex: 0 1 220px; }
+.cb-quant-sat { font-size: 12px; color: var(--n-fg2); }
+.cb-quant > .cb-group { border-left-color: var(--warn, #b7791f); }
+.cb-quant-hint { margin: 0; font-size: 11px; line-height: 1.4; }
+
 .cb-group-h { display: flex; align-items: center; gap: 12px; }
 .cb-group-h .spacer { flex: 1; }
 .cb-op { display: inline-flex; border: 1px solid var(--n-stroke2); border-radius: var(--radius); overflow: hidden; }
@@ -730,3 +743,35 @@ h1, h2, h3 { text-wrap: balance; }
   color: var(--n-fg2); width: 28px; height: 28px; border-radius: var(--radius); }
 .docs-pane-close:hover { background: var(--n-bg1-hover); color: var(--n-fg1); }
 .docs-pane-frame { flex: 1 1 auto; width: 100%; border: none; background: var(--n-bg1); }
+
+/* ── Record picker (lookup condition cells) ─────────────────────────────── */
+.rpick { position: relative; display: inline-flex; }
+.rpick input { width: 130px; }
+.rpick-list {
+  position: absolute; top: calc(100% + 2px); left: 0; z-index: 40; min-width: 190px; max-height: 220px; overflow-y: auto;
+  display: flex; flex-direction: column; background: var(--n-bg1); border: 1px solid var(--n-stroke2);
+  border-radius: var(--radius); box-shadow: var(--shadow8); padding: 3px;
+}
+.rpick-list button {
+  text-align: left; font: inherit; font-size: 12.5px; color: var(--n-fg1); background: none; border: none;
+  border-radius: var(--radius-sm); padding: 5px 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rpick-list button:hover { background: var(--n-bg1-hover); }
+.rpick-msg { font-size: 12px; color: var(--n-fg2); padding: 5px 8px; }
+.rpick-err { color: var(--danger); }
+
+/* Test panel — fill-from-record row */
+.tp-record { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; font-size: 12px; color: var(--n-fg2); }
+.tp-record .rpick input { width: 100%; box-sizing: border-box; font: inherit; font-size: 12.5px; border: 1px solid var(--n-stroke-acc); border-radius: var(--radius); padding: 4px 7px; background: var(--n-bg1); color: var(--n-fg1); }
+.tp-record .rpick { display: flex; }
+
+/* Table ergonomics: column move arrows, table bar, CSV export */
+.dt2-col-move { display: inline-flex; flex: none; }
+.dt2-col-move button { background: transparent; border: 0; color: var(--n-fg3); cursor: pointer; font-size: 13px; padding: 2px 2px; }
+.dt2-col-move button:hover:not(:disabled) { color: var(--n-fg1); }
+.dt2-col-move button:disabled { opacity: .35; cursor: default; }
+.dt2-rowact button:disabled { opacity: .35; cursor: default; }
+.dt2-tablebar { display: flex; align-items: center; gap: 10px; }
+.dt2-export { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; font: inherit; font-size: 12.5px;
+  color: var(--n-fg2); background: transparent; border: 1px dashed var(--n-stroke2); border-radius: var(--radius); padding: 6px 12px; cursor: pointer; }
+.dt2-export:hover { color: var(--n-fg1); border-style: solid; background: var(--n-bg1-hover); }

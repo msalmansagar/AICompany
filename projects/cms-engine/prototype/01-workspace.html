@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Workspace — QDB CMS Engine</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="shared/tokens.css" />
+<link rel="stylesheet" href="shared/components.css" />
+</head>
+<body>
+<div class="app">
+  <div class="topbar"></div>
+  <div class="shell">
+    <nav class="sitemap"></nav>
+    <div class="work">
+      <div class="cmdbar">
+        <span class="title"></span>
+        <button class="btn" data-v="primary" onclick="location.href='02-designer.html#designer'">＋ New page</button>
+        <button class="btn" onclick="toast('Import from SharePoint — not in this prototype')">Import</button>
+        <span class="sp"></span>
+        <button class="btn" data-v="subtle" onclick="toast('Exported page inventory to CSV')">Export list</button>
+      </div>
+      <div class="scroll">
+
+        <!-- ================================================== DASHBOARD -->
+        <section class="screen" id="dashboard" data-title="Dashboard">
+          <div class="banner" data-tone="info">
+            <span>ℹ️</span>
+            <div><b>This is a UX prototype.</b> Nothing is saved and no network calls are made.
+            Field names match the Dataverse schema the engine would use — <code class="mono">qdb_cmspage</code>,
+            <code class="mono">qdb_cmspageversion</code>, <code class="mono">qdb_cmspublishlog</code> — so the
+            screens and the eventual build talk about the same things.</div>
+          </div>
+
+          <div class="grid" data-cols="4" style="margin-bottom:18px" id="kpis"></div>
+
+          <div class="split">
+            <div class="stack">
+              <div class="card">
+                <h3>Recently modified</h3>
+                <div class="sub">Pages touched in the last seven days</div>
+                <div class="tbl-wrap"><table class="tbl" id="recentTbl"></table></div>
+              </div>
+
+              <div class="card">
+                <h3>Publish activity</h3>
+                <div class="sub">Every entry written by the <code class="mono">qdb_PublishPage</code> plugin — append-only</div>
+                <div class="tl" id="activityTl"></div>
+              </div>
+            </div>
+
+            <div class="stack">
+              <div class="card">
+                <h3>Awaiting review</h3>
+                <div class="sub">Submitted, not yet approved</div>
+                <div id="reviewList"></div>
+              </div>
+
+              <div class="card">
+                <h3>Translation health</h3>
+                <div class="sub">Arabic coverage across published pages</div>
+                <div id="i18nHealth"></div>
+              </div>
+
+              <div class="card">
+                <h3>Render cache</h3>
+                <div class="sub">Rebuilt on publish</div>
+                <div class="row" style="justify-content:space-between;padding:6px 0">
+                  <span class="muted">Cached pages</span><b>9 / 12</b></div>
+                <div class="row" style="justify-content:space-between;padding:6px 0">
+                  <span class="muted">Payload (gzip)</span><b>318 KB</b></div>
+                <div class="row" style="justify-content:space-between;padding:6px 0">
+                  <span class="muted">Largest page</span><b>62 KB</b></div>
+                <div class="row" style="justify-content:space-between;padding:6px 0">
+                  <span class="muted">Memo column limit</span><b class="mono">1,048,576</b></div>
+                <button class="btn" style="width:100%;margin-top:12px"
+                  onclick="toast('qdb_PublishPage queued for 3 stale pages')">Rebuild stale (3)</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ====================================================== PAGES -->
+        <section class="screen" id="pages" data-title="Pages">
+          <div class="filters">
+            <input type="search" id="pgSearch" placeholder="Search title or slug…" />
+            <select id="pgStatus">
+              <option value="">All statuses</option>
+              <option>Published</option><option>Draft</option>
+              <option>In review</option><option>Scheduled</option>
+            </select>
+            <select id="pgLocale">
+              <option value="">All locales</option>
+              <option value="AR">Has Arabic</option>
+              <option value="EN-only">English only</option>
+            </select>
+            <span class="muted" id="pgCount"></span>
+          </div>
+          <div class="card" style="padding:0">
+            <div class="tbl-wrap"><table class="tbl" id="pagesTbl"></table></div>
+          </div>
+        </section>
+
+        <!-- ================================================ PAGE DETAIL -->
+        <section class="screen" id="page360" data-title="About Reyada">
+          <div class="row" style="margin-bottom:16px">
+            <div>
+              <div class="row">
+                <h2 style="font-size:22px">About Reyada</h2>
+                <span class="pill" data-tone="ok">Published</span>
+                <span class="lang-badge" data-l="EN">EN</span>
+                <span class="lang-badge" data-l="AR">AR</span>
+              </div>
+              <div class="muted mono" style="margin-top:4px">/about-reyada · version 6 · modified 2026-08-04 16:40 by Khalid M.</div>
+            </div>
+            <div class="right row">
+              <button class="btn" onclick="location.href='02-designer.html#designer'">${''}Open designer</button>
+              <button class="btn" data-v="primary" onclick="toast('qdb_PublishPage executed — render cache rebuilt')">Publish</button>
+            </div>
+          </div>
+
+          <div class="tabs" id="p360Tabs">
+            <button aria-selected="true" data-t="overview">Overview</button>
+            <button aria-selected="false" data-t="versions">Versions</button>
+            <button aria-selected="false" data-t="payload">Stored payload</button>
+          </div>
+
+          <div id="p360-overview">
+            <div class="split">
+              <div class="stack">
+                <div class="card">
+                  <h3>Live preview</h3>
+                  <div class="sub">Rendered from the published version</div>
+                  <div style="border:1px solid var(--border-strong);border-radius:8px;overflow:hidden">
+                    <div style="background:#fff;color:#1a2129;padding:26px 28px">
+                      <div style="font-size:11px;font-weight:700;letter-spacing:.1em;color:#3d8a72">REYADA ADVISORY</div>
+                      <div style="font-size:26px;font-weight:700;margin:8px 0 10px">About Reyada</div>
+                      <div style="font-size:14px;line-height:1.75;color:#5d6b7a;max-width:60ch">
+                        Reyada Advisory connects Qatari businesses with vetted expert advisors across
+                        legal, financial, certification and growth disciplines — backed by Qatar
+                        Development Bank.</div>
+                      <div style="display:flex;gap:10px;margin-top:18px">
+                        <span style="background:#3d8a72;color:#fff;border-radius:6px;padding:9px 18px;font-size:13px;font-weight:600">Explore services</span>
+                        <span style="border:1px solid #e5e8eb;border-radius:6px;padding:9px 18px;font-size:13px;font-weight:600">Contact us</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="stack">
+                <div class="card">
+                  <h3>Record</h3>
+                  <div class="sub"><code class="mono">qdb_cmspage</code></div>
+                  <div id="recordFields"></div>
+                </div>
+                <div class="card">
+                  <h3>Where it appears</h3>
+                  <div class="sub">Navigation references</div>
+                  <div class="row" style="gap:6px;flex-wrap:wrap">
+                    <span class="pill">Main nav → About</span>
+                    <span class="pill">Footer → Advisory Marketplace</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="p360-versions" style="display:none">
+            <div class="card" style="padding:0">
+              <div class="tbl-wrap"><table class="tbl" id="versTbl"></table></div>
+            </div>
+          </div>
+
+          <div id="p360-payload" style="display:none">
+            <div class="banner" data-tone="warn">
+              <span>⚠️</span>
+              <div>Stored as <b>gzip + Base64</b> in <code class="mono">qdb_contentjson</code>.
+              Shown decompressed. Base64 inflates ~33%, so the effective ceiling is roughly
+              786 KB of compressed bytes against the 1,048,576-character Memo limit.</div>
+            </div>
+            <div class="code" id="payloadCode"></div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="shared/icons.js"></script>
+<script src="shared/mock-data.js"></script>
+<script src="shared/shell.js"></script>
+<script>
+/* ------------------------------------------------------------ dashboard */
+function renderKpis() {
+  const published = PAGES.filter(p => p.status === STATUS.PUBLISHED).length;
+  const drafts    = PAGES.filter(p => p.status === STATUS.DRAFT).length;
+  const arCover   = Math.round(PAGES.filter(p => p.locales.includes("AR")).length / PAGES.length * 100);
+  const views     = PAGES.reduce((s, p) => s + p.views, 0);
+
+  const kpi = (label, value, note, tone, ic) => `
+    <div class="card kpi">
+      <div class="k-label">${esc(label)} ${icon(ic, 16)}</div>
+      <div class="k-value">${value}</div>
+      <div class="k-note" ${tone ? `data-tone="${tone}"` : ""}>${esc(note)}</div>
+    </div>`;
+
+  $("#kpis").innerHTML =
+    kpi("Published pages", published, "+2 this week", "up", "publish") +
+    kpi("Drafts", drafts, `${REVIEW_QUEUE.length} awaiting review`, "", "edit") +
+    kpi("Arabic coverage", arCover + "%", "2 pages English-only", arCover < 90 ? "down" : "up", "globe") +
+    kpi("Views (30 days)", num(views), "+8.4% vs prior", "up", "eye");
+}
+
+function renderRecent() {
+  const rows = PAGES.slice().sort((a,b) => b.modified.localeCompare(a.modified)).slice(0, 6);
+  $("#recentTbl").innerHTML = `
+    <thead><tr><th>Page</th><th>Status</th><th>Locales</th><th>Owner</th><th>Modified</th></tr></thead>
+    <tbody>${rows.map(p => `
+      <tr onclick="location.hash='page360'">
+        <td><b>${esc(p.en)}</b><br><code>/${esc(p.slug)}</code></td>
+        <td>${statusPill(p.status)}</td>
+        <td>${langBadges(p.locales)}</td>
+        <td>${esc(p.owner)}</td>
+        <td class="mono muted">${esc(p.modified)}</td>
+      </tr>`).join("")}</tbody>`;
+}
+
+function renderActivity() {
+  $("#activityTl").innerHTML = AUDIT.slice(0, 6).map(a => `
+    <div class="tl-item" ${a.tone ? `data-tone="${a.tone}"` : ""}>
+      <div class="tl-head">${esc(a.action)} — ${esc(a.page)} <span class="pill">v${a.v}</span></div>
+      <div class="tl-meta">${esc(a.on)} · ${esc(a.who)}</div>
+      <div class="tl-meta mono">${esc(a.detail)}</div>
+    </div>`).join("");
+}
+
+function renderReview() {
+  $("#reviewList").innerHTML = REVIEW_QUEUE.map(r => `
+    <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+      <div class="row"><b style="font-size:13.5px">${esc(r.page)}</b>
+        <span class="pill" data-tone="warn" style="margin-inline-start:auto">${esc(r.waiting)}</span></div>
+      <div class="tl-meta">by ${esc(r.by)} · ${r.changes} changes · ${langBadges(r.locales)}</div>
+    </div>`).join("") +
+    `<button class="btn" style="width:100%;margin-top:12px"
+       onclick="location.href='06-governance.html#review'">Open review queue</button>`;
+}
+
+function renderI18nHealth() {
+  const total = TRANSLATIONS.length;
+  const done  = TRANSLATIONS.filter(t => t.state === "Translated").length;
+  const miss  = TRANSLATIONS.filter(t => t.state === "Missing").length;
+  const stale = TRANSLATIONS.filter(t => t.state === "Stale").length;
+  const pct   = Math.round(done / total * 100);
+  $("#i18nHealth").innerHTML = `
+    <div style="height:8px;border-radius:5px;background:var(--neutral-chip);overflow:hidden;margin-bottom:12px">
+      <div style="height:100%;width:${pct}%;background:var(--brand)"></div></div>
+    <div class="row" style="justify-content:space-between;padding:4px 0">
+      <span class="pill" data-tone="ok">Translated</span><b>${done}</b></div>
+    <div class="row" style="justify-content:space-between;padding:4px 0">
+      <span class="pill" data-tone="err">Missing</span><b>${miss}</b></div>
+    <div class="row" style="justify-content:space-between;padding:4px 0">
+      <span class="pill" data-tone="warn">Stale</span><b>${stale}</b></div>
+    <button class="btn" style="width:100%;margin-top:12px"
+      onclick="location.href='03-content.html#i18n'">Open translations</button>`;
+}
+
+/* ---------------------------------------------------------------- pages */
+function renderPages() {
+  const q      = ($("#pgSearch").value || "").toLowerCase();
+  const status = $("#pgStatus").value;
+  const loc    = $("#pgLocale").value;
+
+  const rows = PAGES.filter(p => {
+    if (q && !(p.en.toLowerCase().includes(q) || p.slug.includes(q) || p.ar.includes(q))) return false;
+    if (status && p.status !== status) return false;
+    if (loc === "AR" && !p.locales.includes("AR")) return false;
+    if (loc === "EN-only" && p.locales.includes("AR")) return false;
+    return true;
+  });
+
+  $("#pgCount").textContent = `${rows.length} of ${PAGES.length} pages`;
+  $("#pagesTbl").innerHTML = `
+    <thead><tr>
+      <th>Title</th><th>Slug</th><th>Status</th><th>Locales</th>
+      <th>Template</th><th class="num">Ver</th><th class="num">Views</th><th>Owner</th><th>Modified</th>
+    </tr></thead>
+    <tbody>${rows.map(p => `
+      <tr onclick="location.hash='page360'">
+        <td><b>${esc(p.en)}</b><br><span class="muted">${esc(p.ar)}</span></td>
+        <td><code>/${esc(p.slug)}</code></td>
+        <td>${statusPill(p.status)}</td>
+        <td>${langBadges(p.locales)}</td>
+        <td>${esc(p.template)}</td>
+        <td class="num">${p.v}</td>
+        <td class="num">${num(p.views)}</td>
+        <td>${esc(p.owner)}</td>
+        <td class="mono muted">${esc(p.modified)}</td>
+      </tr>`).join("") || `<tr><td colspan="9" class="empty">No pages match those filters.</td></tr>`}
+    </tbody>`;
+}
+
+/* ----------------------------------------------------------- page detail */
+function renderRecordFields() {
+  const f = [
+    ["qdb_cmspageid", "bc1fde87-5e9c-4174-bedf-c074588027c2"],
+    ["qdb_slug", "about-reyada"],
+    ["qdb_titleen", "About Reyada"],
+    ["qdb_titlear", "عن ريادة"],
+    ["qdb_status", "860010002 (Published)"],
+    ["qdb_template", "Standard"],
+    ["modifiedon", "2026-08-04 16:40"],
+  ];
+  $("#recordFields").innerHTML = f.map(([k, v]) => `
+    <div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+      <code class="mono" style="font-size:11.5px;color:var(--text-secondary)">${esc(k)}</code>
+      <b style="font-size:12.5px;text-align:end">${esc(v)}</b></div>`).join("");
+}
+
+function renderVersions() {
+  $("#versTbl").innerHTML = `
+    <thead><tr><th>Version</th><th>State</th><th>Note</th><th>By</th><th>When</th><th class="num">Size</th><th></th></tr></thead>
+    <tbody>${VERSIONS.map(v => `
+      <tr>
+        <td><b>v${v.v}</b></td>
+        <td><span class="pill" data-tone="${v.state === 'Published' ? 'ok' : ''}">${esc(v.state)}</span></td>
+        <td>${esc(v.note)}</td>
+        <td>${esc(v.by)}</td>
+        <td class="mono muted">${esc(v.on)}</td>
+        <td class="num mono">${num(v.bytes)} B</td>
+        <td>${v.state === "Published" ? "" :
+          `<button class="btn" data-v="subtle" onclick="event.stopPropagation();toast('Restored v${v.v} as a new draft — v7')">Restore</button>`}</td>
+      </tr>`).join("")}</tbody>`;
+}
+
+function renderPayload() {
+  $("#payloadCode").innerHTML =
+`<span class="c">// qdb_cmspageversion(…).qdb_contentjson — decompressed</span>
+{
+  <span class="k">"root"</span>: { <span class="k">"props"</span>: { <span class="k">"content"</span>: [] } },
+  <span class="k">"content"</span>: [
+    { <span class="k">"type"</span>: <span class="s">"Section"</span>,
+      <span class="k">"props"</span>: { <span class="k">"id"</span>: <span class="s">"sec-1"</span>,
+                 <span class="k">"background"</span>: <span class="s">"rey-surface"</span>,
+                 <span class="k">"padding"</span>: <span class="s">"36px"</span> } },
+    { <span class="k">"type"</span>: <span class="s">"Heading"</span>,
+      <span class="k">"props"</span>: { <span class="k">"id"</span>: <span class="s">"h-1"</span>,
+                 <span class="k">"textEn"</span>: <span class="s">"About Reyada"</span>,
+                 <span class="k">"textAr"</span>: <span class="s">"عن ريادة"</span>,
+                 <span class="k">"level"</span>: <span class="s">"1"</span>,
+                 <span class="k">"color"</span>: <span class="s">"rey-ink"</span> } },
+    { <span class="k">"type"</span>: <span class="s">"Text"</span>,
+      <span class="k">"props"</span>: { <span class="k">"id"</span>: <span class="s">"t-1"</span>,
+                 <span class="k">"bodyEn"</span>: <span class="s">"Reyada Advisory connects…"</span>,
+                 <span class="k">"bodyAr"</span>: <span class="s">"تربط ريادة الاستشارية…"</span> } }
+  ],
+  <span class="k">"zones"</span>: {}
+}
+
+<span class="c">// Both languages live on the SAME node. Structure is shared by</span>
+<span class="c">// construction, so Arabic and English layouts cannot drift apart.</span>`;
+}
+
+/* ------------------------------------------------------------------ init */
+Shell.init("01-workspace.html", "dashboard");
+renderKpis(); renderRecent(); renderActivity(); renderReview(); renderI18nHealth();
+renderPages(); renderRecordFields(); renderVersions(); renderPayload();
+
+["pgSearch", "pgStatus", "pgLocale"].forEach(id =>
+  $("#" + id).addEventListener("input", renderPages));
+
+$$("#p360Tabs button").forEach(b => b.addEventListener("click", () => {
+  $$("#p360Tabs button").forEach(x => x.setAttribute("aria-selected", String(x === b)));
+  ["overview", "versions", "payload"].forEach(t =>
+    $("#p360-" + t).style.display = t === b.dataset.t ? "" : "none");
+}));
+</script>
+</body>
+</html>

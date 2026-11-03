@@ -28,11 +28,29 @@ authorization** — it is the input to that decision.
 ## 2. Scope boundary (read first)
 
 CWFD is a **design-time modeler**. It writes process configuration into Dataverse
-entities; the actual execution happens in a separate CRM layer (plugins / flows). The
-process engine, by current architecture, **has no runtime**.
+entities; the actual execution happens in a separate CRM layer (plugins / flows).
 
-This boundary is decisive for the backlog: several "enterprise BPM" capabilities
-(live instance execution, operational monitoring, in-flight impact) are **not the
+> 🔴 **Correction (2026-08-09).** This section previously read *"the process engine,
+> by current architecture, **has no runtime**."* **That was false**, and it is the
+> most expensive sentence in this document — DP-1, DP-2 and DP-2b were all scoped
+> against it and all shipped configuration that nothing reads.
+>
+> `org5869857f` has run `QDB.CRM.ProcessConfiguration`,
+> `QDBCatalog.CRM.TatAndEscalations` and `QDB.RoundRobin` since 2026-05-05. The
+> runtime was executed and verified end to end on 2026-07-27 (one task in, two
+> tasks out, join guard refusing a premature completion by name). See
+> `cwfd-005-runtime/discovery-existing-engine.md` and `runtime-verification.md`.
+>
+> **The engine had never been *used* — zero tasks, zero escalations — which is why
+> the duplication went unnoticed. Registered and inert is not the same as absent.**
+>
+> Before scoping any DP item, read what the engine already does. The right shape
+> for most of them is *surface what runs*, not *build what is missing*: DP-5
+> dropped from L to S/M that way, and DP-3 turned out to be three capabilities and
+> two defects rather than four new features.
+
+The boundary that remains real: several "enterprise BPM" capabilities (live
+instance execution, operational monitoring, in-flight impact) are **not the
 designer's job**. They are catalogued here under a separate execution track (§5.E) so
 they are neither lost nor mistakenly scoped into the designer.
 
@@ -91,7 +109,7 @@ Effort key: S ≤ 2 days · M ≤ 1 week · L ≤ 2 weeks · XL > 2 weeks (own e
 |---|---|---|---|
 | DP-1 | Parallel (AND) gateway + split/join | Concurrent branches — core BPM gap | L |
 | DP-2 | Timers / SLA / escalation on steps | Due dates + escalation events | L |
-| DP-3 | Human-task depth: delegation, reassign, priority, queues | Enterprise task routing | M |
+| DP-3 | ✅ **DONE** — Human-task depth. Delivered: Read From Parent assignment, allow-bulk-approval, round-robin encoding fix, on-hold hook typed as an Action. **Delegation and queues were NOT delivered because the engine does not perform them** — see `cwfd-005-runtime/dp-3-human-task-depth.md` §6 before reopening | Enterprise task routing | M |
 | DP-4 | Sub-processes / reusable call activities | Reuse + large-process readability | XL |
 | DP-5 | External Call-API / connector step | Integration beyond Dataverse | L |
 | DP-6 | Task form designer + process variables/expressions | Data context + task UX | XL |

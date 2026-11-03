@@ -1,12 +1,15 @@
 /* W0-1 pre-flight: capture the COMPLETE current EDP plugin registration graph so the
-   post-rotation re-registration can be verified/reproduced exactly. Read-only. */
+   post-rotation re-registration can be verified/reproduced exactly. Read-only.
+   SUPERSEDED for cloud by deploy/a7-repoint.mjs, whose dry run writes a full snapshot of both
+   assemblies against registration/rule-engine-registration.json. Kept for the signed/on-prem line. */
 const fs = require('fs'), https = require('https');
+const { LEGACY_ASSEMBLY_NAME } = require('./lib/runtime-target.cjs');
 const ENVFILE = process.env.EDP_ENV_PATH || 'D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env';
 const env = {};
 for (const l of fs.readFileSync(ENVFILE, 'utf8').split(/\r?\n/)) { const m = l.match(/^([A-Z_]+)=(.*)$/); if (m) env[m[1]] = m[2].trim().replace(/\r$/, ''); }
 const TENANT = env.AZURE_TENANT_ID, CLIENT = env.AZURE_CLIENT_ID, SECRET = env.AZURE_CLIENT_SECRET;
 const URL = env.DATAVERSE_URL.replace(/\/$/, ''), HOST = URL.replace(/^https:\/\//, '');
-const ASSEMBLY = 'EDP.RuleRuntime.Crm.Signed';
+const ASSEMBLY = LEGACY_ASSEMBLY_NAME;
 function req(host, path, method, headers) { return new Promise((z, x) => { const r = https.request({ host, path, method, headers, timeout: 60000 }, s => { let b=''; s.on('data',c=>b+=c); s.on('end',()=>z({status:s.statusCode,body:b})); }); r.on('error',x); r.on('timeout',()=>r.destroy(new Error('t'))); r.end(); }); }
 function token(){ const b=`grant_type=client_credentials&client_id=${encodeURIComponent(CLIENT)}&client_secret=${encodeURIComponent(SECRET)}&scope=${encodeURIComponent(URL+'/.default')}`; return new Promise((z,x)=>{const r=https.request({host:'login.microsoftonline.com',path:`/${TENANT}/oauth2/v2.0/token`,method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','Content-Length':Buffer.byteLength(b)}},s=>{let d='';s.on('data',c=>d+=c);s.on('end',()=>z(JSON.parse(d).access_token));});r.on('error',x);r.write(b);r.end();});}
 const STAGE = { 10:'pre-validation', 20:'pre-operation', 40:'post-operation' };

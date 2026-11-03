@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Governance — QDB CMS Engine</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="shared/tokens.css" />
+<link rel="stylesheet" href="shared/components.css" />
+</head>
+<body>
+<div class="app">
+  <div class="topbar"></div>
+  <div class="shell">
+    <nav class="sitemap"></nav>
+    <div class="work">
+      <div class="cmdbar">
+        <span class="title"></span>
+        <span class="sp"></span>
+        <button class="btn" onclick="toast('Exported audit log — 8 entries')">Export audit</button>
+      </div>
+      <div class="scroll">
+
+        <!-- ============================================== REVIEW QUEUE -->
+        <section class="screen" id="review" data-title="Review queue">
+          <div class="banner" data-tone="info">
+            <span>✅</span>
+            <div>Authors submit; approvers publish. The split exists because <b>publish rights and
+            authoring rights are different privileges</b> — a Content Author can change every word on a
+            page and still not put it in front of a citizen.</div>
+          </div>
+
+          <div id="reviewCards"></div>
+        </section>
+
+        <!-- ================================================== VERSIONS -->
+        <section class="screen" id="versions" data-title="Versions">
+          <div class="banner" data-tone="info">
+            <span>🕓</span>
+            <div><code class="mono">qdb_cmspageversion</code> is <b>append-only</b> — no row is ever updated.
+            Restoring does not delete anything; it copies an old payload forward as a new version, so the
+            history of what was live and when stays intact for an auditor.</div>
+          </div>
+
+          <div class="card" style="margin-bottom:16px">
+            <h3>About Reyada</h3>
+            <div class="sub"><code class="mono">/about-reyada</code> · 6 versions retained</div>
+            <div class="tbl-wrap"><table class="tbl" id="verTbl"></table></div>
+          </div>
+
+          <div class="grid" data-cols="2">
+            <div class="card">
+              <h3>Retention</h3>
+              <div class="sub">Configured per environment</div>
+              <div id="retention"></div>
+            </div>
+            <div class="card">
+              <h3>Diff — v5 → v6</h3>
+              <div class="sub">What the published change actually contained</div>
+              <div class="code" id="diffCode"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================================================= PUBLISH LOG -->
+        <section class="screen" id="audit" data-title="Publish log">
+          <div class="banner" data-tone="warn">
+            <span>🛡</span>
+            <div><b>Written by the plugin, never by the browser.</b> If the designer wrote both the version
+            and the log, an author could keep the write and drop the log — devtools, blocked request, done.
+            Routing publish through <code class="mono">qdb_PublishPage</code> makes the log structurally
+            unavoidable: the same call that goes live writes the row.
+            <br><br><b>Stated honestly:</b> this guarantees "no page went live without a log". It does not
+            guarantee "nobody changed content another way" — a user with direct table access can still write
+            through the Web API. Dataverse security remains what governs that.</div>
+          </div>
+
+          <div class="filters">
+            <input type="search" id="aSearch" placeholder="Search page or user…" />
+            <select id="aAction"><option value="">All actions</option>
+              <option>Published</option><option>Saved draft</option>
+              <option>Rolled back</option><option>Submitted</option></select>
+            <span class="muted" id="aCount"></span>
+          </div>
+
+          <div class="card" style="padding:0">
+            <div class="tbl-wrap"><table class="tbl" id="auditTbl"></table></div>
+          </div>
+        </section>
+
+        <!-- ===================================================== ROLES -->
+        <section class="screen" id="roles" data-title="Roles">
+          <div class="banner" data-tone="info">
+            <span>👤</span>
+            <div>Roles map onto Dataverse security roles — the CMS adds no parallel permission system.
+            <b>Shell editing is separated from content editing</b> on purpose: an author who can delete the
+            navigation can break every page at once, so that privilege sits with Portal Admin alone.</div>
+          </div>
+
+          <div class="card" style="margin-bottom:16px;padding:0">
+            <div class="tbl-wrap"><table class="tbl" id="rolesTbl"></table></div>
+          </div>
+
+          <div class="card" style="margin-bottom:16px">
+            <h3>Every capability, and who holds it</h3>
+            <div class="sub">Nothing here needs code. The only question is who is allowed.</div>
+            <div class="tbl-wrap"><table class="tbl" id="capMatrix"></table></div>
+          </div>
+
+          <div class="grid" data-cols="2">
+            <div class="card">
+              <h3>What "Power Admin" means</h3>
+              <div style="font-size:13.5px;line-height:1.75;color:var(--text-secondary)">
+                A Power Admin can do <b>everything</b> — build components, define fields, approve
+                colours, upload icons, edit the shell and publish. No developer is involved in any
+                of it.
+                <br><br>That is the point of this design: capability is a <b>screen</b>, not a code
+                change. A developer is only needed to add a genuinely new kind of brick — a live
+                map, a payment widget — which is rare.
+              </div>
+            </div>
+            <div class="card">
+              <h3>What keeps it safe</h3>
+              <div style="font-size:13.5px;line-height:1.75;color:var(--text-secondary)">
+                Handing this much power to non-developers only works because three things exist:
+                <br><br>
+                <b>1. Approval before publish</b> — an author cannot put anything in front of a
+                citizen alone.<br>
+                <b>2. Versioning</b> — every change is a new version, so anything can be rolled back.<br>
+                <b>3. Audit</b> — the publish log is written by the plugin, so it cannot be skipped.
+                <br><br>Remove any one of them and "everyone can do everything" becomes "anyone can
+                break the public site".
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="shared/icons.js"></script>
+<script src="shared/mock-data.js"></script>
+<script src="shared/shell.js"></script>
+<script>
+function renderReview() {
+  $("#reviewCards").innerHTML = REVIEW_QUEUE.map(r => `
+    <div class="card" style="margin-bottom:14px">
+      <div class="row">
+        <div>
+          <div class="row"><b style="font-size:15px">${esc(r.page)}</b>${langBadges(r.locales)}</div>
+          <div class="muted" style="font-size:12.5px;margin-top:3px">
+            submitted by ${esc(r.by)} · waiting ${esc(r.waiting)} · ${r.changes} changes</div>
+        </div>
+        <div class="right row">
+          <button class="btn" onclick="toast('Opened side-by-side diff')">View diff</button>
+          <button class="btn" data-v="danger" onclick="toast('Returned to ${esc(r.by)} with comments')">Request changes</button>
+          <button class="btn" data-v="primary" onclick="toast('Approved — qdb_PublishPage queued')">Approve &amp; publish</button>
+        </div>
+      </div>
+      ${r.locales.length === 1 ? `<div class="banner" data-tone="warn" style="margin:14px 0 0">
+        <span>⚠️</span><div>Arabic is missing. Publishing English-only leaves Arabic visitors on the
+        previous version of this page.</div></div>` : ""}
+    </div>`).join("") || `<div class="empty">Nothing awaiting review.</div>`;
+}
+
+function renderVersions() {
+  $("#verTbl").innerHTML = `
+    <thead><tr><th>Version</th><th>State</th><th>Note</th><th>By</th><th>When</th>
+      <th class="num">Size</th><th></th></tr></thead>
+    <tbody>${VERSIONS.map(v => `
+      <tr>
+        <td><b>v${v.v}</b></td>
+        <td><span class="pill" data-tone="${v.state === 'Published' ? 'ok' : ''}">${esc(v.state)}</span></td>
+        <td>${esc(v.note)}</td><td>${esc(v.by)}</td>
+        <td class="mono muted">${esc(v.on)}</td>
+        <td class="num mono">${num(v.bytes)} B</td>
+        <td>${v.state === "Published" ? `<span class="muted">live</span>` :
+          `<button class="btn" data-v="subtle"
+            onclick="toast('v${v.v} copied forward as v7 — review then publish')">Restore</button>`}</td>
+      </tr>`).join("")}</tbody>`;
+
+  $("#retention").innerHTML = [
+    ["Versions kept per page", "20"],
+    ["Published versions", "Never purged"],
+    ["Draft versions older than", "90 days"],
+    ["Audit log", "Retained indefinitely"],
+  ].map(([k, v]) => `
+    <div class="row" style="justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+      <span class="muted" style="font-size:12.5px">${esc(k)}</span><b style="font-size:12.5px">${esc(v)}</b>
+    </div>`).join("");
+
+  $("#diffCode").innerHTML =
+`<span class="c">// content[2].props</span>
+<span class="c">- </span><span class="k">"bodyEn"</span>: <span class="s">"Reyada connects businesses with advisors."</span>
+<span class="c">+ </span><span class="k">"bodyEn"</span>: <span class="s">"Reyada Advisory connects Qatari businesses</span>
+<span class="s">              with vetted expert advisors across legal,</span>
+<span class="s">              financial, certification and growth…"</span>
+
+<span class="c">- </span><span class="k">"bodyAr"</span>: <span class="s">"تربط ريادة الشركات بالمستشارين."</span>
+<span class="c">+ </span><span class="k">"bodyAr"</span>: <span class="s">"تربط ريادة الاستشارية الشركات القطرية</span>
+<span class="s">              بمستشارين خبراء معتمدين…"</span>
+
+<span class="c">// content[4] added</span>
+<span class="c">+ </span>{ <span class="k">"type"</span>: <span class="s">"Button"</span>, <span class="k">"props"</span>: { <span class="k">"labelEn"</span>: <span class="s">"Explore services"</span>,
+                              <span class="k">"labelAr"</span>: <span class="s">"استكشف الخدمات"</span> } }`;
+}
+
+function renderAudit() {
+  const q = ($("#aSearch").value || "").toLowerCase();
+  const a = $("#aAction").value;
+  const rows = AUDIT.filter(x =>
+    (!q || x.page.toLowerCase().includes(q) || x.who.toLowerCase().includes(q)) &&
+    (!a || x.action === a));
+
+  $("#aCount").textContent = `${rows.length} of ${AUDIT.length} entries`;
+  $("#auditTbl").innerHTML = `
+    <thead><tr><th>When</th><th>Action</th><th>Page</th><th>Ver</th><th>User</th><th>Detail</th></tr></thead>
+    <tbody>${rows.map(x => `
+      <tr>
+        <td class="mono muted">${esc(x.on)}</td>
+        <td><span class="pill" ${x.tone?`data-tone="${x.tone}"`:""}>${esc(x.action)}</span></td>
+        <td><b>${esc(x.page)}</b></td>
+        <td class="num">v${x.v}</td>
+        <td>${esc(x.who)}</td>
+        <td class="muted mono" style="font-size:11.5px">${esc(x.detail)}</td>
+      </tr>`).join("") || `<tr><td colspan="6" class="empty">Nothing matches.</td></tr>`}</tbody>`;
+}
+
+function renderRoles() {
+  $("#rolesTbl").innerHTML = `
+    <thead><tr><th>Role</th><th class="num">Users</th><th>Scope</th><th>Can publish</th></tr></thead>
+    <tbody>${ROLES.map(r => `
+      <tr>
+        <td><span class="pill" ${r.tone?`data-tone="${r.tone}"`:""}>${esc(r.role)}</span></td>
+        <td class="num">${r.users}</td>
+        <td class="muted">${esc(r.scope)}</td>
+        <td>${r.publish === "Yes"
+          ? `<span class="pill" data-tone="ok">Yes</span>`
+          : `<span class="pill">No</span>`}</td>
+      </tr>`).join("")}</tbody>`;
+
+  const yes = `<span style="color:var(--success)">${icon("check", 15)}</span>`;
+  const no  = `<span class="muted">—</span>`;
+  $("#capMatrix").innerHTML = `
+    <thead><tr><th>Capability</th><th>Power Admin</th><th>Content Author</th>
+      <th>Translator</th><th>Approver</th><th>Viewer</th></tr></thead>
+    <tbody>${CAPABILITIES.map(c => `
+      <tr>
+        <td>${esc(c.cap)}</td>
+        <td>${c.admin ? yes : no}</td>
+        <td>${c.author ? yes : no}</td>
+        <td>${c.translator ? yes : no}</td>
+        <td>${c.approver ? yes : no}</td>
+        <td>${c.viewer ? yes : no}</td>
+      </tr>`).join("")}</tbody>`;
+}
+
+Shell.init("06-governance.html", "review");
+renderReview(); renderVersions(); renderAudit(); renderRoles();
+["aSearch","aAction"].forEach(id => $("#"+id).addEventListener("input", renderAudit));
+</script>
+</body>
+</html>

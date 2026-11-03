@@ -30,7 +30,7 @@ export function translate(graph: DecisionGraphType, meta: PcrmMeta): Translation
     ruleId: meta.name.trim().toLowerCase().replace(/\s+/g, '-') || 'rule',
     name: meta.name,
     targetEntity: meta.targetEntity,
-    inputs: deriveInputs(inputNode, table),
+    inputs: deriveInputs(inputNode, table, nodes),
     variables: deriveVariables(exprNodes),
     outputs: [],
     logic: { type: 'conditionSet', rules: [], otherwise: {} },
@@ -40,7 +40,7 @@ export function translate(graph: DecisionGraphType, meta: PcrmMeta): Translation
     Object.assign(pcrm, { outputs: (table.content?.outputs ?? []).map((c: any) => ({ name: c.name || c.field, type: 'Text' })) });
     pcrm.logic = tableToLogic(table);
   } else if (switchNode) {
-    pcrm.logic = switchToLogic(switchNode);
+    pcrm.logic = switchToLogic(switchNode, warnings);
   } else {
     warnings.push('No decision table or switch node found — nothing executable to translate.');
   }
@@ -53,13 +53,16 @@ export function toPcrm(graph: DecisionGraphType, meta: PcrmMeta): unknown {
   return translate(graph, meta).pcrm;
 }
 
-function deriveInputs(inputNode: any, table: any): any[] {
-  // Prefer the input node's schema object keys (the declared request shape).
+function deriveInputs(inputNode: any, table: any, allNodes: any[] = []): any[] {
+  // Prefer the input node's schema (the declared request shape).
   const schema = inputNode?.content?.schema;
   if (schema) {
     try {
       const obj = JSON.parse(schema);
+      const fromJsonSchema = inputsFromJsonSchema(obj, allNodes);
+      if (fromJsonSchema) return fromJsonSchema;
       if (obj && typeof obj === 'object') {
+        // Legacy form: a sample object, one key per input.
         return Object.keys(obj).map((k) => ({ name: k, type: guessType(obj[k]), binding: k }));
       }
     } catch { /* fall through */ }
@@ -67,6 +70,59 @@ function deriveInputs(inputNode: any, table: any): any[] {
   // Fallback: derive from the decision table's input columns.
   const cols = table?.content?.inputs ?? [];
   return cols.map((c: any) => ({ name: c.field || c.name, type: 'Text', binding: c.field || c.name }));
+}
+
+// A designer-generated entity schema (see gorules/entitySchema.ts) declares every
+// field of the target entity plus one N:1 hop. Emitting them all would make the
+// runtime resolve hundreds of bindings per run, so only fields the graph actually
+// references become PCRM inputs. Nested (related) fields translate to `via` inputs
+// under their dotted canvas name, which is how the logic references them.
+function inputsFromJsonSchema(schema: any, allNodes: any[]): any[] | null {
+  if (!schema || schema.type !== 'object' || !schema.properties) return null;
+  const candidates: any[] = [];
+  for (const [name, p] of Object.entries<any>(schema.properties)) {
+    if (p?.type === 'object' && p.properties) {
+      const via = { relationship: p['x-edp-relationship'] ?? name, entity: p['x-edp-entity'] ?? '' };
+      for (const [field, fp] of Object.entries<any>(p.properties)) {
+        candidates.push({ name: `${name}.${field}`, type: schemaPropType(fp), binding: field, via });
+      }
+    } else {
+      candidates.push({ name, type: schemaPropType(p), binding: name });
+    }
+  }
+  if (!schema['x-edp-entity']) return candidates; // hand-written schema: the author declared exactly what they need
+  const logicText = expressionTextOf(allNodes);
+  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Lookarounds keep `creditlimit` from matching inside `customerid.creditlimit`.
+  return candidates.filter((c) => new RegExp(`(?<![.\\w])${escape(c.name)}(?![.\\w])`).test(logicText));
+}
+
+// Only the strings that can actually reference an input — never structural JSON
+// keys (a field named `name` must not match every node's "name" property).
+function expressionTextOf(nodes: any[]): string {
+  const parts: string[] = [];
+  for (const n of nodes) {
+    const c = n.content ?? {};
+    if (n.type === 'decisionTableNode') {
+      for (const col of c.inputs ?? []) if (col.field) parts.push(String(col.field));
+      for (const row of c.rules ?? []) for (const v of Object.values(row)) if (typeof v === 'string') parts.push(v);
+    } else if (n.type === 'switchNode') {
+      for (const s of c.statements ?? []) if (s.condition) parts.push(String(s.condition));
+    } else if (n.type === 'expressionNode') {
+      for (const e of c.expressions ?? []) if (e.value) parts.push(String(e.value));
+    } else if (n.type === 'functionNode') {
+      parts.push(typeof c === 'string' ? c : String(c.source ?? ''));
+    }
+  }
+  return parts.join('\n');
+}
+
+function schemaPropType(p: any): string {
+  if (typeof p?.['x-edp-type'] === 'string') return p['x-edp-type'];
+  if (p?.type === 'number' || p?.type === 'integer') return 'Decimal';
+  if (p?.type === 'boolean') return 'Boolean';
+  if (p?.type === 'string' && p?.format === 'date-time') return 'DateTime';
+  return 'Text';
 }
 
 function deriveVariables(exprNodes: any[]): any[] {
@@ -97,22 +153,30 @@ function tableToLogic(table: any): any {
   };
 }
 
-function switchToLogic(switchNode: any): any {
+function switchToLogic(switchNode: any, warnings: string[]): any {
   // Each switch statement -> a conditionSet rule that outputs the branch it took.
   const statements: any[] = switchNode.content?.statements ?? [];
   const rules = statements
     .filter((s) => !s.isDefault && s.condition)
-    .map((s) => ({ when: conditionFromZen(s.condition), then: { branch: s.id } }));
+    .map((s) => ({ when: conditionFromZen(s.condition, warnings), then: { branch: s.id } }));
   const def = statements.find((s) => s.isDefault);
   return { type: 'conditionSet', rules, otherwise: def ? { branch: def.id } : {} };
 }
 
 // --- ZEN helpers (best-effort MVP) ---------------------------------------------
 
-function conditionFromZen(zen: string): any {
+// A condition the translator can't parse must NEVER become an empty AND group —
+// empty AND is true, so the branch would silently fire for every record. Binding
+// it to a symbol no rule can declare makes the runtime validator reject the save.
+const UNPARSEABLE = '__unparseable_condition__';
+
+function conditionFromZen(zen: string, warnings: string[]): any {
   // Support simple "field OP value" comparisons for switch conditions.
   const m = zen.match(/^\s*([A-Za-z_][\w.]*)\s*(==|!=|>=|<=|>|<)\s*(.+?)\s*$/);
-  if (!m) return { op: 'and', conditions: [] };
+  if (!m) {
+    warnings.push(`Switch condition "${zen}" is not in the supported "field op value" form — the rule will fail validation until it is rewritten.`);
+    return { op: 'and', conditions: [{ field: UNPARSEABLE, operator: 'Equals', value: zen }] };
+  }
   const opMap: Record<string, string> = { '==': 'Equals', '!=': 'NotEquals', '>=': 'GreaterThanOrEqual', '<=': 'LessThanOrEqual', '>': 'GreaterThan', '<': 'LessThan' };
   return { op: 'and', conditions: [{ field: m[1], operator: opMap[m[2]], value: coerce(m[3]) }] };
 }

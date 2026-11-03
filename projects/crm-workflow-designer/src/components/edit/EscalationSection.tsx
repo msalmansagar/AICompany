@@ -1,8 +1,9 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { EscalationFields, EscalationConfigOption } from '@/types/WorkflowTypes';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import { escalationSummaryText } from '@/services/escalationFields';
 import { logError } from '@/services/logError';
+import { LookupField } from '@/components/common/LookupDialog';
 
 // CWFD-005 — escalation, expressed the way the platform engine expresses it.
 //
@@ -20,17 +21,24 @@ interface EscalationSectionProps {
 }
 
 export function EscalationSection({ value, onChange, adapter, disabled }: EscalationSectionProps) {
-  const sectionId = useId();
-  const [expanded, setExpanded] = useState(false);
+  // Open by default (agentation feedback): the deadline policy is part of the
+  // step's story, not an advanced extra to hunt for.
+  const [expanded, setExpanded] = useState(true);
   const [configs, setConfigs] = useState<EscalationConfigOption[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
+  // An empty list and a list that has not arrived yet look identical, and saying
+  // "no policies exist" before the fetch returns states something not yet known.
+  const [hasLoaded, setHasLoaded] = useState(false);
   const summary = escalationSummaryText(value);
 
   useEffect(() => {
     if (!expanded || configs.length > 0 || loadFailed) return;
     adapter
       .getEscalationConfigs()
-      .then(setConfigs)
+      .then((loaded) => {
+        setConfigs(loaded);
+        setHasLoaded(true);
+      })
       .catch((error) => {
         logError('EscalationSection:loadConfigs', error);
         setLoadFailed(true);
@@ -46,41 +54,41 @@ export function EscalationSection({ value, onChange, adapter, disabled }: Escala
       </button>
 
       {expanded && (
-        <div style={bodyStyle}>
+        <div className="section-body">
           <div style={fieldStyle}>
-            <label style={labelStyle} htmlFor={`${sectionId}-config`}>Escalation policy</label>
-            <select
-              id={`${sectionId}-config`}
-              style={selectStyle}
+            <LookupField
+              label="Escalation policy"
+              placeholder="— Does not escalate —"
+              dialogTitle="Choose an escalation policy"
+              clearLabel="— Does not escalate —"
               disabled={disabled}
-              value={value.escalationConfigId ?? ''}
-              onChange={(event) => {
-                const id = event.target.value || null;
-                const chosen = configs.find((config) => config.id === id);
-                onChange({ escalationConfigId: id, escalationConfigName: chosen?.name ?? null });
-              }}
-            >
-              <option value="">— Does not escalate —</option>
-              {configs.map((config) => (
-                <option key={config.id} value={config.id}>
-                  {config.name}{config.summary ? ` · ${config.summary}` : ''}
-                </option>
-              ))}
-            </select>
-            <span style={hintStyle}>
+              options={configs.map((config) => ({
+                id: config.id,
+                name: config.name,
+                hint: config.summary ?? undefined,
+              }))}
+              value={value.escalationConfigId}
+              onChange={(id, name) =>
+                onChange({
+                  escalationConfigId: id || null,
+                  escalationConfigName: id ? name : null,
+                })
+              }
+            />
+            <span className="hint-inline">
               The deadline, its unit and the escalation levels live on the policy, so every
               step using it escalates the same way.
             </span>
           </div>
 
-          {configs.length === 0 && !loadFailed && (
-            <div style={noticeStyle}>
+          {hasLoaded && configs.length === 0 && !loadFailed && (
+            <div className="notice warning">
               No escalation policies exist in this environment yet. They are created outside the
               designer, on the escalation configuration table.
             </div>
           )}
           {loadFailed && (
-            <div style={noticeStyle}>Could not load escalation policies.</div>
+            <div className="notice warning">Could not load escalation policies.</div>
           )}
 
           <label style={toggleRowStyle}>
@@ -93,7 +101,7 @@ export function EscalationSection({ value, onChange, adapter, disabled }: Escala
             <span style={toggleLabelStyle}>Pick the policy by condition instead</span>
           </label>
           {Boolean(value.escalationConfigId) && (
-            <span style={hintStyle}>
+            <span className="hint-inline">
               Clear the policy above to choose by condition — a named policy always wins.
             </span>
           )}
@@ -107,29 +115,16 @@ export function EscalationSection({ value, onChange, adapter, disabled }: Escala
 
 const headerStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '6px 0',
-  background: 'transparent', border: 'none', color: '#94a3b8', fontSize: 11, fontWeight: 700,
+  background: 'transparent', border: 'none', color: 'var(--text-disabled)', fontSize: 11, fontWeight: 700,
   textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer', textAlign: 'left',
 };
-const caretStyle: React.CSSProperties = { fontSize: 10, color: '#64748b' };
+const caretStyle: React.CSSProperties = { fontSize: 10, color: 'var(--text-secondary)' };
 const summaryBadgeStyle: React.CSSProperties = {
-  marginLeft: 'auto', fontSize: 9, fontWeight: 700, color: '#fbbf24',
-  background: '#451a03', border: '1px solid #92400e', borderRadius: 3, padding: '1px 5px',
+  marginLeft: 'auto', fontSize: 9, fontWeight: 700, color: 'var(--warning)',
+  background: 'var(--warning-bg)', border: '1px solid var(--warning)', borderRadius: 3, padding: '1px 5px',
   textTransform: 'none', letterSpacing: 0, overflow: 'hidden', textOverflow: 'ellipsis',
   whiteSpace: 'nowrap', maxWidth: 150,
 };
-const bodyStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 6 };
-const noticeStyle: React.CSSProperties = {
-  fontSize: 10, color: '#fbbf24', background: '#1c1917', border: '1px solid #422006',
-  borderRadius: 4, padding: '6px 8px', lineHeight: 1.4,
-};
 const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 };
-const labelStyle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em',
-};
-const selectStyle: React.CSSProperties = {
-  height: 30, padding: '0 8px', background: '#1e293b', border: '1px solid #334155',
-  borderRadius: 4, color: '#e2e8f0', fontSize: 12, outline: 'none', width: '100%', boxSizing: 'border-box',
-};
-const hintStyle: React.CSSProperties = { fontSize: 10, color: '#64748b', lineHeight: 1.4 };
 const toggleRowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' };
-const toggleLabelStyle: React.CSSProperties = { fontSize: 12, color: '#e2e8f0' };
+const toggleLabelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text)' };

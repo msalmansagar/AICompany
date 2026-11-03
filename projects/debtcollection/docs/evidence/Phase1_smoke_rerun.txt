@@ -1,0 +1,40 @@
+=== qdb_ plugin smoke test ===
+
+  Organisation: org5869857f.crm4.dynamics.com
+
+─── Reference data ───
+
+─── Collection case ───
+  PASS  Case opens at New (DefaultStatusAssigner) — statuscode=100000600
+  PASS  Case New → In Progress refused, assignment cannot be skipped (StatusTransitionValidator) — Transition from 'New' to 'In Progress' is not permitted.
+  PASS  Case New → Assigned permitted
+  PASS  Case Delete blocked (ImmutabilityGuard) — 'qdb_collectioncase' records are permanently immutable and cannot be modified or deleted.
+
+─── Collection activity ───
+  PASS  Activity opens at Open (DefaultStatusAssigner) — statuscode=100000640
+  PASS  Activity subject composed from its type (ActivitySubjectComposer) — subject="SMOKE Promise to Pay – 2026-09-18"
+  PASS  Activity can be completed
+  PASS  Completed activity is immutable (ImmutabilityGuard) — Completed activities cannot be modified or deleted.
+
+─── Promise to pay ───
+  PASS  Promise opens at Active (DefaultStatusAssigner) — qdb_ptpstatus=100000080
+  PASS  Promise Active → Kept permitted
+  PASS  Promise Kept → Active refused (StatusTransitionValidator) — Transition from 'Kept' to 'Active' is not permitted.
+
+─── Delinquency snapshot ───
+  PASS  Snapshot Update blocked (ImmutabilityGuard) — 'qdb_delinquencysnapshot' records are permanently immutable and cannot be modified or deleted.
+  PASS  Snapshot Delete blocked (ImmutabilityGuard) — 'qdb_delinquencysnapshot' records are permanently immutable and cannot be modified or deleted.
+
+─── Cleanup ───
+  kept     qdb_delinquencysnapshots 3690829f-4eb3-f111-aaac-70a8a55bc6a5 — 'qdb_delinquencysnapshot' records are permanently immutable and cannot be modified or dele
+  removed  qdb_collectionactivities 13f2b9a1-4eb3-f111-aaac-000d3abd8313
+  kept     qdb_collectionactivities 0df2b9a1-4eb3-f111-aaac-000d3abd8313 — Completed activities cannot be modified or deleted.
+  kept     qdb_collectioncases 2990829f-4eb3-f111-aaac-70a8a55bc6a5 — 'qdb_collectioncase' records are permanently immutable and cannot be modified or deleted.
+  removed  qdb_collectionactivitytypes 04f2b9a1-4eb3-f111-aaac-000d3abd8313
+
+=== 13/13 checks passed ===
+
+Residue — protected by ImmutabilityGuard, cannot be removed while it is registered:
+  qdb_delinquencysnapshots       3690829f-4eb3-f111-aaac-70a8a55bc6a5  delinquency snapshot
+  qdb_collectionactivities       0df2b9a1-4eb3-f111-aaac-000d3abd8313  collection activity
+  qdb_collectioncases            2990829f-4eb3-f111-aaac-70a8a55bc6a5  collection case

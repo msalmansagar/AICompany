@@ -48,8 +48,8 @@ const toolbarStyle: React.CSSProperties = {
   left: '50%',
   transform: 'translateX(-50%)',
   zIndex: 2000,
-  background: '#fff',
-  border: '1px solid #e2e8f0',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 8,
   padding: '6px 6px 4px',
   display: 'flex',
@@ -70,8 +70,8 @@ function btnStyle(accent: string): React.CSSProperties {
     width: 44, height: 36,
     display: 'flex', flexDirection: 'column',
     alignItems: 'center', justifyContent: 'center', gap: 2,
-    background: '#f8fafc',
-    border: `1px solid #e2e8f0`,
+    background: 'var(--surface-alt)',
+    border: `1px solid var(--border)`,
     borderRadius: 6,
     cursor: 'pointer',
     padding: 0,
@@ -85,7 +85,7 @@ const iconStyle: React.CSSProperties = {
 };
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 8, fontWeight: 600, color: '#64748b',
+  fontSize: 8, fontWeight: 600, color: 'var(--text-secondary)',
   letterSpacing: '0.02em', lineHeight: 1,
 };
 
@@ -95,8 +95,8 @@ const arrowStyle: React.CSSProperties = {
   left: '50%',
   transform: 'translateX(-50%) rotate(45deg)',
   width: 8, height: 8,
-  background: '#fff',
-  border: '1px solid #e2e8f0',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderTop: 'none',
   borderLeft: 'none',
 };

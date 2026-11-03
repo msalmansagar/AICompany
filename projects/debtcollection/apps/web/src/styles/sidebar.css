@@ -1,0 +1,28 @@
+/* =====================================================================
+   Sidebar vertical contract — shared by V1 and V2.
+
+   A fixed header, a navigation region that takes the remaining height
+   and is the ONLY scroller, and a fixed profile footer. No absolute
+   positioning, no pixel coordinates, no script: the column is a flex
+   column whose middle track may shrink (min-height: 0) and overflow.
+   Each workspace keeps its own colours, spacing and type in its own
+   stylesheet; nothing visual is set here.
+   ===================================================================== */
+.sidebar {
+  display: flex; flex-direction: column;
+  height: 100%; min-height: 0;
+  overflow: hidden;
+}
+.sidebar-header { flex: 0 0 auto; }
+.sidebar-nav {
+  flex: 1 1 auto; min-height: 0;
+  overflow-y: auto; overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.sidebar-profile { flex: 0 0 auto; }
+
+/* A quiet scrollbar: present when needed, never prominent. */
+.sidebar-nav::-webkit-scrollbar { width: 8px; }
+.sidebar-nav::-webkit-scrollbar-thumb { background: rgba(127, 127, 127, .35); border-radius: 4px; }
+.sidebar-nav::-webkit-scrollbar-track { background: transparent; }

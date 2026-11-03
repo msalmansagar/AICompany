@@ -1,0 +1,256 @@
+{
+  "inspectedAt": "2026-10-04T18:25:09.690Z",
+  "clientUrl": "https://mcdynccatdev01/HousingLoan",
+  "apiBase": "https://mcdynccatdev01/HousingLoan/api/data/v9.1",
+  "checks": [
+    {
+      "name": "solution qdb_debtcollection present, unmanaged, publisher qdb",
+      "passed": true,
+      "detail": {
+        "version": "1.0.0.0",
+        "publisher": {
+          "uniquename": "qdb",
+          "customizationprefix": "qdb",
+          "customizationoptionvalueprefix": 10000,
+          "publisherid": "ca8719cd-466f-4b31-a4d7-8faeaa0b5d62"
+        }
+      }
+    },
+    {
+      "name": "component counts (13 tables, 28 choices, 12 roles, 15 web resources, 1 assembly, 14 steps)",
+      "passed": true,
+      "detail": {
+        "tables": 13,
+        "choices": 28,
+        "roles": 12,
+        "webResources": 15,
+        "siteMaps": 2,
+        "apps": 1,
+        "assemblies": 1,
+        "steps": 14
+      }
+    },
+    {
+      "name": "all 13 DCP tables exist",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "name": "qdb_dcp_approval_status = exactly 0 Return / 1 Approve",
+      "passed": true,
+      "detail": [
+        [
+          0,
+          "Return"
+        ],
+        [
+          1,
+          "Approve"
+        ]
+      ]
+    },
+    {
+      "name": "qdb_collectionactivity.qdb_approvalstatus bound to qdb_dcp_approval_status",
+      "passed": true,
+      "detail": {
+        "choice": "qdb_dcp_approval_status",
+        "required": "None"
+      }
+    },
+    {
+      "name": "qdb_communicationtemplate.qdb_approvalstatus bound to qdb_dcp_approval_status",
+      "passed": true,
+      "detail": {
+        "choice": "qdb_dcp_approval_status",
+        "required": "ApplicationRequired"
+      }
+    },
+    {
+      "name": "qdb_collectioncase.qdb_risklevel absent (retired)",
+      "passed": true
+    },
+    {
+      "name": "qdb_collectioncase.qdb_priority absent (retired)",
+      "passed": true
+    },
+    {
+      "name": "qdb_collectionstrategy.qdb_risklevel absent (retired)",
+      "passed": true
+    },
+    {
+      "name": "qdb_assignmentconfiguration.qdb_risklevel absent (retired)",
+      "passed": true
+    },
+    {
+      "name": "qdb_collectionstrategy.qdb_priority is a whole number",
+      "passed": true,
+      "detail": "Integer"
+    },
+    {
+      "name": "qdb_assignmentconfiguration.qdb_priority is a whole number",
+      "passed": true,
+      "detail": "Integer"
+    },
+    {
+      "name": "plugin assembly present in Sandbox",
+      "passed": true,
+      "detail": {
+        "version": "1.0.0.0",
+        "isolationmode": 2
+      }
+    },
+    {
+      "name": "14 plugin steps, all enabled, all on DCP tables",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "name": "Debt Collection app present (appid recorded for direct links)",
+      "passed": true,
+      "detail": {
+        "name": "Debt Collection",
+        "appmoduleid": "57c05de0-26d2-44ef-a6e5-df57801e9bb2",
+        "statecode": 0
+      }
+    },
+    {
+      "name": "both site maps present",
+      "passed": true,
+      "detail": [
+        {
+          "unique": "qdb_DebtCollection",
+          "name": "Debt Collection"
+        },
+        {
+          "unique": "qdb_debtcollection_sitemap",
+          "name": "qdb_debtcollection_sitemap"
+        }
+      ]
+    }
+  ],
+  "organisation": "Housing Loan",
+  "componentCounts": {
+    "tables": 13,
+    "choices": 28,
+    "roles": 12,
+    "webResources": 15,
+    "siteMaps": 2,
+    "apps": 1,
+    "assemblies": 1,
+    "steps": 14
+  },
+  "steps": [
+    {
+      "name": "ActivityProvenanceGuardPlugin: Update of qdb_collectionactivity (PreOperation)",
+      "enabled": true,
+      "message": "Update",
+      "table": "qdb_collectionactivity",
+      "stage": 20
+    },
+    {
+      "name": "ActiveCaseGuardPlugin: Update of qdb_collectioncase (PreOperation)",
+      "enabled": true,
+      "message": "Update",
+      "table": "qdb_collectioncase",
+      "stage": 20
+    },
+    {
+      "name": "ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation)",
+      "enabled": true,
+      "message": "Delete",
+      "table": "qdb_collectionactivity",
+      "stage": 10
+    },
+    {
+      "name": "StatusTransitionValidatorPlugin: Update of qdb_collectionactivity (PreOperation)",
+      "enabled": true,
+      "message": "Update",
+      "table": "qdb_collectionactivity",
+      "stage": 20
+    },
+    {
+      "name": "ImmutabilityGuardPlugin: Update of qdb_delinquencysnapshot (PreValidation)",
+      "enabled": true,
+      "message": "Update",
+      "table": "qdb_delinquencysnapshot",
+      "stage": 10
+    },
+    {
+      "name": "ImmutabilityGuardPlugin: Update of qdb_collectionactivity (PreValidation)",
+      "enabled": true,
+      "message": "Update",
+      "table": "qdb_collectionactivity",
+      "stage": 10
+    },
+    {
+      "name": "ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation)",
+      "enabled": true,
+      "message": "Delete",
+      "table": "qdb_collectioncase",
+      "stage": 10
+    },
+    {
+      "name": "ActivitySubjectComposerPlugin: Create of qdb_collectionactivity (PreOperation)",
+      "enabled": true,
+      "message": "Create",
+      "table": "qdb_collectionactivity",
+      "stage": 20
+    },
+    {
+      "name": "DefaultStatusAssignerPlugin: Create of qdb_collectioncase (PreOperation)",
+      "enabled": true,
+      "message": "Create",
+      "table": "qdb_collectioncase",
+      "stage": 20
+    },
+    {
+      "name": "StatusTransitionValidatorPlugin: Update of qdb_collectioncase (PreOperation)",
+      "enabled": true,
+      "message": "Update",
+      "table": "qdb_collectioncase",
+      "stage": 20
+    },
+    {
+      "name": "ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation)",
+      "enabled": true,
+      "message": "Delete",
+      "table": "qdb_delinquencysnapshot",
+      "stage": 10
+    },
+    {
+      "name": "ActiveCaseGuardPlugin: Create of qdb_collectioncase (PreOperation)",
+      "enabled": true,
+      "message": "Create",
+      "table": "qdb_collectioncase",
+      "stage": 20
+    },
+    {
+      "name": "DefaultStatusAssignerPlugin: Create of qdb_collectionactivity (PreOperation)",
+      "enabled": true,
+      "message": "Create",
+      "table": "qdb_collectionactivity",
+      "stage": 20
+    },
+    {
+      "name": "ActivityProvenanceGuardPlugin: Create of qdb_collectionactivity (PreOperation)",
+      "enabled": true,
+      "message": "Create",
+      "table": "qdb_collectionactivity",
+      "stage": 20
+    }
+  ],
+  "appId": "57c05de0-26d2-44ef-a6e5-df57801e9bb2",
+  "qdbSharedChoices": {
+    "qdb_approval_status": "absent",
+    "qdb_risk_level": "absent",
+    "qdb_priority": {
+      "options": [
+        "751090000=High",
+        "751090001=Medium",
+        "751090002=Low"
+      ]
+    }
+  },
+  "passed": 16,
+  "failed": 0
+}

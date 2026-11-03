@@ -1,7 +1,9 @@
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 import type { Node, Edge, NodeChange } from '@xyflow/react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { SimStepData } from '@/nodes/SimStepNode';
+import { resolveSimEndpoints } from '@/services/simEndpoints';
+import { useSyncedNodes } from '@/hooks/useSyncedNodes';
 
 const AUTO_SIM_START_ID = 'auto_sim_start';
 const AUTO_SIM_END_ID = 'auto_sim_end';
@@ -33,18 +35,16 @@ export function useAutoSimMode(): UseAutoSimModeResult {
     autoSimTakenOutcomeIds: s.autoSimTakenOutcomeIds,
   }));
 
-  const nodes = useMemo<Node[]>(() => {
+  const blueprint = useMemo<Node[]>(() => {
     if (stepOrder.length === 0) return [];
 
-    const firstStepPos = nodePositions[`step_${stepOrder[0]}`] ?? { x: 300, y: 80 };
-    const lastIndex = stepOrder.length - 1;
-    const lastStepPos = nodePositions[`step_${stepOrder[lastIndex]}`] ?? { x: 300, y: lastIndex * 160 + 80 };
+    const { start, end, dir } = resolveSimEndpoints(nodePositions, stepOrder);
 
     const startNode: Node = {
       id: AUTO_SIM_START_ID,
       type: 'viewStart',
-      position: { x: firstStepPos.x, y: firstStepPos.y - 100 },
-      data: { layoutDir: 'TB' },
+      position: start,
+      data: { layoutDir: dir },
       draggable: false,
       selectable: false,
     };
@@ -52,8 +52,8 @@ export function useAutoSimMode(): UseAutoSimModeResult {
     const endNode: Node = {
       id: AUTO_SIM_END_ID,
       type: 'viewEnd',
-      position: { x: lastStepPos.x, y: lastStepPos.y + 120 },
-      data: { layoutDir: 'TB' },
+      position: end,
+      data: { layoutDir: dir },
       draggable: false,
       selectable: false,
     };
@@ -101,14 +101,14 @@ export function useAutoSimMode(): UseAutoSimModeResult {
     if (entryStepId) {
       const isFirstActive = entryStepId === autoSimCurrentStepId;
       const isFirstVisited = autoSimVisitedStepIds.includes(entryStepId);
-      const stroke = isFirstActive ? '#2563eb' : isFirstVisited ? '#94a3b8' : '#e2e8f0';
+      const stroke = isFirstActive ? 'var(--primary)' : isFirstVisited ? 'var(--text-disabled)' : 'var(--text)';
       result.push({
         id: `auto_start_to_${entryStepId}`,
         source: AUTO_SIM_START_ID,
         target: `step_${entryStepId}`,
         sourceHandle: 'out',
         targetHandle: 'in',
-        type: 'smoothstep',
+        type: 'default',
         animated: isFirstActive,
         style: { stroke, strokeWidth: isFirstActive ? 2 : 1.5 },
         markerEnd: { type: 'arrowclosed' as const, color: stroke },
@@ -129,7 +129,7 @@ export function useAutoSimMode(): UseAutoSimModeResult {
           : false;
 
         const targetNodeId = outcome.nextStepId ? `step_${outcome.nextStepId}` : AUTO_SIM_END_ID;
-        const stroke = isTaken ? '#94a3b8' : '#e2e8f0';
+        const stroke = isTaken ? 'var(--text-disabled)' : 'var(--text)';
         const opacity = isTaken ? 1 : 0.5;
 
         result.push({
@@ -149,9 +149,9 @@ export function useAutoSimMode(): UseAutoSimModeResult {
     return result;
   }, [stepOrder, steps, outcomes, outcomeOrder, autoSimTakenOutcomeIds, autoSimCurrentStepId, autoSimVisitedStepIds]);
 
-  const onNodesChange = useCallback((_changes: NodeChange[]) => {
-    // read-only in auto sim
-  }, []);
+  // Applies the NodeChanges React Flow emits (dimensions above all) so the
+  // canvas fits a measured graph; playback stays read-only otherwise.
+  const { nodes, onNodesChange } = useSyncedNodes(blueprint);
 
   return { nodes, edges, onNodesChange };
 }

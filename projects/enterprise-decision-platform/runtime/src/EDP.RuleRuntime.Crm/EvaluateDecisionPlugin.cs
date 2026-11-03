@@ -75,6 +75,39 @@ namespace EDP.RuleRuntime.Crm
                     result.Trace.Steps.Select(s => new { kind = s.Kind, description = s.Description, result = s.Result }));
                 context.OutputParameters["DiagnosticsJson"] = JsonSerializer.Serialize(
                     result.Diagnostics.Select(d => new { code = d.Code, message = d.Message, severity = d.Severity.ToString() }));
+
+                // Per-child detail is ADDITIVE (ADR-17): the anchor outputs above are the mandatory
+                // half and render on a stock form; this is the optional half a capable surface may
+                // use. Fan-out is InputsJson-only in F1 — the collection is assembled by the caller,
+                // which is where a fact-assembly layer already builds it.
+                var childCollectionName = Param(context, "ChildCollectionName");
+                if (!string.IsNullOrWhiteSpace(childCollectionName) && !string.IsNullOrWhiteSpace(inputsJson))
+                {
+                    var fanOut = decisionService.EvaluateForEachChild(pcrm, new FanOutRequest(
+                        RuleDecisionService.ParseInputsJson(inputsJson),
+                        childCollectionName!,
+                        DateTime.UtcNow)
+                    {
+                        RuleVersionId = ruleVersionId,
+                        ActorId = context.InitiatingUserId
+                    });
+
+                    context.OutputParameters["ChildResultsJson"] = JsonSerializer.Serialize(new
+                    {
+                        total = fanOut.Total,
+                        matched = fanOut.MatchedCount,
+                        unmatched = fanOut.UnmatchedCount,
+                        children = fanOut.Children.Select(c => new
+                        {
+                            index = c.Index,
+                            id = c.Id,
+                            success = c.Result.Success,
+                            matched = c.Result.Matched,
+                            outputs = c.Result.Outputs,
+                            reasonCodes = c.Result.ReasonCodes
+                        })
+                    });
+                }
             }
             catch (InvalidPluginExecutionException)
             {

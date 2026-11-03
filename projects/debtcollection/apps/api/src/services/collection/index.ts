@@ -1,0 +1,23 @@
+export { CollectionCaseRepository } from './CollectionCaseRepository.js';
+export { DelinquencySnapshotRepository } from './DelinquencySnapshotRepository.js';
+export { IdentityExceptionRepository } from './IdentityExceptionRepository.js';
+export type { IdentityExceptionInput } from './IdentityExceptionRepository.js';
+export { CollectionActivityRepository } from './CollectionActivityRepository.js';
+export { CustomerResolutionService } from './CustomerResolutionService.js';
+export { RuleEngineClient } from './RuleEngineClient.js';
+export { StubRuleEngine } from './StubRuleEngine.js';
+export { StrategyRepository } from './StrategyRepository.js';
+export { StrategyService } from './StrategyService.js';
+export type { StrategyResolution } from './StrategyService.js';
+export { AssignmentRepository, AssignmentService } from './AssignmentService.js';
+// Re-exported so the live smoke can wire the honest placeholder without importing the domain directly.
+export { UnavailableSmartAssignment } from '@dcp/domain';
+export { DelinquencySyncService } from './DelinquencySyncService.js';
+export type { BatchOutcome, RecordAction, RecordOutcome, SyncDependencies } from './DelinquencySyncService.js';
+export { ENTITY_SETS as COLLECTION_ENTITY_SETS } from './qdbBindings.js';
+export { CollectionConfigurationService } from './CollectionConfigurationService.js';
+export type { CollectionRuntimeConfiguration } from './CollectionConfigurationService.js';
+export { BackgroundSyncRunner } from './BackgroundSyncRunner.js';
+export type { BackgroundSyncOptions, SyncRunReport } from './BackgroundSyncRunner.js';
+export { CaseStrategyOrchestrator } from './CaseStrategyOrchestrator.js';
+export type { StrategyAssignment } from './CaseStrategyOrchestrator.js';

@@ -1,0 +1,546 @@
+import { useEffect, useMemo, useState } from 'react';
+import { DataGrid, type DataGridColumn } from '../data/DataGrid.js';
+import {
+  createAuditQuery, createCaseQuery, LABELS, type AuditQuery, type AuditRow, type CaseQuery, type CaseRow,
+} from '../data/collectionQueries.js';
+import { createFollowUpQuery, type FollowUpQuery, type FollowUpWindow } from '../data/followUpQueries.js';
+import type { ActivityRow } from '../data/caseQueries.js';
+import { formatCountResult, useCounts, type CountRequest } from '../data/counts.js';
+import { casesTileFor, loadOpenArrears, myDayCountRequests, seesIdentityExceptions } from '../data/myDayOversight.js';
+import { describeRecorder, useApplicationUsers } from '../data/applicationUsers.js';
+import type { XrmCrmAdapter } from '../platform/XrmCrmAdapter.js';
+import type { ReportingScope } from '@dcp/domain';
+import { encodeScope, hasScope } from '../data/caseListScopeUrl.js';
+import { ORG_CODES } from '../data/schema.js';
+import { MyWorkView } from './MyWorkView.js';
+import {
+  BucketBar, BucketPill, Card, EmptyState, Icon, InfoBanner, KpiRow, OrgBadge, PendingPhaseNotice, StatusPill,
+  formatCount, formatDate, formatMoney,
+} from '../components/primitives.js';
+import { useCrmSession, useOrg, useRole } from '../shell/context.js';
+import { CustomerLink, navigateTo } from '../shell/RecordLinks.js';
+import { CompleteFollowUpButton, useFollowUpCompletion } from './FollowUpCompletion.js';
+import { CASES_ORIGIN, casesContext, followUpContext, restoredWindow, useLoadedRows, useRestoredListState } from './workListContext.js';
+import { SEARCH_HANDED_OVER, startWorkContext, takeHandedOverSearch } from '../data/workContext.js';
+import { financialUnitTerms } from '../data/financialUnit.js';
+import type { ViewDefinition } from '../shell/routes.js';
+import { ListToolbar, SplitLayout, useListLayout } from '../components/listLayout.js';
+import { AuditEntryPreview, CasePreview } from './previews.js';
+import { CaseCommandDialogs, type CaseCommandDialog } from './CaseCommandDialogs.js';
+import { Dialog } from '../components/forms.js';
+
+/**
+ * The workspace's views.
+ *
+ * Every list here is the same `DataGrid`, which is the point: paging, virtualization, duplicate
+ * suppression and stale-response handling are solved once. A view decides what its columns are and
+ * what its filters mean, and nothing else. Each list offers the two layouts Workspace V2 offers —
+ * **Split**, rows beside a preview of the chosen one, and **Grid**, where a row opens its record.
+ */
+
+// ── Collection Cases — the flagship list ─────────────────────────────────────
+
+const CASE_COLUMNS: readonly DataGridColumn<CaseRow>[] = [
+  { key: 'case', header: 'Case', width: '160px', render: r => <span className="row-lead"><BucketBar bucket={r.bucket} />{r.caseNumber}</span> },
+  { key: 'org', header: 'CRM', width: '70px', render: r => <OrgBadge org={r.organization} /> },
+  { key: 'customer', header: 'Customer', width: '150px', render: r => <CustomerLink customerBusinessId={r.customerBusinessId}>{r.customerBusinessId}</CustomerLink> },
+  // One list holds HL and BFD rows: the header names both units, each row says which it is.
+  { key: 'facility', header: 'Loan Account / Facility', width: '170px', render: r => <span title={financialUnitTerms(r.sourceSystem).noun}>{r.facilityNumber}</span> },
+  { key: 'bucket', header: 'Bucket', width: '110px', render: r => <BucketPill bucket={r.bucket} /> },
+  { key: 'dpd', header: 'DPD', width: '70px', render: r => formatCount(r.dpd) },
+  { key: 'arrears', header: 'Overdue', width: '130px', render: r => formatMoney(r.totalArrears) },
+  { key: 'status', header: 'Status', width: '150px', render: r => <StatusPill status={r.status} /> },
+];
+
+/** The Split list: who and which case on two lines, and the amount at stake. */
+const CASE_SPLIT_COLUMNS: readonly DataGridColumn<CaseRow>[] = [
+  {
+    key: 'case', header: 'Case', render: r => (
+      <span className="row-lead">
+        <BucketBar bucket={r.bucket} />
+        <span className="two-line">
+          <span className="two-line-main">
+            <CustomerLink customerBusinessId={r.customerBusinessId}>{r.customerName ?? r.customerBusinessId}</CustomerLink>
+          </span>
+          <span className="two-line-sub">{r.caseNumber} · {r.organization} · {formatCount(r.dpd)} DPD</span>
+        </span>
+      </span>
+    ),
+  },
+  { key: 'arrears', header: 'Overdue', width: '120px', numeric: true, render: r => formatMoney(r.totalArrears) },
+];
+
+const CASES_LAYOUT_KEY = 'dcp.v1.casesLayout';
+
+/**
+ * A reporting scope that arrived in the URL — from a dashboard card — becomes the list's own
+ * filters: the CRM scope, the bucket and the status land in the pickers the officer can see and
+ * change; strategy and owner have no picker and are shown as the scope they are.
+ */
+export function CasesView({ onOpenCase, scope = {} }: { onOpenCase?: (id: string) => void; scope?: ReportingScope }) {
+  const { adapter } = useCrmSession();
+  const { scopeFilter } = useOrg();
+  const [bucket, setBucket] = useState(scope.bucket ?? '');
+  const [status, setStatus] = useState(scope.caseStatus ?? '');
+  const restored = useRestoredListState(CASES_ORIGIN);
+  const [search, setSearch] = useState(() => takeHandedOverSearch() || (restored['search'] ?? ''));
+  useHandedOverSearch(setSearch);
+  const [layout, chooseLayout] = useListLayout(CASES_LAYOUT_KEY);
+  const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
+  const [dialog, setDialog] = useState<CaseCommandDialog>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const scopeId = encodeScope(scope);
+  const rows = useLoadedRows<CaseRow>();
+  const openCase = (id: string) => {
+    if (!onOpenCase) return;
+    const loaded = rows.current();
+    const opened = loaded.items.find(row => row.id === id);
+    const term = search.trim();
+    if (opened) startWorkContext(casesContext(loaded, opened, { search: term, returnHash: window.location.hash || '#cases', listState: { search: term } }));
+    onOpenCase(id);
+  };
+
+  useEffect(() => {
+    setBucket(scope.bucket ?? '');
+    setStatus(scope.caseStatus ?? '');
+    // The scope's identity is its encoding; the object is rebuilt every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeId]);
+
+  const fetchPage = useMemo(() => createCaseQuery(adapter), [adapter]);
+
+  // The query object is the question. A change to any part of it restarts paging, which is exactly
+  // what should happen — the engine discards the continuation rather than paging into a population
+  // the user stopped asking about.
+  const effectiveScopeFilter = scopeFilterFor(scope.sourceSystem, scopeFilter);
+  const query = useMemo<CaseQuery>(() => ({
+    ...(effectiveScopeFilter !== undefined ? { scopeFilter: effectiveScopeFilter } : {}),
+    ...(bucket ? { bucket } : {}),
+    ...(status ? { status } : {}),
+    ...(search ? { search } : {}),
+    ...(scope.strategy ? { strategy: scope.strategy } : {}),
+    ...(scope.owner ? { ownerId: scope.owner } : {}),
+    openOnly: true,
+    sort: [{ field: 'qdb_currentdpd', descending: true }],
+  }), [effectiveScopeFilter, bucket, status, search, scope.strategy, scope.owner]);
+  // A new question is a new list, so the preview follows it rather than showing a row it no longer holds.
+  useEffect(() => { setSelectedId(undefined); }, [query]);
+
+  return (
+    <>
+      <InfoBanner>
+        Cases from both <b>Housing Loan CRM</b> and <b>BFD CRM</b> appear together — the badge on each
+        row names the system of record.
+      </InfoBanner>
+      {hasScope(scope) && (
+        <div className="scope-chips" data-testid="cases-scope">
+          <span className="scope-chips-label">Filtered by</span>
+          {scope.sourceSystem && <span className="chip sel" data-testid="scope-chip-sourceSystem">CRM: {scope.sourceSystem}</span>}
+          {scope.bucket && <span className="chip sel" data-testid="scope-chip-bucket">DPD: {scope.bucket}</span>}
+          {scope.caseStatus && <span className="chip sel" data-testid="scope-chip-caseStatus">Status: {scope.caseStatus}</span>}
+          {scope.strategy && <span className="chip sel" data-testid="scope-chip-strategy">Strategy: {scope.strategy === 'none' ? 'Strategy Not Assigned' : scope.strategy}</span>}
+          {scope.owner && <span className="chip sel" data-testid="scope-chip-owner">Owner: {scope.owner}</span>}
+        </div>
+      )}
+
+      <ListToolbar layout={layout} onChangeLayout={chooseLayout} testId="case-filters">
+        <label>
+          Bucket
+          <select className="fluent-select" value={bucket} onChange={e => setBucket(e.target.value)} data-testid="filter-bucket">
+            <option value="">All</option>
+            {Object.values(LABELS.BUCKET_LABELS).map(b => <option key={b} value={b}>{b}</option>)}
+          </select>
+        </label>
+        <label>
+          Status
+          <select className="fluent-select" value={status} onChange={e => setStatus(e.target.value)} data-testid="filter-status">
+            <option value="">All</option>
+            {Object.values(LABELS.CASE_STATUS_LABELS).map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </label>
+        <label>
+          Search
+          <input
+            className="fluent-input" type="search" value={search} placeholder="Case number or customer id"
+            data-testid="filter-search" onChange={e => setSearch(e.target.value)}
+          />
+        </label>
+      </ListToolbar>
+
+      {layout === 'grid' && (
+        <DataGrid<CaseRow, CaseQuery>
+          columns={CASE_COLUMNS}
+          fetchPage={fetchPage}
+          query={query}
+          rowKey={row => row.id}
+          pageSize={50}
+          emptyMessage="No open cases match these filters."
+          {...(onOpenCase ? { onRowClick: (row: CaseRow) => openCase(row.id) } : {})}
+          onRows={rows.onRows}
+          data-testid="cases-grid"
+        />
+      )}
+      {layout === 'split' && (
+        <SplitLayout
+          testId="cases-split"
+          list={(
+            <DataGrid<CaseRow, CaseQuery>
+              columns={CASE_SPLIT_COLUMNS}
+              fetchPage={fetchPage}
+              query={query}
+              rowKey={row => row.id}
+              pageSize={50}
+              rowHeight={58}
+              height={600}
+              selectedKey={selectedId}
+              activation="row"
+              onRowClick={row => setSelectedId(row.id)}
+              onSelectFirst={row => setSelectedId(row.id)}
+              onRows={rows.onRows}
+              emptyMessage="No open cases match these filters."
+              data-testid="cases-list"
+            />
+          )}
+          preview={(
+            <CasePreview
+              caseId={selectedId} reloadKey={reloadKey}
+              onOpen={openCase}
+              onLogAction={() => setDialog('activity')}
+              onCapturePromise={() => setDialog('promise')}
+            />
+          )}
+        />
+      )}
+      <CaseCommandDialogs
+        caseId={selectedId} dialog={dialog} onClose={() => setDialog(null)}
+        onSaved={() => { setDialog(null); setReloadKey(key => key + 1); }}
+      />
+    </>
+  );
+}
+
+/** A header search made while this list is already open (the route does not change). */
+function useHandedOverSearch(setSearch: (term: string) => void): void {
+  useEffect(() => {
+    const take = () => { const term = takeHandedOverSearch(); if (term) setSearch(term); };
+    window.addEventListener(SEARCH_HANDED_OVER, take);
+    return () => window.removeEventListener(SEARCH_HANDED_OVER, take);
+  }, [setSearch]);
+}
+
+/** A source system named by the scope narrows the list even when the header picker says both. */
+function scopeFilterFor(sourceSystem: ReportingScope['sourceSystem'], pickerFilter: string | undefined): string | undefined {
+  if (!sourceSystem) return pickerFilter;
+  return `qdb_organizationcode eq ${ORG_CODES[sourceSystem]}`;
+}
+
+// ── Audit Trail ──────────────────────────────────────────────────────────────
+
+const AUDIT_COLUMNS: readonly DataGridColumn<AuditRow>[] = [
+  { key: 'when', header: 'When', width: '170px', render: r => formatDate(r.createdOn) },
+  { key: 'source', header: 'Source', width: '220px', render: r => r.source ?? '—' },
+  { key: 'subject', header: 'Entry', isLink: true, render: r => r.subject ?? '—' },
+  { key: 'exception', header: '', width: '40px', render: r => (r.isException ? '!' : '') },
+];
+
+/** The Split list: the entry on two lines, and when it was written. */
+const AUDIT_SPLIT_COLUMNS: readonly DataGridColumn<AuditRow>[] = [
+  {
+    key: 'entry', header: 'Entry', render: r => (
+      <span className="two-line">
+        <span className="two-line-main">{r.isException ? '! ' : ''}{r.subject ?? '—'}</span>
+        <span className="two-line-sub">{r.source ?? '—'}</span>
+      </span>
+    ),
+  },
+  { key: 'when', header: 'When', width: '110px', render: r => formatDate(r.createdOn) },
+];
+
+const AUDIT_LAYOUT_KEY = 'dcp.v1.auditLayout';
+
+export function AuditView() {
+  const { adapter } = useCrmSession();
+  const [search, setSearch] = useState('');
+  const [layout, chooseLayout] = useListLayout(AUDIT_LAYOUT_KEY);
+  const [selected, setSelected] = useState<AuditRow | undefined>(undefined);
+  const fetchPage = useMemo(() => createAuditQuery(adapter), [adapter]);
+  const query = useMemo<AuditQuery>(() => (search ? { search } : {}), [search]);
+
+  return (
+    <Card
+      title="Audit trail"
+      subtitle="Append-only technical and integration evidence. The largest table in the organisation, and never loaded whole."
+    >
+      <ListToolbar layout={layout} onChangeLayout={chooseLayout} testId="audit-filters">
+        <label>
+          Source
+          <input
+            className="fluent-input" type="search" value={search} placeholder="Filter by source"
+            data-testid="audit-search" onChange={e => setSearch(e.target.value)}
+          />
+        </label>
+      </ListToolbar>
+      {layout === 'grid' && (
+        <DataGrid<AuditRow, AuditQuery>
+          columns={AUDIT_COLUMNS}
+          fetchPage={fetchPage}
+          query={query}
+          rowKey={row => row.id}
+          pageSize={100}
+          selectedKey={selected?.id}
+          onRowClick={setSelected}
+          emptyMessage="No log entries match."
+          data-testid="audit-grid"
+        />
+      )}
+      {layout === 'split' && (
+        <SplitLayout
+          testId="audit-split"
+          list={(
+            <DataGrid<AuditRow, AuditQuery>
+              columns={AUDIT_SPLIT_COLUMNS}
+              fetchPage={fetchPage}
+              query={query}
+              rowKey={row => row.id}
+              pageSize={100}
+              rowHeight={58}
+              height={600}
+              selectedKey={selected?.id}
+              activation="row"
+              onRowClick={setSelected}
+              onSelectFirst={setSelected}
+              emptyMessage="No log entries match."
+              data-testid="audit-list"
+            />
+          )}
+          preview={<AuditEntryPreview entry={selected} />}
+        />
+      )}
+      {layout === 'grid' && selected && (
+        <Dialog title={selected.subject ?? 'Log entry'} onClose={() => setSelected(undefined)} testId="audit-entry" footer={
+          <button type="button" className="btn" onClick={() => setSelected(undefined)}>Close</button>
+        }>
+          <AuditEntryPreview entry={selected} testId="audit-entry-detail" />
+        </Dialog>
+      )}
+    </Card>
+  );
+}
+
+// ── My Day ───────────────────────────────────────────────────────────────────
+
+const PROMISE_HORIZON_DAYS = 7;
+
+export function MyDayView({ onOpenCase }: { onOpenCase?: (id: string) => void }) {
+  const { adapter, context } = useCrmSession();
+  const { scopeFilter } = useOrg();
+  const [now] = useState(() => new Date());
+  const requests = useMemo<readonly CountRequest[]>(
+    () => myDayCountRequests({ scopeFilter, userId: context.userId, now, promiseHorizonDays: PROMISE_HORIZON_DAYS }),
+    [scopeFilter, context.userId, now]);
+  const counts = useCounts(adapter, requests);
+  const arrears = useOpenArrears(adapter, scopeFilter);
+  const { role } = useRole();
+  const casesTile = casesTileFor(role);
+
+  return (
+    <>
+      <InfoBanner>
+        Cases from both <b>Housing Loan CRM</b> and <b>BFD CRM</b> appear together — the badge on each
+        row names the system of record.
+      </InfoBanner>
+      {/*
+        Every tile is a count the platform answered, or one server-side sum, or an em dash. The
+        semantics are on the tile: what "overdue", "due" and "my" mean here is stated, not assumed.
+      */}
+      <KpiRow items={[
+        { label: casesTile.label, value: formatCountResult(counts[casesTile.key]), hint: casesTile.hint },
+        { label: 'Current arrears', value: arrears.status === 'ready' ? formatMoney(arrears.value) : '—', hint: arrears.status === 'unknown' ? 'The platform could not sum the portfolio' : 'Latest MIS balances, open cases' },
+        { label: 'My open work', value: formatCountResult(counts['myOpenWork']), hint: 'Open activities owned by you' },
+        { label: 'Follow-ups overdue', value: formatCountResult(counts['followUpsOverdue']), tone: 'warn', hint: 'Follow-up date before now' },
+        { label: 'Follow-ups upcoming', value: formatCountResult(counts['followUpsUpcoming']), hint: 'Follow-up date from now on' },
+        { label: `Promises due, ${PROMISE_HORIZON_DAYS} days`, value: formatCountResult(counts['promisesDue']), hint: 'Promised for today onward' },
+        { label: 'Broken promises', value: formatCountResult(counts['brokenPromises']), tone: 'warn', hint: 'Recorded as broken' },
+        { label: 'Awaiting assignment', value: formatCountResult(counts['awaitingAssignment']), hint: 'Open activities with no owner' },
+        ...(seesIdentityExceptions(role)
+          ? [{ label: 'Identity exceptions', value: formatCountResult(counts['identityExceptions']), tone: 'warn' as const, hint: 'Open, both CRMs' }]
+          : []),
+      ]} />
+      <FollowUpsPanel {...(onOpenCase ? { onOpenCase } : {})} />
+      <Card
+        title="Open cases"
+        subtitle="Open cases, worst days-past-due first. Opening one routes the read to the CRM that owns it."
+      >
+        <CasesView {...(onOpenCase ? { onOpenCase } : {})} />
+      </Card>
+    </>
+  );
+}
+
+// ── Follow-ups ───────────────────────────────────────────────────────────────
+
+/** The follow-up columns; an integration-owned activity is shown as "System", never by its technical name. */
+function followUpColumns(applicationUsers: ReadonlySet<string>, onComplete: (row: ActivityRow) => void): readonly DataGridColumn<ActivityRow>[] {
+  return [
+    { key: 'due', header: 'Follow-up', width: '110px', render: r => formatDate(r.followUpDate) },
+    { key: 'case', header: 'Case', width: '160px', isLink: true, render: r => r.caseNumber ?? '—' },
+    { key: 'type', header: 'Type', width: '140px', render: r => r.activityType ?? '—' },
+    { key: 'subject', header: 'Subject', render: r => r.subject },
+    { key: 'owner', header: 'Owner', width: '150px', render: r => describeRecorder(r, applicationUsers) },
+    { key: 'status', header: 'Status', width: '120px', render: r => <StatusPill status={r.status} /> },
+    { key: 'complete', header: '', width: '100px', render: r => <CompleteFollowUpButton row={r} onComplete={onComplete} /> },
+  ];
+}
+
+/** The windows an officer works in. `all` is offered so nothing is hidden by a default. */
+const FOLLOW_UP_WINDOWS: readonly { id: FollowUpWindow; label: string }[] = [
+  { id: 'overdue', label: 'Overdue' },
+  { id: 'upcoming', label: 'Upcoming' },
+  { id: 'all', label: 'All' },
+];
+
+/**
+ * The follow-up queue — what an officer has undertaken to do next.
+ *
+ * The window is a **server-side filter**, not a tab that hides rows the browser already holds: the
+ * comparison against "now" is composed into `$filter` and sent, so switching window asks a new
+ * question. `usePagedQuery` fingerprints the query object, so that also resets the continuation and
+ * discards any in-flight answer to the previous window — the stale-response case that would
+ * otherwise repaint Overdue rows under an Upcoming heading.
+ *
+ * `now` is pinned for the life of the panel rather than re-read on each render, so scrolling the
+ * list does not silently move the boundary underneath it and drop a row between two pages.
+ *
+ * Opening a row goes to its case, where the Action Plan completes or updates the activity. There is
+ * no separate follow-up entity: a follow-up is a date on the activity that created it, which is what
+ * makes "complete the activity" and "clear the follow-up" the same act.
+ */
+function FollowUpsPanel({ onOpenCase }: { onOpenCase?: (id: string) => void }) {
+  const { adapter } = useCrmSession();
+  const { scopeFilter } = useOrg();
+  const fetchPage = useMemo(() => createFollowUpQuery(adapter), [adapter]);
+  const [window, setWindow] = useState<FollowUpWindow>(() => restoredWindow());
+  const [now] = useState(() => new Date());
+
+  const completion = useFollowUpCompletion();
+  const rows = useLoadedRows<ActivityRow>();
+  const openRow = (row: ActivityRow) => {
+    if (!row.caseId || !onOpenCase) return;
+    startWorkContext(followUpContext(rows.current(), row, window));
+    onOpenCase(row.caseId);
+  };
+  // The reload key is part of the question, so a completion re-reads the list from its first page.
+  const query = useMemo<FollowUpQuery>(() => ({
+    window, now, ...(scopeFilter ? { scopeFilter } : {}), reloadKey: completion.reloadKey,
+  }), [window, now, scopeFilter, completion.reloadKey]);
+  const applicationUsers = useApplicationUsers(adapter);
+  const columns = useMemo(() => followUpColumns(applicationUsers, completion.open), [applicationUsers, completion.open]);
+
+  return (
+    <Card
+      title="Follow-ups"
+      subtitle="Activities an officer has committed to return to. Complete one here, or open its case."
+      actions={
+        <div className="chips" data-testid="followup-windows">
+          {FOLLOW_UP_WINDOWS.map(option => (
+            <button
+              key={option.id}
+              type="button"
+              className={option.id === window ? 'chip sel' : 'chip'}
+              data-testid={`followup-window-${option.id}`}
+              onClick={() => setWindow(option.id)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      }
+    >
+      <DataGrid<ActivityRow, FollowUpQuery>
+        columns={columns} fetchPage={fetchPage} query={query}
+        rowKey={row => row.id} pageSize={50} height={320}
+        {...(onOpenCase ? { onRowClick: openRow } : {})}
+        onRows={rows.onRows}
+        emptyMessage={
+          window === 'overdue'
+            ? 'Nothing is overdue. Follow-ups appear here once their date has passed.'
+            : 'No follow-up is scheduled in this window.'
+        }
+        data-testid="myday-followups"
+      />
+      {completion.notice && <p className="cw-notice" role="status" data-testid="followup-notice">{completion.notice}</p>}
+      {completion.pane}
+    </Card>
+  );
+}
+
+type ArrearsState = { status: 'loading' } | { status: 'ready'; value: number } | { status: 'unknown' };
+
+/** One server-side sum, re-read when the scope changes; a refusal is unknown, never zero. */
+function useOpenArrears(adapter: XrmCrmAdapter, scopeFilter: string | undefined): ArrearsState {
+  const [state, setState] = useState<ArrearsState>({ status: 'loading' });
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: 'loading' });
+    loadOpenArrears(adapter, scopeFilter)
+      .then(value => { if (!cancelled) setState(value === null ? { status: 'unknown' } : { status: 'ready', value }); })
+      .catch(() => { if (!cancelled) setState({ status: 'unknown' }); });
+    return () => { cancelled = true; };
+  }, [adapter, scopeFilter]);
+  return state;
+}
+
+// ── Work Queues ──────────────────────────────────────────────────────────────
+
+export function QueuesView({ onOpenCase }: { onOpenCase?: (id: string) => void }) {
+  return (
+    <>
+      <InfoBanner icon="route">
+        Queues are defined once and mirrored into both organisations. A case never leaves the CRM that
+        owns it — only its <b>queue</b> and <b>owner</b> change.
+      </InfoBanner>
+      {/*
+        * The operational read model lives here rather than in a navigation entry of its own.
+        *
+        * Work Queues is already the workspace's operational area, and the approved navigation is
+        * twenty-one views — a twenty-second would change a contract the shell test holds. Hosting
+        * it here is what "do not invent a second dashboard if the workspace can host it cleanly"
+        * asks for, and the shell guard was right to insist.
+        */}
+      <MyWorkView {...(onOpenCase ? { onOpenCase } : {})} />
+      {/* Promises are not an activity bucket, so they are a list of their own, reached from here. */}
+      <div className="queue-related">
+        <button type="button" className="btn" onClick={() => navigateTo('ptp')} data-testid="queue-open-ptp">
+          <Icon name="promise" /> Promise to Pay
+        </button>
+      </div>
+      <Card title="Queue contents" subtitle="All open cases across both organisations.">
+        <CasesView {...(onOpenCase ? { onOpenCase } : {})} />
+      </Card>
+    </>
+  );
+}
+
+// ── Views owned by a later phase ─────────────────────────────────────────────
+
+/**
+ * A view owned by a later phase.
+ *
+ * It keeps its navigation entry and its place in the workspace, and says which phase will implement
+ * it. **No data is shown, because none would be real.**
+ */
+export function PendingView({ view }: { view: ViewDefinition }) {
+  return (
+    <div data-testid={`view-${view.id}`}>
+      <PendingPhaseNotice view={view} />
+      <Card title={view.label}>
+        <EmptyState
+          icon={view.icon}
+          message={view.isParked
+            ? `${view.label} is parked by QDB. The screen is preserved here so the approved workspace is complete; nothing further arrives until QDB resumes it.`
+            : `${view.label} is not available yet. The screen is kept here so the workspace is complete.`}
+        />
+      </Card>
+    </div>
+  );
+}

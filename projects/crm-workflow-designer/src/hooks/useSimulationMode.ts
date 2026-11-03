@@ -1,8 +1,10 @@
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 import type { Node, Edge, NodeChange } from '@xyflow/react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { WorkflowOutcome } from '@/types/WorkflowTypes';
 import type { SimStepData, SimStepStatus } from '@/nodes/SimStepNode';
+import { resolveSimEndpoints } from '@/services/simEndpoints';
+import { useSyncedNodes } from '@/hooks/useSyncedNodes';
 
 interface UseSimulationModeResult {
   nodes: Node[];
@@ -32,16 +34,14 @@ export function useSimulationMode(): UseSimulationModeResult {
     simTakenOutcomeIds: s.simTakenOutcomeIds,
   }));
 
-  const nodes = useMemo<Node[]>(() => {
-    const stepCount = stepOrder.length;
-    const startPos = nodePositions[SIM_START_ID] ?? { x: 300, y: -80 };
-    const endPos = nodePositions[SIM_END_ID] ?? { x: 300, y: stepCount * 160 + 80 };
+  const blueprint = useMemo<Node[]>(() => {
+    const { start: startPos, end: endPos, dir } = resolveSimEndpoints(nodePositions, stepOrder);
 
     const startNode: Node = {
       id: SIM_START_ID,
       type: 'viewStart',
       position: startPos,
-      data: { layoutDir: 'TB' },
+      data: { layoutDir: dir },
       draggable: false,
       selectable: false,
     };
@@ -50,7 +50,7 @@ export function useSimulationMode(): UseSimulationModeResult {
       id: SIM_END_ID,
       type: 'viewEnd',
       position: endPos,
-      data: { layoutDir: 'TB' },
+      data: { layoutDir: dir },
       draggable: false,
       selectable: false,
     };
@@ -80,9 +80,9 @@ export function useSimulationMode(): UseSimulationModeResult {
     return result;
   }, [outcomes, stepOrder, simTakenOutcomeIds, simCurrentStepId, simVisitedStepIds]);
 
-  const onNodesChange = useCallback((_changes: NodeChange[]) => {
-    // read-only in simulation — no mutations
-  }, []);
+  // Applies the NodeChanges React Flow emits (dimensions above all) so the
+  // canvas fits a measured graph; simulation stays read-only otherwise.
+  const { nodes, onNodesChange } = useSyncedNodes(blueprint);
 
   return { nodes, edges, onNodesChange };
 }
@@ -157,7 +157,7 @@ function buildStartEdge(
     target: `step_${entryStepId}`,
     sourceHandle: 'out',
     targetHandle: 'in',
-    type: 'smoothstep',
+    type: 'default',
     style: { stroke, strokeWidth },
     markerEnd: { type: 'arrowclosed' as const, color: stroke },
   };
@@ -173,7 +173,7 @@ function buildSimOutcomeEdge(
   const isTaken = simTakenOutcomeIds.includes(outcome.crmId);
   const isAvailable = outcome.stepId === simCurrentStepId && !isTaken;
   const { stroke, strokeWidth, opacity } = resolveEdgeStyle(isTaken, isAvailable, false);
-  const labelColor = isTaken ? '#4ade80' : isAvailable ? '#93c5fd' : '#475569';
+  const labelColor = isTaken ? 'var(--success)' : isAvailable ? 'var(--primary)' : 'var(--text-secondary)';
 
   return {
     id: `outcome_${outcome.crmId}`,
@@ -194,7 +194,7 @@ function resolveEdgeStyle(
   isAvailable: boolean,
   _isVisited: boolean
 ): { stroke: string; strokeWidth: number; opacity: number } {
-  if (isTaken) return { stroke: '#16a34a', strokeWidth: 2.5, opacity: 1 };
-  if (isAvailable) return { stroke: '#2563eb', strokeWidth: 2, opacity: 1 };
-  return { stroke: '#475569', strokeWidth: 1, opacity: 0.28 };
+  if (isTaken) return { stroke: 'var(--success)', strokeWidth: 2.5, opacity: 1 };
+  if (isAvailable) return { stroke: 'var(--primary)', strokeWidth: 2, opacity: 1 };
+  return { stroke: 'var(--text-secondary)', strokeWidth: 1, opacity: 0.28 };
 }

@@ -1,5 +1,15 @@
+import { ToolbarButton, ToolbarOverflow } from '@/components/common/ToolbarButton';
+import { useMinWidth } from '@/components/common/useMinWidth';
+
 interface EditToolbarProps {
   processName: string;
+  /** Demo build is offered only on an empty, clean draft. */
+  canDemo?: boolean;
+  onDemo?: () => void;
+  /** Opens the standalone process summary. */
+  onOpenSummary?: () => void;
+  /** 'draft' | 'published' | 'archived' — drawn as a pill beside the name. */
+  workflowState?: string;
   isDirty: boolean;
   isSaving: boolean;
   isPublishing: boolean;
@@ -8,9 +18,14 @@ interface EditToolbarProps {
   canSimulate: boolean;
   canSimStepBack: boolean;
   validationErrorCount: number;
-  onBack: () => void;
+  showMiniMap: boolean;
+  showEdgeLabels: boolean;
+  isFocusMode: boolean;
+  onToggleFocusMode: () => void;
   onAddStep: () => void;
   onReLayout: () => void;
+  onToggleMiniMap: () => void;
+  onToggleEdgeLabels: () => void;
   onSave: () => void;
   onPublish: () => void;
   onDiscard: () => void;
@@ -19,6 +34,9 @@ interface EditToolbarProps {
   canUndo: boolean;
   canRedo: boolean;
   onValidate: () => void;
+  onEditProperties: () => void;
+  onBulkEdit: () => void;
+  onReorderSteps: () => void;
   onSimulate: () => void;
   onAutoSimulate: () => void;
   onExitSimulation: () => void;
@@ -28,6 +46,10 @@ interface EditToolbarProps {
 
 export function EditToolbar({
   processName,
+  canDemo,
+  onDemo,
+  onOpenSummary,
+  workflowState,
   isDirty,
   isSaving,
   isPublishing,
@@ -36,9 +58,14 @@ export function EditToolbar({
   canSimulate,
   canSimStepBack,
   validationErrorCount,
-  onBack,
+  showMiniMap,
+  showEdgeLabels,
+  isFocusMode,
+  onToggleFocusMode,
   onAddStep,
   onReLayout,
+  onToggleMiniMap,
+  onToggleEdgeLabels,
   onSave,
   onPublish,
   onDiscard,
@@ -47,6 +74,9 @@ export function EditToolbar({
   canUndo,
   canRedo,
   onValidate,
+  onEditProperties,
+  onBulkEdit,
+  onReorderSteps,
   onSimulate,
   onAutoSimulate,
   onExitSimulation,
@@ -54,250 +84,141 @@ export function EditToolbar({
   onSimReset,
 }: EditToolbarProps) {
   const displayName = isDirty ? `${processName} *` : processName;
+  // Same responsive rule as the view toolbar (agentation feedback,
+  // CWFD-018): words beside the glyphs where the width allows, glyph-only
+  // below 1280px so the bar never scrolls sideways again (#129). The
+  // occasional commands stay in the overflow at every width.
+  const isWide = useMinWidth(1280);
 
   return (
-    <div style={wrapperStyle}>
-      <div style={barStyle} role="toolbar" aria-label="Workflow Edit Toolbar">
-        <div style={identityStyle}>
-          {!isSimulating && (
-            <>
-              <button
-                type="button"
-                onClick={onBack}
-                style={backBtnStyle}
-                title="Back to process list"
-              >
-                ← Processes
-              </button>
-              <span style={dividerStyle} />
-            </>
-          )}
-          <span style={logoText}>Workflow Designer</span>
-          <span style={dividerStyle} />
-          <span style={processNameStyle} title={processName}>
-            {isSimulating ? `Simulating: ${processName}` : displayName}
-          </span>
-        </div>
+    <div className="cmdbar" role="toolbar" aria-label="Workflow editor">
+      {isSimulating ? (
+        <>
+          <button type="button" className="cmd" onClick={onSimStepBack} disabled={!canSimStepBack} title="Step back to previous step">
+            ← Back
+          </button>
+          <button type="button" className="cmd" onClick={onSimReset} title="Restart simulation from the beginning">
+            ↺ Reset
+          </button>
+          <span className="cmd-sep" />
+          <button type="button" className="cmd" onClick={onExitSimulation} title="Exit simulation mode">
+            Exit simulation
+          </button>
+        </>
+      ) : (
+        <>
+          {/* Editing: the two commands a maker reaches for constantly. */}
+          <ToolbarButton icon="undo" label="Undo" title="Undo last change" iconOnly={!isWide} disabled={!canUndo} onClick={onUndo} />
+          <ToolbarButton icon="redo" label="Redo" title="Redo last undone change" iconOnly={!isWide} disabled={!canRedo} onClick={onRedo} />
+          <span className="cmd-sep" />
+          <ToolbarButton icon="addStep" label="Add step" title="Add a new step to this workflow" onClick={onAddStep} />
+          <ToolbarButton icon="layout" label="Arrange" title="Auto-arrange all steps" iconOnly={!isWide} onClick={onReLayout} />
 
-        <div style={actionsStyle}>
-          {isSimulating ? (
-            <>
-              <ToolBtn label="← Back" onClick={onSimStepBack} disabled={!canSimStepBack} title="Step back to previous step" />
-              <ToolBtn label="↺ Reset" onClick={onSimReset} title="Restart simulation from the beginning" />
-              <Sep />
-              <ToolBtn label="Exit Simulation" onClick={onExitSimulation} title="Exit simulation mode" />
-            </>
-          ) : (
-            <>
-              <ToolBtn label="Undo" onClick={onUndo} disabled={!canUndo} title="Undo last change" />
-              <ToolBtn label="Redo" onClick={onRedo} disabled={!canRedo} title="Redo last undone change" />
-              <Sep />
-              <ToolBtn label="Add Step" onClick={onAddStep} title="Add a new step to this workflow" />
-              <ToolBtn label="⊞ Layout" onClick={onReLayout} title="Auto-arrange all steps" />
-              <Sep />
-              <ValidateBtn
-                errorCount={validationErrorCount}
-                onClick={onValidate}
-              />
-              <Sep />
-              <ToolBtn
-                label={isSaving ? 'Saving…' : 'Save Draft'}
-                onClick={onSave}
-                disabled={isSaving}
-                title="Save as draft"
-              />
-              <ToolBtn
-                label={isPublishing ? 'Publishing…' : 'Publish'}
-                onClick={onPublish}
-                disabled={!canPublish || isPublishing}
-                primary
-                title={canPublish ? 'Publish this workflow' : 'Save first to enable publish'}
-              />
-              <Sep />
-              <ToolBtn
-                label="▶ Simulate"
-                onClick={onSimulate}
-                disabled={!canSimulate}
-                title={canSimulate ? 'Run a visual step-by-step simulation' : 'Add steps to enable simulation'}
-              />
-              <ToolBtn
-                label="⏵⏵ Auto"
-                onClick={onAutoSimulate}
-                disabled={!canSimulate}
-                title={canSimulate ? 'Enumerate all possible paths automatically' : 'Add steps to enable simulation'}
-              />
-              <ToolBtn label="Discard" onClick={onDiscard} title="Discard all unsaved changes" />
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+          {/* Canvas toggles: labelled where the width allows, glyph-only
+              where labels would push the bar into a sideways scroll. */}
+          <ToolbarButton
+            icon="minimap"
+            label="Minimap"
+            title={showMiniMap ? 'Hide the minimap' : 'Show the minimap'}
+            iconOnly={!isWide}
+            active={showMiniMap}
+            onClick={onToggleMiniMap}
+          />
+          <ToolbarButton
+            icon="labels"
+            label="Labels"
+            title={showEdgeLabels ? 'Hide the labels on edges' : 'Show the labels on edges'}
+            iconOnly={!isWide}
+            active={!showEdgeLabels}
+            onClick={onToggleEdgeLabels}
+          />
+          <ToolbarButton
+            icon="focus"
+            label={isFocusMode ? 'Exit Focus' : 'Focus'}
+            title="Focus Mode: fade everything except the selected step and its relationships"
+            iconOnly={!isWide && !isFocusMode}
+            active={isFocusMode}
+            onClick={onToggleFocusMode}
+          />
+          <span className="cmd-sep" />
 
-function ToolBtn({
-  label,
-  onClick,
-  title,
-  disabled = false,
-  primary = false,
-}: {
-  label: string;
-  onClick: () => void;
-  title?: string;
-  disabled?: boolean;
-  primary?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        ...btnBase,
-        ...(primary ? btnPrimary : btnSecondary),
-        ...(disabled ? btnDisabled : {}),
-      }}
-    >
-      {label}
-    </button>
-  );
-}
+          <ToolbarButton
+            icon="validate"
+            label="Validate"
+            title="Check this workflow for problems"
+            tone={validationErrorCount > 0 ? 'danger' : 'default'}
+            onClick={onValidate}
+          >
+            {validationErrorCount > 0 && <span className="pill error">{validationErrorCount}</span>}
+          </ToolbarButton>
 
-function Sep() {
-  return <div style={sepStyle} />;
-}
+          {/* Committing work keeps its words: these are the consequential ones. */}
+          <span className="cmd-sep" />
+          <ToolbarButton
+            icon="save"
+            label={isSaving ? 'Saving…' : 'Save draft'}
+            title="Save as draft"
+            disabled={isSaving}
+            onClick={onSave}
+          />
+          <ToolbarButton
+            icon="publish"
+            label={isPublishing ? 'Publishing…' : 'Publish'}
+            title={canPublish ? 'Publish this workflow' : 'Save first to enable publish'}
+            tone="primary"
+            disabled={!canPublish || isPublishing}
+            onClick={onPublish}
+          />
 
-function ValidateBtn({ errorCount, onClick }: { errorCount: number; onClick: () => void }) {
-  const hasErrors = errorCount > 0;
-  return (
-    <div style={{ position: 'relative', display: 'inline-flex' }}>
-      <button
-        type="button"
-        title="Run process validation"
-        onClick={onClick}
-        style={{
-          ...btnBase,
-          ...(hasErrors ? btnError : btnSecondary),
-        }}
-      >
-        ✓ Validate
-      </button>
-      {hasErrors && (
-        <span style={errorCountBadge}>{errorCount}</span>
+          {/* Everything occasional lives one click away instead of off-screen. */}
+          <ToolbarOverflow
+            items={[
+              ...(onOpenSummary
+                ? [{ icon: 'summary' as const, label: 'Process summary', onClick: onOpenSummary }]
+                : []),
+              { icon: 'settings' as const, label: 'Process properties', onClick: onEditProperties },
+              { icon: 'summary' as const, label: 'Edit all steps', onClick: onBulkEdit },
+              { icon: 'layout' as const, label: 'Reorder steps', onClick: onReorderSteps },
+              ...(canDemo && onDemo
+                ? [{ icon: 'demo' as const, label: 'Demo build', onClick: onDemo }]
+                : []),
+              {
+                icon: 'simulate' as const,
+                label: 'Simulate',
+                onClick: onSimulate,
+                disabled: !canSimulate,
+              },
+              {
+                icon: 'auto' as const,
+                label: 'Enumerate all paths',
+                onClick: onAutoSimulate,
+                disabled: !canSimulate,
+              },
+              { icon: 'discard' as const, label: 'Discard changes', onClick: onDiscard, tone: 'danger' as const },
+            ]}
+          />
+        </>
+      )}
+
+      <span className="cmd-spacer" />
+      <span style={processNameStyle} title={processName}>
+        {isSimulating ? `Simulating: ${processName}` : displayName}
+      </span>
+      {!isSimulating && workflowState && (
+        <span className={workflowState === 'published' ? 'pill published' : 'pill draft'}>
+          {workflowState === 'published' ? 'Published' : workflowState === 'archived' ? 'Archived' : 'Draft'}
+        </span>
       )}
     </div>
   );
 }
 
-const wrapperStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  flexShrink: 0,
-  zIndex: 10,
-};
-
-const barStyle: React.CSSProperties = {
-  height: 44,
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  padding: '0 16px',
-  background: '#1e293b',
-  borderBottom: '1px solid #334155',
-};
-
-const identityStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  flex: 1,
-  minWidth: 0,
-  overflow: 'hidden',
-};
-
-const logoText: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 700,
-  color: '#94a3b8',
-  flexShrink: 0,
-};
-
-const dividerStyle: React.CSSProperties = {
-  width: 1,
-  height: 14,
-  background: '#475569',
-  flexShrink: 0,
-};
-
 const processNameStyle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
-  color: '#f1f5f9',
+  color: 'var(--text)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
 };
 
-const actionsStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 4,
-  flexShrink: 0,
-};
-
-const btnBase: React.CSSProperties = {
-  height: 28,
-  padding: '0 12px',
-  fontSize: 12,
-  fontWeight: 500,
-  borderRadius: 4,
-  border: 'none',
-  cursor: 'pointer',
-  transition: 'background 0.1s',
-};
-
-const backBtnStyle: React.CSSProperties = {
-  height: 26,
-  padding: '0 10px',
-  fontSize: 11,
-  fontWeight: 500,
-  borderRadius: 4,
-  border: 'none',
-  cursor: 'pointer',
-  background: 'transparent',
-  color: '#64748b',
-  flexShrink: 0,
-};
-
-const btnSecondary: React.CSSProperties = { background: '#334155', color: '#e2e8f0' };
-const btnPrimary: React.CSSProperties = { background: '#2563eb', color: '#fff' };
-const btnError: React.CSSProperties = { background: '#7f1d1d', color: '#fecaca' };
-const btnDisabled: React.CSSProperties = { opacity: 0.45, cursor: 'not-allowed' };
-
-const errorCountBadge: React.CSSProperties = {
-  position: 'absolute',
-  top: -6,
-  right: -6,
-  minWidth: 16,
-  height: 16,
-  borderRadius: 8,
-  background: '#ef4444',
-  color: '#fff',
-  fontSize: 9,
-  fontWeight: 700,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '0 3px',
-  border: '1.5px solid #1e293b',
-  lineHeight: 1,
-};
-
-const sepStyle: React.CSSProperties = {
-  width: 1,
-  height: 20,
-  background: '#475569',
-  margin: '0 4px',
-};

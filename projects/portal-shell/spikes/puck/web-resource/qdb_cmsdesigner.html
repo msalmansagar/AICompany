@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>QDB CMS Designer</title>
+
+<!--
+  qdb_cmsdesigner.html — CMS page designer, delivered as a Dataverse web resource.
+
+  Follows ADR-RPT-011 (Report Engine): execute inside CRM, no hosted middle tier.
+
+    UI, layout, editing, preview      → this web resource (browser)
+    Page + version reads/writes        → Xrm.WebApi (OData v4) direct to Dataverse
+    Publish + audit log                → plugin behind Custom API qdb_PublishPage
+
+  Why publish is a plugin and not a browser write, exactly as ADR-RPT-011
+  argues for qdb_RunReport: if the browser both writes the version and writes
+  the audit row, a user can keep the write and skip the log. Routing publish
+  through the plugin makes the log structurally unavoidable — the same call
+  that flips the live version writes the record.
+
+  TEST IN CRM VIA:
+    main.aspx?pagetype=webresource&webresourceName=qdb_cmsdesigner.html
+  Never the raw /WebResources/ URL — there is no Xrm there, so every call fails.
+
+  Opened outside CRM this file runs against an in-memory Dataverse simulator so
+  the whole flow is demonstrable. The banner tells you which mode you are in.
+-->
+
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.3.1",
+    "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
+    "react-dom": "https://esm.sh/react-dom@18.3.1",
+    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+    "@puckeditor/core": "https://esm.sh/@puckeditor/core@0.22.4?external=react,react-dom"
+  }
+}
+</script>
+<link rel="stylesheet" href="https://esm.sh/@puckeditor/core@0.22.4/dist/index.css" />
+
+<style>
+  :root{
+    --g:#3d8a72; --gd:#2f7d68; --gs:#e6f2ee;
+    --navy:#1b3a63; --navys:#e9f0fb;
+    --canvas:#f4f6f8; --surface:#fff; --border:#e5e8eb;
+    --ink:#1a2129; --muted:#5d6b7a; --warn:#8a5a11; --warns:#fdf0d5;
+    --mono:ui-monospace,SFMono-Regular,Consolas,monospace;
+  }
+  *,*::before,*::after{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',Tahoma,sans-serif;color:var(--ink);background:var(--canvas)}
+  #root{min-block-size:100vh}
+
+  /* Fixed viewport height, not min-height: the activity log must stay on
+     screen while the editor scrolls internally. Letting the page grow pushed
+     the log below the fold, which hid the one thing this file exists to show. */
+  .app{display:grid;grid-template-rows:auto auto minmax(0,1fr);block-size:100vh;overflow:hidden}
+
+  /* ---------------------------------------------------------- CRM chrome */
+  .cmdbar{background:var(--surface);border-block-end:1px solid var(--border);
+    padding:10px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .cmdbar h1{margin:0;font-size:16px;font-weight:600}
+  .cmdbar .sp{margin-inline-start:auto}
+
+  .mode{font-size:11.5px;font-weight:600;border-radius:999px;padding:4px 11px}
+  .mode[data-live="true"]{background:var(--gs);color:var(--gd)}
+  .mode[data-live="false"]{background:var(--warns);color:var(--warn)}
+
+  .btn{border:1px solid var(--border);background:var(--surface);color:var(--ink);
+    border-radius:6px;padding:8px 15px;font-size:13.5px;font-weight:600;cursor:pointer;
+    display:inline-flex;align-items:center;gap:7px;white-space:nowrap;font-family:inherit}
+  .btn:hover{background:#f7f9fa}
+  .btn[data-v="primary"]{background:var(--g);border-color:var(--g);color:#fff}
+  .btn[data-v="navy"]{background:var(--navy);border-color:var(--navy);color:#fff}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+
+  /* ------------------------------------------------------------- layout */
+  .body{display:grid;grid-template-columns:320px 1fr;min-block-size:0}
+  .body[data-wide="true"]{grid-template-columns:1fr}
+
+  .side{background:var(--surface);border-inline-end:1px solid var(--border);
+    padding:16px;overflow:auto;min-inline-size:0}
+  .main{min-inline-size:0;display:grid;grid-template-rows:minmax(0,1fr) auto;min-block-size:0}
+
+  .sec-title{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--muted);margin:0 0 10px}
+
+  .field{margin-block-end:12px}
+  .field label{display:block;font-size:12px;font-weight:600;margin-block-end:5px}
+  .field input{inline-size:100%;border:1px solid var(--border);border-radius:6px;
+    padding:8px 10px;font-size:13.5px;font-family:inherit;color:inherit}
+  .field input:focus{outline:2px solid var(--g);outline-offset:1px}
+
+  .plist{display:grid;gap:8px;margin-block-start:14px}
+  .prow{border:1px solid var(--border);border-radius:8px;padding:11px 12px;cursor:pointer;background:var(--surface)}
+  .prow:hover{border-color:var(--g)}
+  .prow[data-sel="true"]{border-color:var(--g);background:var(--gs)}
+  .prow b{display:block;font-size:13.5px}
+  .prow code{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .chip{font-size:10.5px;font-weight:700;border-radius:999px;padding:2px 8px;margin-inline-start:6px}
+  .chip[data-s="published"]{background:var(--gs);color:var(--gd)}
+  .chip[data-s="draft"]{background:var(--warns);color:var(--warn)}
+
+  /* --------------------------------------------------------- editor area */
+  .editor{min-block-size:0;overflow:hidden}
+  .empty{display:grid;place-items:center;text-align:center;padding:70px 20px;color:var(--muted)}
+
+  /* ------------------------------------------------------- activity log */
+  .log{background:#0f1b28;color:#cfe3f5;font-family:var(--mono);font-size:11.5px;
+    max-block-size:230px;overflow:auto;padding:12px 16px;border-block-start:1px solid #223449}
+  .log h3{margin:0 0 8px;font-size:11px;letter-spacing:.08em;color:#7fb2e0;text-transform:uppercase}
+  .log .row{padding:4px 0;border-block-end:1px solid rgba(255,255,255,.06);white-space:pre-wrap;word-break:break-word}
+  .log .verb{font-weight:700}
+  .log .verb[data-k="POST"]{color:#7ee0a8}
+  .log .verb[data-k="PATCH"]{color:#f0c674}
+  .log .verb[data-k="GET"]{color:#7fb2e0}
+  .log .verb[data-k="ACTION"]{color:#e08fd4}
+  .log .verb[data-k="PLUGIN"]{color:#ff9d7a}
+  .log .meta{color:#6f8ba6}
+
+  .schema{padding:14px 18px;background:var(--navys);border-block-end:1px solid var(--border);
+    font-size:12.5px;color:var(--navy);display:flex;gap:18px;flex-wrap:wrap;align-items:center}
+  .schema code{font-family:var(--mono);background:#fff;border:1px solid #d5e1f5;
+    border-radius:4px;padding:1px 6px;font-size:11.5px}
+
+  .err{background:#fdecec;border:1px solid #f3c0c0;color:#8a1f1f;padding:14px 18px;
+    margin:18px;border-radius:8px;font-size:13.5px}
+  .err code{font-family:var(--mono);font-size:12px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+/* ===========================================================================
+   Dataverse access layer.
+
+   One object with the same surface whether it is talking to a real
+   organisation through Xrm.WebApi or to the in-memory simulator. Every call
+   is logged with its OData verb and target so the wire traffic is visible —
+   that is the point of this file.
+
+   Schema (mirrors the Report Engine convention: qdb_ prefix, GUID keys,
+   qdb_name primary, parent + versions + audit child tables):
+
+     qdb_cmspage          qdb_cmspageid, qdb_name, qdb_slug, qdb_titleen,
+                          qdb_titlear, qdb_status (860010001 draft /
+                          860010002 published)
+     qdb_cmspageversion   qdb_cmspageversionid, qdb_name, _qdb_pageid_value,
+                          qdb_versionnumber, qdb_contentjson (Memo),
+                          qdb_islatest
+     qdb_cmspublishlog    written by the plugin only — never by the browser
+
+   Custom APIs (ADR-RPT-011 pattern):
+     qdb_PublishPage            Async  PostOperation  publishes + writes audit
+     qdb_GetPublishedPageJson   Sync   PostOperation  reads the render cache
+   =========================================================================== */
+window.QDB = (function () {
+  const listeners = [];
+  const log = (kind, line, meta) => listeners.forEach(fn => fn({ kind, line, meta }));
+
+  // Xrm is on window.parent when a web resource is hosted inside a form or
+  // the main.aspx shell; on window itself in some dialog contexts.
+  const xrm = (typeof window !== 'undefined' && (window.Xrm || (window.parent && window.parent.Xrm))) || null;
+  const isLive = !!(xrm && xrm.WebApi);
+
+  const KEY = 'qdb.cms.sim.v1';
+  const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || { pages: [], versions: [], logs: [] }; }
+                       catch { return { pages: [], versions: [], logs: [] }; } };
+  const write = (db) => localStorage.setItem(KEY, JSON.stringify(db));
+  const guid = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+
+  const STATUS = { DRAFT: 860010001, PUBLISHED: 860010002 };
+
+  async function listPages() {
+    const q = "?$select=qdb_cmspageid,qdb_name,qdb_slug,qdb_titleen,qdb_titlear,qdb_status&$orderby=modifiedon desc";
+    log('GET', `retrieveMultipleRecords("qdb_cmspage", "${q}")`);
+    if (isLive) {
+      const r = await xrm.WebApi.retrieveMultipleRecords('qdb_cmspage', q);
+      return r.entities;
+    }
+    return read().pages.slice().reverse();
+  }
+
+  async function createPage({ name, slug, titleEn, titleAr }) {
+    const record = {
+      qdb_name: name, qdb_slug: slug,
+      qdb_titleen: titleEn, qdb_titlear: titleAr,
+      qdb_status: STATUS.DRAFT
+    };
+    log('POST', `createRecord("qdb_cmspage", ${JSON.stringify(record)})`);
+    if (isLive) {
+      const r = await xrm.WebApi.createRecord('qdb_cmspage', record);
+      return { ...record, qdb_cmspageid: r.id };
+    }
+    const db = read();
+    const page = { ...record, qdb_cmspageid: guid() };
+    db.pages.push(page); write(db);
+    return page;
+  }
+
+  /** Draft save = a new version row. Versions are append-only; nothing is edited in place. */
+  async function saveVersion(pageId, contentJson, versionNumber) {
+    const bytes = new Blob([contentJson]).size;
+    const record = {
+      qdb_name: `v${versionNumber}`,
+      'qdb_pageid@odata.bind': `/qdb_cmspages(${pageId})`,
+      qdb_versionnumber: versionNumber,
+      qdb_contentjson: contentJson,
+      qdb_islatest: true
+    };
+    log('POST', `createRecord("qdb_cmspageversion", { qdb_versionnumber: ${versionNumber}, qdb_contentjson: <${bytes} bytes> })`,
+        `Memo column limit 1,048,576 chars — gzip + Base64 in production`);
+    if (isLive) {
+      const r = await xrm.WebApi.createRecord('qdb_cmspageversion', record);
+      return { id: r.id, bytes };
+    }
+    const db = read();
+    db.versions.filter(v => v._qdb_pageid_value === pageId).forEach(v => { v.qdb_islatest = false; });
+    db.versions.push({
+      qdb_cmspageversionid: guid(), _qdb_pageid_value: pageId,
+      qdb_versionnumber: versionNumber, qdb_contentjson: contentJson, qdb_islatest: true
+    });
+    write(db);
+    return { id: 'sim', bytes };
+  }
+
+  async function latestVersion(pageId) {
+    const q = `?$select=qdb_contentjson,qdb_versionnumber&$filter=_qdb_pageid_value eq ${pageId} and qdb_islatest eq true`;
+    log('GET', `retrieveMultipleRecords("qdb_cmspageversion", "${q}")`);
+    if (isLive) {
+      const r = await xrm.WebApi.retrieveMultipleRecords('qdb_cmspageversion', q);
+      return r.entities[0] || null;
+    }
+    return read().versions.find(v => v._qdb_pageid_value === pageId && v.qdb_islatest) || null;
+  }
+
+  /**
+   * Publish through the Custom API, never by patching the page row from here.
+   * The plugin flips the live version AND writes qdb_cmspublishlog in the same
+   * transaction, so the audit row cannot be skipped.
+   */
+  async function publish(pageId, versionNumber) {
+    log('ACTION', `execute(qdb_PublishPage { PageId: "${pageId}", TargetVersion: ${versionNumber} })`,
+        'Custom API · Async · PostOperation(40) · unbound');
+    log('PLUGIN', 'qdb_PublishPage → set qdb_status = Published (860010002)');
+    log('PLUGIN', 'qdb_PublishPage → gzip + Base64 content, write qdb_cmsrendercache');
+    log('PLUGIN', 'qdb_PublishPage → create qdb_cmspublishlog (append-only audit)',
+        'Structurally unavoidable: same call that publishes writes the log — ADR-RPT-011');
+
+    if (isLive) {
+      const req = {
+        PageId: pageId, TargetVersion: versionNumber,
+        getMetadata: () => ({
+          boundParameter: null,
+          parameterTypes: {
+            PageId: { typeName: 'Edm.String', structuralProperty: 1 },
+            TargetVersion: { typeName: 'Edm.Int32', structuralProperty: 1 }
+          },
+          operationType: 0, operationName: 'qdb_PublishPage'
+        })
+      };
+      await xrm.WebApi.online.execute(req);
+      return;
+    }
+    const db = read();
+    const page = db.pages.find(p => p.qdb_cmspageid === pageId);
+    if (page) page.qdb_status = STATUS.PUBLISHED;
+    db.logs.push({ pageId, versionNumber, on: new Date().toISOString() });
+    write(db);
+  }
+
+  return {
+    isLive, STATUS,
+    onLog: (fn) => listeners.push(fn),
+    listPages, createPage, saveVersion, latestVersion, publish
+  };
+})();
+</script>
+
+<script type="module">
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createRoot } from 'react-dom/client';
+import { Puck, Render } from '@puckeditor/core';
+
+const h = React.createElement;
+
+/* ===========================================================================
+   Component palette. Colours are token slugs resolved to CSS variables, never
+   raw hex — the same governance rule as the portal-shell spike, so a page
+   cannot carry an unapproved brand colour.
+   =========================================================================== */
+const COLORS = [
+  { label: 'Brand green', value: 'g' },
+  { label: 'Navy', value: 'navy' },
+  { label: 'Text', value: 'ink' },
+  { label: 'Muted', value: 'muted' }
+];
+const SURFACES = [
+  { label: 'White', value: 'surface' },
+  { label: 'Canvas', value: 'canvas' },
+  { label: 'Green tint', value: 'gs' },
+  { label: 'Navy tint', value: 'navys' }
+];
+const v = (slug, fb) => `var(--${slug || fb})`;
+
+const config = {
+  categories: {
+    layout:  { title: 'Layout',  components: ['Section', 'Columns', 'Spacer'] },
+    content: { title: 'Content', components: ['Heading', 'Text', 'Image'] },
+    actions: { title: 'Actions', components: ['Button'] },
+    data:    { title: 'Data',    components: ['Stat', 'Callout'] }
+  },
+  root: {
+    fields: { content: { type: 'slot' } },
+    render: ({ content: Content }) => h('div', { style: { minHeight: '100%' } }, h(Content))
+  },
+  components: {
+    Section: {
+      label: 'Section',
+      fields: {
+        background: { type: 'select', label: 'Background', options: SURFACES },
+        padding: { type: 'radio', label: 'Padding', options: [
+          { label: 'S', value: '18px' }, { label: 'M', value: '36px' }, { label: 'L', value: '64px' }] },
+        items: { type: 'slot' }
+      },
+      defaultProps: { background: 'surface', padding: '36px' },
+      render: ({ background, padding, items: Items }) =>
+        h('section', { style: { background: v(background, 'surface'), padding } },
+          h('div', { style: { maxWidth: 900, margin: '0 auto' } }, h(Items)))
+    },
+    Columns: {
+      label: 'Columns',
+      fields: { gap: { type: 'radio', label: 'Gap', options: [
+        { label: 'S', value: '12px' }, { label: 'M', value: '22px' }] }, items: { type: 'slot' } },
+      defaultProps: { gap: '22px' },
+      render: ({ gap, items: Items }) => h(Items, {
+        style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(200px,100%),1fr))', gap }
+      })
+    },
+    Spacer: {
+      label: 'Spacer',
+      fields: { size: { type: 'radio', label: 'Height', options: [
+        { label: 'S', value: '16px' }, { label: 'M', value: '44px' }, { label: 'L', value: '80px' }] } },
+      defaultProps: { size: '44px' },
+      render: ({ size }) => h('div', { style: { height: size }, 'aria-hidden': true })
+    },
+    Heading: {
+      label: 'Heading',
+      fields: {
+        textEn: { type: 'text', label: 'Text (EN)' },
+        textAr: { type: 'text', label: 'Text (AR)' },
+        level: { type: 'radio', label: 'Level', options: [
+          { label: 'H1', value: '1' }, { label: 'H2', value: '2' }, { label: 'H3', value: '3' }] },
+        color: { type: 'select', label: 'Colour', options: COLORS },
+        align: { type: 'radio', label: 'Align', options: [
+          { label: 'Start', value: 'start' }, { label: 'Center', value: 'center' }] }
+      },
+      defaultProps: { textEn: 'Heading', textAr: 'عنوان', level: '2', color: 'ink', align: 'start' },
+      render: ({ textEn, textAr, level, color, align, puck }) => {
+        const ar = puck?.metadata?.locale === 'ar';
+        const size = { '1': 32, '2': 24, '3': 18 }[level] || 24;
+        return h(`h${level}`, { style: {
+          margin: '0 0 12px', fontSize: size, fontWeight: 700,
+          color: v(color, 'ink'), textAlign: align
+        } }, ar ? (textAr || textEn) : (textEn || textAr));
+      }
+    },
+    Text: {
+      label: 'Text',
+      fields: {
+        bodyEn: { type: 'textarea', label: 'Body (EN)' },
+        bodyAr: { type: 'textarea', label: 'Body (AR)' },
+        color: { type: 'select', label: 'Colour', options: COLORS },
+        align: { type: 'radio', label: 'Align', options: [
+          { label: 'Start', value: 'start' }, { label: 'Center', value: 'center' }] }
+      },
+      defaultProps: { bodyEn: 'Body text.', bodyAr: 'نص.', color: 'muted', align: 'start' },
+      render: ({ bodyEn, bodyAr, color, align, puck }) => {
+        const ar = puck?.metadata?.locale === 'ar';
+        return h('p', { style: {
+          margin: '0 0 14px', fontSize: 15, lineHeight: 1.7,
+          color: v(color, 'muted'), textAlign: align
+        } }, ar ? (bodyAr || bodyEn) : (bodyEn || bodyAr));
+      }
+    },
+    Image: {
+      label: 'Image',
+      fields: {
+        tone: { type: 'select', label: 'Asset', options: [
+          { label: 'Technology', value: 'linear-gradient(135deg,#0b1a2b,#1b4f6b)' },
+          { label: 'Meeting', value: 'linear-gradient(135deg,#b08d5f,#8f6f4a)' },
+          { label: 'Advisory', value: 'linear-gradient(135deg,#20415c,#5b93ad)' }] },
+        height: { type: 'radio', label: 'Height', options: [
+          { label: 'S', value: '140px' }, { label: 'M', value: '240px' }] }
+      },
+      defaultProps: { tone: 'linear-gradient(135deg,#0b1a2b,#1b4f6b)', height: '240px' },
+      render: ({ tone, height }) => h('div', { role: 'img', 'aria-label': 'image',
+        style: { height, borderRadius: 10, background: tone, marginBottom: 14 } })
+    },
+    Button: {
+      label: 'Button',
+      fields: {
+        labelEn: { type: 'text', label: 'Label (EN)' },
+        labelAr: { type: 'text', label: 'Label (AR)' },
+        variant: { type: 'select', label: 'Variant', options: [
+          { label: 'Primary', value: 'primary' }, { label: 'Navy', value: 'navy' },
+          { label: 'Outline', value: 'outline' }] },
+        href: { type: 'text', label: 'Link' }
+      },
+      defaultProps: { labelEn: 'Button', labelAr: 'زر', variant: 'primary', href: '#' },
+      render: ({ labelEn, labelAr, variant, href, puck }) => {
+        const ar = puck?.metadata?.locale === 'ar';
+        const label = ar ? (labelAr || labelEn) : (labelEn || labelAr);
+        const style = {
+          display: 'inline-block', borderRadius: 6, padding: '11px 20px',
+          fontSize: 14, fontWeight: 600, textDecoration: 'none', marginBottom: 14,
+          background: variant === 'primary' ? 'var(--g)' : variant === 'navy' ? 'var(--navy)' : '#fff',
+          color: variant === 'outline' ? 'var(--ink)' : '#fff',
+          border: variant === 'outline' ? '1px solid var(--border)' : '1px solid transparent'
+        };
+        // Inert while editing so clicking in the canvas cannot navigate the
+        // author out of the designer.
+        return puck?.isEditing
+          ? h('span', { style }, label)
+          : h('a', { style, href: href || '#' }, label);
+      }
+    },
+    Stat: {
+      label: 'Stat',
+      fields: {
+        labelEn: { type: 'text', label: 'Label (EN)' },
+        labelAr: { type: 'text', label: 'Label (AR)' },
+        value: { type: 'text', label: 'Value' },
+        accent: { type: 'select', label: 'Accent', options: COLORS }
+      },
+      defaultProps: { labelEn: 'Metric', labelAr: 'المؤشر', value: '12', accent: 'g' },
+      render: ({ labelEn, labelAr, value, accent, puck }) => {
+        const ar = puck?.metadata?.locale === 'ar';
+        return h('div', { style: {
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: 10, padding: 16, marginBottom: 14
+        } },
+          h('div', { style: { fontSize: 12.5, color: 'var(--muted)' } }, ar ? (labelAr || labelEn) : (labelEn || labelAr)),
+          h('div', { style: { fontSize: 28, fontWeight: 700, color: v(accent, 'g') } }, h('bdi', null, value)));
+      }
+    },
+    Callout: {
+      label: 'Callout',
+      fields: {
+        titleEn: { type: 'text', label: 'Title (EN)' },
+        titleAr: { type: 'text', label: 'Title (AR)' },
+        bodyEn: { type: 'textarea', label: 'Body (EN)' },
+        bodyAr: { type: 'textarea', label: 'Body (AR)' },
+        accent: { type: 'select', label: 'Accent', options: COLORS }
+      },
+      defaultProps: { titleEn: 'Note', titleAr: 'ملاحظة', bodyEn: 'Worth knowing.', bodyAr: 'معلومة.', accent: 'navy' },
+      render: ({ titleEn, titleAr, bodyEn, bodyAr, accent, puck }) => {
+        const ar = puck?.metadata?.locale === 'ar';
+        return h('div', { style: {
+          background: 'var(--navys)', borderInlineStart: `3px solid ${v(accent, 'navy')}`,
+          borderRadius: 8, padding: 16, marginBottom: 14
+        } },
+          h('strong', { style: { display: 'block', marginBottom: 4 } }, ar ? (titleAr || titleEn) : (titleEn || titleAr)),
+          h('span', { style: { fontSize: 14, lineHeight: 1.6 } }, ar ? (bodyAr || bodyEn) : (bodyEn || bodyAr)));
+      }
+    }
+  }
+};
+
+const EMPTY = { root: { props: { content: [] } }, content: [], zones: {} };
+const slugify = (s) => s.trim().toLowerCase().replace(/[\s_]+/g, '-')
+  .replace(/[^\p{L}\p{N}-]/gu, '').replace(/-+/g, '-').replace(/^-|-$/g, '');
+
+/* ============================================================ activity log */
+function ActivityLog({ rows }) {
+  const box = useRef(null);
+  useEffect(() => { if (box.current) box.current.scrollTop = box.current.scrollHeight; }, [rows]);
+  return h('div', { className: 'log', ref: box },
+    h('h3', null, 'Dataverse activity — every call this designer makes'),
+    rows.length === 0
+      ? h('div', { className: 'meta' }, 'No calls yet. Create a page to begin.')
+      : rows.map((r, i) => h('div', { className: 'row', key: i },
+          h('span', { className: 'verb', 'data-k': r.kind }, r.kind.padEnd(6)),
+          ' ', r.line,
+          r.meta ? h('div', { className: 'meta' }, '        ↳ ' + r.meta) : null))
+  );
+}
+
+/* ==================================================================== app */
+function App() {
+  const [pages, setPages] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [data, setData] = useState(EMPTY);
+  const [rows, setRows] = useState([]);
+  const [title, setTitle] = useState('');
+  const [locale, setLocale] = useState('en');
+  const [busy, setBusy] = useState('');
+  const [version, setVersion] = useState(1);
+
+  useEffect(() => {
+    QDB.onLog(entry => setRows(prev => [...prev, entry]));
+    QDB.listPages().then(setPages);
+  }, []);
+
+  const openPage = useCallback(async (page) => {
+    setSelected(page);
+    const latest = await QDB.latestVersion(page.qdb_cmspageid);
+    setData(latest?.qdb_contentjson ? JSON.parse(latest.qdb_contentjson) : EMPTY);
+    setVersion(latest ? latest.qdb_versionnumber : 0);
+  }, []);
+
+  async function handleCreate(e) {
+    e.preventDefault();
+    const slug = slugify(title);
+    if (!slug) return;
+    const page = await QDB.createPage({ name: title, slug, titleEn: title, titleAr: title });
+    setTitle('');
+    setPages(await QDB.listPages());
+    openPage(page);
+  }
+
+  async function handleSave() {
+    if (!selected) return;
+    setBusy('Saving draft…');
+    const next = version + 1;
+    await QDB.saveVersion(selected.qdb_cmspageid, JSON.stringify(data), next);
+    setVersion(next);
+    setBusy('');
+  }
+
+  async function handlePublish() {
+    if (!selected) return;
+    setBusy('Publishing…');
+    const next = version + 1;
+    await QDB.saveVersion(selected.qdb_cmspageid, JSON.stringify(data), next);
+    await QDB.publish(selected.qdb_cmspageid, next);
+    setVersion(next);
+    setPages(await QDB.listPages());
+    setBusy('');
+  }
+
+  const statusOf = (p) => p.qdb_status === QDB.STATUS.PUBLISHED ? 'published' : 'draft';
+
+  return h('div', { className: 'app' },
+    /* ---- command bar, styled after the Report Engine designer web resource */
+    h('div', { className: 'cmdbar' },
+      h('h1', null, 'QDB CMS Designer'),
+      h('span', { className: 'mode', 'data-live': String(QDB.isLive) },
+        QDB.isLive ? 'Connected to Dataverse (Xrm.WebApi)' : 'Simulator — Xrm not present'),
+      selected ? h('code', { style: { fontSize: 12, color: 'var(--muted)' } },
+        `/${selected.qdb_slug} · v${version}`) : null,
+      h('span', { className: 'sp' }),
+      h('button', { className: 'btn', onClick: () => setLocale(l => l === 'en' ? 'ar' : 'en') },
+        locale === 'en' ? 'العربية' : 'English'),
+      h('button', { className: 'btn', onClick: handleSave, disabled: !selected || !!busy },
+        busy === 'Saving draft…' ? 'Saving…' : 'Save draft'),
+      h('button', { className: 'btn', 'data-v': 'navy', onClick: handlePublish, disabled: !selected || !!busy },
+        busy === 'Publishing…' ? 'Publishing…' : 'Publish')
+    ),
+
+    /* ---- the schema this designer writes to, stated on screen */
+    h('div', { className: 'schema' },
+      h('span', null, h('b', null, 'Writes to:')),
+      h('span', null, h('code', null, 'qdb_cmspage'), ' page header'),
+      h('span', null, h('code', null, 'qdb_cmspageversion'), ' append-only versions'),
+      h('span', null, h('code', null, 'qdb_cmspublishlog'), ' plugin-only audit'),
+      h('span', null, 'via ', h('code', null, 'qdb_PublishPage'), ' Custom API')
+    ),
+
+    h('div', { className: 'body' },
+      /* ---- page list + create */
+      h('div', { className: 'side' },
+        h('p', { className: 'sec-title' }, 'New page'),
+        h('form', { onSubmit: handleCreate },
+          h('div', { className: 'field' },
+            h('label', { htmlFor: 'pt' }, 'Page title'),
+            h('input', { id: 'pt', value: title, placeholder: 'e.g. About Reyada',
+              onChange: e => setTitle(e.target.value) })),
+          h('button', { className: 'btn', 'data-v': 'primary', type: 'submit',
+            style: { width: '100%' } }, 'Create page')),
+
+        h('p', { className: 'sec-title', style: { marginTop: 22 } }, `Pages (${pages.length})`),
+        h('div', { className: 'plist' },
+          pages.map(p => h('div', {
+            key: p.qdb_cmspageid, className: 'prow',
+            'data-sel': String(selected?.qdb_cmspageid === p.qdb_cmspageid),
+            onClick: () => openPage(p)
+          },
+            h('b', null, p.qdb_titleen,
+              h('span', { className: 'chip', 'data-s': statusOf(p) },
+                statusOf(p) === 'published' ? 'Published' : 'Draft')),
+            h('code', null, '/' + p.qdb_slug))))
+      ),
+
+      /* ---- designer */
+      h('div', { className: 'main' },
+        selected
+          ? h('div', { className: 'editor' },
+              h(Puck, {
+                config, data, metadata: { locale },
+                iframe: { enabled: true },
+                onChange: setData,
+                onPublish: handlePublish,
+                headerPath: selected.qdb_titleen
+              }))
+          : h('div', { className: 'empty' },
+              h('div', null,
+                h('h2', { style: { margin: '0 0 8px' } }, 'No page selected'),
+                h('p', { style: { margin: 0 } },
+                  'Create a page or pick one from the list to open the designer.'))),
+        h(ActivityLog, { rows })
+      )
+    )
+  );
+}
+
+const root = createRoot(document.getElementById('root'));
+try {
+  root.render(h(App));
+} catch (err) {
+  document.getElementById('root').innerHTML =
+    '<div class="err"><b>Failed to start.</b><br>' + String(err) + '</div>';
+}
+
+// A CDN failure must be loud, not a blank page.
+window.addEventListener('error', (e) => {
+  if (String(e.message || '').includes('import') || String(e.filename || '').includes('esm.sh')) {
+    document.getElementById('root').innerHTML =
+      '<div class="err"><b>Could not load React/Puck from esm.sh.</b><br><br>' +
+      'This file loads them over the network. In a hardened CRM environment that is blocked by CSP — ' +
+      'which is exactly why the production build ships as a <b>single bundled web resource</b> ' +
+      '(<code>qdb_cmsdesigner.js</code>) with no external requests.<br><br>' +
+      'To view the demo, open it with an internet connection.</div>';
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+/**
+ * Font FILE loading — deliberately separate from the token system.
+ *
+ * WHY THIS IS NOT A TOKEN:
+ * DXP-P1-003 sanitises every token value at read time and neutralises `url(`
+ * (see apps/api/src/services/tokens/cssUtils.ts — it rewrites `url(` to
+ * `url-blocked(`). An @font-face src therefore CANNOT travel through a token.
+ *
+ * Division of responsibility:
+ *   - This file        → loads the font FILE (@font-face, src, url)
+ *   - Theme token      → selects the font NAME (font-family-base)
+ *
+ * TO INSTALL GE DINAR: drop the licensed .woff2 files into public/fonts/
+ * using the exact names below. No code change required — until the files
+ * exist the browser simply falls through to the next family in the stack.
+ */
+
+@font-face {
+  font-family: 'GE Dinar One';
+  src: url('/fonts/GEDinarOne-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'GE Dinar One';
+  src: url('/fonts/GEDinarOne-Medium.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'GE Dinar One';
+  src: url('/fonts/GEDinarOne-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/**
+ * The token drives the family. `--font-family-base` is injected by
+ * buildCSSCustomProperties into :root. The literal fallback after the var
+ * covers the case where token resolution failed and returned {}.
+ */
+body {
+  font-family: var(--font-family-base, 'Segoe UI', Tahoma, sans-serif);
+  font-size: var(--font-size-body, 16px);
+}

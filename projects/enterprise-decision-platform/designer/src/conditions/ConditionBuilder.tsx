@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react';
 import { listAttributes, type AttributeMeta } from '../metadata/metadataService';
 import { category, operatorsFor, arity } from '../table/tableModel';
-import { emptyGroup, type ConditionModel, type Group, type Clause } from './conditionModel';
+import { emptyGroup, emptyQuantifier, type ConditionModel, type Group, type Clause, type Quantifier } from './conditionModel';
+
+/**
+ * Where a clause's field name comes from.
+ *  - 'entity'  : an attribute of the rule's anchor entity, picked from metadata.
+ *  - 'element' : a property of the element being quantified over. The element's shape is only
+ *                known once a retrieval declares it, so the author types the name. The runtime
+ *                validator suppresses symbol checking inside a quantifier body for the same reason.
+ */
+type FieldSource = 'entity' | 'element';
 
 /**
  * Expression-tree authoring: build a WHEN condition as nested AND / OR / NOT groups of
@@ -40,7 +49,7 @@ export function ConditionBuilder({ entity, value, onChange }: {
     <div className="cb">
       <section className="cb-when">
         <span className="cb-band cb-band-when">When — conditions</span>
-        <GroupEditor group={value.when} onChange={(g) => set({ when: g })} attrs={attrs} root />
+        <GroupEditor group={value.when} onChange={(g) => set({ when: g })} attrs={attrs} fieldSource="entity" root />
       </section>
 
       <section className="cb-then">
@@ -70,9 +79,13 @@ export function ConditionBuilder({ entity, value, onChange }: {
   );
 }
 
-function GroupEditor({ group, onChange, attrs, root, onRemove }: {
-  group: Group; onChange: (g: Group) => void; attrs: AttributeMeta[]; root?: boolean; onRemove?: () => void;
+function GroupEditor({ group, onChange, attrs, fieldSource, root, onRemove }: {
+  group: Group; onChange: (g: Group) => void; attrs: AttributeMeta[]; fieldSource: FieldSource; root?: boolean; onRemove?: () => void;
 }) {
+  const quantifiers = group.quantifiers ?? [];
+  const addQuantifier = () => onChange({ ...group, quantifiers: [...quantifiers, emptyQuantifier()] });
+  const setQuantifier = (i: number, q: Quantifier) => onChange({ ...group, quantifiers: quantifiers.map((x, j) => (j === i ? q : x)) });
+  const removeQuantifier = (i: number) => onChange({ ...group, quantifiers: quantifiers.filter((_, j) => j !== i) });
   const addClause = () => onChange({ ...group, clauses: [...group.clauses, { field: '', fieldType: '', operator: '', value: '' }] });
   const setClause = (i: number, patch: Partial<Clause>) => onChange({ ...group, clauses: group.clauses.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
   const removeClause = (i: number) => onChange({ ...group, clauses: group.clauses.filter((_, j) => j !== i) });
@@ -92,30 +105,70 @@ function GroupEditor({ group, onChange, attrs, root, onRemove }: {
         {!root && onRemove && <button className="cb-x" title="Remove group" onClick={onRemove}>✕</button>}
       </div>
 
-      {group.clauses.map((c, i) => <ClauseEditor key={i} clause={c} attrs={attrs} onChange={(p) => setClause(i, p)} onRemove={() => removeClause(i)} />)}
-      {group.groups.map((g, i) => <GroupEditor key={i} group={g} attrs={attrs} onChange={(ng) => setGroup(i, ng)} onRemove={() => removeGroup(i)} />)}
+      {group.clauses.map((c, i) => <ClauseEditor key={i} clause={c} attrs={attrs} fieldSource={fieldSource} onChange={(p) => setClause(i, p)} onRemove={() => removeClause(i)} />)}
+      {quantifiers.map((q, i) => <QuantifierEditor key={i} quantifier={q} attrs={attrs} onChange={(nq) => setQuantifier(i, nq)} onRemove={() => removeQuantifier(i)} />)}
+      {group.groups.map((g, i) => <GroupEditor key={i} group={g} attrs={attrs} fieldSource={fieldSource} onChange={(ng) => setGroup(i, ng)} onRemove={() => removeGroup(i)} />)}
 
       <div className="cb-group-actions">
         <button className="cb-add" onClick={addClause}>+ condition</button>
+        <button className="cb-add" onClick={addQuantifier}>+ for each</button>
         <button className="cb-add" onClick={addGroup}>+ group</button>
       </div>
     </div>
   );
 }
 
-function ClauseEditor({ clause, attrs, onChange, onRemove }: {
-  clause: Clause; attrs: AttributeMeta[]; onChange: (p: Partial<Clause>) => void; onRemove: () => void;
+/**
+ * "For each element of <collection>, some / all / none satisfy ..." — the authoring shape of a
+ * quantifier. The body is an ordinary group, so every operator, nesting and NOT works inside it
+ * exactly as outside; only the field source changes.
+ */
+function QuantifierEditor({ quantifier, attrs, onChange, onRemove }: {
+  quantifier: Quantifier; attrs: AttributeMeta[]; onChange: (q: Quantifier) => void; onRemove: () => void;
+}) {
+  return (
+    <div className="cb-quant">
+      <div className="cb-quant-h">
+        <select className="cb-quant-kind" value={quantifier.kind}
+          onChange={(e) => onChange({ ...quantifier, kind: e.target.value as Quantifier['kind'] })}>
+          <option value="all">ALL of</option>
+          <option value="some">SOME of</option>
+          <option value="none">NONE of</option>
+        </select>
+        <input className="cb-quant-coll" value={quantifier.collection} placeholder="collection (e.g. invoices)"
+          onChange={(e) => onChange({ ...quantifier, collection: e.target.value })} />
+        <span className="cb-quant-sat">satisfy</span>
+        <span className="spacer" />
+        <button className="cb-x" title="Remove for-each" onClick={onRemove}>✕</button>
+      </div>
+      <GroupEditor group={quantifier.where} attrs={attrs} fieldSource="element"
+        onChange={(g) => onChange({ ...quantifier, where: g })} root />
+      <p className="cb-quant-hint muted">
+        Fields here belong to each element. A parent field of the same name is shadowed, so compare
+        against a differently-named parent field.
+      </p>
+    </div>
+  );
+}
+
+function ClauseEditor({ clause, attrs, fieldSource, onChange, onRemove }: {
+  clause: Clause; attrs: AttributeMeta[]; fieldSource: FieldSource; onChange: (p: Partial<Clause>) => void; onRemove: () => void;
 }) {
   const cat = clause.fieldType ? category(clause.fieldType) : 'text';
   const ops = operatorsFor(cat);
   const n = arity(cat, clause.operator);
   return (
     <div className="cb-clause">
-      <select className="cb-field" value={clause.field}
-        onChange={(e) => { const a = attrs.find((x) => x.logicalName === e.target.value); onChange({ field: e.target.value, fieldType: a?.type ?? 'Text', operator: '', value: '' }); }}>
-        <option value="">— field —</option>
-        {attrs.map((a) => <option key={a.logicalName} value={a.logicalName}>{a.displayName}</option>)}
-      </select>
+      {fieldSource === 'entity' ? (
+        <select className="cb-field" value={clause.field}
+          onChange={(e) => { const a = attrs.find((x) => x.logicalName === e.target.value); onChange({ field: e.target.value, fieldType: a?.type ?? 'Text', operator: '', value: '' }); }}>
+          <option value="">— field —</option>
+          {attrs.map((a) => <option key={a.logicalName} value={a.logicalName}>{a.displayName}</option>)}
+        </select>
+      ) : (
+        <input className="cb-field" value={clause.field} placeholder="element field"
+          onChange={(e) => onChange({ field: e.target.value, fieldType: clause.fieldType || 'Text' })} />
+      )}
       <select className="cb-op2" value={clause.operator} disabled={!clause.field} onChange={(e) => onChange({ operator: e.target.value })}>
         <option value="">op</option>
         {ops.filter((o) => o.op !== 'Any').map((o) => <option key={o.op} value={o.op}>{o.label}</option>)}

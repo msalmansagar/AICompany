@@ -1,107 +1,158 @@
 import type { ViewMode } from '../types/ViewMode';
 import { VIEW_MODES } from '../types/ViewMode';
 import type { LayoutDir } from '../services/WorkflowGraphBuilder';
+import { ToolbarButton, ToolbarOverflow } from './common/ToolbarButton';
+import { useMinWidth } from './common/useMinWidth';
 
 interface ViewToolbarProps {
   processName: string | null;
+  /** 'draft' | 'published' | 'archived' — drawn as a pill beside the name. */
+  workflowState?: string | null;
   isLoading: boolean;
   isExporting: boolean;
   showMiniMap: boolean;
+  showEdgeLabels: boolean;
+  /** True once a node has been dragged and the arrangement is unsaved. */
+  isLayoutDirty: boolean;
+  isSavingLayout: boolean;
   viewMode: ViewMode;
   layoutDir: LayoutDir;
-  onOpen(): void;
   onRefresh(): void;
   onFitView(): void;
   onAutoLayout(): void;
   onToggleMiniMap(): void;
+  onToggleEdgeLabels(): void;
+  onSaveLayout(): void;
   onDownloadPng(): void;
   onDownloadPdf(): void;
   onViewModeChange(mode: ViewMode): void;
   onLayoutDirChange(dir: LayoutDir): void;
   onNewProcess(): void;
   onEditProcess?(): void;
-  onBackToList?(): void;
+  onOpenSummary?(): void;
 }
 
 export function ViewToolbar({
   processName,
+  workflowState,
   isLoading,
   isExporting,
   showMiniMap,
+  showEdgeLabels,
+  isLayoutDirty,
+  isSavingLayout,
   viewMode,
   layoutDir,
-  onOpen,
   onRefresh,
   onFitView,
   onAutoLayout,
   onToggleMiniMap,
+  onToggleEdgeLabels,
+  onSaveLayout,
   onDownloadPng,
   onDownloadPdf,
   onViewModeChange,
   onLayoutDirChange,
   onNewProcess,
   onEditProcess,
-  onBackToList,
+  onOpenSummary,
 }: ViewToolbarProps) {
+  // Wide screens carry the words beside the icons; narrow ones fall back to
+  // icon-only with export folded into the overflow, so the bar never scrolls
+  // sideways (agentation feedback, CWFD-018).
+  const isWide = useMinWidth(1280);
   return (
-    <div style={wrapperStyle}>
-      {/* Row 1 — identity + actions */}
-      <div style={barStyle} role="toolbar" aria-label="Workflow Viewer Toolbar">
-        <div style={identityStyle}>
-          {onBackToList && (
-            <button type="button" style={backBtnStyle} onClick={onBackToList} title="Back to process list">
-              ← Processes
-            </button>
-          )}
-          <span style={logoText}>Workflow Designer</span>
-          {isLoading && <span style={loadingBadge}>Loading…</span>}
-          {!isLoading && processName && (
-            <>
-              <span style={dividerStyle} />
-              <span style={processNameStyle}>{processName}</span>
-            </>
-          )}
-        </div>
+    <>
+      {/* Navigation lives in the sitemap, so this bar carries only what acts on
+          the process being viewed. */}
+      <div className="cmdbar" role="toolbar" aria-label="Workflow viewer">
+        <ToolbarButton icon="new" label="New" title="Create a new workflow process" tone="primary" onClick={onNewProcess} />
+        {onEditProcess && processName && (
+          <ToolbarButton icon="edit" label="Edit" title="Edit this workflow" onClick={onEditProcess} />
+        )}
+        {onOpenSummary && processName && (
+          <ToolbarButton icon="summary" label="Summary" title="Open the full process summary" onClick={onOpenSummary} />
+        )}
+        <span className="cmd-sep" />
 
-        <div style={actionsStyle}>
-          <ToolBtn label="New Process" onClick={onNewProcess} title="Create a new workflow process" primary />
-          <ToolBtn label="Open" onClick={onOpen} title="Open a workflow" />
-          {onEditProcess && processName && (
-            <>
-              <Sep />
-              <ToolBtn label="Edit" onClick={onEditProcess} title="Edit this workflow" />
-            </>
-          )}
-          <Sep />
-          <ToolBtn label="Refresh" onClick={onRefresh} title="Reload from CRM" disabled={isLoading} />
-          <ToolBtn label="Fit View" onClick={onFitView} title="Fit diagram to screen" />
-          <ToolBtn label="Auto Layout" onClick={onAutoLayout} title="Re-apply layout and reset positions" />
-          <Sep />
-          <ToolBtn
-            label={isExporting ? 'Exporting…' : 'PNG'}
-            onClick={onDownloadPng}
-            title="Download as PNG image"
-            disabled={isExporting}
+        {/* Canvas controls: words beside the glyphs where the width allows,
+            glyph-only where it does not — the long form always lives in the
+            tooltip either way. */}
+        <ToolbarButton icon="refresh" label="Reload" title="Reload from CRM" iconOnly={!isWide} disabled={isLoading} onClick={onRefresh} />
+        <ToolbarButton icon="fit" label="Fit" title="Fit diagram to screen" iconOnly={!isWide} onClick={onFitView} />
+        <ToolbarButton icon="layout" label="Arrange" title="Re-apply layout and reset positions" iconOnly={!isWide} onClick={onAutoLayout} />
+        <span className="cmd-sep" />
+        <ToolbarButton
+          icon="minimap"
+          label="Minimap"
+          title={showMiniMap ? 'Hide the minimap' : 'Show the minimap'}
+          iconOnly={!isWide}
+          active={showMiniMap}
+          onClick={onToggleMiniMap}
+        />
+        <ToolbarButton
+          icon="labels"
+          label="Labels"
+          title={showEdgeLabels ? 'Hide the labels on edges' : 'Show the labels on edges'}
+          iconOnly={!isWide}
+          active={!showEdgeLabels}
+          onClick={onToggleEdgeLabels}
+        />
+        {isLayoutDirty && (
+          <ToolbarButton
+            icon="saveLayout"
+            label={isSavingLayout ? 'Saving…' : 'Save layout'}
+            title="Keep this arrangement for everyone who opens this view"
+            tone="primary"
+            disabled={isSavingLayout}
+            onClick={onSaveLayout}
           />
-          <ToolBtn
-            label={isExporting ? 'Exporting…' : 'PDF'}
-            onClick={onDownloadPdf}
-            title="Download as PDF document"
-            disabled={isExporting}
+        )}
+        {/* Export: two labelled buttons where they fit, one overflow where
+            they do not (this is what "appears based on screen size"). */}
+        {isWide ? (
+          <>
+            <ToolbarButton
+              icon="png"
+              label={isExporting ? 'Exporting…' : 'PNG'}
+              title="Download the diagram as a PNG image"
+              disabled={isExporting}
+              onClick={onDownloadPng}
+            />
+            <ToolbarButton
+              icon="pdf"
+              label={isExporting ? 'Exporting…' : 'PDF'}
+              title="Download the diagram as a PDF"
+              disabled={isExporting}
+              onClick={onDownloadPdf}
+            />
+          </>
+        ) : (
+          <ToolbarOverflow
+            label="Export"
+            items={[
+              { icon: 'png', label: isExporting ? 'Exporting…' : 'Download as PNG', onClick: onDownloadPng, disabled: isExporting },
+              { icon: 'pdf', label: isExporting ? 'Exporting…' : 'Download as PDF', onClick: onDownloadPdf, disabled: isExporting },
+            ]}
           />
-          <Sep />
-          <ToolBtn
-            label={showMiniMap ? 'Hide Map' : 'Mini Map'}
-            onClick={onToggleMiniMap}
-            title="Toggle minimap"
-            active={showMiniMap}
-          />
-        </div>
+        )}
+        <span className="cmd-spacer" />
+        {isLoading && <span className="pill info">Loading…</span>}
+        {!isLoading && processName && (
+          <>
+            {workflowState && (
+              <span className={workflowState === 'published' ? 'pill published' : 'pill draft'}>
+                {workflowState === 'published' ? 'Published' : workflowState === 'archived' ? 'Archived' : 'Draft'}
+              </span>
+            )}
+            <span style={processNameStyle}>{processName}</span>
+          </>
+        )}
       </div>
 
       {/* Row 2 — view mode selector + layout direction toggle */}
-      <div style={modeBarStyle} role="tablist" aria-label="View Mode">
-        <span style={modeLabel}>View:</span>
+      {/* The view modes are pivot tabs, as the design system draws a tab set. */}
+      <div className="pivot" role="tablist" aria-label="View mode">
         {VIEW_MODES.map((m) => (
           <button
             key={m.id}
@@ -110,7 +161,7 @@ export function ViewToolbar({
             title={m.description}
             aria-selected={viewMode === m.id}
             onClick={() => onViewModeChange(m.id)}
-            style={modeTab(viewMode === m.id)}
+            className={viewMode === m.id ? 'pivot-tab active' : 'pivot-tab'}
           >
             {m.label}
           </button>
@@ -119,12 +170,12 @@ export function ViewToolbar({
           {VIEW_MODES.find((m) => m.id === viewMode)?.description}
         </span>
 
-        <div style={dirToggleGroup}>
+        <div className="pivot-end">
           <button
             type="button"
             title="Top-to-Bottom layout"
             onClick={() => onLayoutDirChange('TB')}
-            style={dirBtn(layoutDir === 'TB')}
+            className={layoutDir === 'TB' ? 'btn sm primary' : 'btn sm'}
           >
             ↕ TB
           </button>
@@ -132,214 +183,34 @@ export function ViewToolbar({
             type="button"
             title="Left-to-Right layout"
             onClick={() => onLayoutDirChange('LR')}
-            style={dirBtn(layoutDir === 'LR')}
+            className={layoutDir === 'LR' ? 'btn sm primary' : 'btn sm'}
           >
             ↔ LR
           </button>
         </div>
       </div>
-    </div>
+    </>
   );
-}
-
-function ToolBtn({
-  label,
-  onClick,
-  title,
-  disabled = false,
-  primary = false,
-  active = false,
-}: {
-  label: string;
-  onClick(): void;
-  title?: string;
-  disabled?: boolean;
-  primary?: boolean;
-  active?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        ...btnBase,
-        ...(primary ? btnPrimary : active ? btnActive : btnSecondary),
-        ...(disabled ? btnDisabled : {}),
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
-function Sep() {
-  return <div style={sepStyle} />;
 }
 
 // ─── Styles ────────────────────────────────────────────────────────────────
 
-const wrapperStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  flexShrink: 0,
-  zIndex: 10,
-};
-
-const barStyle: React.CSSProperties = {
-  height: 44,
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  padding: '0 16px',
-  background: '#1e293b',
-  borderBottom: '1px solid #334155',
-};
-
-const modeBarStyle: React.CSSProperties = {
-  height: 34,
-  display: 'flex',
-  alignItems: 'center',
-  gap: 4,
-  padding: '0 16px',
-  background: '#0f172a',
-  borderBottom: '1px solid #1e293b',
-};
-
-const modeLabel: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 600,
-  color: '#64748b',
-  letterSpacing: '0.05em',
-  textTransform: 'uppercase',
-  marginRight: 4,
-  flexShrink: 0,
-};
-
 const modeDescription: React.CSSProperties = {
   fontSize: 11,
-  color: '#475569',
+  color: 'var(--text-secondary)',
   marginLeft: 8,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
   flex: 1,
-};
-
-const dirToggleGroup: React.CSSProperties = {
-  display: 'flex',
-  gap: 2,
-  marginLeft: 8,
-  flexShrink: 0,
-};
-
-function dirBtn(active: boolean): React.CSSProperties {
-  return {
-    height: 22,
-    padding: '0 8px',
-    fontSize: 10,
-    fontWeight: active ? 600 : 400,
-    borderRadius: 4,
-    border: active ? '1px solid #0ea5e9' : '1px solid #334155',
-    background: active ? '#0c4a6e' : 'transparent',
-    color: active ? '#7dd3fc' : '#64748b',
-    cursor: 'pointer',
-    transition: 'background 0.1s, color 0.1s',
-    flexShrink: 0,
-    letterSpacing: '0.02em',
-  };
-}
-
-function modeTab(active: boolean): React.CSSProperties {
-  return {
-    height: 24,
-    padding: '0 12px',
-    fontSize: 11,
-    fontWeight: active ? 600 : 400,
-    borderRadius: 4,
-    border: active ? '1px solid #3b82f6' : '1px solid transparent',
-    background: active ? '#1d4ed8' : 'transparent',
-    color: active ? '#fff' : '#94a3b8',
-    cursor: 'pointer',
-    transition: 'background 0.1s, color 0.1s',
-    flexShrink: 0,
-  };
-}
-
-const identityStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  flex: 1,
-  minWidth: 0,
-  overflow: 'hidden',
-};
-
-const logoText: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 700,
-  color: '#94a3b8',
-  flexShrink: 0,
-};
-
-const loadingBadge: React.CSSProperties = {
-  fontSize: 11,
-  color: '#60a5fa',
-};
-
-const dividerStyle: React.CSSProperties = {
-  width: 1,
-  height: 14,
-  background: '#475569',
-  flexShrink: 0,
 };
 
 const processNameStyle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
-  color: '#f1f5f9',
+  color: 'var(--text)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
 };
 
-const actionsStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 4,
-  flexShrink: 0,
-};
-
-const btnBase: React.CSSProperties = {
-  height: 28,
-  padding: '0 12px',
-  fontSize: 12,
-  fontWeight: 500,
-  borderRadius: 4,
-  border: 'none',
-  cursor: 'pointer',
-  transition: 'background 0.1s',
-};
-
-const backBtnStyle: React.CSSProperties = {
-  height: 24,
-  padding: '0 10px',
-  fontSize: 11,
-  fontWeight: 600,
-  borderRadius: 4,
-  border: '1px solid #334155',
-  background: 'transparent',
-  color: '#94a3b8',
-  cursor: 'pointer',
-  flexShrink: 0,
-  marginRight: 4,
-};
-
-const btnSecondary: React.CSSProperties = { background: '#334155', color: '#e2e8f0' };
-const btnPrimary: React.CSSProperties = { background: '#2563eb', color: '#fff' };
-const btnActive: React.CSSProperties = { background: '#0f172a', color: '#60a5fa' };
-const btnDisabled: React.CSSProperties = { opacity: 0.45, cursor: 'not-allowed' };
-const sepStyle: React.CSSProperties = {
-  width: 1, height: 20, background: '#475569', margin: '0 4px',
-};

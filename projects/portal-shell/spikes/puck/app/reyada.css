@@ -1,0 +1,718 @@
+/**
+ * Reyada Advisory portal — visual system.
+ *
+ * Palette lifted from the reference design and exposed as custom properties so
+ * DXP-P1-003 theme tokens can override any of them per service/locale without
+ * touching component code.
+ *
+ * RTL: logical properties only. No left/right anywhere.
+ */
+
+:root {
+  --rey-green: #3d8a72;
+  --rey-green-dark: #2f7d68;
+  --rey-green-soft: #e6f2ee;
+  --rey-navy: #1b3a63;
+  --rey-navy-soft: #e9f0fb;
+  --rey-purple: #6b4bb0;
+  --rey-purple-soft: #f2ecfb;
+  --rey-canvas: #f4f6f8;
+  --rey-surface: #ffffff;
+  --rey-border: #e5e8eb;
+  --rey-border-soft: #eef1f4;
+  --rey-ink: #1a2129;
+  --rey-muted: #5d6b7a;
+  --rey-strip: #f3f5f7;
+  --rey-radius: 12px;
+}
+
+/* ================================================================ shell == */
+
+.rey-shell {
+  display: grid;
+  grid-template-columns: 315px 1fr;
+  min-block-size: 100vh;
+  background: var(--rey-canvas);
+  color: var(--rey-ink);
+  font-family: var(--font-family-base, 'Segoe UI', Tahoma, sans-serif);
+  max-inline-size: 100%;
+  overflow-x: hidden;
+}
+
+.rey-shell__aside {
+  background: var(--rey-surface);
+  border-inline-end: 1px solid var(--rey-border);
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.rey-shell__body {
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  container-type: inline-size;
+  container-name: rey-body;
+}
+
+.rey-shell__main {
+  padding-inline: 38px;
+  padding-block-end: 40px;
+  min-inline-size: 0;
+}
+
+/* ============================================================== sidebar == */
+
+.rey-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-block: 26px;
+  padding-inline: 24px;
+}
+
+.rey-brand__mark {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  line-height: 1;
+}
+
+.rey-brand__ar {
+  font-size: 21px;
+  font-weight: 700;
+  color: var(--rey-green-dark);
+}
+
+.rey-brand__en {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--rey-green-dark);
+}
+
+.rey-brand__chip {
+  background: var(--rey-green-dark);
+  color: #fff;
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding-block: 2px;
+  padding-inline: 6px;
+  border-radius: 3px;
+}
+
+.rey-brand__divider {
+  inline-size: 1px;
+  align-self: stretch;
+  background: var(--rey-border);
+}
+
+.rey-brand__powered {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  line-height: 1.15;
+}
+
+.rey-brand__powered-label {
+  font-size: 7px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--rey-muted);
+}
+
+.rey-brand__qdb {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--rey-navy);
+}
+
+.rey-brand__qdb-sub {
+  font-size: 6.5px;
+  color: var(--rey-muted);
+}
+
+.rey-nav {
+  padding-inline: 20px;
+  padding-block-start: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rey-nav__link {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-block: 13px;
+  padding-inline: 16px;
+  border-radius: 10px;
+  color: var(--rey-ink);
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.rey-nav__link:hover {
+  background: var(--rey-border-soft);
+}
+
+.rey-nav__link[data-active='true'] {
+  background: var(--rey-green-soft);
+  color: var(--rey-green-dark);
+  font-weight: 600;
+}
+
+.rey-nav__chevron {
+  margin-inline-start: auto;
+  color: var(--rey-muted);
+}
+
+/* Decorative pattern block from the reference, bottom of the rail. */
+.rey-aside__pattern {
+  margin-block-start: auto;
+  block-size: 300px;
+  opacity: 0.5;
+  background-image: radial-gradient(var(--rey-green-soft) 1px, transparent 1px);
+  background-size: 78px 78px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 40%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 40%, transparent);
+  pointer-events: none;
+}
+
+.rey-aside__collapse {
+  position: absolute;
+  inset-block-end: 26px;
+  inset-inline-end: 26px;
+  background: none;
+  border: none;
+  color: var(--rey-muted);
+  cursor: pointer;
+  padding: 4px;
+}
+
+/* =========================================================== welcome bar */
+
+.rey-welcome {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-block: 22px;
+  padding-inline: 38px;
+}
+
+.rey-welcome__icon {
+  inline-size: 46px;
+  block-size: 46px;
+  border-radius: 50%;
+  background: var(--rey-green-soft);
+  color: var(--rey-green-dark);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.rey-welcome__name {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.rey-welcome__role {
+  font-size: 14px;
+  color: var(--rey-muted);
+}
+
+.rey-welcome__actions {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+.rey-welcome__support {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--rey-ink);
+  text-decoration: none;
+  font-size: 15px;
+}
+
+.rey-welcome__support svg {
+  color: var(--rey-muted);
+}
+
+.rey-avatar {
+  inline-size: 46px;
+  block-size: 46px;
+  border-radius: 50%;
+  background: var(--rey-green-soft);
+  color: var(--rey-green-dark);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+/* ============================================================== heading == */
+
+.rey-heading {
+  padding-inline: 38px;
+  padding-block-end: 22px;
+}
+
+.rey-heading h1 {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.rey-heading p {
+  margin: 8px 0 0;
+  color: var(--rey-muted);
+  font-size: 15px;
+}
+
+/* ================================================================ grid == */
+
+.rey-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 420px);
+  gap: 24px;
+  align-items: start;
+}
+
+.rey-col {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-inline-size: 0;
+}
+
+/* =============================================================== cards == */
+
+.rey-card {
+  background: var(--rey-surface);
+  border: 1px solid var(--rey-border);
+  border-radius: var(--rey-radius);
+  padding: 24px;
+}
+
+.rey-card__head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-block-end: 6px;
+}
+
+.rey-card__title {
+  font-size: 19px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.rey-card__viewall {
+  margin-inline-start: auto;
+  color: var(--rey-green-dark);
+  font-size: 15px;
+  text-decoration: none;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.rey-card__sub {
+  margin: 0 0 20px;
+  color: var(--rey-muted);
+  font-size: 14.5px;
+}
+
+/* ========================================================= event cards == */
+
+.rey-events {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
+  gap: 20px;
+}
+
+.rey-event {
+  border: 1px solid var(--rey-border);
+  border-radius: var(--rey-radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* min-inline-size: 0 lets the grid track shrink below its max-content size.
+     overflow: hidden is a guard for unbreakable strings only — it is NOT what
+     keeps the buttons inside the card. That was a missing `box-sizing:
+     border-box`, now set globally in reset.css. */
+  min-inline-size: 0;
+  overflow: hidden;
+}
+
+.rey-event > * {
+  max-inline-size: 100%;
+}
+
+.rey-event__media {
+  block-size: 155px;
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+}
+
+.rey-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  align-self: flex-start;
+  border-radius: 999px;
+  padding-block: 5px;
+  padding-inline: 11px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.rey-badge[data-tone='green'] {
+  background: var(--rey-green-soft);
+  color: var(--rey-green-dark);
+  border-color: #cfe5dd;
+}
+.rey-badge[data-tone='navy'] {
+  background: var(--rey-navy-soft);
+  color: #2b4f8f;
+  border-color: #d5e1f5;
+}
+.rey-badge[data-tone='purple'] {
+  background: var(--rey-purple-soft);
+  color: var(--rey-purple);
+  border-color: #e2d7f5;
+}
+.rey-badge[data-tone='sme'] {
+  background: var(--rey-green-soft);
+  color: var(--rey-green-dark);
+  border-color: #cfe5dd;
+}
+
+.rey-event__title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rey-meta {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--rey-muted);
+  font-size: 13.5px;
+  min-inline-size: 0;
+}
+
+.rey-meta span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rey-meta__list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.rey-event__reg {
+  background: var(--rey-strip);
+  border-radius: 6px;
+  padding-block: 9px;
+  padding-inline: 12px;
+  font-size: 12.5px;
+  color: var(--rey-muted);
+  text-align: center;
+}
+
+/* ============================================================= buttons == */
+
+.rey-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border-radius: 8px;
+  padding-block: 12px;
+  padding-inline: 20px;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  inline-size: 100%;
+  /* Labels are short by design; wrapping "Go to Portal" onto two lines reads
+     as a layout fault rather than a deliberate break. */
+  white-space: nowrap;
+}
+
+.rey-btn[data-variant='outline'] {
+  background: var(--rey-surface);
+  border-color: var(--rey-border);
+  color: var(--rey-ink);
+}
+
+.rey-btn[data-variant='primary'] {
+  background: var(--rey-green);
+  color: #fff;
+}
+
+.rey-btn[data-variant='navy'] {
+  background: var(--rey-navy);
+  color: #fff;
+}
+
+.rey-btn[data-variant='outline-green'] {
+  background: var(--rey-surface);
+  border-color: var(--rey-green);
+  color: var(--rey-green-dark);
+}
+
+.rey-btn[data-auto='true'] {
+  inline-size: auto;
+}
+
+/* ============================================================= academy == */
+
+.rey-academy__item {
+  display: grid;
+  grid-template-columns: 295px minmax(0, 1fr);
+  gap: 24px;
+  border: 1px solid var(--rey-border);
+  border-radius: var(--rey-radius);
+  padding: 14px;
+  align-items: center;
+}
+
+.rey-academy__media {
+  block-size: 205px;
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+}
+
+.rey-academy__title {
+  margin: 0 0 10px;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--rey-navy);
+}
+
+.rey-academy__desc {
+  margin: 0 0 16px;
+  color: var(--rey-muted);
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+.rey-academy__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-block-start: 18px;
+}
+
+.rey-dots {
+  display: flex;
+  justify-content: center;
+  gap: 9px;
+  margin-block-start: 20px;
+}
+
+.rey-dots i {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: #d3d9df;
+  display: block;
+}
+
+.rey-dots i[data-active='true'] {
+  background: var(--rey-green);
+}
+
+/* ============================================================ services == */
+
+.rey-services {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+}
+
+.rey-service {
+  border: 1px solid var(--rey-border);
+  border-radius: var(--rey-radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-inline-size: 0;
+}
+
+.rey-service__media {
+  block-size: 120px;
+  border-radius: 8px;
+  background-size: cover;
+  background-position: center;
+}
+
+.rey-service__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* ============================================================= promo ==== */
+
+.rey-promo__media {
+  block-size: 215px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  padding: 24px;
+  gap: 12px;
+  position: relative;
+  background-size: cover;
+  background-position: center;
+}
+
+.rey-promo__title {
+  color: #fff;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 0;
+  max-inline-size: 62%;
+}
+
+.rey-promo__icon {
+  margin-inline-start: auto;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.rey-promo__body {
+  margin: 18px 0 20px;
+  color: var(--rey-muted);
+  font-size: 14.5px;
+  line-height: 1.65;
+}
+
+/* ================================================== registered events === */
+
+.rey-reg {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.rey-reg__item {
+  border-inline-start: 3px solid var(--rey-green);
+  padding-inline-start: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rey-reg__item[data-tone='navy'] {
+  border-inline-start-color: var(--rey-navy);
+}
+
+.rey-reg__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.rey-reg__all {
+  display: block;
+  text-align: center;
+  margin-block-start: 22px;
+  color: var(--rey-navy);
+  font-size: 15px;
+  text-decoration: underline;
+  font-weight: 500;
+}
+
+/* ================================================================ CR ==== */
+
+.rey-cr__note {
+  margin: 16px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--rey-muted);
+  font-size: 13.5px;
+  flex-wrap: wrap;
+}
+
+/* ========================================================== responsive == */
+
+@container rey-body (max-width: 1000px) {
+  .rey-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .rey-academy__item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .rey-academy__media {
+    block-size: 180px;
+  }
+}
+
+@media (max-width: 900px) {
+  .rey-shell {
+    grid-template-columns: 1fr;
+  }
+  .rey-shell__aside {
+    border-inline-end: none;
+    border-block-end: 1px solid var(--rey-border);
+  }
+  .rey-aside__pattern,
+  .rey-aside__collapse {
+    display: none;
+  }
+  .rey-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    padding-block-end: 16px;
+    scrollbar-width: none;
+  }
+  .rey-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .rey-nav__link {
+    white-space: nowrap;
+  }
+  .rey-nav__chevron {
+    display: none;
+  }
+  .rey-welcome,
+  .rey-heading,
+  .rey-shell__main {
+    padding-inline: 16px;
+  }
+  .rey-welcome__support span {
+    display: none;
+  }
+  .rey-heading h1 {
+    font-size: 24px;
+  }
+  .rey-promo__title {
+    font-size: 21px;
+    max-inline-size: 70%;
+  }
+}

@@ -1,9 +1,17 @@
 import dagre from '@dagrejs/dagre';
+import { routeLabelPair, EXEC_EDGE_LABEL } from '../styles/surfacePairs';
 import { MarkerType } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
 import type { CrmStep, CrmOutcome, CrmRoute } from '../types/ViewTypes';
 import type { LayoutDir } from './WorkflowGraphBuilder';
-import { MARKER_SIZE, GATEWAY_SIZE, conditionLabel, branchRouteDestinations } from './WorkflowGraphBuilder';
+import {
+  MARKER_SIZE,
+  GATEWAY_SIZE,
+  branchRouteDestinations,
+  buildAnchorEdges,
+} from './WorkflowGraphBuilder';
+import { classifyCorrectionSteps } from './correctionSteps';
+import { routeCanvasLabel } from './routeDisplay';
 
 export const EXEC_STEP_W = 300;
 export const EXEC_STEP_H = 78;
@@ -23,8 +31,26 @@ export function buildExecutiveGraph(
   dir: LayoutDir = 'TB',
   routes: CrmRoute[] = []
 ): { nodes: Node[]; edges: Edge[] } {
-  const sorted = [...steps].sort((a, b) => a.sequenceNo - b.sequenceNo);
+  // Management reads the happy path (CWFD-009 P8): correction loops are not
+  // part of it, so here they are not collapsed — they are gone, along with
+  // every edge that only existed to reach them.
+  const correctionInfo = classifyCorrectionSteps(
+    steps.map((s) => ({ id: s.id, sequenceNo: s.sequenceNo })),
+    outcomes.map((o) => ({
+      stepId: o.stepId,
+      nextStepId: o.nextStepId,
+      sequenceNumber: o.sequenceNumber,
+      isConditional: o.applyFilter,
+    }))
+  );
+  const hiddenStepIds = correctionInfo.correctionIds;
+  const sorted = steps
+    .filter((s) => !hiddenStepIds.has(s.id))
+    .sort((a, b) => a.sequenceNo - b.sequenceNo);
   const stepById = new Map(sorted.map((s) => [s.id, s]));
+  outcomes = outcomes.filter(
+    (o) => !hiddenStepIds.has(o.stepId) && !(o.nextStepId && hiddenStepIds.has(o.nextStepId))
+  );
 
   const outcomesByStep = new Map<string, CrmOutcome[]>();
   for (const step of sorted) outcomesByStep.set(step.id, []);
@@ -111,9 +137,9 @@ export function buildExecutiveGraph(
     id: 'e_exec_start',
     source: START_NODE_ID, target: `step_${firstStep.id}`,
     sourceHandle: 'out', targetHandle: 'in',
-    type: 'smoothstep',
-    style: { stroke: '#16a34a', strokeWidth: 2 },
-    markerEnd: { type: MarkerType.ArrowClosed, color: '#16a34a' },
+    type: 'default',
+    style: { stroke: 'var(--success)', strokeWidth: 2 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--success)' },
     selectable: false,
   };
 
@@ -133,29 +159,28 @@ export function buildExecutiveGraph(
           id: `e_exec_entry_${o.id}`,
           source: `step_${o.stepId}`, target: `gw_${o.id}`,
           sourceHandle: 'out', targetHandle: 'in',
-          type: 'smoothstep',
-          style: { stroke: '#d97706', strokeWidth: 1.5, strokeDasharray: '5 3' },
-          markerEnd: { type: MarkerType.ArrowClosed, color: '#d97706' },
+          type: 'default',
+          style: { stroke: 'var(--warning)', strokeWidth: 1.5, strokeDasharray: '5 3' },
+          markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--warning)' },
           selectable: false,
         });
       }
 
       for (const route of outcomeRoutes) {
         const targetId = route.nextStepId ? `step_${route.nextStepId}` : END_NODE_ID;
-        const isFallback = !route.filter?.trim();
-        const stroke = isFallback ? '#16a34a' : '#d97706';
-        const cond = conditionLabel(route.filter);
-        const label = route.name && cond !== 'else' ? `${route.name}: ${cond}` : cond;
+        const isFallback = route.isDefault;
+        const stroke = isFallback ? 'var(--success)' : 'var(--warning)';
+        const label = routeCanvasLabel(route);
 
         forwardEdges.push({
           id: `e_exec_route_${route.id}`,
           source: `gw_${o.id}`, target: targetId,
           sourceHandle: 'out', targetHandle: 'in',
-          type: 'smoothstep',
+          type: 'default',
           animated: !isFallback,
           label,
-          labelStyle: { fontSize: 9, fontWeight: 600, fill: isFallback ? '#166534' : '#92400e' },
-          labelBgStyle: { fill: isFallback ? '#f0fdf4' : '#fef3c7', fillOpacity: 1 },
+          labelStyle: { fontSize: 9, fontWeight: 600, fill: routeLabelPair(isFallback ? 'fallback' : 'conditional').foreground },
+          labelBgStyle: { fill: routeLabelPair(isFallback ? 'fallback' : 'conditional').background, fillOpacity: 1 },
           style: { stroke, strokeWidth: 1.5, strokeDasharray: isFallback ? '4 4' : undefined },
           markerEnd: { type: MarkerType.ArrowClosed, color: stroke },
           selectable: true,
@@ -169,12 +194,12 @@ export function buildExecutiveGraph(
         id: `e_exec_fwd_${o.stepId}_${o.nextStepId}`,
         source: `step_${o.stepId}`, target: `step_${o.nextStepId}`,
         sourceHandle: 'out', targetHandle: 'in',
-        type: 'smoothstep',
+        type: 'default',
         label: primaryLabelByStep.get(o.stepId) ?? undefined,
-        labelStyle: { fontSize: 11, fill: '#475569', fontWeight: 500 },
-        labelBgStyle: { fill: '#f8fafc', fillOpacity: 0.9, rx: 4 },
-        style: { stroke: '#475569', strokeWidth: 2 },
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#475569' },
+        labelStyle: { fontSize: 11, fill: EXEC_EDGE_LABEL.foreground, fontWeight: 500 },
+        labelBgStyle: { fill: EXEC_EDGE_LABEL.background, fillOpacity: 1, rx: 4 },
+        style: { stroke: 'var(--text-secondary)', strokeWidth: 2 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--text-secondary)' },
         selectable: false,
       });
     }
@@ -207,17 +232,27 @@ export function buildExecutiveGraph(
       id: `e_exec_end_${stepId}`,
       source: `step_${stepId}`, target: END_NODE_ID,
       sourceHandle: 'out', targetHandle: 'in',
-      type: 'smoothstep',
+      type: 'default',
+      // A terminating step with an invisible END edge reads as not ending the
+      // process — every ending is drawn; only the main one is bold.
       style: isLast
-        ? { stroke: '#dc2626', strokeWidth: 2 }
-        : { stroke: 'transparent', strokeWidth: 0 },
-      markerEnd: isLast ? { type: MarkerType.ArrowClosed, color: '#dc2626' } : undefined,
+        ? { stroke: 'var(--error)', strokeWidth: 2 }
+        : { stroke: 'var(--error)', strokeWidth: 1.5, strokeDasharray: '4 4', opacity: 0.55 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--error)' },
       selectable: false,
     };
   });
 
   const allEdges = [startEdge, ...forwardEdges, ...endEdges];
-  let positionedNodes = applyExecLayout(nodes, allEdges, dir);
+  // Orphan steps rank under their business predecessor, not above the entry.
+  const anchorEdges = buildAnchorEdges(
+    sorted,
+    allEdges,
+    new Set(nodes.map((n) => n.id)),
+    firstStep?.id ?? null,
+    START_NODE_ID
+  );
+  let positionedNodes = applyExecLayout(nodes, [...allEdges, ...anchorEdges], dir);
 
   if (dir === 'TB' && routes.length > 0) {
     positionedNodes = branchRouteDestinations(positionedNodes, routes, outcomes, EXEC_STEP_W);
@@ -252,12 +287,35 @@ function applyExecLayout(nodes: Node[], edges: Edge[], dir: LayoutDir = 'TB'): N
   const stepNodes = positioned.filter((n) => n.type === 'execStep');
   if (stepNodes.length === 0) return positioned;
 
+  // A rank with one card snaps onto the centre line; a rank with several
+  // keeps its Dagre spread and shifts as a group. Forcing every card to one
+  // column stacked rank-siblings on top of each other (exec cards share one
+  // height, so same rank means the same y — and then the same x meant the
+  // same pixels).
+  const rankKey = (n: Node) => Math.round(dir === 'TB' ? n.position.y : n.position.x);
+  const ranks = new Map<number, Node[]>();
+  for (const n of stepNodes) {
+    const key = rankKey(n);
+    ranks.set(key, [...(ranks.get(key) ?? []), n]);
+  }
+
   if (dir === 'TB') {
     const centerX =
       stepNodes.reduce((sum, n) => sum + n.position.x + EXEC_STEP_W / 2, 0) / stepNodes.length;
+    const shiftOf = new Map<string, number>();
+    for (const group of ranks.values()) {
+      if (group.length === 1) {
+        shiftOf.set(group[0].id, centerX - EXEC_STEP_W / 2 - group[0].position.x);
+      } else {
+        const centroid =
+          group.reduce((sum, n) => sum + n.position.x + EXEC_STEP_W / 2, 0) / group.length;
+        for (const n of group) shiftOf.set(n.id, centerX - centroid);
+      }
+    }
     return positioned.map((node) => {
-      if (node.type === 'execStep')
-        return { ...node, position: { ...node.position, x: centerX - EXEC_STEP_W / 2 } };
+      const shift = shiftOf.get(node.id);
+      if (shift !== undefined)
+        return { ...node, position: { ...node.position, x: node.position.x + shift } };
       if (node.type === 'viewStart' || node.type === 'viewEnd')
         return { ...node, position: { ...node.position, x: centerX - MARKER_SIZE / 2 } };
       return node;
@@ -265,9 +323,20 @@ function applyExecLayout(nodes: Node[], edges: Edge[], dir: LayoutDir = 'TB'): N
   } else {
     const centerY =
       stepNodes.reduce((sum, n) => sum + n.position.y + EXEC_STEP_H / 2, 0) / stepNodes.length;
+    const shiftOf = new Map<string, number>();
+    for (const group of ranks.values()) {
+      if (group.length === 1) {
+        shiftOf.set(group[0].id, centerY - EXEC_STEP_H / 2 - group[0].position.y);
+      } else {
+        const centroid =
+          group.reduce((sum, n) => sum + n.position.y + EXEC_STEP_H / 2, 0) / group.length;
+        for (const n of group) shiftOf.set(n.id, centerY - centroid);
+      }
+    }
     return positioned.map((node) => {
-      if (node.type === 'execStep')
-        return { ...node, position: { ...node.position, y: centerY - EXEC_STEP_H / 2 } };
+      const shift = shiftOf.get(node.id);
+      if (shift !== undefined)
+        return { ...node, position: { ...node.position, y: node.position.y + shift } };
       if (node.type === 'viewStart' || node.type === 'viewEnd')
         return { ...node, position: { ...node.position, y: centerY - MARKER_SIZE / 2 } };
       return node;

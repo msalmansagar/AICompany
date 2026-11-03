@@ -1,0 +1,59 @@
+{
+  "code": "DCP-RPT-014",
+  "name": "DCP — Configuration gaps",
+  "description": "What the platform cannot do because configuration is absent, as counts: assignment configuration rows, escalation configuration rows, active activity types with no outcome (KI-131), strategy actions with no activity type (KI-106), open cases with no customer, open cases with no MIS bucket, and technical log entries flagged as exceptions. Each dataset is one count; zero rows of configuration is the finding, not an error. Grain: CONFIGURATION. Not narrowed. DCP catalogue DCP-RPT-014.",
+  "version": 1,
+  "mainEntity": "qdb_assignmentconfiguration",
+  "category": "Operational",
+  "rowLimit": 10,
+  "grain": "CONFIGURATION",
+  "mode": "multi",
+  "entity": { "logicalName": "qdb_assignmentconfiguration", "alias": "assignment" },
+  "datasets": [
+    {
+      "name": "assignmentConfiguration",
+      "entity": { "logicalName": "qdb_assignmentconfiguration", "alias": "assignment" },
+      "fetchXml": "<fetch aggregate=\"true\"><entity name=\"qdb_assignmentconfiguration\"><attribute name=\"qdb_assignmentconfigurationid\" aggregate=\"count\" alias=\"rows\"/></entity></fetch>",
+      "columns": [ { "name": "Assignment configuration rows", "attribute": "qdb_assignmentconfigurationid", "alias": "rows", "dataType": "Integer", "aggregate": "None", "sortOrder": 1 } ]
+    },
+    {
+      "name": "escalationConfiguration",
+      "entity": { "logicalName": "qdb_escalationconiguration", "alias": "escalation" },
+      "fetchXml": "<fetch aggregate=\"true\"><entity name=\"qdb_escalationconiguration\"><attribute name=\"qdb_escalationconigurationid\" aggregate=\"count\" alias=\"rows\"/></entity></fetch>",
+      "columns": [ { "name": "Escalation configuration rows", "attribute": "qdb_escalationconigurationid", "alias": "rows", "dataType": "Integer", "aggregate": "None", "sortOrder": 1 } ]
+    },
+    {
+      "name": "activityTypesWithoutOutcome",
+      "entity": { "logicalName": "qdb_collectionactivitytype", "alias": "type" },
+      "fetchXml": "<fetch aggregate=\"true\"><entity name=\"qdb_collectionactivitytype\"><attribute name=\"qdb_collectionactivitytypeid\" aggregate=\"count\" alias=\"rows\"/><filter><condition attribute=\"statecode\" operator=\"eq\" value=\"0\"/><condition entityname=\"outcome\" attribute=\"qdb_activityoutcomeid\" operator=\"null\"/></filter><link-entity name=\"qdb_activityoutcome\" from=\"qdb_activitytypeid\" to=\"qdb_collectionactivitytypeid\" link-type=\"outer\" alias=\"outcome\"/></entity></fetch>",
+      "columns": [ { "name": "Active activity types with no outcome", "attribute": "qdb_collectionactivitytypeid", "alias": "rows", "dataType": "Integer", "aggregate": "None", "sortOrder": 1 } ]
+    },
+    {
+      "name": "strategyActionsWithoutType",
+      "entity": { "logicalName": "qdb_strategyaction", "alias": "action" },
+      "fetchXml": "<fetch aggregate=\"true\"><entity name=\"qdb_strategyaction\"><attribute name=\"qdb_strategyactionid\" aggregate=\"count\" alias=\"rows\"/><filter><condition attribute=\"qdb_activitytypeid\" operator=\"null\"/></filter></entity></fetch>",
+      "columns": [ { "name": "Strategy actions with no activity type", "attribute": "qdb_strategyactionid", "alias": "rows", "dataType": "Integer", "aggregate": "None", "sortOrder": 1 } ]
+    },
+    {
+      "name": "openCasesWithoutCustomer",
+      "entity": { "logicalName": "qdb_collectioncase", "alias": "nocustomer" },
+      "fetchXml": "<fetch aggregate=\"true\"><entity name=\"qdb_collectioncase\"><attribute name=\"qdb_collectioncaseid\" aggregate=\"count\" alias=\"rows\"/><filter><condition attribute=\"statecode\" operator=\"eq\" value=\"0\"/><condition attribute=\"qdb_customerid\" operator=\"null\"/></filter></entity></fetch>",
+      "columns": [ { "name": "Open cases with no customer", "attribute": "qdb_collectioncaseid", "alias": "rows", "dataType": "Integer", "aggregate": "None", "sortOrder": 1 } ]
+    },
+    {
+      "name": "openCasesWithoutBucket",
+      "entity": { "logicalName": "qdb_collectioncase", "alias": "nobucket" },
+      "fetchXml": "<fetch aggregate=\"true\"><entity name=\"qdb_collectioncase\"><attribute name=\"qdb_collectioncaseid\" aggregate=\"count\" alias=\"rows\"/><filter><condition attribute=\"statecode\" operator=\"eq\" value=\"0\"/><condition attribute=\"qdb_currentarrearbucket\" operator=\"null\"/></filter></entity></fetch>",
+      "columns": [ { "name": "Open cases with no MIS bucket", "attribute": "qdb_collectioncaseid", "alias": "rows", "dataType": "Integer", "aggregate": "None", "sortOrder": 1 } ]
+    },
+    {
+      "name": "integrationExceptions",
+      "entity": { "logicalName": "qdb_crmlogs", "alias": "log" },
+      "fetchXml": "<fetch aggregate=\"true\"><entity name=\"qdb_crmlogs\"><attribute name=\"activityid\" aggregate=\"count\" alias=\"rows\"/><filter><condition attribute=\"qdb_isexception\" operator=\"eq\" value=\"1\"/></filter></entity></fetch>",
+      "columns": [ { "name": "Integration log entries flagged as exceptions", "attribute": "activityid", "alias": "rows", "dataType": "Integer", "aggregate": "None", "sortOrder": 1 } ]
+    }
+  ],
+  "columns": [],
+  "filters": [],
+  "parameters": []
+}

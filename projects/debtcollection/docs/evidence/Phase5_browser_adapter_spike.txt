@@ -1,0 +1,44 @@
+=== Phase 5 spike — the browser adapter against the real platform ===
+
+  Organisation: org5869857f.crm4.dynamics.com
+
+─── Entity naming ───
+  PASS  The adapter translates an entity set to the logical name Xrm.WebApi wants — qdb_collectioncases -> qdb_collectioncase
+  PASS  It knows the irregular one the naive rule gets wrong — qdb_crmlogses -> qdb_crmlogs (a plural rule would say 'qdb_crmlogse')
+  PASS  It handles an -ies plural — qdb_collectionstrategies -> qdb_collectionstrategy
+
+─── A bounded read ───
+  PASS  A real page comes back bounded by the requested size — asked 25, received 25 of 1295
+  PASS  The total is reported without fetching the set — totalCount=1295
+  PASS  A continuation is offered, and it is opaque — eyJzb3VyY2VUb2tlbiI6Imh0dHBzOi8vb3JnNTg2OTg1…
+
+─── Following a continuation ───
+  PASS  The next page returns rows, none of them from the first — page2=25 overlap=0
+  PASS  The page size is re-sent, so a continuation does not return the rest of the table — page2=25 rows (unbounded would be hundreds)
+
+─── Filter and sort, applied by the platform ───
+  PASS  Server-side sort is honoured — 10 rows, descending by createdon
+  PASS  Server-side filter narrows at the platform, returning an empty page not an error — items=0 total=0
+
+─── The Phase 4 paging contract ───
+  PASS  A continuation reused after the filter changed is refused (CriteriaChanged) — CriteriaChanged
+  PASS  A continuation this service never issued is refused (InvalidContinuation) — InvalidContinuation
+
+─── A lookup, read the way the platform returns it ───
+  PASS  A populated lookup is returned by its _value form — keys=[_ownerid_value@OData.Community.Display.V1.FormattedValue, _ownerid_value@Microsoft.Dynamics.CRM.associatednavigationproperty, _ownerid_value@Microsoft.Dynamics.CRM.lookuplogicalname, _ownerid_value] value=61086fe4…
+  PASS  The platform states which table a lookup points at, without being asked for annotations — _ownerid_value@Microsoft.Dynamics.CRM.lookuplogicalname = systemuser
+
+─── Single record ───
+  PASS  A single record reads back by id — activityid=f3a698e8…
+  PASS  A record that does not exist reads as null rather than throwing — null
+
+  HTTP requests issued: 7
+
+=== 16/16 checks passed ===
+
+Proven here: the OData the browser adapter emits, its lookup handling, its
+continuation handling and its consumption of the Phase 4 paging contract — all
+against the real organisation.
+NOT proven here: that the workspace loads inside Dynamics, that getGlobalContext
+answers, or that assets resolve as a web resource. Those need a deployed resource
+and a CRM session, and are reported separately.

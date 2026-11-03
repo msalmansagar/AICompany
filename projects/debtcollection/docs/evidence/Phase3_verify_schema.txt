@@ -1,0 +1,25 @@
+=== qdb_ schema verification (read-only) ===
+
+  Organisation: org5869857f.crm4.dynamics.com
+
+  PASS  Schema — all canonical entities exist — 12/12
+  PASS  Queue eligibility — the case table can be queued — qdb_collectioncase.IsValidForQueue=true
+  PASS  Baseline — the msst_ schema is untouched — 11 msst_dcp* entities (expected 11)
+  PASS  Schema — all canonical columns exist — 244/244
+  PASS  Relationships — every declared lookup exists — 17/17
+  PASS  Customer lookup — one column serves contact and account — qdb_customerid -> account + contact
+  PASS  Choices — every global choice exists — 30/30
+  PASS  Choices — option values carry the confirmed publisher prefix — qdb_dpd_bucket: 100000000–100000009 (prefix 100000000)
+  PASS  Status — every status reason exists at its provisioned value — 23/23
+  PASS  Alternate keys — every key index is active — 3/3
+  PASS  Security roles — every DCP role exists — 12/12
+  PASS  Queues — the collection queues exist — 3/3
+  PASS  Plugin registration — the canonical assembly is registered — Qdb.DebtCollection.Plugins (cda8d141-b0b2-f111-aaac-000d3abd8313)
+  PASS  Plugin registration — the legacy assembly is still registered — Msst.DebtCollection.Plugins present and untouched
+  PASS  Plugin registration — every canonical step is registered — 12/12 steps
+  PASS  Plugin registration — the activity guard fires on every column, not one — filteringattributes=(none)
+  PASS  Auto-number — the existing QDB mechanism is present and reused — crmi_autonumberingsetup (no cloud-only AutoNumberFormat introduced)
+  PASS  Auto-number — qdb_autonumberconfig is untouched — present, unmodified
+  PASS  Baseline — qdb_crmlogs is reused unextended — 12 qdb_ columns (expected 12)
+
+=== 19/19 checks passed ===

@@ -1,0 +1,114 @@
+name: CMS renderer parity
+
+# Decision A-5 in projects/cms-engine/phase-3-arch.md, enforcing ADR-CMS-004.
+#
+# The CMS has two renderers: Puck's <Render> inside the editor canvas, and our
+# own at runtime. If they drift, an author previews one page and publishes a
+# different one — a defect neither renderer's own unit tests can catch, because
+# each is individually correct.
+#
+# This job is a merge gate. A divergence fails the build.
+
+on:
+  push:
+    branches: [feat/portal-puck-spike, main]
+    paths:
+      - 'projects/portal-shell/spikes/puck/**'
+      - '.github/workflows/cms-renderer-parity.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'projects/portal-shell/spikes/puck/**'
+      - '.github/workflows/cms-renderer-parity.yml'
+
+jobs:
+  parity:
+    name: Runtime renderer matches Puck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/portal-shell/spikes/puck
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+
+      # Only the runtime module is type-checked. The wider spike carries 24
+      # pre-existing errors from annotating Puck's `Config` without type
+      # parameters, so custom root slots do not type. That is a spike-quality
+      # issue tracked for the Phase 4 rewrite, not something this gate should
+      # silently absorb — and renderTree.tsx is the file that becomes product
+      # code, so it is held to strict mode today.
+      - name: Type-check the runtime renderer
+        run: npm run typecheck:runtime
+
+      # Four pages, both locales, plus a guard that the comparison is not
+      # trivially passing on empty output.
+      - name: Renderer parity gate
+        run: npm test
+
+  bundle-budget:
+    name: Bundle stays within budget
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/portal-shell/spikes/puck
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+
+      # The visitor bundle is the number ADR-CMS-004 rests on. If Puck ever
+      # reaches the runtime path it roughly sextuples, so this fails loudly
+      # rather than letting the regression land quietly.
+      - name: Build visitor and editor bundles
+        run: |
+          npx esbuild bundle-test/runtime.tsx --bundle --minify --format=iife \
+            --platform=browser --target=es2020 --jsx=automatic \
+            --define:process.env.NODE_ENV='"production"' --outfile=/tmp/runtime.js
+          npx esbuild bundle-test/entry.tsx --bundle --minify --format=iife \
+            --platform=browser --target=es2020 --jsx=automatic \
+            --define:process.env.NODE_ENV='"production"' --outfile=/tmp/editor.js
+
+      - name: Visitor bundle under 80 KB gzip, and free of Puck
+        run: |
+          node -e '
+            const fs = require("fs"), zlib = require("zlib");
+            const src = fs.readFileSync("/tmp/runtime.js", "utf8");
+            const kb = Math.round(zlib.gzipSync(src).length / 1024);
+            console.log("visitor bundle: " + kb + " KB gzip");
+            if (kb > 80) {
+              console.error("FAIL: visitor bundle is " + kb + " KB, budget is 80 KB.");
+              console.error("Most likely cause: Puck reached the runtime path (ADR-CMS-004).");
+              process.exit(1);
+            }
+          '
+
+      - name: Editor bundle is self-contained for a CSP-hardened CRM
+        run: |
+          node -e '
+            const fs = require("fs");
+            const src = fs.readFileSync("/tmp/editor.js", "utf8");
+            const hazards = {
+              "dynamic import()": /[^.\w]import\s*\(/g,
+              "fetch()":          /\bfetch\s*\(/g,
+              "importScripts":    /importScripts/g,
+              "eval()":           /\beval\s*\(/g,
+              "new Function()":   /new Function\s*\(/g,
+            };
+            let failed = false;
+            for (const [name, re] of Object.entries(hazards)) {
+              const n = (src.match(re) || []).length;
+              console.log(name.padEnd(18) + n);
+              if (n > 0) failed = true;
+            }
+            if (failed) {
+              console.error("FAIL: the editor bundle is no longer self-contained.");
+              console.error("A hardened CRM blocks these by CSP — see phase-3-arch.md section 1.");
+              process.exit(1);
+            }
+          '

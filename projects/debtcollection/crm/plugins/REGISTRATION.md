@@ -1,0 +1,200 @@
+﻿# DCP-001 Plugin Registration
+
+Assembly: `Qdb.DebtCollection.Plugins.dll` (strong-named, net471)
+Solution: `msst_debtcollection` · Publisher prefix: `msst`
+
+## 1. Build command
+
+`
+dotnet build projects/debtcollection/crm/plugins/Qdb.DebtCollection.Plugins/Qdb.DebtCollection.Plugins.csproj -c Release
+`
+
+Register the output from `bin/Release/net471/Qdb.DebtCollection.Plugins.dll`.
+No ILMerge step is needed — the assembly carries no non-SDK dependencies.
+Register only after the schema agent has provisioned all entities. See §4.
+
+## 2. Plugin steps
+
+Each row: Entity · Message · Stage · Mode · Filtering Attributes · Images
+
+### AuditLogWriterPlugin
+
+| Entity | Message | Stage | Mode | Filter attrs | Images |
+|---|---|---|---|---|---|
+| msst_dcpcollectioncase | Create | PostOperation (40) | Async | (all) | PreImage: all attrs (Update only) |
+| msst_dcpcollectioncase | Update | PostOperation (40) | Async | (all) | PreImage: all attrs |
+| msst_dcploanfacility | Create | PostOperation (40) | Async | (all) | PreImage: all attrs (Update only) |
+| msst_dcploanfacility | Update | PostOperation (40) | Async | (all) | PreImage: all attrs |
+| msst_dcpptprecord | Create | PostOperation (40) | Async | (all) | PreImage: all attrs (Update only) |
+| msst_dcpptprecord | Update | PostOperation (40) | Async | (all) | PreImage: all attrs |
+| msst_dcpcollectionaction | Create | PostOperation (40) | Async | (all) | none |
+| msst_dcpcollectionaction | Update | PostOperation (40) | Async | (all) | PreImage: all attrs |
+| msst_dcpcommunication | Create | PostOperation (40) | Async | (all) | none |
+| msst_dcpcommunication | Update | PostOperation (40) | Async | (all) | PreImage: all attrs |
+| msst_dcpcustomer | Create | PostOperation (40) | Async | (all) | none |
+| msst_dcpcustomer | Update | PostOperation (40) | Async | (all) | PreImage: all attrs |
+| msst_dcpstrategyconfig | Create | PostOperation (40) | Async | (all) | none |
+| msst_dcpstrategyconfig | Update | PostOperation (40) | Async | (all) | PreImage: all attrs |
+
+Pre-image alias: `PreImage`. Image must include all attribute columns.
+
+### StatusTransitionValidatorPlugin
+
+| Entity | Message | Stage | Mode | Filter attrs | Images |
+|---|---|---|---|---|---|
+| msst_dcpcollectioncase | Update | PreOperation (20) | Sync | statuscode | PreImage: statuscode, msst_customerid |
+| msst_dcpptprecord | Update | PreOperation (20) | Sync | statuscode | PreImage: statuscode |
+
+Pre-image alias: `PreImage`.
+- Case image columns: `statuscode`, `msst_customerid`.  The stop-contact guard
+  reads `msst_customerid` from the pre-image to avoid an extra case Retrieve.
+  It then performs one indexed primary-key Retrieve of `msst_dcpcustomer`
+  (single column `msst_stopcontact`) inside the synchronous pre-op.  Cost is
+  negligible; the lookup is by primary key.
+- PTP image column: `statuscode`.
+
+### ImmutabilityGuardPlugin
+
+| Entity | Message | Stage | Mode | Filter attrs | Images |
+|---|---|---|---|---|---|
+| msst_dcpdelinquencysnapshot | Update | PreValidation (10) | Sync | (all) | none |
+| msst_dcpdelinquencysnapshot | Delete | PreValidation (10) | Sync | (all) | none |
+| msst_dcpauditlog | Update | PreValidation (10) | Sync | (all) | none |
+| msst_dcpauditlog | Delete | PreValidation (10) | Sync | (all) | none |
+| msst_dcpcollectionaction | Update | PreValidation (10) | Sync | statecode | PreImage: statecode |
+| msst_dcpcollectionaction | Delete | PreValidation (10) | Sync | (all) | PreImage: statecode |
+| msst_dcpcommunication | Update | PreValidation (10) | Sync | statecode | PreImage: statecode |
+| msst_dcpcommunication | Delete | PreValidation (10) | Sync | (all) | PreImage: statecode |
+| msst_dcpcollectioncase | Delete | PreValidation (10) | Sync | (all) | none |
+
+Pre-image alias: `PreImage`. Image column: `statecode`.
+The guard does not examine the caller's security role — sysadmin is blocked (AR-04).
+
+### DefaultStatusAssignerPlugin
+
+| Entity | Message | Stage | Mode | Filter attrs | Images |
+|---|---|---|---|---|---|
+| msst_dcpcollectioncase | Create | PreOperation (20) | Sync | (none) | none |
+| msst_dcpptprecord | Create | PreOperation (20) | Sync | (none) | none |
+
+No pre-image is needed — the assigner reads and writes only `InputParameters["Target"]`.
+
+Rationale: the CRM platform assigns `statuscode = 1` on Create when no explicit value
+is supplied.  Value 1 is not a node in the transition matrix, causing every first
+`StatusTransitionValidator` check to refuse with "Transition from '1' to '...' is not
+permitted."  This step runs as PreOperation so the corrected value is persisted with
+the record, and the validator's `NormalizeCaseFromStatus` / `NormalizePtpFromStatus`
+methods handle any records that were created before this plugin was deployed.
+
+### ActivitySubjectComposerPlugin
+
+| Entity | Message | Stage | Mode | Filter attrs | Images |
+|---|---|---|---|---|---|
+| msst_dcpcollectionaction | Create | PreOperation (20) | Sync | msst_actiontype | none |
+| msst_dcpcommunication | Create | PreOperation (20) | Sync | msst_channel | none |
+
+### ActivityProvenanceGuardPlugin — Phase 8, KI-71
+
+| Entity | Message | Stage | Mode | Filter attrs | Images |
+|---|---|---|---|---|---|
+| qdb_collectionactivity | Create | PreOperation (20) | Sync | none | none |
+| qdb_collectionactivity | Update | PreOperation (20) | Sync | `qdb_origin,qdb_strategyactionid` | PreImage: `qdb_origin,qdb_strategyactionid` |
+
+Refuses a Collection Activity marked **Strategy generated** (`qdb_origin` = 100000801) that does
+not name the Strategy Action which requested it. Automated work that cannot say why it exists is
+untraceable activity on a customer's file, with nothing for the officer it lands on — or an
+auditor — to appeal to.
+
+Registered server-side rather than left to the workspace because React is not an authorisation
+boundary: the browser, an import, a script and any future background service all write through the
+platform, and only a plugin holds the rule for all of them. The domain layer enforces the same
+invariant in `strategyAutomation.ts`, and both read the same provisioned option value, asserted by
+a parity test.
+
+**The Update step is the one that matters.** The damaging write is not a bad Create — it is an
+Update that *clears* the lookup on an activity that is already strategy generated. The Target alone
+cannot show that, which is why the step carries a PreImage of both columns and the guard evaluates
+the **resulting state** rather than the delta. Removing the PreImage makes two unit tests fail;
+this was verified by doing it.
+
+Three things it deliberately does not do: it does not require provenance (every Phase 6 and Phase 7
+activity has none, and demanding a value nobody recorded would make it unable to run); it does not
+forbid a **Manual** activity from carrying a Strategy Action (that is an officer accepting planned
+work); and it never writes an origin, so a null keeps meaning "predates provenance" rather than
+"manual".
+
+Live evidence: `crm/scripts/smoke-activity-provenance.mts` — 9/9 against `org5869857f`, including
+the platform refusing both the orphaned Create and the provenance-stripping Update, with cleanup by
+id and zero residue.
+
+### StopContactQueueMoverPlugin
+
+| Entity | Message | Stage | Mode | Filter attrs | Images |
+|---|---|---|---|---|---|
+| msst_dcpcustomer | Update | PostOperation (40) | Async | msst_stopcontact | PreImage: msst_stopcontact |
+
+Pre-image alias: `PreImage`. Image column: `msst_stopcontact`.
+
+The mover does two things per active case when `msst_stopcontact` flips to `true`:
+1. **Queue move** — issues `AddToQueueRequest` to the "Deceased & Insurance" queue.
+2. **Status update** — sets `statuscode = DeceasedInsuranceReview` unless the case is
+   already in that state or in a terminal state (Under Legal Action, Settled, Closed,
+   Written Off).  This Update is a normal CRM platform operation: it passes through
+   `StatusTransitionValidator` (PreOperation, Sync — the expanded App §B.1 matrix now
+   permits the transition from every non-terminal state, and Deceased/Insurance Review
+   is not contact-bearing so the stop-contact carve-out is also satisfied) and is
+   subsequently audited by `AuditLogWriter` (PostOperation, Async).
+   The mover never bypasses the validator.
+
+Build-step-1 decision 3 (2026-09-16): previously the carve-out was only reachable via
+In Progress, leaving cases in other live states stuck in a contact-bearing status after
+suppression.  The matrix expansion and this mover update close that gap (FR-097).
+
+## 3. Deployment notes
+
+- Register from `bin/Release/net471/Qdb.DebtCollection.Plugins.dll`.
+- Changing the strong-name key requires unregister + re-register (CRM-M-001).
+- After deploying a fix, the sandbox serves the old AppDomain on the first call.
+  Wait 30-60 s and re-run once before diagnosing (GOT-007; CRM-M-004).
+- Verify deploys by reading the entity record through its real runtime path,
+  not by test-suite green alone (PAT-002).
+
+## 4. Schema code verification — values read back from org 2026-09-15
+
+The option-set constants in the plugin code were verified by reading the
+provisioned schema on 2026-09-15.  They travel with the solution; these
+values are authoritative for the `msst_debtcollection` solution on this org.
+
+| Class / method | Attribute | Verified values |
+|---|---|---|
+| `StatusTransitionMatrix.CaseStatus` | `statuscode` on `msst_dcpcollectioncase` | 463270200 New, 463270201 Assigned, 463270202 In Progress, 463270203 Pending Customer Response, 463270204 PTP Active, 463270205 PTP Broken, 463270206 Restructure Review, 463270207 Restructured, 463270208 Escalated to Supervisor, 463270209 Pending Legal Review, 463270210 Referred to Legal, 463270211 Under Legal Action, 463270212 Deceased/Insurance Review, 463270213 Settled, 463270214 Closed, 463270215 Written Off, 463270216 Reopened |
+| `StatusTransitionMatrix.PtpStatus` | `statuscode` on `msst_dcpptprecord` | 463270220 Open (active), 463270221 Kept (inactive), 463270222 Partially Kept (active), 463270223 Broken (active), 463270224 Rescheduled (active), 463270225 Cancelled (inactive) |
+| `ActivitySubjectComposer.GetActionTypeLabel` | `msst_actiontype` on `msst_dcpcollectionaction` | 463270081 Call, 463270082 Meeting, 463270083 Supervisor Review, 463270084 Field Visit, 463270085 Manual Note |
+| `ActivitySubjectComposer.GetChannelLabel` | `msst_channel` on `msst_dcpcommunication` | 463270021 SMS, 463270022 Email, 463270023 Official Letter, 463270024 Call |
+
+## 5. Correlation ID convention
+
+The router sets `msst_correlationid` (text) on the entity it is creating or
+updating before calling the CRM Web API. The `AuditLogWriter` reads this field
+from `InputParameters["Target"]` and stores it in the audit row. When the
+field is absent (direct CRM UI write), the plugin falls back to
+`IPluginExecutionContext.CorrelationId` (CRM's own request GUID).
+
+The router also sets `msst_sourcepath` to `"Router"`. Direct UI writes leave
+the field absent; the plugin defaults to `"Plugin"`.
+
+## Phase 2 addendum (2026-09-18) — `ActiveCaseGuardPlugin`
+
+| Entity | Message | Stage | Mode | Filter | Image |
+|---|---|---|---|---|---|
+| `qdb_collectioncase` | Create | PreOperation (20) | Sync | — | — |
+| `qdb_collectioncase` | Update | PreOperation (20) | Sync | `statecode` | PreImage: `qdb_facilitynumber,qdb_facilitysourcesystem` |
+
+One active Collection Case per facility per delinquency episode, where the facility is its MIS identity
+(`qdb_facilitynumber` + `qdb_facilitysourcesystem`). Create is always checked; Update only when
+`statecode` is set back to Active (a reopening), which is why the filter and the pre-image exist. The
+step table is `crm/scripts/lib/qdb-plugin-steps.mjs`; registered on `org5869857f` on 2026-09-18
+(assembly patched, 1 type, 2 steps, 1 image; `verify-qdb-schema.mjs` reports 12/12 steps).
+
+The same assembly build carries the matrix amendment: Settled is reachable from every non-terminal
+state (`StatusTransitionMatrix.cs`, KI-46).

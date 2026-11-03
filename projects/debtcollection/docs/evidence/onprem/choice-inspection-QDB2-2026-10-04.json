@@ -1,0 +1,96 @@
+{
+  "inspectedAt": "2026-10-04T10:45:23.418Z",
+  "clientUrl": "https://mcdynccatdev01/QDB1",
+  "organisation": "QDB2",
+  "choices": {
+    "qdb_approval_status": {
+      "exists": true,
+      "managed": false,
+      "options": [
+        {
+          "value": 0,
+          "label": "Return"
+        },
+        {
+          "value": 1,
+          "label": "Approve"
+        }
+      ],
+      "solutions": [
+        {
+          "solution": "WorkPackage09EntitiesOnly",
+          "managed": false,
+          "publisher": "qdb"
+        },
+        {
+          "solution": "Default",
+          "managed": false,
+          "publisher": "DefaultPublisherQDB"
+        },
+        {
+          "solution": "WorkPackage09Minha",
+          "managed": false,
+          "publisher": "qdb"
+        },
+        {
+          "solution": "ExportTradeFinance",
+          "managed": false,
+          "publisher": "qdb"
+        }
+      ],
+      "columns": [
+        "qdb_strategy_development_task.qdb_approval_status",
+        "qdb_tasdeer_task.qdb_approval_status"
+      ]
+    },
+    "qdb_risk_level": {
+      "exists": true,
+      "managed": false,
+      "options": [
+        {
+          "value": 751090000,
+          "label": "Low"
+        },
+        {
+          "value": 751090001,
+          "label": "Medium"
+        },
+        {
+          "value": 751090002,
+          "label": "High"
+        }
+      ],
+      "solutions": [
+        {
+          "solution": "Default",
+          "managed": false,
+          "publisher": "DefaultPublisherQDB"
+        }
+      ],
+      "columns": [
+        "qdb_loan_application_credit_risk.qdb_risk_level"
+      ]
+    },
+    "qdb_priority": {
+      "exists": true,
+      "managed": false,
+      "options": [
+        {
+          "value": 751090000,
+          "label": "████"
+        }
+      ],
+      "solutions": [
+        {
+          "solution": "Default",
+          "managed": false,
+          "publisher": "DefaultPublisherQDB"
+        }
+      ],
+      "columns": [
+        "qdb_customerfollowup.qdb_priority",
+        "qdb_status_history.qdb_work_item_priority"
+      ]
+    }
+  }
+}

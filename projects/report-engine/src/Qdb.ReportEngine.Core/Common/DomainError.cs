@@ -1,0 +1,30 @@
+namespace Qdb.ReportEngine.Core.Common;
+
+/// <summary>
+/// A typed, code-carrying error surfaced by the engine at a boundary. Specific error
+/// <see cref="Code"/>s let callers branch without string matching on messages.
+/// </summary>
+/// <param name="Code">Stable machine-readable slug, e.g. <c>dashboard_not_found</c>.</param>
+/// <param name="Message">Human-readable description (never contains PII).</param>
+public sealed record DomainError(string Code, string Message)
+{
+    public static DomainError NotFound(string what) => new("not_found", $"{what} was not found.");
+
+    public static DomainError Throttled(string target) => new("throttled", $"{target} throttled the request.");
+
+    public static DomainError PermissionDenied(string entity) => new("permission_denied", $"No read access to {entity}.");
+
+    public static DomainError NotImplemented(string what) => new("not_implemented", $"{what} is not implemented in the scaffold.");
+
+    public static DomainError QueryFailed(string entity) => new("query_failed", $"Query against {entity} failed.");
+
+    public static DomainError UnsupportedFormat(string format) => new("unsupported_format", $"Export format '{format}' is not supported.");
+
+    public static DomainError Invalid(string reason) => new("invalid_request", reason);
+
+    public static DomainError Unauthenticated() =>
+        new("unauthenticated", "The request carried no valid credentials.");
+
+    public static DomainError ImpersonationNotPermitted() =>
+        new("impersonation_not_permitted", "This caller may not act on behalf of another user.");
+}

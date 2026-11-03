@@ -63,15 +63,20 @@ metadata creation with **on-prem auth**, not the Azure AD path in those scripts.
 
 ### 3. Create the Custom Actions
 
-For **each** message in [`actions-manifest.json`](./actions-manifest.json), create an **unbound Process
+[`actions-manifest.json`](./actions-manifest.json) is **generated** from `deploy/registration/rule-engine-registration.json`
+(`node deploy/tools/generate-onprem-manifest.mjs`) — the same contract the cloud Custom APIs are checked
+against, so the two surfaces cannot drift. It lists all 22 operations and the 8 entity steps.
+**Status: On-Prem Compatible by Design — Runtime Validation Pending.**
+
+For **each** message in the manifest, create an **unbound Process
 Action** (Settings → Processes → New → Category: *Action*, Entity: *None (global)*):
 
 - **Unique Name** = the message `name` (e.g. `qdb_edp_ValidateRule`).
 - **Process Arguments (input)** = each `inputs[]` entry — Name, Type, Required per the manifest.
-  All are `String` except `EvaluateDecision.TargetRef` which is `EntityReference`.
+  Types are exactly as listed in the manifest (String, Boolean, Integer, EntityReference).
 - **Process Arguments (output)** = each `outputs[]` entry — Name + Type. RuleService messages have a
-  single `ResultJson` (String); `EvaluateDecision` and `RuleGovernanceAction` have their specific
-  outputs (see manifest).
+  single `ResultJson` (String); `EvaluateDecision` (incl. `ExecutionId`, `ChildResultsJson`) and
+  `RuleGovernanceAction` have their specific outputs (see manifest).
 - **Activate** the action (it can be an empty action — the plugin supplies the logic).
 
 Tip: author these in a dev org, add them to the solution, and they travel with the export.
@@ -83,9 +88,10 @@ Tip: author these in a dev org, add them to the solution, and they travel with t
 3. For each message in the manifest, **Register New Step**:
    - **Message** = the action's unique name (e.g. `qdb_edp_ValidateRule`).
    - **Plugin** = the class in the manifest `plugin` field
-     (`RuleServicePlugin` for the 10 service ops, `EvaluateDecisionPlugin` for `qdb_edp_EvaluateDecision`,
-     `GovernanceActionPlugin` for `qdb_edp_RuleGovernanceAction`).
+     (the manifest names the class for every one of the 22 messages).
    - **Stage** = *PostOperation* (the action body runs, then the plugin fills outputs), **Synchronous**.
+4. For each entry in the manifest's `entitySteps`, register a synchronous step with that plugin class,
+   message, table and stage (the append-only guards and the delete audit). No step images.
 
 ### 5. Deploy the designer (on-prem build)
 

@@ -4,6 +4,8 @@ import { FetchXmlBuilderDialog } from '@/components/FetchXmlBuilder/FetchXmlBuil
 import { WorkflowHooksSection } from './WorkflowHooksSection';
 import { ROUTE_HOOKS } from '@/services/workflowHooks';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
+import { EMPTY_FILTER, hasRealCondition } from '@/services/routeFilter';
+import { parseFetchXmlFilter, formatReadableFilter } from '@/services/fetchXmlReadable';
 
 interface RoutePropertiesPanelProps {
   routeId: string;
@@ -49,23 +51,23 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
 
   if (!route) {
     return (
-      <div style={panelStyle}>
-        <div style={headerStyle}>Route Properties</div>
+      <div className="panel">
+        <div className="panel-head"><h3>Route Properties</h3></div>
         <div style={emptyStyle}>Route not found</div>
       </div>
     );
   }
 
-  const isFallback = !route.filter?.trim();
+  const isFallback = route.isDefault;
 
   return (
-    <div style={panelStyle}>
-      <div style={headerStyle}>Route Properties</div>
+    <div className="panel">
+      <div className="panel-head"><h3>Route Properties</h3></div>
 
-      <div style={bodyStyle}>
+      <div className="panel-body">
         <Field label="Name">
           <input
-            style={inputStyle}
+            className="fluent-input"
             value={route.name}
             onChange={(e) => setRoute({ ...route, name: e.target.value })}
             placeholder="Route name"
@@ -74,7 +76,7 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
 
         <Field label="Sequence">
           <input
-            style={inputStyle}
+            className="fluent-input"
             type="number"
             value={route.sequenceNumber}
             onChange={(e) => {
@@ -96,23 +98,23 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
             <div style={fallbackBanner}>
               <span style={{ fontSize: 14 }}>⊘</span>
               <div>
-                <div style={fallbackTitle}>Fallback route</div>
+                <div style={fallbackTitle}>Default route</div>
                 <div style={fallbackHint}>
-                  No condition — fires when no earlier route matches.
+                  No condition — used when no other route matches.
                   Keep this as the highest sequence number.
                 </div>
               </div>
             </div>
           ) : (
             <div style={filterBlock}>
-              <pre style={filterCode}>{route.filter}</pre>
+              <ReadableFilter filter={route.filter} />
               <button
                 type="button"
                 style={clearBtn}
-                onClick={() => setRoute({ ...route, filter: '' })}
-                title="Remove condition — makes this route the fallback"
+                onClick={() => setRoute({ ...route, filter: EMPTY_FILTER, isDefault: true })}
+                title="Remove condition — makes this route the default"
               >
-                ✕ Clear (make fallback)
+                ✕ Clear (make default)
               </button>
             </div>
           )}
@@ -148,8 +150,8 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
           entityLogicalName={entityLogicalName}
           objectTypeCode={objectTypeCode}
           clientUrl={clientUrl}
-          initialFetchXml={route.filter}
-          onApply={(xml) => { setRoute({ ...route, filter: xml }); setIsFetchXmlOpen(false); }}
+          initialFetchXml={hasRealCondition(route.filter) ? route.filter : ''}
+          onApply={(xml) => { setRoute({ ...route, filter: xml, isDefault: false }); setIsFetchXmlOpen(false); }}
           onDismiss={() => setIsFetchXmlOpen(false)}
         />
       )}
@@ -157,43 +159,60 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
   );
 }
 
+/** Shows the stored query as readable lines, with the raw XML available underneath. */
+function ReadableFilter({ filter }: { filter: string }) {
+  const parsed = parseFetchXmlFilter(filter);
+  if (!parsed) return <div style={filterEmpty}>No condition set</div>;
+  return (
+    <div>
+      <div style={filterReadable}>
+        {formatReadableFilter(parsed).map((line, i) => (
+          <div key={i} style={filterLine}>{line}</div>
+        ))}
+      </div>
+      <details style={rawWrap}>
+        <summary style={rawSummary}>Show FetchXML</summary>
+        <pre style={filterCode}>{filter}</pre>
+      </details>
+    </div>
+  );
+}
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={fieldGroup}>
-      <div style={labelStyle}>{label}</div>
+      <div className="lbl">{label}</div>
       {children}
     </div>
   );
 }
 
-const panelStyle: React.CSSProperties = {
-  width: 280,
-  flexShrink: 0,
-  background: '#0f172a',
-  borderLeft: '1px solid #1e293b',
-  display: 'flex',
-  flexDirection: 'column',
-  overflow: 'hidden',
+const filterReadable: React.CSSProperties = {
+  background: 'var(--surface-alt)',
+  border: '1px solid var(--border)',
+  borderRadius: 4,
+  padding: '8px 10px',
+  fontSize: 12,
 };
 
-const headerStyle: React.CSSProperties = {
-  padding: '10px 14px',
+const filterLine: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  lineHeight: 1.65,
+  whiteSpace: 'pre',
+  color: 'var(--text)',
+};
+
+const filterEmpty: React.CSSProperties = {
+  fontSize: 12,
+  color: 'var(--text-secondary)',
+  fontStyle: 'italic',
+};
+
+const rawWrap: React.CSSProperties = { marginTop: 6 };
+
+const rawSummary: React.CSSProperties = {
   fontSize: 11,
-  fontWeight: 700,
-  color: '#94a3b8',
-  textTransform: 'uppercase' as const,
-  letterSpacing: '0.05em',
-  borderBottom: '1px solid #1e293b',
-  flexShrink: 0,
-};
-
-const bodyStyle: React.CSSProperties = {
-  padding: '12px 14px',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 14,
-  overflowY: 'auto' as const,
-  flex: 1,
+  color: 'var(--text-secondary)',
+  cursor: 'pointer',
 };
 
 const fieldGroup: React.CSSProperties = {
@@ -202,33 +221,12 @@ const fieldGroup: React.CSSProperties = {
   gap: 4,
 };
 
-const labelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: '#64748b',
-  textTransform: 'uppercase' as const,
-  letterSpacing: '0.04em',
-};
-
-const inputStyle: React.CSSProperties = {
-  height: 30,
-  padding: '0 8px',
-  background: '#1e293b',
-  border: '1px solid #334155',
-  borderRadius: 4,
-  color: '#e2e8f0',
-  fontSize: 12,
-  outline: 'none',
-  width: '100%',
-  boxSizing: 'border-box' as const,
-};
-
 const readonlyChip: React.CSSProperties = {
   padding: '4px 8px',
-  background: '#1e293b',
-  border: '1px solid #334155',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 4,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   fontSize: 12,
 };
 
@@ -236,8 +234,8 @@ const fallbackBanner: React.CSSProperties = {
   display: 'flex',
   gap: 8,
   alignItems: 'flex-start',
-  background: '#052e16',
-  border: '1px solid #166534',
+  background: 'var(--success-bg)',
+  border: '1px solid var(--success)',
   borderRadius: 6,
   padding: '8px 10px',
   marginBottom: 6,
@@ -246,12 +244,12 @@ const fallbackBanner: React.CSSProperties = {
 const fallbackTitle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
-  color: '#4ade80',
+  color: 'var(--success)',
 };
 
 const fallbackHint: React.CSSProperties = {
   fontSize: 10,
-  color: '#86efac',
+  color: 'var(--success)',
   marginTop: 2,
   lineHeight: 1.5,
 };
@@ -265,8 +263,8 @@ const filterBlock: React.CSSProperties = {
 
 const filterCode: React.CSSProperties = {
   fontSize: 10,
-  background: '#1e293b',
-  border: '1px solid #334155',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 4,
   padding: '6px 8px',
   overflowX: 'auto',
@@ -274,15 +272,18 @@ const filterCode: React.CSSProperties = {
   wordBreak: 'break-all',
   maxHeight: 100,
   overflowY: 'auto',
+  // Without this the flex item will not shrink below its content, so overflowY
+  // never engages and the panel is clipped instead of scrolling.
+  minHeight: 0,
   margin: 0,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
 };
 
 const clearBtn: React.CSSProperties = {
   background: 'none',
-  border: '1px solid #334155',
+  border: '1px solid var(--border)',
   borderRadius: 4,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
   fontSize: 10,
   padding: '2px 8px',
   cursor: 'pointer',
@@ -292,10 +293,10 @@ const clearBtn: React.CSSProperties = {
 const editFilterBtn: React.CSSProperties = {
   height: 28,
   padding: '0 10px',
-  background: '#1e293b',
-  border: '1px solid #334155',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 4,
-  color: '#e2e8f0',
+  color: 'var(--text)',
   fontSize: 11,
   cursor: 'pointer',
   textAlign: 'left',
@@ -304,6 +305,6 @@ const editFilterBtn: React.CSSProperties = {
 const emptyStyle: React.CSSProperties = {
   padding: 16,
   fontSize: 12,
-  color: '#475569',
+  color: 'var(--text-secondary)',
   fontStyle: 'italic',
 };

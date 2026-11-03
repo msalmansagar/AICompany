@@ -1,0 +1,308 @@
+/**
+ * Studio — CMS chrome and the interactive components.
+ *
+ * Tabs and Accordion are CSS-driven on purpose: Puck re-renders a component
+ * whenever its props change, which resets React state. Radio inputs and
+ * <details> keep their open state across re-renders and are keyboard
+ * accessible without any script.
+ */
+
+/* ============================================================== chrome == */
+
+.st-shell {
+  min-block-size: 100vh;
+  background: var(--rey-canvas, #f4f6f8);
+  font-family: var(--font-family-base, 'Segoe UI', Tahoma, sans-serif);
+  color: var(--rey-ink, #1a2129);
+}
+
+.st-bar {
+  background: var(--rey-surface, #fff);
+  border-block-end: 1px solid var(--rey-border, #e5e8eb);
+  padding-block: 16px;
+}
+
+.st-bar__inner,
+.st-main {
+  max-inline-size: 1080px;
+  margin-inline: auto;
+  padding-inline: 24px;
+}
+
+.st-bar__inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.st-bar h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.st-bar__spacer {
+  margin-inline-start: auto;
+}
+
+.st-main {
+  padding-block: 28px;
+}
+
+/* --------------------------------------------------------- page list -- */
+
+.st-new {
+  background: var(--rey-surface, #fff);
+  border: 1px solid var(--rey-border, #e5e8eb);
+  border-radius: 12px;
+  padding: 20px;
+  margin-block-end: 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  align-items: end;
+}
+
+.st-field label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-block-end: 6px;
+}
+
+.st-field input {
+  inline-size: 100%;
+  border: 1px solid var(--rey-border, #e5e8eb);
+  border-radius: 8px;
+  padding-block: 10px;
+  padding-inline: 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: inherit;
+}
+
+.st-field input:focus {
+  outline: 2px solid var(--rey-green, #3d8a72);
+  outline-offset: 1px;
+}
+
+.st-pages {
+  display: grid;
+  gap: 12px;
+}
+
+.st-page-row {
+  background: var(--rey-surface, #fff);
+  border: 1px solid var(--rey-border, #e5e8eb);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.st-page-row__title {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.st-page-row__slug {
+  font-size: 12.5px;
+  color: var(--rey-muted, #5d6b7a);
+  font-family: ui-monospace, monospace;
+}
+
+.st-page-row__actions {
+  margin-inline-start: auto;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.st-chip {
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding-block: 3px;
+  padding-inline: 10px;
+}
+
+.st-chip[data-state='published'] {
+  background: var(--rey-green-soft, #e6f2ee);
+  color: var(--rey-green-dark, #2f7d68);
+}
+
+.st-chip[data-state='draft'] {
+  background: #fdf0d5;
+  color: #8a5a11;
+}
+
+.st-empty {
+  text-align: center;
+  padding-block: 60px;
+  color: var(--rey-muted, #5d6b7a);
+}
+
+/* ========================================================== rendered == */
+
+.st-page {
+  background: var(--rey-canvas, #f4f6f8);
+  min-block-size: 300px;
+}
+
+/* ------------------------------------------------------------- tabs --- */
+
+.st-tabs {
+  margin-block-end: 16px;
+}
+
+.st-tabs__radio {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.st-tabs__strip {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  border-block-end: 1px solid var(--rey-border, #e5e8eb);
+  margin-block-end: 16px;
+}
+
+.st-tabs__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-block: 10px;
+  padding-inline: 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--rey-muted, #5d6b7a);
+  border-block-end: 2px solid transparent;
+  margin-block-end: -1px;
+}
+
+.st-tabs__panel {
+  display: none;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--rey-muted, #5d6b7a);
+}
+
+/* Pair the nth radio with the nth label and the nth panel. Supports up to six
+   tabs; beyond that the array editor still works, the styling simply stops. */
+.st-tabs__radio:nth-of-type(1):checked ~ .st-tabs__strip .st-tabs__tab:nth-of-type(1),
+.st-tabs__radio:nth-of-type(2):checked ~ .st-tabs__strip .st-tabs__tab:nth-of-type(2),
+.st-tabs__radio:nth-of-type(3):checked ~ .st-tabs__strip .st-tabs__tab:nth-of-type(3),
+.st-tabs__radio:nth-of-type(4):checked ~ .st-tabs__strip .st-tabs__tab:nth-of-type(4),
+.st-tabs__radio:nth-of-type(5):checked ~ .st-tabs__strip .st-tabs__tab:nth-of-type(5),
+.st-tabs__radio:nth-of-type(6):checked ~ .st-tabs__strip .st-tabs__tab:nth-of-type(6) {
+  color: var(--st-accent, #3d8a72);
+  border-block-end-color: var(--st-accent, #3d8a72);
+}
+
+.st-tabs__radio:nth-of-type(1):checked ~ .st-tabs__panel:nth-of-type(1),
+.st-tabs__radio:nth-of-type(2):checked ~ .st-tabs__panel:nth-of-type(2),
+.st-tabs__radio:nth-of-type(3):checked ~ .st-tabs__panel:nth-of-type(3),
+.st-tabs__radio:nth-of-type(4):checked ~ .st-tabs__panel:nth-of-type(4),
+.st-tabs__radio:nth-of-type(5):checked ~ .st-tabs__panel:nth-of-type(5),
+.st-tabs__radio:nth-of-type(6):checked ~ .st-tabs__panel:nth-of-type(6) {
+  display: block;
+}
+
+.st-tabs__radio:focus-visible + .st-tabs__strip .st-tabs__tab {
+  outline: 2px solid var(--st-accent, #3d8a72);
+}
+
+/* -------------------------------------------------------- accordion --- */
+
+.st-accordion {
+  display: grid;
+  gap: 10px;
+  margin-block-end: 16px;
+}
+
+.st-accordion__item {
+  background: var(--rey-surface, #fff);
+  border: 1px solid var(--rey-border, #e5e8eb);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.st-accordion__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.st-accordion__head::-webkit-details-marker {
+  display: none;
+}
+
+.st-accordion__head svg {
+  margin-inline-start: auto;
+  transition: transform 0.15s ease;
+}
+
+.st-accordion__item[open] .st-accordion__head svg {
+  transform: rotate(90deg);
+}
+
+.st-accordion__body {
+  padding: 0 16px 16px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--rey-muted, #5d6b7a);
+}
+
+/* ------------------------------------------------------------- data --- */
+
+.st-stat {
+  background: var(--rey-surface, #fff);
+  border: 1px solid var(--rey-border, #e5e8eb);
+  border-radius: 10px;
+  padding: 16px;
+  min-inline-size: 0;
+}
+
+.st-stat__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.st-stat__label {
+  font-size: 12.5px;
+  color: var(--rey-muted, #5d6b7a);
+}
+
+.st-stat__head svg {
+  margin-inline-start: auto;
+}
+
+.st-stat__value {
+  font-size: 28px;
+  font-weight: 700;
+  margin-block: 4px;
+}
+
+.st-stat__trend {
+  font-size: 12.5px;
+}
+
+.st-callout {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 10px;
+  border-inline-start: 3px solid;
+  margin-block-end: 16px;
+}

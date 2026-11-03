@@ -5,6 +5,7 @@ import { immer } from 'zustand/middleware/immer';
 import type { WorkflowProcess, WorkflowStep, WorkflowOutcome, WorkflowRoute } from '@/types/WorkflowTypes';
 import type { SimPath } from '@/services/PathEnumerator';
 import { emptyEscalationFields } from '@/services/escalationFields';
+import { emptyAssignmentFields } from '@/services/taskAssignment';
 import { emptyBranchFields, emptyOutcomeConcurrency } from '@/services/branchFields';
 import type { Violation } from '@/services/ValidationService';
 
@@ -20,6 +21,10 @@ export interface WorkflowDesignerState {
   outcomeOrder: Record<string, string[]>;
   routeOrder: Record<string, string[]>;
   nodePositions: Record<string, { x: number; y: number }>;
+  /** Edge bends, keyed by edge id (`outcome_<id>`). Persisted with the layout. */
+  edgeAnchors: Record<string, { x: number; y: number }>;
+  /** Label drags, keyed by edge id. Persisted with the layout. */
+  labelOffsets: Record<string, { dx: number; dy: number }>;
   newIds: string[];
   dirtyIds: string[];
   deletedIds: string[];
@@ -62,12 +67,24 @@ export interface WorkflowDesignerState {
   setRoute: (route: WorkflowRoute) => void;
   addStep: (step: WorkflowStep) => void;
   addStepAfter: (fromStepId: string) => void;
+  /** Splices a new step into a transition: decision -> NEW -> old target. */
+  insertStepBetween: (outcomeId: string) => void;
+  /** Clones a step with its assignment, SLA, hooks, decisions and routes. */
+  duplicateStep: (stepId: string) => void;
   addOutcome: (outcome: WorkflowOutcome) => void;
   addRoute: (route: WorkflowRoute) => void;
   deleteStep: (id: string) => void;
   deleteOutcome: (id: string) => void;
   deleteRoute: (id: string) => void;
   updateNodePosition: (id: string, position: { x: number; y: number }) => void;
+  /** Bend one edge through a point; null straightens it. Marks dirty. */
+  setEdgeAnchor: (edgeId: string, point: { x: number; y: number } | null) => void;
+  /** Nudge one edge label away from its computed spot; null resets. Marks dirty. */
+  setLabelOffset: (edgeId: string, offset: { dx: number; dy: number } | null) => void;
+  /** Drop every bend and label nudge — auto-layout calls this. */
+  clearEdgeDecorations: () => void;
+  /** Restores a persisted layout wholesale, without dirtying. */
+  applyDesignerLayout: (layout: { nodePositions?: Record<string, { x: number; y: number }>; edgeAnchors?: Record<string, { x: number; y: number }>; labelOffsets?: Record<string, { dx: number; dy: number }> }) => void;
   selectNode: (id: string | null) => void;
   clearSelection: () => void;
   markClean: () => void;
@@ -92,6 +109,8 @@ export interface WorkflowDesignerState {
   setAutoSimSpeed: (speed: AutoSimSpeed) => void;
   resolveTemporaryId: (tmpId: string, realId: string, entityType: 'step' | 'outcome' | 'route') => void;
   resolveProcessId: (realId: string) => void;
+  /** Moves a step to a zero-based position, renumbering everything. */
+  moveStepTo: (stepId: string, targetIndex: number) => void;
   moveStepUp: (stepId: string) => void;
   moveStepDown: (stepId: string) => void;
   setNodePositions: (positions: Record<string, { x: number; y: number }>) => void;
@@ -108,9 +127,9 @@ export interface WorkflowDesignerState {
 const emptyState: Omit<
   WorkflowDesignerState,
   | 'setProcess' | 'setStep' | 'setOutcome' | 'setRoute'
-  | 'addStep' | 'addStepAfter' | 'addOutcome' | 'addRoute'
+  | 'addStep' | 'addStepAfter' | 'insertStepBetween' | 'duplicateStep' | 'moveStepTo' | 'addOutcome' | 'addRoute'
   | 'deleteStep' | 'deleteOutcome' | 'deleteRoute'
-  | 'updateNodePosition' | 'selectNode' | 'clearSelection'
+  | 'updateNodePosition' | 'setEdgeAnchor' | 'setLabelOffset' | 'clearEdgeDecorations' | 'applyDesignerLayout' | 'selectNode' | 'clearSelection'
   | 'markClean' | 'markDirty' | 'resetStore' | 'setPublishing' | 'setPreviewMode'
   | 'startSimulation' | 'stopSimulation' | 'simTakeOutcome' | 'simOpenRoutePicker' | 'simCloseRoutePicker' | 'simTakeRoute' | 'simStepBack'
   | 'startAutoSimulation' | 'stopAutoSimulation'
@@ -127,6 +146,8 @@ const emptyState: Omit<
   outcomeOrder: {},
   routeOrder: {},
   nodePositions: {},
+  edgeAnchors: {},
+  labelOffsets: {},
   newIds: [],
   dirtyIds: [],
   deletedIds: [],
@@ -167,7 +188,14 @@ function remapStepId(state: WorkflowDesignerState, tmpId: string, realId: string
   state.steps[realId] = { ...step, crmId: realId };
   delete state.steps[tmpId];
   state.stepOrder = state.stepOrder.map((id) => (id === tmpId ? realId : id));
-  state.nodePositions[realId] = state.nodePositions[tmpId] ?? { x: 0, y: 0 };
+  // The canvas keys positions as `step_<id>`; the old raw-id remap never
+  // matched, so a newly created step lost its position on first save.
+  const tmpKey = `step_${tmpId}`;
+  const realKey = `step_${realId}`;
+  if (state.nodePositions[tmpKey]) {
+    state.nodePositions[realKey] = state.nodePositions[tmpKey];
+    delete state.nodePositions[tmpKey];
+  }
   delete state.nodePositions[tmpId];
   if (state.outcomeOrder[tmpId]) {
     state.outcomeOrder[realId] = state.outcomeOrder[tmpId]!;
@@ -184,6 +212,16 @@ function remapStepId(state: WorkflowDesignerState, tmpId: string, realId: string
 
 /** Rewrites an outcome's temp id to its real id across all references. */
 function remapOutcomeId(state: WorkflowDesignerState, tmpId: string, realId: string): void {
+  const tmpEdge = `outcome_${tmpId}`;
+  const realEdge = `outcome_${realId}`;
+  if (state.edgeAnchors[tmpEdge]) {
+    state.edgeAnchors[realEdge] = state.edgeAnchors[tmpEdge];
+    delete state.edgeAnchors[tmpEdge];
+  }
+  if (state.labelOffsets[tmpEdge]) {
+    state.labelOffsets[realEdge] = state.labelOffsets[tmpEdge];
+    delete state.labelOffsets[tmpEdge];
+  }
   const outcome = state.outcomes[tmpId];
   if (!outcome) return;
   state.outcomes[realId] = { ...outcome, crmId: realId };
@@ -236,6 +274,38 @@ function remapRouteId(state: WorkflowDesignerState, tmpId: string, realId: strin
   if (bucket) {
     state.routeOrder[route.outcomeId] = bucket.map((id) => (id === tmpId ? realId : id));
   }
+}
+
+/**
+ * Keeps the one-fallback-per-decision rule true by construction.
+ *
+ * The engine refuses a second default with "You cann't define multiple default
+ * conditions", so promoting a route demotes whichever sibling held the role. Enforcing
+ * it here means the state can never reach the save in a shape the server would reject,
+ * rather than being told about it afterwards.
+ */
+function demoteOtherDefaults(
+  state: { routes: Record<string, WorkflowRoute>; dirtyIds: string[] },
+  promoted: WorkflowRoute
+): void {
+  if (!promoted.isDefault) return;
+  for (const other of Object.values(state.routes)) {
+    if (other.crmId === promoted.crmId) continue;
+    if (other.outcomeId !== promoted.outcomeId || !other.isDefault) continue;
+    other.isDefault = false;
+    if (!state.dirtyIds.includes(other.crmId)) state.dirtyIds.push(other.crmId);
+  }
+}
+/**
+ * Whether the canvas is being watched rather than edited.
+ *
+ * Simulation and preview are separate flags and components kept checking only one of
+ * them, so editing controls stayed live while a process was being played back - you
+ * could delete a route mid-simulation. Asking one question in one place is what stops
+ * the next control getting it wrong too.
+ */
+export function selectCanvasIsReadOnly(state: { isSimulating: boolean; isPreviewMode: boolean }): boolean {
+  return state.isSimulating || state.isPreviewMode;
 }
 
 export const useWorkflowStore = create<WorkflowDesignerState>()(
@@ -292,6 +362,7 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
       setRoute: (route) =>
         set((state) => {
           state.routes[route.crmId] = route;
+          demoteOtherDefaults(state, route);
           if (!state.dirtyIds.includes(route.crmId)) {
             state.dirtyIds.push(route.crmId);
           }
@@ -319,20 +390,15 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
           const newStep: WorkflowStep = {
             ...emptyEscalationFields(),
             ...emptyBranchFields(),
-    workflowHooks: emptyWorkflowHooks(STEP_HOOKS),
+            ...emptyAssignmentFields(),
+            workflowHooks: emptyWorkflowHooks(STEP_HOOKS),
             crmId: newStepId,
             name: 'New Step',
             sequenceNo: nextSeqNo,
             schemaName: '',
             taskSubject: '',
             taskDescription: '',
-            assignTo: 'user',
-            assignedUserId: null,
-            assignedUserName: null,
-            teamId: null,
-            teamName: null,
-            roundRobinTeamId: null,
-            roundRobinTeamName: null,
+            allowBulkApproval: false,
             recordEntityId: null,
             recordEntityName: null,
             regardingFieldId: null,
@@ -371,6 +437,174 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
           state.outcomeOrder[fromStepId]!.push(outcomeId);
           state.newIds.push(outcomeId);
 
+          // The new step needs a decision of its own. The engine stops on a task
+          // completed without one, so a step created without an outcome is not a
+          // half-built step - it is a broken one, and it would block the next save.
+          const terminalOutcomeId = `tmp_${crypto.randomUUID()}`;
+          state.outcomes[terminalOutcomeId] = {
+            crmId: terminalOutcomeId,
+            name: 'Complete',
+            sequenceNumber: maxSeq + 2,
+            applyFilter: false,
+            ...emptyOutcomeConcurrency(),
+            workflowHooks: emptyWorkflowHooks(OUTCOME_HOOKS),
+            stepId: newStepId,
+            nextStepId: null,
+          };
+          state.outcomeOrder[newStepId] = [terminalOutcomeId];
+          state.newIds.push(terminalOutcomeId);
+
+          state.selectedId = `step_${newStepId}`;
+          state.isDirty = true;
+        }),
+
+      insertStepBetween: (outcomeId) =>
+        set((state) => {
+          if (!state.process) return;
+          const outcome = state.outcomes[outcomeId];
+          if (!outcome || outcome.applyFilter) return;
+          const fromStep = state.steps[outcome.stepId];
+          if (!fromStep) return;
+          const oldTargetId = outcome.nextStepId;
+
+          const newStepId = `tmp_${crypto.randomUUID()}`;
+          const newStep: WorkflowStep = {
+            ...emptyEscalationFields(),
+            ...emptyBranchFields(),
+            ...emptyAssignmentFields(),
+            workflowHooks: emptyWorkflowHooks(STEP_HOOKS),
+            crmId: newStepId,
+            name: 'New Step',
+            sequenceNo: 0, // renumbered below
+            schemaName: '',
+            taskSubject: '',
+            taskDescription: '',
+            allowBulkApproval: false,
+            recordEntityId: null,
+            recordEntityName: null,
+            regardingFieldId: null,
+            regardingFieldName: null,
+            parentEntityId: null,
+            parentEntityName: null,
+            processId: state.process.crmId,
+          };
+          state.steps[newStepId] = newStep;
+          state.newIds.push(newStepId);
+
+          // The new step lives right after its predecessor in the order, and
+          // every sequence number follows the order — same rule as reordering.
+          const fromIndex = state.stepOrder.indexOf(outcome.stepId);
+          state.stepOrder.splice(fromIndex + 1, 0, newStepId);
+          state.stepOrder.forEach((id, i) => {
+            if (state.steps[id]) {
+              state.steps[id]!.sequenceNo = i + 1;
+              if (!state.dirtyIds.includes(id)) state.dirtyIds.push(id);
+            }
+          });
+
+          // Splice the flow: the decision now leads to the new step, and the
+          // new step carries one decision to wherever the transition went —
+          // including "nowhere", which keeps a terminal transition terminal.
+          outcome.nextStepId = newStepId;
+          if (!state.dirtyIds.includes(outcomeId)) state.dirtyIds.push(outcomeId);
+
+          const maxSeq = Object.values(state.outcomes).reduce(
+            (max, o) => (o.sequenceNumber > max ? o.sequenceNumber : max), 0
+          );
+          const nextOutcomeId = `tmp_${crypto.randomUUID()}`;
+          state.outcomes[nextOutcomeId] = {
+            crmId: nextOutcomeId,
+            name: 'Next',
+            sequenceNumber: maxSeq + 1,
+            applyFilter: false,
+            ...emptyOutcomeConcurrency(),
+            workflowHooks: emptyWorkflowHooks(OUTCOME_HOOKS),
+            stepId: newStepId,
+            nextStepId: oldTargetId,
+          };
+          state.outcomeOrder[newStepId] = [nextOutcomeId];
+          state.newIds.push(nextOutcomeId);
+
+          // Drop the card midway between the two it now sits between.
+          const fromPos = state.nodePositions[`step_${outcome.stepId}`];
+          const targetPos = oldTargetId ? state.nodePositions[`step_${oldTargetId}`] : undefined;
+          if (fromPos && targetPos) {
+            state.nodePositions[`step_${newStepId}`] = {
+              x: (fromPos.x + targetPos.x) / 2,
+              y: (fromPos.y + targetPos.y) / 2,
+            };
+          } else if (fromPos) {
+            state.nodePositions[`step_${newStepId}`] = { x: fromPos.x + 360, y: fromPos.y };
+          }
+
+          state.selectedId = `step_${newStepId}`;
+          state.isDirty = true;
+        }),
+
+      duplicateStep: (stepId) =>
+        set((state) => {
+          const source = state.steps[stepId];
+          if (!source) return;
+
+          const newStepId = `tmp_${crypto.randomUUID()}`;
+          state.steps[newStepId] = {
+            ...source,
+            crmId: newStepId,
+            name: `Copy of ${source.name}`,
+            sequenceNo: 0, // renumbered below
+          };
+          state.newIds.push(newStepId);
+
+          const sourceIndex = state.stepOrder.indexOf(stepId);
+          state.stepOrder.splice(sourceIndex + 1, 0, newStepId);
+          state.stepOrder.forEach((id, i) => {
+            if (state.steps[id]) {
+              state.steps[id]!.sequenceNo = i + 1;
+              if (!state.dirtyIds.includes(id)) state.dirtyIds.push(id);
+            }
+          });
+
+          // The clone keeps the whole configuration — decisions and their
+          // routes included, targets and all. Real processes repeat patterns;
+          // rebuilding them by hand is how drift creeps in.
+          let maxSeq = Object.values(state.outcomes).reduce(
+            (max, o) => (o.sequenceNumber > max ? o.sequenceNumber : max), 0
+          );
+          state.outcomeOrder[newStepId] = [];
+          for (const outcomeId of state.outcomeOrder[stepId] ?? []) {
+            const outcome = state.outcomes[outcomeId];
+            if (!outcome) continue;
+            const newOutcomeId = `tmp_${crypto.randomUUID()}`;
+            maxSeq += 1;
+            state.outcomes[newOutcomeId] = {
+              ...outcome,
+              crmId: newOutcomeId,
+              sequenceNumber: maxSeq,
+              stepId: newStepId,
+            };
+            state.outcomeOrder[newStepId]!.push(newOutcomeId);
+            state.newIds.push(newOutcomeId);
+
+            for (const routeId of state.routeOrder[outcomeId] ?? []) {
+              const route = state.routes[routeId];
+              if (!route) continue;
+              const newRouteId = `tmp_${crypto.randomUUID()}`;
+              state.routes[newRouteId] = {
+                ...route,
+                crmId: newRouteId,
+                outcomeId: newOutcomeId,
+              };
+              if (!state.routeOrder[newOutcomeId]) state.routeOrder[newOutcomeId] = [];
+              state.routeOrder[newOutcomeId]!.push(newRouteId);
+              state.newIds.push(newRouteId);
+            }
+          }
+
+          const sourcePos = state.nodePositions[`step_${stepId}`];
+          if (sourcePos) {
+            state.nodePositions[`step_${newStepId}`] = { x: sourcePos.x + 48, y: sourcePos.y + 48 };
+          }
+
           state.selectedId = `step_${newStepId}`;
           state.isDirty = true;
         }),
@@ -389,6 +623,7 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
       addRoute: (route) =>
         set((state) => {
           state.routes[route.crmId] = route;
+          demoteOtherDefaults(state, route);
           if (!state.routeOrder[route.outcomeId]) {
             state.routeOrder[route.outcomeId] = [];
           }
@@ -471,6 +706,36 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
       updateNodePosition: (id, position) =>
         set((state) => {
           state.nodePositions[id] = position;
+          // Layout persists now, so a drag is a change worth saving.
+          state.isDirty = true;
+        }),
+
+      setEdgeAnchor: (edgeId, point) =>
+        set((state) => {
+          if (point) state.edgeAnchors[edgeId] = point;
+          else delete state.edgeAnchors[edgeId];
+          state.isDirty = true;
+        }),
+
+      setLabelOffset: (edgeId, offset) =>
+        set((state) => {
+          if (offset) state.labelOffsets[edgeId] = offset;
+          else delete state.labelOffsets[edgeId];
+          state.isDirty = true;
+        }),
+
+      clearEdgeDecorations: () =>
+        set((state) => {
+          state.edgeAnchors = {};
+          state.labelOffsets = {};
+          state.isDirty = true;
+        }),
+
+      applyDesignerLayout: (layout) =>
+        set((state) => {
+          if (layout.nodePositions) state.nodePositions = { ...layout.nodePositions };
+          if (layout.edgeAnchors) state.edgeAnchors = { ...layout.edgeAnchors };
+          if (layout.labelOffsets) state.labelOffsets = { ...layout.labelOffsets };
         }),
 
       selectNode: (id) =>
@@ -697,6 +962,25 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
           state.isDirty = true;
         }),
 
+      moveStepTo: (stepId, targetIndex) =>
+        set((state) => {
+          const from = state.stepOrder.indexOf(stepId);
+          if (from < 0) return;
+          const to = Math.max(0, Math.min(targetIndex, state.stepOrder.length - 1));
+          if (from === to) return;
+          state.stepOrder.splice(from, 1);
+          state.stepOrder.splice(to, 0, stepId);
+          // Sequence follows order, always — the same rule the one-notch
+          // moves and the insert-between splice obey.
+          state.stepOrder.forEach((id, i) => {
+            if (state.steps[id]) {
+              state.steps[id]!.sequenceNo = i + 1;
+              if (!state.dirtyIds.includes(id)) state.dirtyIds.push(id);
+            }
+          });
+          state.isDirty = true;
+        }),
+
       moveStepDown: (stepId) =>
         set((state) => {
           const idx = state.stepOrder.indexOf(stepId);
@@ -772,6 +1056,8 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
           state.outcomeOrder = {};
           state.routeOrder = {};
           state.nodePositions = positions;
+          state.edgeAnchors = {};
+          state.labelOffsets = {};
           state.newIds = [];
           state.dirtyIds = [];
           state.deletedIds = [];

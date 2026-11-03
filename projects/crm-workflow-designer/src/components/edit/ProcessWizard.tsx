@@ -183,18 +183,27 @@ export function ProcessWizard({
     : (step === 'method' && method === METHOD_SOP ? 'Open SOP Designer' : 'Next');
 
   return (
-    <div style={overlayStyle} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={cardStyle} role="dialog" aria-modal="true" aria-label="Create Process">
-        <div style={headerStyle}>
-          <span style={titleStyle}>Create a process</span>
-          <button type="button" style={closeBtnStyle} onClick={onClose} aria-label="Close">&times;</button>
+    <div
+      className="dialog-backdrop"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        className="dialog"
+        style={{ width: 760 }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Create a process"
+      >
+        <div className="dialog-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h2>Create a process</h2>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">&times;</button>
         </div>
 
         <div style={splitStyle}>
           <Stepper steps={steps} current={step} />
 
           <div style={contentStyle}>
-            {error && <div style={errorStyle}>{error}</div>}
+            {error && <div className="notice error" style={{ marginBottom: 12 }}>{error}</div>}
 
             {step === 'method' && (
               <MethodPicker method={method} sopEnabled={sopEnabled} onPick={setMethod} />
@@ -245,15 +254,15 @@ export function ProcessWizard({
           </div>
         </div>
 
-        <div style={footerStyle}>
+        <div className="dialog-foot" style={{ justifyContent: 'space-between' }}>
           {step !== 'method' ? (
-            <button type="button" style={backBtnStyle} onClick={handleBack}>Back</button>
+            <button type="button" className="btn" onClick={handleBack}>Back</button>
           ) : <span />}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" style={cancelBtnStyle} onClick={onClose}>Cancel</button>
+            <button type="button" className="btn" onClick={onClose}>Cancel</button>
             <button
               type="button"
-              style={canProceed ? nextBtnStyle : nextBtnDisabledStyle}
+              className="btn primary"
               onClick={handleNext}
               disabled={!canProceed}
             >
@@ -326,7 +335,7 @@ function BasicsStep({
       <div style={stepTitleStyle}>Name your process</div>
       <div style={subtleStyle}>Starting from the <strong>{templateName}</strong> template.</div>
       <div style={fieldGroupStyle}>
-        <label style={labelStyle}>Process name <span style={{ color: '#dc2626' }}>*</span></label>
+        <label style={labelStyle}>Process name <span style={{ color: 'var(--error)' }}>*</span></label>
         <input
           type="text"
           value={name}
@@ -465,7 +474,7 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
     <div style={summaryRowStyle}>
       <span style={summaryLabelStyle}>{label}</span>
-      <span style={summaryValueStyle}>{value || <span style={{ color: '#cbd5e1' }}>—</span>}</span>
+      <span style={summaryValueStyle}>{value || <span style={{ color: 'var(--text-secondary)' }}>—</span>}</span>
     </div>
   );
 }
@@ -482,12 +491,12 @@ function Stepper({ steps, current }: { steps: { key: WizardStep; label: string }
           <div key={s.key} style={stepperItemStyle}>
             <span style={{
               ...stepperDotStyle,
-              background: state === 'todo' ? '#e2e8f0' : '#2563eb',
-              color: state === 'todo' ? '#94a3b8' : '#fff',
+              background: state === 'todo' ? 'var(--surface-alt)' : 'var(--primary)',
+              color: state === 'todo' ? 'var(--text-disabled)' : 'var(--text-on-primary)',
             }}>
               {state === 'done' ? '✓' : i + 1}
             </span>
-            <span style={{ ...stepperLabelStyle, color: state === 'active' ? '#0f172a' : '#94a3b8', fontWeight: state === 'active' ? 600 : 500 }}>
+            <span style={{ ...stepperLabelStyle, color: state === 'active' ? 'var(--text)' : 'var(--text-disabled)', fontWeight: state === 'active' ? 600 : 500 }}>
               {s.label}
             </span>
           </div>
@@ -499,26 +508,9 @@ function Stepper({ steps, current }: { steps: { key: WizardStep; label: string }
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const overlayStyle: React.CSSProperties = {
-  position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)',
-  display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000,
-};
-const cardStyle: React.CSSProperties = {
-  width: 760, maxWidth: '94vw', background: '#fff', border: '1px solid #e2e8f0',
-  borderRadius: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column',
-};
-const headerStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '18px 24px 16px', borderBottom: '1px solid #f1f5f9', flexShrink: 0,
-};
-const titleStyle: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: '#0f172a' };
-const closeBtnStyle: React.CSSProperties = {
-  background: 'transparent', border: 'none', color: '#94a3b8', fontSize: 22,
-  cursor: 'pointer', lineHeight: 1, padding: 0, display: 'flex', alignItems: 'center',
-};
 const splitStyle: React.CSSProperties = { display: 'flex', minHeight: 320 };
 const stepperStyle: React.CSSProperties = {
-  width: 170, flexShrink: 0, background: '#f8fafc', borderRight: '1px solid #f1f5f9',
+  width: 170, flexShrink: 0, background: 'var(--surface-alt)', borderRight: '1px solid var(--border)',
   padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 18, borderBottomLeftRadius: 12,
 };
 const stepperItemStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10 };
@@ -528,58 +520,37 @@ const stepperDotStyle: React.CSSProperties = {
 };
 const stepperLabelStyle: React.CSSProperties = { fontSize: 12 };
 const contentStyle: React.CSSProperties = { flex: 1, padding: '20px 24px', overflowY: 'auto' };
-const stepTitleStyle: React.CSSProperties = { fontSize: 14, fontWeight: 700, color: '#0f172a', marginBottom: 14 };
-const subtleStyle: React.CSSProperties = { fontSize: 12, color: '#64748b', marginBottom: 14, lineHeight: 1.5 };
+const stepTitleStyle: React.CSSProperties = { fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 14 };
+const subtleStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14, lineHeight: 1.5 };
 const tileGridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 };
 const tileStyle: React.CSSProperties = {
   display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start', textAlign: 'left',
-  padding: '14px', border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff', cursor: 'pointer',
+  padding: '14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', cursor: 'pointer',
 };
-const tileSelectedStyle: React.CSSProperties = { border: '2px solid #2563eb', background: '#eff6ff' };
+const tileSelectedStyle: React.CSSProperties = { border: '2px solid var(--primary)', background: 'var(--primary-tint-2)' };
 const tileDisabledStyle: React.CSSProperties = { opacity: 0.45, cursor: 'not-allowed' };
 const tileIconStyle: React.CSSProperties = { fontSize: 22 };
-const tileTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: '#0f172a' };
-const tileDescStyle: React.CSSProperties = { fontSize: 11, color: '#64748b', lineHeight: 1.4 };
+const tileTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: 'var(--text)' };
+const tileDescStyle: React.CSSProperties = { fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 };
 const fieldGroupStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 16 };
-const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#374151' };
-const hintStyle: React.CSSProperties = { fontSize: 11, color: '#94a3b8', lineHeight: 1.4 };
-const fieldErrorStyle: React.CSSProperties = { fontSize: 11, color: '#dc2626', fontWeight: 600, lineHeight: 1.4 };
+const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--text)' };
+const hintStyle: React.CSSProperties = { fontSize: 11, color: 'var(--text-disabled)', lineHeight: 1.4 };
+const fieldErrorStyle: React.CSSProperties = { fontSize: 11, color: 'var(--error)', fontWeight: 600, lineHeight: 1.4 };
 const inputStyle: React.CSSProperties = {
-  height: 34, padding: '0 10px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6,
-  color: '#1e293b', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box',
+  height: 34, padding: '0 10px', background: 'var(--surface)', border: '1px solid var(--border-strong)', borderRadius: 6,
+  color: 'var(--text)', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box',
 };
 const cloneListStyle: React.CSSProperties = {
   marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto',
 };
 const cloneRowStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '9px 12px',
-  border: '1px solid #e2e8f0', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13, textAlign: 'left',
+  border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', cursor: 'pointer', fontSize: 13, textAlign: 'left',
 };
-const cloneRowSelectedStyle: React.CSSProperties = { border: '2px solid #2563eb', background: '#eff6ff' };
-const cloneStateStyle: React.CSSProperties = { fontSize: 11, color: '#64748b', textTransform: 'capitalize' };
+const cloneRowSelectedStyle: React.CSSProperties = { border: '2px solid var(--primary)', background: 'var(--primary-tint-2)' };
+const cloneStateStyle: React.CSSProperties = { fontSize: 11, color: 'var(--text-secondary)', textTransform: 'capitalize' };
 const summaryRowStyle: React.CSSProperties = {
-  display: 'flex', justifyContent: 'space-between', gap: 16, padding: '9px 0', borderBottom: '1px solid #f1f5f9',
+  display: 'flex', justifyContent: 'space-between', gap: 16, padding: '9px 0', borderBottom: '1px solid var(--border)',
 };
-const summaryLabelStyle: React.CSSProperties = { fontSize: 12, color: '#64748b' };
-const summaryValueStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: '#0f172a', textAlign: 'right' };
-const footerStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-  padding: '14px 24px', borderTop: '1px solid #f1f5f9', background: '#f8fafc', borderRadius: '0 0 12px 12px', flexShrink: 0,
-};
-const backBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 18px', background: 'transparent', border: '1px solid #e2e8f0',
-  borderRadius: 6, color: '#374151', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-};
-const cancelBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 18px', background: '#fff', border: '1px solid #e2e8f0',
-  borderRadius: 6, color: '#374151', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-};
-const nextBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 20px', background: '#2563eb', border: 'none', borderRadius: 6,
-  color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-};
-const nextBtnDisabledStyle: React.CSSProperties = { ...nextBtnStyle, background: '#93c5fd', cursor: 'not-allowed' };
-const errorStyle: React.CSSProperties = {
-  padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6,
-  color: '#991b1b', fontSize: 13, marginBottom: 14,
-};
+const summaryLabelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-secondary)' };
+const summaryValueStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: 'var(--text)', textAlign: 'right' };

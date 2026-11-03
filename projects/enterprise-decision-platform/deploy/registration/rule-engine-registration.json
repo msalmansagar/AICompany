@@ -1,0 +1,987 @@
+{
+  "contractVersion": "1.1.0",
+  "description": "Authoritative Rule Engine registration contract. Cloud Custom API metadata, the on-prem Process Action manifest, the re-point tool and the legacy-script guard all derive from or are validated against this file. Edit here, then run: node deploy/tools/generate-onprem-manifest.mjs",
+  "runtime": {
+    "active": {
+      "assemblyName": "EDP.RuleRuntime.Crm",
+      "pluginPackageUniqueName": "qdb_EdpRuleRuntime",
+      "signed": false,
+      "model": "plug-in package (ADR-18)"
+    },
+    "legacy": {
+      "assemblyName": "EDP.RuleRuntime.Crm.Signed",
+      "signed": true,
+      "publicKeyToken": "06949b1887fabe5d",
+      "model": "ILRepacked signed assembly",
+      "status": "retired-for-cloud; retained for rollback until removal is separately authorised; still the on-prem build shape"
+    },
+    "onPrem": {
+      "assemblyName": "EDP.RuleRuntime.Crm.Signed",
+      "model": "ILRepacked signed assembly (plug-in packages are not supported on-premises)",
+      "status": "On-Prem Compatible by Design — Runtime Validation Pending"
+    }
+  },
+  "pluginTypes": [
+    "EDP.RuleRuntime.Crm.AppendOnlyGuardPlugin",
+    "EDP.RuleRuntime.Crm.DecisionIntelligencePlugin",
+    "EDP.RuleRuntime.Crm.DeleteAuditPlugin",
+    "EDP.RuleRuntime.Crm.EvaluateDecisionPlugin",
+    "EDP.RuleRuntime.Crm.GovernanceActionPlugin",
+    "EDP.RuleRuntime.Crm.ProductionPinJustificationPlugin",
+    "EDP.RuleRuntime.Crm.RuleAnalysisPlugin",
+    "EDP.RuleRuntime.Crm.RuleMetadataPlugin",
+    "EDP.RuleRuntime.Crm.RuleServicePlugin"
+  ],
+  "operations": [
+    {
+      "uniqueName": "qdb_edp_AnalyzeRule",
+      "pluginType": "EDP.RuleRuntime.Crm.RuleAnalysisPlugin",
+      "isFunction": true,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": "prvReadqdb_edp_rule",
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Analyze Rule",
+      "request": [
+        {
+          "name": "PcrmJson",
+          "type": "String",
+          "optional": true,
+          "displayName": "PcrmJson"
+        },
+        {
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleVersionId"
+        }
+      ],
+      "response": [
+        {
+          "name": "ResultJson",
+          "type": "String",
+          "displayName": "Result JSON"
+        }
+      ]
+    },
+    {
+      "uniqueName": "qdb_edp_CompareVersions",
+      "pluginType": "EDP.RuleRuntime.Crm.RuleAnalysisPlugin",
+      "isFunction": true,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": "prvReadqdb_edp_rule",
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Compare Versions",
+      "request": [
+        {
+          "name": "RuleVersionIdA",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleVersionIdA"
+        },
+        {
+          "name": "RuleVersionIdB",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleVersionIdB"
+        }
+      ],
+      "response": [
+        {
+          "name": "ResultJson",
+          "type": "String",
+          "displayName": "Result JSON"
+        }
+      ]
+    },
+    {
+      "uniqueName": "qdb_edp_EvaluateDecision",
+      "pluginType": "EDP.RuleRuntime.Crm.EvaluateDecisionPlugin",
+      "isFunction": false,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": "prvReadqdb_edp_rule",
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Evaluate Decision",
+      "request": [
+        {
+          "name": "ChildCollectionName",
+          "type": "String",
+          "optional": true,
+          "displayName": "Child Collection Name"
+        },
+        {
+          "name": "InputsJson",
+          "type": "String",
+          "optional": true,
+          "displayName": "Inputs JSON"
+        },
+        {
+          "name": "PcrmJson",
+          "type": "String",
+          "optional": true,
+          "displayName": "PCRM JSON"
+        },
+        {
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true,
+          "displayName": "Rule Version Id"
+        },
+        {
+          "name": "TargetRef",
+          "type": "EntityReference",
+          "optional": true,
+          "displayName": "Target Reference"
+        }
+      ],
+      "response": [
+        {
+          "name": "ChildResultsJson",
+          "type": "String",
+          "displayName": "Child Results JSON"
+        },
+        {
+          "name": "DiagnosticsJson",
+          "type": "String",
+          "displayName": "Diagnostics JSON"
+        },
+        {
+          "name": "ElapsedMs",
+          "type": "Integer",
+          "displayName": "Elapsed Ms"
+        },
+        {
+          "name": "ExecutionId",
+          "type": "String",
+          "displayName": "Execution Log Id"
+        },
+        {
+          "name": "Matched",
+          "type": "Boolean",
+          "displayName": "Matched"
+        },
+        {
+          "name": "OutputsJson",
+          "type": "String",
+          "displayName": "Outputs JSON"
+        },
+        {
+          "name": "ReasonCodesJson",
+          "type": "String",
+          "displayName": "Reason Codes JSON"
+        },
+        {
+          "name": "Success",
+          "type": "Boolean",
+          "displayName": "Success"
+        },
+        {
+          "name": "TraceJson",
+          "type": "String",
+          "displayName": "Trace JSON"
+        }
+      ]
+    },
+    {
+      "uniqueName": "qdb_edp_ExecuteDecisionTable",
+      "pluginType": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "isFunction": false,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": "prvReadqdb_edp_rule",
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Execute Decision Table",
+      "request": [
+        {
+          "name": "InputsJson",
+          "type": "String",
+          "optional": true,
+          "displayName": "InputsJson"
+        },
+        {
+          "name": "PcrmJson",
+          "type": "String",
+          "optional": true,
+          "displayName": "PcrmJson"
+        },
+        {
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleVersionId"
+        }
+      ],
+      "response": [
+        {
+          "name": "ResultJson",
+          "type": "String",
+          "displayName": "Result JSON"
+        }
+      ]
+    },
+    {
+      "uniqueName": "qdb_edp_ExecuteRuleSet",
+      "pluginType": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "isFunction": false,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": "prvReadqdb_edp_rule",
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Execute Rule Set",
+      "request": [
+        {
+          "name": "InputsJson",
+          "type": "String",
+          "optional": true,
+          "displayName": "InputsJson"
+        },
+        {
+          "name": "RuleSetId",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleSetId"
+        },
+        {
+          "name": "RuleVersionIdsJson",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleVersionIdsJson"
+        }
+      ],
+      "response": [
+        {
+          "name": "ResultJson",
+          "type": "String",
+          "displayName": "Result JSON"
+        }
+      ]
+    },
+    {
+      "uniqueName": "qdb_edp_ExplainDecision",
+      "pluginType": "EDP.RuleRuntime.Crm.DecisionIntelligencePlugin",
+      "isFunction": true,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": "prvReadqdb_edp_rule",
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Explain Decision",
+      "request": [
+        {
+          "name": "ExecutionLogId",
+          "type": "String",
+          "optional": false,
+          "displayName": "Execution Log Id"
+        }
+      ],
+      "response": [
+        {
+          "name": "ResultJson",
+          "type": "String",
+          "displayName": "Result JSON"
+        }
+      ]
+    },
+    {
+      "uniqueName": "qdb_edp_ExplainRule",
+      "pluginType": "EDP.RuleRuntime.Crm.RuleAnalysisPlugin",
+      "isFunction": true,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": "prvReadqdb_edp_rule",
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Explain Rule",
+      "request": [
+        {
+          "name": "PcrmJson",
+          "type": "String",
+          "optional": true,
+          "displayName": "PcrmJson"
+        },
+        {
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleVersionId"
+        }
+      ],
+      "response": [
+        {
+          "name": "ResultJson",
+          "type": "String",
+          "displayName": "Result JSON"
+        }
+      ]
+    },
+    {
+      "uniqueName": "qdb_edp_GetAnalytics",
+      "pluginType": "EDP.RuleRuntime.Crm.DecisionIntelligencePlugin",
+      "isFunction": true,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": "prvReadqdb_edp_rule",
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Get Analytics",
+      "request": [
+        {
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true,
+          "displayName": "Rule Version Id"
+        }
+      ],
+      "response": [
+        {
+          "name": "ResultJson",
+          "type": "String",
+          "displayName": "Result JSON"
+        }
+      ]
+    },
+    {
+      "uniqueName": "qdb_edp_GetDependencies",
+      "pluginType": "EDP.RuleRuntime.Crm.RuleAnalysisPlugin",
+      "isFunction": true,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": "prvReadqdb_edp_rule",
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Get Dependencies",
+      "request": [
+        {
+          "name": "PcrmJson",
+          "type": "String",
+          "optional": true,
+          "displayName": "PcrmJson"
+        },
+        {
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleVersionId"
+        }
+      ],
+      "response": [
+        {
+          "name": "ResultJson",
+          "type": "String",
+          "displayName": "Result JSON"
+        }
+      ]
+    },
+    {
+      "uniqueName": "qdb_edp_GetInputSchema",
+      "pluginType": "EDP.RuleRuntime.Crm.RuleMetadataPlugin",
+      "isFunction": true,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": "prvReadqdb_edp_rule",
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Get Input Schema",
+      "request": [
+        {
+          "name": "RuleId",
+          "type": "String",
+          "optional": true,
+          "displayName": "Rule Id"
+        },
+        {
+          "name": "RuleName",
+          "type": "String",
+          "optional": true,
+          "displayName": "Rule Name"
+        },
+        {
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true,
+          "displayName": "Rule Version Id"
+        },
+        {
+          "name": "Version",
+          "type": "String",
+          "optional": true,
+          "displayName": "Version Number"
+        }
+      ],
+      "response": [
+        {
+          "name": "ResultJson",
+          "type": "String",
+          "displayName": "Result JSON"
+        }
+      ]
+    },
+    {
+      "uniqueName": "qdb_edp_GetOutputSchema",
+      "pluginType": "EDP.RuleRuntime.Crm.RuleMetadataPlugin",
+      "isFunction": true,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": "prvReadqdb_edp_rule",
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Get Output Schema",
+      "request": [
+        {
+          "name": "RuleId",
+          "type": "String",
+          "optional": true,
+          "displayName": "Rule Id"
+        },
+        {
+          "name": "RuleName",
+          "type": "String",
+          "optional": true,
+          "displayName": "Rule Name"
+        },
+        {
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true,
+          "displayName": "Rule Version Id"
+        },
+        {
+          "name": "Version",
+          "type": "String",
+          "optional": true,
+          "displayName": "Version Number"
+        }
+      ],
+      "response": [
+        {
+          "name": "ResultJson",
+          "type": "String",
+          "displayName": "Result JSON"
+        }
+      ]
+    },
+    {
+      "uniqueName": "qdb_edp_GetPublishedVersion",
+      "pluginType": "EDP.RuleRuntime.Crm.RuleMetadataPlugin",
+      "isFunction": true,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": "prvReadqdb_edp_rule",
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Get Published Version",
+      "request": [
+        {
+          "name": "RuleId",
+          "type": "String",
+          "optional": true,
+          "displayName": "Rule Id"
+        },
+        {
+          "name": "RuleName",
+          "type": "String",
+          "optional": true,
+          "displayName": "Rule Name"
+        },
+        {
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true,
+          "displayName": "Rule Version Id"
+        },
+        {
+          "name": "Version",
+          "type": "String",
+          "optional": true,
+          "displayName": "Version Number"
+        }
+      ],
+      "response": [
+        {
+          "name": "ResultJson",
+          "type": "String",
+          "displayName": "Result JSON"
+        }
+      ]
+    },
+    {
+      "uniqueName": "qdb_edp_GetRuleAnalytics",
+      "pluginType": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "isFunction": true,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": null,
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Get Rule Analytics",
+      "request": [
+        {
+          "name": "PeriodDays",
+          "type": "String",
+          "optional": true,
+          "displayName": "PeriodDays"
+        },
+        {
+          "name": "RuleId",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleId"
+        }
+      ],
+      "response": [
+        {
+          "name": "ResultJson",
+          "type": "String",
+          "displayName": "Result JSON"
+        }
+      ]
+    },
+    {
+      "uniqueName": "qdb_edp_GetRuleDocumentation",
+      "pluginType": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "isFunction": true,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": "prvReadqdb_edp_rule",
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Get Rule Documentation",
+      "request": [
+        {
+          "name": "RuleId",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleId"
+        },
+        {
+          "name": "RuleName",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleName"
+        },
+        {
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleVersionId"
+        }
+      ],
+      "response": [
+        {
+          "name": "ResultJson",
+          "type": "String",
+          "displayName": "Result JSON"
+        }
+      ]
+    },
+    {
+      "uniqueName": "qdb_edp_GetRuleHistory",
+      "pluginType": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "isFunction": true,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": "prvReadqdb_edp_rule",
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Get Rule History",
+      "request": [
+        {
+          "name": "RuleId",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleId"
+        },
+        {
+          "name": "RuleName",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleName"
+        },
+        {
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleVersionId"
+        }
+      ],
+      "response": [
+        {
+          "name": "ResultJson",
+          "type": "String",
+          "displayName": "Result JSON"
+        }
+      ]
+    },
+    {
+      "uniqueName": "qdb_edp_GetRuleMetadata",
+      "pluginType": "EDP.RuleRuntime.Crm.RuleMetadataPlugin",
+      "isFunction": true,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": "prvReadqdb_edp_rule",
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Get Rule Metadata",
+      "request": [
+        {
+          "name": "RuleId",
+          "type": "String",
+          "optional": true,
+          "displayName": "Rule Id"
+        },
+        {
+          "name": "RuleName",
+          "type": "String",
+          "optional": true,
+          "displayName": "Rule Name"
+        },
+        {
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true,
+          "displayName": "Rule Version Id"
+        },
+        {
+          "name": "Version",
+          "type": "String",
+          "optional": true,
+          "displayName": "Version Number"
+        }
+      ],
+      "response": [
+        {
+          "name": "ResultJson",
+          "type": "String",
+          "displayName": "Result JSON"
+        }
+      ]
+    },
+    {
+      "uniqueName": "qdb_edp_GetRuleTemplates",
+      "pluginType": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "isFunction": true,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": "prvReadqdb_edp_rule",
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Get Rule Templates",
+      "request": [
+        {
+          "name": "Industry",
+          "type": "String",
+          "optional": true,
+          "displayName": "Industry"
+        }
+      ],
+      "response": [
+        {
+          "name": "ResultJson",
+          "type": "String",
+          "displayName": "Result JSON"
+        }
+      ]
+    },
+    {
+      "uniqueName": "qdb_edp_ResolveEffectiveVersion",
+      "pluginType": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "isFunction": true,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": null,
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Resolve Effective Version",
+      "request": [
+        {
+          "name": "AsOf",
+          "type": "String",
+          "optional": true,
+          "displayName": "AsOf"
+        },
+        {
+          "name": "RuleId",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleId"
+        },
+        {
+          "name": "RuleName",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleName"
+        }
+      ],
+      "response": [
+        {
+          "name": "ResultJson",
+          "type": "String",
+          "displayName": "Result JSON"
+        }
+      ]
+    },
+    {
+      "uniqueName": "qdb_edp_RuleGovernanceAction",
+      "pluginType": "EDP.RuleRuntime.Crm.GovernanceActionPlugin",
+      "isFunction": false,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": "prvReadqdb_edp_ruleapproval",
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Rule Governance Action",
+      "request": [
+        {
+          "name": "Action",
+          "type": "String",
+          "optional": false,
+          "displayName": "Action"
+        },
+        {
+          "name": "Comments",
+          "type": "String",
+          "optional": true,
+          "displayName": "Comments"
+        },
+        {
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": false,
+          "displayName": "RuleVersionId"
+        }
+      ],
+      "response": [
+        {
+          "name": "Message",
+          "type": "String",
+          "displayName": "Message"
+        },
+        {
+          "name": "NewState",
+          "type": "String",
+          "displayName": "NewState"
+        },
+        {
+          "name": "Success",
+          "type": "Boolean",
+          "displayName": "Success"
+        }
+      ]
+    },
+    {
+      "uniqueName": "qdb_edp_RunScenarios",
+      "pluginType": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "isFunction": false,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": null,
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Run Scenarios",
+      "request": [
+        {
+          "name": "PcrmJson",
+          "type": "String",
+          "optional": true,
+          "displayName": "PcrmJson"
+        },
+        {
+          "name": "RuleId",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleId"
+        },
+        {
+          "name": "RuleName",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleName"
+        },
+        {
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleVersionId"
+        }
+      ],
+      "response": [
+        {
+          "name": "ResultJson",
+          "type": "String",
+          "displayName": "Result JSON"
+        }
+      ]
+    },
+    {
+      "uniqueName": "qdb_edp_TestRule",
+      "pluginType": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "isFunction": false,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": "prvWriteqdb_edp_rule",
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Test Rule",
+      "request": [
+        {
+          "name": "InputsJson",
+          "type": "String",
+          "optional": true,
+          "displayName": "InputsJson"
+        },
+        {
+          "name": "PcrmJson",
+          "type": "String",
+          "optional": true,
+          "displayName": "PcrmJson"
+        },
+        {
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleVersionId"
+        }
+      ],
+      "response": [
+        {
+          "name": "ResultJson",
+          "type": "String",
+          "displayName": "Result JSON"
+        }
+      ]
+    },
+    {
+      "uniqueName": "qdb_edp_ValidateRule",
+      "pluginType": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "isFunction": false,
+      "bindingType": 0,
+      "boundEntity": null,
+      "isPrivate": false,
+      "allowedCustomProcessingStepType": 0,
+      "executePrivilegeName": "prvWriteqdb_edp_rule",
+      "workflowSdkStepEnabled": false,
+      "displayName": "EDP Validate Rule",
+      "request": [
+        {
+          "name": "PcrmJson",
+          "type": "String",
+          "optional": true,
+          "displayName": "PcrmJson"
+        },
+        {
+          "name": "RuleVersionId",
+          "type": "String",
+          "optional": true,
+          "displayName": "RuleVersionId"
+        }
+      ],
+      "response": [
+        {
+          "name": "ResultJson",
+          "type": "String",
+          "displayName": "Result JSON"
+        }
+      ]
+    }
+  ],
+  "entitySteps": [
+    {
+      "pluginType": "EDP.RuleRuntime.Crm.AppendOnlyGuardPlugin",
+      "message": "Delete",
+      "entity": "qdb_edp_ruleapproval",
+      "stage": 10,
+      "mode": 0,
+      "images": []
+    },
+    {
+      "pluginType": "EDP.RuleRuntime.Crm.AppendOnlyGuardPlugin",
+      "message": "Update",
+      "entity": "qdb_edp_ruleapproval",
+      "stage": 10,
+      "mode": 0,
+      "images": []
+    },
+    {
+      "pluginType": "EDP.RuleRuntime.Crm.AppendOnlyGuardPlugin",
+      "message": "Delete",
+      "entity": "qdb_edp_ruleaudit",
+      "stage": 10,
+      "mode": 0,
+      "images": []
+    },
+    {
+      "pluginType": "EDP.RuleRuntime.Crm.AppendOnlyGuardPlugin",
+      "message": "Update",
+      "entity": "qdb_edp_ruleaudit",
+      "stage": 10,
+      "mode": 0,
+      "images": []
+    },
+    {
+      "pluginType": "EDP.RuleRuntime.Crm.AppendOnlyGuardPlugin",
+      "message": "Delete",
+      "entity": "qdb_edp_ruleexecutionlog",
+      "stage": 10,
+      "mode": 0,
+      "images": []
+    },
+    {
+      "pluginType": "EDP.RuleRuntime.Crm.AppendOnlyGuardPlugin",
+      "message": "Update",
+      "entity": "qdb_edp_ruleexecutionlog",
+      "stage": 10,
+      "mode": 0,
+      "images": []
+    },
+    {
+      "pluginType": "EDP.RuleRuntime.Crm.DeleteAuditPlugin",
+      "message": "Delete",
+      "entity": "qdb_edp_rule",
+      "stage": 20,
+      "mode": 0,
+      "images": []
+    },
+    {
+      "pluginType": "EDP.RuleRuntime.Crm.DeleteAuditPlugin",
+      "message": "Delete",
+      "entity": "qdb_edp_ruleversion",
+      "stage": 20,
+      "mode": 0,
+      "images": []
+    }
+  ],
+  "notYetRegistered": [
+    {
+      "pluginType": "EDP.RuleRuntime.Crm.ProductionPinJustificationPlugin",
+      "reason": "Pin guard (ADR-12 layer 1). Its steps are registered by a separate, separately-authorised step (bre-register-pin-guard.js); A7 moves existing registrations only."
+    }
+  ]
+}

@@ -3,6 +3,36 @@
 **Engagement:** EDP-BRE-001 · **Closes:** F-05 (part 2) · **Blocks:** pin-plugin deploy (ADR-14/ADR-12 layer 1), all future assembly changes
 **Owner:** DevOps · **Accountable:** Architect · **Sign-off:** QDB IT / Security · **Effort:** Medium (choreography, not code)
 
+
+> ## ⛔ SUPERSEDED FOR CLOUD — PROVEN ON THE REAL ASSEMBLY (2026-08-19)
+>
+> **Upgraded from "may be unnecessary" to "is unnecessary for cloud".** The earlier note rested
+> on a throwaway probe. EDP’s OWN assembly has since been registered in org5869857f as an
+> unsigned plug-in package — `EDP.RuleRuntime.Crm` v1.0.24.0, `publickeytoken: null`,
+> isolationmode 2, **9 plugin types including the pin guard this runbook was blocking** — and a
+> live Custom API (`qdb_edp_ValidateRule`) was re-pointed to it and answered with `EDP041`, a
+> diagnostic that exists only in 1.0.24. Evidence: `spikes/adr-18-p1-real-assembly.md`.
+>
+> **A strong-name key is not required to ship EDP to cloud. Do not run a key ceremony for it.**
+>
+> **This runbook exists because the plug-in assembly must be signed. That premise no longer
+> holds for the cloud line.**
+>
+> ADR-18 P0 was run against org5869857f on 2026-08-19 and observed, not reasoned, that an
+> **unsigned** assembly inside a Dataverse **plug-in package** registers and executes in
+> sandbox isolation — and that the package binds the dependency versions it ships rather than
+> the sandbox's own. Evidence: `spikes/adr-18-p0-packaging-probe.md`.
+>
+> **Consequence:** rotating a strong-name key may be work that does not need doing at all for
+> cloud. Five changes currently queue behind this runbook; they may be unblocked by a packaging
+> migration instead of a key ceremony.
+>
+> **What is still true:** on-premises cannot use plug-in packages, so the on-prem line keeps
+> ILRepack and signing, and this runbook still applies there. And P0 proved the mechanism with
+> a trivial probe, **not with EDP's own assembly** — that migration is unproven.
+>
+> **Before executing:** settle the cloud packaging decision (ADR-18) first.
+
 ---
 
 ## 1. Objective

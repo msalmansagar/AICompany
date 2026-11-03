@@ -1,4 +1,8 @@
-export type ViewMode = 'executive' | 'business' | 'technical' | 'technical-new' | 'swimlane';
+/**
+ * 'technical-new' keeps its id so stored view preferences and any deep link
+ * still resolve; the old 'technical' canvas it replaced is gone.
+ */
+export type ViewMode = 'overview' | 'executive' | 'business' | 'technical-new' | 'swimlane' | 'hierarchy';
 
 export interface ViewModeMeta {
   id: ViewMode;
@@ -7,6 +11,11 @@ export interface ViewModeMeta {
 }
 
 export const VIEW_MODES: ViewModeMeta[] = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    description: 'The journey stage by stage — click a stage to open it in detail',
+  },
   {
     id: 'executive',
     label: 'Executive',
@@ -18,18 +27,18 @@ export const VIEW_MODES: ViewModeMeta[] = [
     description: 'Main flow with grouped outcomes',
   },
   {
-    id: 'technical',
-    label: 'Technical',
-    description: 'Full detail — schema, tasks, assignments',
-  },
-  {
     id: 'technical-new',
-    label: 'Technical (New)',
-    description: 'SOP-style canvas with full technical detail and colour-coded paths',
+    label: 'Technical',
+    description: 'Full detail — schema, tasks, assignments, colour-coded paths',
   },
   {
     id: 'swimlane',
     label: 'Swimlane',
     description: 'Steps grouped by role or team',
+  },
+  {
+    id: 'hierarchy',
+    label: 'Hierarchy',
+    description: 'Org-chart drilldown — collapse and expand the flow level by level',
   },
 ];

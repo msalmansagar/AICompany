@@ -1,23 +1,22 @@
 // src/components/SopCanvas/SopCanvas.tsx
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ReactFlow,
   Background,
   BackgroundVariant,
   Controls,
-  useReactFlow,
-  type NodeChange,
   type Connection,
-  applyNodeChanges,
 } from '@xyflow/react';
 import type { Node } from '@xyflow/react';
+import { useSyncedNodes } from '@/hooks/useSyncedNodes';
 import { useSopStore } from '@/store/sopStore';
-import type { SopDesignerState, SopValidationResult } from '@/store/sopStore';
+import type { SopValidationResult } from '@/store/sopStore';
 import { selectSopNodes, selectSopEdges, SOP_SYNTHETIC_PREFIX, SOP_GATEWAY_PREFIX } from '@/store/sopSelectors';
 import { validateSopForPublish } from '@/validators/sopValidator';
 import { emptyEscalationFields } from '@/services/escalationFields';
 import { useSopSave } from '@/hooks/useSopSave';
 import { nodeTypes } from '@/nodes/nodeTypes';
+import { SopPropertiesDialog } from './SopPropertiesDialog';
 import { SOP_STATUS } from '@/types/SopTypes';
 import type { ISopAdapter } from '@/services/ISopAdapter';
 import type { SopStep, SopOutcome } from '@/types/SopTypes';
@@ -25,44 +24,41 @@ import { CreateProcessWizardModal } from '@/components/CreateProcessWizard/Creat
 import { SopStepPanel } from './SopStepPanel';
 import { SopOutcomePanel } from './SopOutcomePanel';
 import { confirm } from '@/components/ui/ConfirmDialog';
+import { notify } from '@/components/ui/Notify';
+import { FitOnceMeasured } from '@/components/common/FitOnceMeasured';
 
 interface SopCanvasProps {
   adapter: ISopAdapter;
-  onBack(): void;
 }
 
-export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
-  const { fitView } = useReactFlow();
-  const store = useSopStore();
+export function SopCanvas({ adapter }: SopCanvasProps) {
   const { saveSopCanvas } = useSopSave();
 
-  // Lazy init so the first render already has nodes; edges referencing those nodes
-  // will be visible immediately instead of being silently dropped by ReactFlow.
-  const [nodes, setNodes] = useState<Node[]>(() =>
-    selectSopNodes(useSopStore.getState() as unknown as SopDesignerState)
-  );
   const [showWizard, setShowWizard] = useState(false);
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const [toastIsError, setToastIsError] = useState(false);
-
+  const [showSopProperties, setShowSopProperties] = useState(false);
+  // One store subscription; the same object carries state and actions.
   const state = useSopStore();
+  const store = state;
 
-  useEffect(() => {
-    setNodes(selectSopNodes(state));
-  }, [state.steps, state.stepOrder, state.outcomes, state.nodePositions, state.selectedId, state.validationResults, state]);
+  const blueprint = useMemo(
+    () => selectSopNodes(state),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state.steps, state.stepOrder, state.outcomes, state.outcomeOrder, state.nodePositions, state.selectedId, state.validationResults]
+  );
+
+  // Keeps React Flow's measured dimensions across blueprint rebuilds, so the
+  // initial fitView frames a measured graph — the old fixed 80ms delayed fit
+  // raced measurement and is gone.
+  const { nodes, onNodesChange: handleNodesChange } = useSyncedNodes(blueprint);
 
   const edges = selectSopEdges(state);
 
   const sopSteps: SopStep[] = state.stepOrder.map((id) => state.steps[id]).filter(Boolean);
 
-  useEffect(() => {
-    setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 80);
-  }, [fitView]);
-
+  // The shared toast host replaces the bespoke banner, whose 3.5s timer
+  // hid a second toast raised within the window of the first.
   const showToast = useCallback((msg: string, isError = false) => {
-    setToastMsg(msg);
-    setToastIsError(isError);
-    setTimeout(() => setToastMsg(null), 3500);
+    notify(msg, isError ? 'error' : 'success');
   }, []);
 
   const handleAddStep = useCallback(() => {
@@ -106,27 +102,8 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
     }
   }, [saveSopCanvas, showToast]);
 
-  const handleBack = useCallback(() => {
-    if (!state.isDirty) {
-      store.resetSopCanvas();
-      onBack();
-      return;
-    }
-    void confirm({
-      title: 'Unsaved changes',
-      message: 'You have unsaved changes. Leave without saving?',
-      confirmLabel: 'Leave',
-      tone: 'danger',
-    }).then((confirmed) => {
-      if (!confirmed) return;
-      store.resetSopCanvas();
-      onBack();
-    });
-  }, [state.isDirty, store, onBack]);
-
-  const handleNodesChange = useCallback((changes: NodeChange[]) => {
-    setNodes((nds) => applyNodeChanges(changes, nds));
-  }, []);
+  // Leaving is the sitemap's job now; SopListScreen carries the unsaved-changes
+  // guard that used to live behind this screen's back button.
 
   const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     if (node.id.startsWith(SOP_SYNTHETIC_PREFIX)) return;
@@ -163,49 +140,46 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
 
   return (
     <div style={shellStyle}>
-      {toastMsg && (
-        <ToastBanner message={toastMsg} isError={toastIsError} onClose={() => setToastMsg(null)} />
-      )}
-
-      {/* Toolbar */}
-      <div style={toolbarStyle}>
-        <button type="button" style={backBtnStyle} onClick={handleBack}>
-          ← SOPs
+      {/* The sitemap owns navigation, so there is no back button here — the
+          command bar carries only what acts on this SOP. */}
+      <div className="cmdbar">
+        <button type="button" className="cmd primary" onClick={handleAddStep} disabled={!state.sop}>
+          + Add step
         </button>
-        <div style={toolbarDividerStyle} />
-        <span style={sopNameStyle}>{state.sop?.name ?? 'SOP Designer'}</span>
-        {state.sop?.status === SOP_STATUS.PUBLISHED && (
-          <span style={publishedBadgeStyle}>Published</span>
-        )}
-        {state.isDirty && <span style={dirtyBadgeStyle}>Unsaved</span>}
-
-        <div style={{ flex: 1 }} />
-
-        <button type="button" style={addStepBtnStyle} onClick={handleAddStep} disabled={!state.sop}>
-          + Add Step
-        </button>
+        <span className="cmd-sep" />
         <button
           type="button"
-          style={state.isSaving ? saveBtnDisabledStyle : saveBtnStyle}
+          className="cmd"
           onClick={() => void handleSave()}
           disabled={state.isSaving || !state.isDirty}
         >
           {state.isSaving ? 'Saving…' : 'Save'}
         </button>
         {canPublish && (
-          <button type="button" style={publishBtnStyle} onClick={() => void handlePublish()}>
+          <button type="button" className="cmd" onClick={() => void handlePublish()}>
             Publish
           </button>
         )}
         {state.sop?.status === SOP_STATUS.PUBLISHED && (
-          <button
-            type="button"
-            style={createProcessBtnStyle}
-            onClick={() => setShowWizard(true)}
-          >
-            Create Process
+          <button type="button" className="cmd" onClick={() => setShowWizard(true)}>
+            Create process
           </button>
         )}
+        <span className="cmd-sep" />
+        <button
+          type="button"
+          className="cmd"
+          onClick={() => setShowSopProperties(true)}
+          disabled={!state.sop}
+        >
+          Properties
+        </button>
+
+        <span className="cmd-spacer" />
+
+        <span style={sopNameStyle}>{state.sop?.name ?? 'SOP Designer'}</span>
+        {state.sop?.status === SOP_STATUS.PUBLISHED && <span className="pill published">Published</span>}
+        {state.isDirty && <span className="pill warning">Unsaved</span>}
       </div>
 
       {/* Validation errors */}
@@ -237,8 +211,9 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
             minZoom={0.08}
             maxZoom={2.5}
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#e2e8f0" />
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--canvas-grid)" />
             <Controls showInteractive={false} />
+            <FitOnceMeasured options={{ padding: 0.2, duration: 300 }} />
           </ReactFlow>
         </div>
 
@@ -304,6 +279,17 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
           }}
         />
       )}
+
+      {showSopProperties && state.sop && (
+        <SopPropertiesDialog
+          sop={state.sop}
+          onClose={() => setShowSopProperties(false)}
+          onSave={(patch) => {
+            store.updateSop(patch);
+            setShowSopProperties(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -329,94 +315,13 @@ function ValidationBanner({ results, onDismiss }: { results: SopValidationResult
   );
 }
 
-function ToastBanner({ message, isError, onClose }: { message: string; isError: boolean; onClose(): void }) {
-  return (
-    <div style={{
-      position: 'absolute', top: 52, left: '50%', transform: 'translateX(-50%)',
-      zIndex: 8000, display: 'flex', alignItems: 'center', gap: 10,
-      background: isError ? '#fef2f2' : '#f0fdf4',
-      border: `1px solid ${isError ? '#fca5a5' : '#86efac'}`,
-      borderRadius: 8, padding: '10px 16px',
-      boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-      fontSize: 13, color: isError ? '#991b1b' : '#166534',
-      maxWidth: 480, minWidth: 260,
-    }}>
-      <span style={{ flex: 1 }}>{message}</span>
-      <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'inherit', padding: 0 }}>
-        ×
-      </button>
-    </div>
-  );
-}
-
 const shellStyle: React.CSSProperties = {
   width: '100%', height: '100%', display: 'flex',
   flexDirection: 'column', overflow: 'hidden', position: 'relative',
 };
 
-const toolbarStyle: React.CSSProperties = {
-  height: 48, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8,
-  padding: '0 12px', background: '#fff',
-  borderBottom: '1px solid #e2e8f0',
-  fontFamily: '"Segoe UI", system-ui, sans-serif',
-};
-
-const backBtnStyle: React.CSSProperties = {
-  height: 30, padding: '0 12px', background: 'transparent',
-  border: '1px solid #e2e8f0', borderRadius: 5,
-  fontSize: 12, fontWeight: 500, color: '#475569', cursor: 'pointer',
-};
-
-const toolbarDividerStyle: React.CSSProperties = {
-  width: 1, height: 24, background: '#e2e8f0', flexShrink: 0,
-};
-
 const sopNameStyle: React.CSSProperties = {
-  fontSize: 14, fontWeight: 700, color: '#0f172a',
-};
-
-const publishedBadgeStyle: React.CSSProperties = {
-  fontSize: 10, fontWeight: 600, color: '#166534',
-  background: '#dcfce7', border: '1px solid #86efac',
-  borderRadius: 4, padding: '1px 7px',
-};
-
-const dirtyBadgeStyle: React.CSSProperties = {
-  fontSize: 10, fontWeight: 600, color: '#92400e',
-  background: '#fffbeb', border: '1px solid #fde68a',
-  borderRadius: 4, padding: '1px 7px',
-};
-
-const addStepBtnStyle: React.CSSProperties = {
-  height: 30, padding: '0 14px',
-  background: '#f8fafc', border: '1px solid #e2e8f0',
-  borderRadius: 5, fontSize: 12, fontWeight: 600,
-  color: '#0f766e', cursor: 'pointer',
-};
-
-const saveBtnStyle: React.CSSProperties = {
-  height: 30, padding: '0 14px',
-  background: '#2563eb', border: 'none',
-  borderRadius: 5, fontSize: 12, fontWeight: 600,
-  color: '#fff', cursor: 'pointer',
-};
-
-const saveBtnDisabledStyle: React.CSSProperties = {
-  ...saveBtnStyle, background: '#93c5fd', cursor: 'not-allowed',
-};
-
-const publishBtnStyle: React.CSSProperties = {
-  height: 30, padding: '0 14px',
-  background: '#0f766e', border: 'none',
-  borderRadius: 5, fontSize: 12, fontWeight: 600,
-  color: '#fff', cursor: 'pointer',
-};
-
-const createProcessBtnStyle: React.CSSProperties = {
-  height: 30, padding: '0 14px',
-  background: '#7c3aed', border: 'none',
-  borderRadius: 5, fontSize: 12, fontWeight: 600,
-  color: '#fff', cursor: 'pointer',
+  fontSize: 14, fontWeight: 700, color: 'var(--text)',
 };
 
 const bodyStyle: React.CSSProperties = {
@@ -429,8 +334,8 @@ const canvasWrapStyle: React.CSSProperties = {
 
 const validationBannerStyle: React.CSSProperties = {
   flexShrink: 0,
-  background: '#fef2f2',
-  borderBottom: '1px solid #fca5a5',
+  background: 'var(--error-bg)',
+  borderBottom: '1px solid var(--error)',
   padding: '8px 14px',
   fontFamily: '"Segoe UI", system-ui, sans-serif',
 };
@@ -441,12 +346,12 @@ const validationHeaderRowStyle: React.CSSProperties = {
 };
 
 const validationTitleStyle: React.CSSProperties = {
-  fontSize: 12, fontWeight: 700, color: '#991b1b',
+  fontSize: 12, fontWeight: 700, color: 'var(--error)',
 };
 
 const validationDismissBtnStyle: React.CSSProperties = {
   background: 'none', border: 'none', cursor: 'pointer',
-  fontSize: 16, color: '#991b1b', padding: 0, lineHeight: 1,
+  fontSize: 16, color: 'var(--error)', padding: 0, lineHeight: 1,
 };
 
 const validationListStyle: React.CSSProperties = {
@@ -454,11 +359,11 @@ const validationListStyle: React.CSSProperties = {
 };
 
 const validationItemStyle: React.CSSProperties = {
-  fontSize: 12, color: '#7f1d1d', marginBottom: 2,
+  fontSize: 12, color: 'var(--error)', marginBottom: 2,
 };
 
 const validationCodeStyle: React.CSSProperties = {
   fontWeight: 700, marginRight: 6,
-  background: '#fee2e2', borderRadius: 3,
+  background: 'var(--error-bg)', borderRadius: 3,
   padding: '0 4px', fontSize: 10,
 };

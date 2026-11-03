@@ -1,0 +1,9 @@
+# .NET build output
+bin/
+obj/
+*.user
+.vs/
+
+# Local secrets (never commit — DC-2 / connection strings)
+appsettings.Development.json
+appsettings.*.Local.json

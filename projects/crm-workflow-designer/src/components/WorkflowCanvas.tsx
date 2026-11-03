@@ -5,6 +5,7 @@ import {
   Controls,
   MiniMap,
   useReactFlow,
+  useStore,
   Panel,
   applyNodeChanges,
   getNodesBounds,
@@ -15,11 +16,10 @@ import {
 } from '@xyflow/react';
 import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { buildGraph } from '../services/WorkflowGraphBuilder';
 import { logError } from '../services/logError';
 import { buildExecutiveGraph } from '../services/ExecutiveGraphBuilder';
-import { buildTechnicalGraph } from '../services/TechnicalGraphBuilder';
 import { buildTechNewGraph } from '../services/TechNewGraphBuilder';
 import { buildSwimlaneGraph } from '../services/SwimlaneGraphBuilder';
 import { nodeTypes } from '../nodes/nodeTypes';
@@ -31,12 +31,42 @@ import type { ViewMode } from '../types/ViewMode';
 import type { LayoutDir } from '../services/WorkflowGraphBuilder';
 import type { ICrmAdapter } from '../services/ICrmAdapter';
 import { useResolvedRouteLabels } from '../hooks/useResolvedRouteLabels';
+import { minimapNodeColor, MINIMAP_MASK_COLOR } from './common/minimapTheme';
+import { computeSmartFit, LARGE_GRAPH_THRESHOLD } from './common/SmartInitialView';
+import { centerOnNode } from './common/canvasNavigation';
+import { wantsResolvedConditionLabel } from '../services/routeDisplay';
+import { GoToStepPanel } from './common/GoToStepPanel';
+import { buildStageBands } from '../services/stageBands';
+import { buildParallelGroupNodes } from '../services/parallelGroups';
+import { buildOverviewGraph } from '../services/stageOverview';
+import type { OverviewStageData } from '../services/stageOverview';
+import { STEP_W } from '../services/WorkflowGraphBuilder';
+import { CORRECTION_PILL_H, CORRECTION_PILL_W } from '../services/correctionSteps';
+import { buildHierarchyGraph } from '../services/HierarchyGraphBuilder';
+import type { HierarchyStepData } from '../services/HierarchyGraphBuilder';
+import { HierarchyStepList } from './common/HierarchyStepList';
+import { RoundZoomControls } from './common/RoundZoomControls';
+import { HierarchyModePanel } from './common/HierarchyModePanel';
+import type { HierarchyViewMode } from './common/HierarchyModePanel';
+import type { HierarchyReturnEdgeData } from '../services/HierarchyGraphBuilder';
+import { edgeTypes } from '../edges/edgeTypes';
+import type { GoToStepItem } from './common/GoToStepPanel';
+import type { ViewStepData } from '../services/WorkflowGraphBuilder';
+import { CanvasLegend } from './common/CanvasLegend';
+import { applyFlowVisibility, DEFAULT_FLOW_VISIBILITY } from '../services/viewFilters';
+import { parseDesignerLayout, mergeDesignerLayout } from '../services/designerLayout';
+import { notify } from './ui/Notify';
+import type { FlowVisibility } from '../services/viewFilters';
+import { FlowDisplayBar } from './common/FlowDisplayBar';
+import { applyReturnSpotlight, collectReturnRefs, groupRefsBySource } from '../services/returnSpotlight';
+import type { ReturnRef } from '../services/returnSpotlight';
 
 interface WorkflowCanvasProps {
   view: WorkflowView;
   adapter: ICrmAdapter;
   onNewProcess: () => void;
   onEditProcess?: () => void;
+  onOpenSummary?: () => void;
   onBackToList?: () => void;
 }
 
@@ -51,47 +81,285 @@ type BuildFn = (
 ) => ReturnType<typeof buildGraph>;
 
 const GRAPH_BUILDERS: Record<ViewMode, BuildFn> = {
+  overview:       buildOverviewGraph as BuildFn,
   executive:      buildExecutiveGraph as BuildFn,
   business:       buildGraph as BuildFn,
-  technical:      buildTechnicalGraph as BuildFn,
   'technical-new': buildTechNewGraph as BuildFn,
   swimlane:       buildSwimlaneGraph as BuildFn,
+  // The hierarchy builder also takes the collapsed set; the rebuild effect
+  // calls it directly with that extra argument.
+  hierarchy:      buildHierarchyGraph as BuildFn,
 };
 
-export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onBackToList }: WorkflowCanvasProps) {
+/**
+ * The ids of every node React Flow has measured, or null while any is still
+ * unmeasured. `useNodesInitialized` cannot be used for this: during the commit
+ * that swaps a new graph in it still reports the previous graph's state, so a
+ * fit driven by it lands on stale sizes and leaves a swimlane off-screen.
+ * Comparing ids makes that staleness visible instead of invisible.
+ */
+function useMeasuredNodeIds(): string | null {
+  return useStore((state) => {
+    const ids: string[] = [];
+    for (const [id, node] of state.nodeLookup) {
+      if (!node.measured?.width) return null;
+      ids.push(id);
+    }
+    return ids.sort().join(';');
+  });
+}
+
+export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onOpenSummary }: WorkflowCanvasProps) {
   const [selectorOpen, setSelectorOpen] = useState(false);
-  const [showMiniMap, setShowMiniMap] = useState(false);
+  // No explicit choice yet -> the minimap turns itself on for large graphs,
+  // where "where am I" is a real question. A toggle click wins from then on.
+  const [miniMapPreference, setMiniMapPreference] = useState<boolean | null>(null);
+  const showMiniMap =
+    miniMapPreference ?? (view.data?.steps.length ?? 0) > LARGE_GRAPH_THRESHOLD;
+  // Hierarchy view: which cards have folded their subtree away.
+  const [collapsedSteps, setCollapsedSteps] = useState<ReadonlySet<string>>(new Set());
+  // Hierarchy view: how returns are shown (CWFD-011).
+  const [hierarchyMode, setHierarchyMode] = useState<HierarchyViewMode>('forward');
+  const [peekedReturnStep, setPeekedReturnStep] = useState<string | null>(null);
+  const [pinnedReturnSteps, setPinnedReturnSteps] = useState<ReadonlySet<string>>(new Set());
+  const toggleReturnPin = useCallback((stepId: string) => {
+    setPinnedReturnSteps((previous) => {
+      const next = new Set(previous);
+      if (next.has(stepId)) next.delete(stepId);
+      else next.add(stepId);
+      return next;
+    });
+  }, []);
+  const toggleCollapsed = useCallback((stepId: string) => {
+    setCollapsedSteps((previous) => {
+      const next = new Set(previous);
+      if (next.has(stepId)) next.delete(stepId);
+      else next.add(stepId);
+      return next;
+    });
+  }, []);
+  const [showEdgeLabels, setShowEdgeLabels] = useState(true);
+  const [flowVisibility, setFlowVisibility] = useState<FlowVisibility>(DEFAULT_FLOW_VISIBILITY);
+  // The return badge and spotlight (CWFD-017 PR2): which card's ↩ list is
+  // open, which return is being peeked (hover), and which are pinned.
+  const [openReturnMenuStepId, setOpenReturnMenuStepId] = useState<string | null>(null);
+  const [peekedReturnOutcomeId, setPeekedReturnOutcomeId] = useState<string | null>(null);
+  const [pinnedReturnOutcomeIds, setPinnedReturnOutcomeIds] = useState<ReadonlySet<string>>(
+    new Set()
+  );
+  // The view canvases arrange themselves, but a reader who nudges a card
+  // into place should be able to keep that — per mode and direction, since
+  // each draws a different graph.
+  const [storedViewLayouts, setStoredViewLayouts] = useState<Record<string, Record<string, { x: number; y: number }>>>({});
+  const [isLayoutDirty, setIsLayoutDirty] = useState(false);
+  const [isSavingLayout, setIsSavingLayout] = useState(false);
+  const layoutKey = `${view.viewMode}:${view.layoutDir}`;
   const [isExporting, setIsExporting] = useState(false);
-  const { fitView, getNodes } = useReactFlow();
-  const fitViewTrigger = useRef(0);
+  const reactFlow = useReactFlow();
+  const { fitView, getNodes, fitBounds } = reactFlow;
+  // Where a drill-down from the Overview should land once Detailed rebuilds.
+  const [pendingDrillNodeId, setPendingDrillNodeId] = useState<string | null>(null);
+  const measuredNodeIds = useMeasuredNodeIds();
+  const [pendingFit, setPendingFit] = useState(0);
 
   const resolvedLabels = useResolvedRouteLabels(view.data?.routes ?? [], adapter);
+
+  // Every return relationship in the loaded process, for the badge popovers
+  // and the spotlight's synthesised edges.
+  const returnRefs = useMemo(
+    () =>
+      view.data
+        ? collectReturnRefs(view.data.steps, view.data.outcomes)
+        : new Map<string, ReturnRef>(),
+    [view.data]
+  );
+  const returnRefsBySource = useMemo(() => groupRefsBySource(returnRefs), [returnRefs]);
+
+  const handleReturnBadgeClick = useCallback((stepId: string) => {
+    setOpenReturnMenuStepId((previous) => (previous === stepId ? null : stepId));
+    setPeekedReturnOutcomeId(null);
+  }, []);
+
+  const handleReturnRowHover = useCallback((outcomeId: string | null) => {
+    setPeekedReturnOutcomeId(outcomeId);
+  }, []);
+
+  // Clicking a return pins it — and, jump-reference style, brings BOTH ends
+  // into view, so a return crossing half the canvas is followed as a link
+  // instead of traced along a connector.
+  const handleReturnRowClick = useCallback(
+    (outcomeId: string) => {
+      const isPinning = !pinnedReturnOutcomeIds.has(outcomeId);
+      setPinnedReturnOutcomeIds((previous) => {
+        const next = new Set(previous);
+        if (next.has(outcomeId)) next.delete(outcomeId);
+        else next.add(outcomeId);
+        return next;
+      });
+      if (!isPinning) return;
+      const ref = returnRefs.get(outcomeId);
+      if (!ref) return;
+      const pair = getNodes().filter(
+        (node) => node.id === `step_${ref.sourceStepId}` || node.id === `step_${ref.targetStepId}`
+      );
+      if (pair.length === 2) {
+        fitBounds(getNodesBounds(pair), { padding: 0.35, duration: 400 });
+      }
+    },
+    [pinnedReturnOutcomeIds, returnRefs, getNodes, fitBounds]
+  );
+
+  const goToItems = useMemo<GoToStepItem[]>(
+    () =>
+      view.nodes
+        .filter((node) => node.type === 'viewStep')
+        .map((node) => {
+          const data = node.data as ViewStepData;
+          return { nodeId: node.id, label: data.step.name, sequenceNo: data.step.sequenceNo };
+        })
+        .sort((a, b) => a.sequenceNo - b.sequenceNo),
+    [view.nodes]
+  );
 
   // Rebuild graph whenever the loaded data, view mode, or layout direction changes.
   useEffect(() => {
     if (!view.data) return;
-    const builder = GRAPH_BUILDERS[view.viewMode];
-    const { nodes: rebuilt, edges: rebuiltEdges } = builder(
-      view.data.steps,
-      view.data.outcomes,
-      view.layoutDir,
-      view.data.routes,
-    );
-    view.setNodes(() => rebuilt);
+    // The hierarchy chart lays itself out around what is collapsed, so it
+    // rebuilds on every fold and ignores saved drag positions.
+    const { nodes: rebuilt, edges: rebuiltEdges } =
+      view.viewMode === 'hierarchy'
+        ? buildHierarchyGraph(
+            view.data.steps,
+            view.data.outcomes,
+            view.layoutDir,
+            view.data.routes,
+            collapsedSteps
+          )
+        : GRAPH_BUILDERS[view.viewMode](
+            view.data.steps,
+            view.data.outcomes,
+            view.layoutDir,
+            view.data.routes,
+          );
+    const saved =
+      view.viewMode === 'hierarchy'
+        ? undefined
+        : storedViewLayouts[`${view.viewMode}:${view.layoutDir}`];
+    const positioned = saved
+      ? rebuilt.map((node) => (saved[node.id] ? { ...node, position: saved[node.id] } : node))
+      : rebuilt;
+    // Stage bands are derived from final positions, so a saved layout gets
+    // bands where its cards actually are.
+    const stageBands =
+      view.viewMode === 'business' ? buildStageBands(positioned, view.layoutDir) : [];
+    // Parallel group bands too: they wrap the branch children wherever the
+    // layout finally put them (CWFD-017 PR4).
+    const cardById = new Map(positioned.map((node) => [node.id, node]));
+    const parallelGroups =
+      view.viewMode === 'business'
+        ? buildParallelGroupNodes(
+            view.data.steps.map((step) => ({
+              id: step.id,
+              parentStepId: step.parentStepId,
+              name: step.name,
+            })),
+            (stepId) => {
+              const node = cardById.get(`step_${stepId}`);
+              if (!node) return null;
+              const isPill = (node.data as { isCorrection?: boolean }).isCorrection === true;
+              return {
+                x: node.position.x,
+                y: node.position.y,
+                w: isPill ? CORRECTION_PILL_W : STEP_W,
+                h: isPill
+                  ? CORRECTION_PILL_H
+                  : ((node.data as { nodeHeight?: number }).nodeHeight ?? 90),
+              };
+            }
+          )
+        : [];
+    view.setNodes(() => [...stageBands, ...parallelGroups, ...positioned]);
     view.setEdges(() => rebuiltEdges);
-    setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 80);
+    setPendingFit((token) => token + 1);
+    setIsLayoutDirty(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view.data, view.viewMode, view.layoutDir]);
+  }, [view.data, view.viewMode, view.layoutDir, storedViewLayouts, collapsedSteps]);
 
-  // Apply resolved human-readable labels to route edges once metadata is fetched.
-  // Also re-runs on view mode / data change so labels survive graph rebuilds.
+  const processId = view.data?.process.id ?? null;
   useEffect(() => {
-    if (resolvedLabels.size === 0) return;
+    setCollapsedSteps(new Set());
+    setPinnedReturnSteps(new Set());
+    setPeekedReturnStep(null);
+    setHierarchyMode('forward');
+    setOpenReturnMenuStepId(null);
+    setPeekedReturnOutcomeId(null);
+    setPinnedReturnOutcomeIds(new Set());
+  }, [processId]);
+  // A different canvas draws a different graph — carrying a pinned return
+  // across would spotlight nodes that may not exist there.
+  useEffect(() => {
+    setOpenReturnMenuStepId(null);
+    setPeekedReturnOutcomeId(null);
+    setPinnedReturnOutcomeIds(new Set());
+  }, [view.viewMode]);
+  useEffect(() => {
+    if (!processId) {
+      setStoredViewLayouts({});
+      return;
+    }
+    let cancelled = false;
+    void adapter
+      .loadDesignerLayout(processId)
+      .then((json) => {
+        if (cancelled) return;
+        setStoredViewLayouts(parseDesignerLayout(json)?.viewLayouts ?? {});
+        setIsLayoutDirty(false);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [processId, adapter]);
+
+  const requestedNodeIds = useMemo(
+    () => view.nodes.map((node) => node.id).sort().join(';'),
+    [view.nodes]
+  );
+
+  // Fit only once the nodes React Flow has measured are the nodes we asked for.
+  // A fixed delay raced measurement, and a swimlane lane is wide enough that
+  // fitting too early left most of the diagram off-screen behind the panel.
+  useEffect(() => {
+    if (pendingFit === 0 || measuredNodeIds === null) return;
+    if (measuredNodeIds !== requestedNodeIds) return;
+    // A drill-down from the Overview lands on its stage's first step;
+    // everything else opens on the smart fit.
+    if (pendingDrillNodeId && centerOnNode(reactFlow, pendingDrillNodeId)) {
+      setPendingDrillNodeId(null);
+    } else {
+      // Large graphs open on their first stage at reading zoom, not fit-all.
+      fitView({ ...computeSmartFit(getNodes(), view.layoutDir), duration: 300 });
+    }
+    setPendingFit(0);
+  }, [pendingFit, measuredNodeIds, requestedNodeIds, fitView, getNodes, view.layoutDir, pendingDrillNodeId, reactFlow]);
+
+  // Resolved human-readable conditions dress only NAMELESS routes — a named
+  // route shows its name, and Default stays Default (CWFD-019 PR2). The full
+  // condition always lives in the Decision and Route panels.
+  useEffect(() => {
+    if (resolvedLabels.size === 0 || !view.data) return;
+    const routeById = new Map(view.data.routes.map((route) => [route.id, route]));
     view.setEdges((prev) =>
       prev.map((edge) => {
         const routeId = extractRouteId(edge.id);
-        const label = routeId ? resolvedLabels.get(routeId) : undefined;
-        return label ? { ...edge, label } : edge;
+        if (!routeId) return edge;
+        const route = routeById.get(routeId);
+        const label = resolvedLabels.get(routeId);
+        if (!route || !label) return edge;
+        if (!wantsResolvedConditionLabel({ name: route.name, filter: route.filter, isDefault: route.isDefault })) {
+          return edge;
+        }
+        return { ...edge, label: truncateLabel(label) };
       })
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -108,8 +376,7 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onB
   }, [view]);
 
   const handleFitView = useCallback(() => {
-    fitViewTrigger.current += 1;
-    fitView({ padding: 0.2, duration: 300 });
+    fitView({ padding: 0.2, maxZoom: 1.2, duration: 300 });
   }, [fitView]);
 
   const handleAutoLayout = useCallback(() => {
@@ -123,12 +390,29 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onB
     );
     view.setNodes(() => positioned);
     view.setEdges(() => rebuilt);
-    setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 80);
-  }, [view, fitView]);
+    setPendingFit((token) => token + 1);
+    // Re-deriving the layout is the reset gesture: the saved arrangement
+    // for this mode is what the user just discarded.
+    if (storedViewLayouts[layoutKey]) setIsLayoutDirty(true);
+  }, [view, storedViewLayouts, layoutKey]);
 
+  // Clicking a stage on the Overview drills into the Detailed canvas at
+  // that stage's first step — the progressive-disclosure gesture.
   const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    if (node.type === 'overviewStage') {
+      const stage = (node.data as OverviewStageData).stage;
+      view.setViewMode('business');
+      view.selectElement(`step_${stage.firstStepId}`);
+      setPendingDrillNodeId(`step_${stage.firstStepId}`);
+      return;
+    }
     view.selectElement(node.id);
   }, [view]);
+
+  // Double-clicking a step is the universal 'edit this' gesture.
+  const handleNodeDoubleClick = useCallback((_: React.MouseEvent, node: Node) => {
+    if (node.type === 'viewStep' && onEditProcess) onEditProcess();
+  }, [onEditProcess]);
 
   const handleEdgeClick = useCallback((_: React.MouseEvent, edge: Edge) => {
     view.selectElement(edge.id);
@@ -136,11 +420,185 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onB
 
   const handlePaneClick = useCallback(() => {
     view.selectElement(null);
+    setOpenReturnMenuStepId(null);
+    setPeekedReturnOutcomeId(null);
   }, [view]);
 
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
     view.setNodes((prev) => applyNodeChanges(changes, prev));
+    if (changes.some((c) => c.type === 'position' && c.dragging === false)) {
+      setIsLayoutDirty(true);
+    }
   }, [view]);
+
+  const handleSaveLayout = useCallback(async () => {
+    if (!processId) return;
+    setIsSavingLayout(true);
+    try {
+      const positions: Record<string, { x: number; y: number }> = {};
+      for (const node of view.nodes) positions[node.id] = node.position;
+      const nextLayouts = { ...storedViewLayouts, [layoutKey]: positions };
+      const existing = await adapter.loadDesignerLayout(processId).catch(() => null);
+      // Merge: the editor owns the other half of this blob.
+      await adapter.saveDesignerLayout(processId, mergeDesignerLayout(existing, { viewLayouts: nextLayouts }));
+      setStoredViewLayouts(nextLayouts);
+      setIsLayoutDirty(false);
+      notify('Layout saved for this view.', 'success');
+    } catch (err) {
+      logError('view:save-layout', err);
+      notify('Could not save the layout.', 'error');
+    } finally {
+      setIsSavingLayout(false);
+    }
+  }, [processId, adapter, view.nodes, storedViewLayouts, layoutKey]);
+
+  // What the canvas actually draws, after the declutter filters. Hierarchy
+  // governs its own returns (badges, pins, its mode panel), so the Flow
+  // Display toggles apply everywhere else.
+  const visible = useMemo(() => {
+    // The Overview draws stages, not flow classes — the Flow Display chips
+    // and the return spotlight have nothing to act on there.
+    if (view.viewMode === 'overview') return { nodes: view.nodes, edges: view.edges };
+    if (view.viewMode !== 'hierarchy') {
+      const filtered = applyFlowVisibility(view.nodes, view.edges, flowVisibility);
+      const interactive = view.viewMode === 'business' || view.viewMode === 'swimlane';
+      if (!interactive) return filtered;
+
+      // With return lines hidden, cards compress their ↩ rows into a badge;
+      // with returns shown, the classic rows return.
+      const returnDisplay = flowVisibility.returns !== 'show' ? 'badge' : 'rows';
+      const nodes = filtered.nodes.map((node) =>
+        node.type === 'viewStep' || node.type === 'swimStep'
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                returnDisplay,
+                stepReturnRefs: returnRefsBySource.get(node.id.slice('step_'.length)) ?? [],
+                isReturnMenuOpen: node.id === `step_${openReturnMenuStepId}`,
+                pinnedReturnOutcomeIds,
+                onReturnBadgeClick: handleReturnBadgeClick,
+                onReturnRowHover: handleReturnRowHover,
+                onReturnRowClick: handleReturnRowClick,
+              },
+            }
+          : node
+      );
+
+      const activeIds = new Set(pinnedReturnOutcomeIds);
+      if (peekedReturnOutcomeId) activeIds.add(peekedReturnOutcomeId);
+      const activeRefs = [...activeIds]
+        .map((id) => returnRefs.get(id))
+        .filter((ref): ref is ReturnRef => ref !== undefined);
+      const handles =
+        view.viewMode === 'swimlane'
+          ? { sourceHandle: 'bottom', targetHandle: 'bottom-t' }
+          : { sourceHandle: 'back-out', targetHandle: 'back-in' };
+      return applyReturnSpotlight(nodes, filtered.edges, activeRefs, handles);
+    }
+    const filtered = { nodes: view.nodes, edges: view.edges };
+
+    const selectedStepId = view.selectedId?.startsWith('step_')
+      ? view.selectedId.slice('step_'.length)
+      : null;
+
+    // Selected path: the reporting line — every ancestor from the entry down
+    // to the selection, plus where the selection's returns land.
+    const parentOf = new Map<string, string>();
+    for (const node of filtered.nodes) {
+      if (node.type !== 'hierStep') continue;
+      const data = node.data as HierarchyStepData;
+      for (const child of data.childStepIds) parentOf.set(child, data.step.id);
+    }
+    const pathIds = new Set<string>();
+    if (hierarchyMode === 'selected' && selectedStepId) {
+      let cursor: string | undefined = selectedStepId;
+      while (cursor && !pathIds.has(cursor)) {
+        pathIds.add(cursor);
+        cursor = parentOf.get(cursor);
+      }
+    }
+
+    const isReturnVisible = (data: HierarchyReturnEdgeData): boolean => {
+      if (hierarchyMode === 'returns') return true;
+      if (hierarchyMode === 'selected') {
+        return selectedStepId !== null &&
+          (data.sourceStepId === selectedStepId || data.targetStepId === selectedStepId);
+      }
+      return (
+        data.sourceStepId === peekedReturnStep || pinnedReturnSteps.has(data.sourceStepId)
+      );
+    };
+
+    const dimPath = hierarchyMode === 'selected' && selectedStepId !== null;
+    const returnEndpoints = new Set<string>();
+    if (dimPath) {
+      for (const edge of filtered.edges) {
+        if (edge.type !== 'hierReturn') continue;
+        const data = edge.data as HierarchyReturnEdgeData;
+        if (data.sourceStepId === selectedStepId) returnEndpoints.add(data.targetStepId);
+        if (data.targetStepId === selectedStepId) returnEndpoints.add(data.sourceStepId);
+      }
+    }
+
+    return {
+      nodes: filtered.nodes.map((node) => {
+        if (node.type !== 'hierStep') return node;
+        const data = node.data as HierarchyStepData;
+        const onPath =
+          !dimPath || pathIds.has(data.step.id) || returnEndpoints.has(data.step.id);
+        return {
+          ...node,
+          style: { ...node.style, opacity: onPath ? 1 : 0.25 },
+          data: {
+            ...data,
+            isCollapsed: collapsedSteps.has(data.step.id),
+            onToggleCollapse: toggleCollapsed,
+            isReturnPinned: pinnedReturnSteps.has(data.step.id),
+            onReturnHover: setPeekedReturnStep,
+            onReturnToggle: toggleReturnPin,
+          },
+        };
+      }),
+      edges: filtered.edges.map((edge) => {
+        if (edge.type === 'hierReturn') {
+          return { ...edge, hidden: !isReturnVisible(edge.data as HierarchyReturnEdgeData) };
+        }
+        if (dimPath && edge.type === 'smoothstep') {
+          const sourceId = edge.source.slice('step_'.length);
+          const targetId = edge.target.slice('step_'.length);
+          const onPath = pathIds.has(sourceId) && pathIds.has(targetId);
+          return {
+            ...edge,
+            style: onPath
+              ? { ...edge.style, stroke: 'var(--primary)', strokeWidth: 2.2, opacity: 1 }
+              : { ...edge.style, opacity: 0.2 },
+          };
+        }
+        return edge;
+      }),
+    };
+  }, [
+    view.nodes,
+    view.edges,
+    flowVisibility,
+    view.viewMode,
+    openReturnMenuStepId,
+    peekedReturnOutcomeId,
+    pinnedReturnOutcomeIds,
+    returnRefs,
+    returnRefsBySource,
+    handleReturnBadgeClick,
+    handleReturnRowHover,
+    handleReturnRowClick,
+    view.selectedId,
+    collapsedSteps,
+    toggleCollapsed,
+    hierarchyMode,
+    peekedReturnStep,
+    pinnedReturnSteps,
+    toggleReturnPin,
+  ]);
 
   // Captures the React Flow viewport element scaled to fit all nodes.
   const captureImage = useCallback(async (): Promise<string> => {
@@ -150,8 +608,13 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onB
     const { x, y, zoom } = getViewportForBounds(bounds, EXPORT_W, EXPORT_H, 0.05, 4, 0.08);
     const viewportEl = document.querySelector('.react-flow__viewport') as HTMLElement | null;
     if (!viewportEl) throw new Error('Viewport element not found.');
+    // html-to-image serialises the clone into a standalone SVG image, where
+    // CSS variables from this document do not resolve — a var() here exports
+    // a transparent background. Hand it the computed colour instead.
+    const canvasBackground =
+      getComputedStyle(document.documentElement).getPropertyValue('--canvas-bg').trim() || '#ffffff';
     return toPng(viewportEl, {
-      backgroundColor: '#f8fafc',
+      backgroundColor: canvasBackground,
       width: EXPORT_W,
       height: EXPORT_H,
       style: {
@@ -195,41 +658,53 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onB
     <div style={shellStyle}>
       <ViewToolbar
         processName={view.data?.process.name ?? null}
+        workflowState={view.data?.process.workflowState ?? null}
         isLoading={view.phase === 'loading-list' || view.phase === 'loading-workflow'}
         isExporting={isExporting}
         showMiniMap={showMiniMap}
+        showEdgeLabels={showEdgeLabels}
+        isLayoutDirty={isLayoutDirty}
+        isSavingLayout={isSavingLayout}
         viewMode={view.viewMode}
         layoutDir={view.layoutDir}
-        onOpen={handleOpen}
         onRefresh={() => void view.refresh()}
         onFitView={handleFitView}
         onAutoLayout={handleAutoLayout}
-        onToggleMiniMap={() => setShowMiniMap((v) => !v)}
+        onToggleMiniMap={() => setMiniMapPreference(!showMiniMap)}
+        onToggleEdgeLabels={() => setShowEdgeLabels((v) => !v)}
+        onSaveLayout={() => void handleSaveLayout()}
         onDownloadPng={() => void handleDownloadPng()}
         onDownloadPdf={() => void handleDownloadPdf()}
         onViewModeChange={view.setViewMode}
         onLayoutDirChange={view.setLayoutDir}
         onNewProcess={onNewProcess}
         onEditProcess={onEditProcess}
-        onBackToList={onBackToList}
+        onOpenSummary={onOpenSummary}
       />
 
       <div style={bodyStyle}>
-        <div style={canvasWrap}>
+        {view.viewMode === 'hierarchy' && view.data && (
+          <HierarchyStepList
+            steps={view.data.steps}
+            selectedId={view.selectedId}
+            onSelect={(nodeId) => view.selectElement(nodeId)}
+          />
+        )}
+        <div style={canvasWrap} className={showEdgeLabels ? undefined : 'edge-labels-hidden'}>
           <ReactFlow
-            nodes={view.nodes}
-            edges={view.edges}
+            nodes={visible.nodes}
+            edges={visible.edges}
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
             onNodesChange={handleNodesChange}
             onNodeClick={handleNodeClick}
+            onNodeDoubleClick={handleNodeDoubleClick}
             onEdgeClick={handleEdgeClick}
             onPaneClick={handlePaneClick}
             nodesDraggable={true}
             nodesConnectable={false}
             elementsSelectable={true}
             deleteKeyCode={null}
-            fitView
-            fitViewOptions={{ padding: 0.2, maxZoom: 1.2 }}
             proOptions={{ hideAttribution: true }}
             minZoom={0.08}
             maxZoom={2.5}
@@ -237,12 +712,23 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onB
             panOnDrag
             selectionOnDrag={false}
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#e2e8f0" />
-            <Controls showInteractive={false} />
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--canvas-grid)" />
+            {view.viewMode !== 'hierarchy' && <Controls showInteractive={false} />}
+            {view.viewMode !== 'hierarchy' && view.viewMode !== 'overview' && <CanvasLegend />}
+            {view.viewMode !== 'hierarchy' && view.viewMode !== 'overview' && (
+              <FlowDisplayBar visibility={flowVisibility} onChange={setFlowVisibility} />
+            )}
+            {view.viewMode !== 'hierarchy' && view.viewMode !== 'overview' && (
+              <GoToStepPanel items={goToItems} onPick={(nodeId) => view.selectElement(nodeId)} />
+            )}
+            {view.viewMode === 'hierarchy' && <RoundZoomControls />}
+            {view.viewMode === 'hierarchy' && (
+              <HierarchyModePanel mode={hierarchyMode} onChange={setHierarchyMode} />
+            )}
             {showMiniMap && (
               <MiniMap
-                nodeColor={minimapColor}
-                maskColor="rgba(248,250,252,0.75)"
+                nodeColor={minimapNodeColor}
+                maskColor={MINIMAP_MASK_COLOR}
                 style={{ bottom: 60 }}
               />
             )}
@@ -256,7 +742,19 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onB
           </ReactFlow>
         </div>
 
-        <ReadOnlyPropertyPanel data={view.data} selectedId={view.selectedId} adapter={adapter} />
+        {/* The panel appears only for a selection now; the process facts it
+            used to hold permanently live on the summary screen. */}
+        {view.selectedId && (
+          <ReadOnlyPropertyPanel
+            data={view.data}
+            selectedId={view.selectedId}
+            adapter={adapter}
+            onNavigateToStep={(stepId) => {
+              view.selectElement(`step_${stepId}`);
+              centerOnNode(reactFlow, `step_${stepId}`);
+            }}
+          />
+        )}
       </div>
 
       {selectorOpen && (
@@ -275,8 +773,8 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onB
 function LoadingOverlay() {
   return (
     <Panel position="top-center" style={overlayPanelStyle}>
-      <span style={spinnerStyle} />
-      <span style={{ fontSize: 13, color: '#475569' }}>Loading workflow…</span>
+      <span className="spinner" />
+      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Loading workflow…</span>
     </Panel>
   );
 }
@@ -284,11 +782,11 @@ function LoadingOverlay() {
 function ErrorPanel({ message, onRetry }: { message: string; onRetry(): void }) {
   return (
     <Panel position="top-center" style={errorPanelStyle}>
-      <strong style={{ fontSize: 12, color: '#991b1b', display: 'block', marginBottom: 4 }}>
+      <strong style={{ fontSize: 12, color: 'var(--error)', display: 'block', marginBottom: 4 }}>
         Failed to load workflow
       </strong>
-      <pre style={errorPreStyle}>{message}</pre>
-      <button type="button" style={retryBtn} onClick={onRetry}>Retry</button>
+      <pre className="hint-inline" style={{ whiteSpace: 'pre-wrap', fontFamily: 'var(--font-mono)' }}>{message}</pre>
+      <button type="button" className="btn" onClick={onRetry}>Retry</button>
     </Panel>
   );
 }
@@ -296,14 +794,14 @@ function ErrorPanel({ message, onRetry }: { message: string; onRetry(): void }) 
 function EmptyState({ onOpen, hasNoSteps }: { onOpen(): void; hasNoSteps: boolean }) {
   return (
     <Panel position="top-center" style={{ marginTop: 80 }}>
-      <div style={emptyCard}>
+      <div className="empty-state">
         <div style={emptyHeading}>Workflow Designer</div>
         {hasNoSteps ? (
-          <p style={emptyText}>This process has no workflow steps.</p>
+          <p className="hint-inline">This process has no workflow steps.</p>
         ) : (
-          <p style={emptyText}>Open an existing workflow to visualise it.</p>
+          <p className="hint-inline">Open an existing workflow to visualise it.</p>
         )}
-        <button type="button" style={openBtn} onClick={onOpen}>
+        <button type="button" className="btn primary" onClick={onOpen}>
           Open Workflow
         </button>
       </div>
@@ -311,19 +809,17 @@ function EmptyState({ onOpen, hasNoSteps }: { onOpen(): void; hasNoSteps: boolea
   );
 }
 
+const MAX_EDGE_LABEL_CHARS = 34;
+
+function truncateLabel(label: string): string {
+  return label.length > MAX_EDGE_LABEL_CHARS ? `${label.slice(0, MAX_EDGE_LABEL_CHARS - 1)}…` : label;
+}
+
 function extractRouteId(edgeId: string): string | null {
-  for (const prefix of ['e_route_', 'e_exec_route_', 'e_tech_route_']) {
+  for (const prefix of ['e_route_', 'e_exec_route_', 'tn_e_route_']) {
     if (edgeId.startsWith(prefix)) return edgeId.slice(prefix.length);
   }
   return null;
-}
-
-function minimapColor(node: Node): string {
-  if (node.type === 'viewStep') return '#2563eb';
-  if (node.type === 'viewDecision') return '#7c3aed';
-  if (node.type === 'viewStart') return '#16a34a';
-  if (node.type === 'viewEnd') return '#dc2626';
-  return '#94a3b8';
 }
 
 const shellStyle: React.CSSProperties = {
@@ -351,8 +847,8 @@ const overlayPanelStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 8,
-  background: '#fff',
-  border: '1px solid #e2e8f0',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 8,
   padding: '8px 16px',
   boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
@@ -360,8 +856,8 @@ const overlayPanelStyle: React.CSSProperties = {
 };
 
 const errorPanelStyle: React.CSSProperties = {
-  background: '#fff',
-  border: '1px solid #fecaca',
+  background: 'var(--surface)',
+  border: '1px solid var(--error)',
   borderRadius: 8,
   padding: '12px 16px',
   boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
@@ -369,65 +865,10 @@ const errorPanelStyle: React.CSSProperties = {
   marginTop: 12,
 };
 
-const errorPreStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontFamily: 'monospace',
-  color: '#7f1d1d',
-  margin: '0 0 8px',
-  whiteSpace: 'pre-wrap',
-  wordBreak: 'break-word',
-  maxHeight: 200,
-  overflowY: 'auto',
-};
-
-const retryBtn: React.CSSProperties = {
-  padding: '4px 12px',
-  background: '#dc2626',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 4,
-  fontSize: 12,
-  cursor: 'pointer',
-};
-
-const spinnerStyle: React.CSSProperties = {
-  display: 'inline-block',
-  width: 14,
-  height: 14,
-  border: '2px solid #e2e8f0',
-  borderTopColor: '#2563eb',
-  borderRadius: '50%',
-};
-
-const emptyCard: React.CSSProperties = {
-  background: '#fff',
-  borderRadius: 12,
-  padding: '40px 48px',
-  boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-  textAlign: 'center',
-  maxWidth: 400,
-};
-
 const emptyHeading: React.CSSProperties = {
   fontSize: 20,
   fontWeight: 700,
-  color: '#1e293b',
+  color: 'var(--text)',
   marginBottom: 8,
 };
 
-const emptyText: React.CSSProperties = {
-  color: '#64748b',
-  fontSize: 13,
-  margin: '0 0 24px',
-};
-
-const openBtn: React.CSSProperties = {
-  padding: '10px 24px',
-  background: '#2563eb',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 6,
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: 'pointer',
-};

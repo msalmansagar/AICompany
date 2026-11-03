@@ -68,10 +68,12 @@ export function FetchXmlQueryBuilder({
         )}
       </div>
 
-      <div style={previewSectionStyle}>
-        <p style={sectionLabelStyle}>FetchXML preview (editable):</p>
+      <div className="field">
+        <label className="lbl" htmlFor="fetchxml-preview">FetchXML preview (editable)</label>
         <textarea
-          style={textareaStyle(!!validationError)}
+          id="fetchxml-preview"
+          className={validationError ? 'fluent-input invalid' : 'fluent-input'}
+          style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
           value={previewXml}
           onChange={handleManualChange}
           rows={6}
@@ -81,9 +83,9 @@ export function FetchXmlQueryBuilder({
           aria-describedby={validationError ? 'fetchxml-error' : undefined}
         />
         {validationError && (
-          <p id="fetchxml-error" style={errorStyle}>
+          <span id="fetchxml-error" className="hint-inline" style={{ color: 'var(--error)' }}>
             {validationError}
-          </p>
+          </span>
         )}
       </div>
     </div>
@@ -116,40 +118,16 @@ const builderSectionStyle: React.CSSProperties = {
   gap: 8,
 };
 
-const previewSectionStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 4,
-};
-
 const sectionLabelStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: '#374151',
+  color: 'var(--text)',
   margin: 0,
 };
 
 const emptyStateStyle: React.CSSProperties = {
   fontSize: 12,
-  color: '#9ca3af',
+  color: 'var(--text-disabled)',
   fontStyle: 'italic',
 };
 
-function textareaStyle(hasError: boolean): React.CSSProperties {
-  return {
-    width: '100%',
-    fontFamily: 'monospace',
-    fontSize: 12,
-    border: `1px solid ${hasError ? '#ef4444' : '#d1d5db'}`,
-    borderRadius: 4,
-    padding: 8,
-    resize: 'vertical',
-    outline: 'none',
-  };
-}
-
-const errorStyle: React.CSSProperties = {
-  fontSize: 11,
-  color: '#ef4444',
-  margin: 0,
-};

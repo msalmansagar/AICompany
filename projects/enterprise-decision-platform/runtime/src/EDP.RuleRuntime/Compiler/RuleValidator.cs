@@ -23,10 +23,13 @@ namespace EDP.RuleRuntime.Compiler
         {
             var diagnostics = new List<RuleDiagnostic>();
             var symbols = new HashSet<string>(
-                doc.Inputs.Select(i => i.Name).Concat(doc.Variables.Select(v => v.Name)),
+                doc.Inputs.Select(i => i.Name)
+                    .Concat(doc.Variables.Select(v => v.Name))
+                    .Concat(doc.Retrievals.Select(r => r.Name)),   // a retrieval declares a collection symbol
                 StringComparer.OrdinalIgnoreCase);
 
             ValidateBindings(doc, diagnostics);
+            ValidateRetrievals(doc, diagnostics);
 
             if (doc.Logic.Type.Equals("decisionTable", StringComparison.OrdinalIgnoreCase))
             {
@@ -115,18 +118,97 @@ namespace EDP.RuleRuntime.Compiler
                 ValidateGroup(rule.When, symbols, diagnostics);
         }
 
-        private void ValidateGroup(PcrmGroup group, HashSet<string> symbols, List<RuleDiagnostic> diagnostics)
+        /// <summary>
+        /// Validate a group tree. <paramref name="symbols"/> is null inside a quantifier body,
+        /// where field references resolve against the collection's elements rather than the
+        /// rule's declared symbols.
+        /// </summary>
+        private void ValidateGroup(PcrmGroup group, HashSet<string>? symbols, List<RuleDiagnostic> diagnostics)
         {
             foreach (var c in group.Conditions)
             {
                 if (!OperatorEvaluator.IsKnown(c.Operator))
                     diagnostics.Add(new RuleDiagnostic("EDP003", $"Unknown operator '{c.Operator}'.", RuleErrorSeverity.Error, c.Field));
-                if (!string.IsNullOrWhiteSpace(c.Field) && !symbols.Contains(c.Field))
+                if (symbols != null && !string.IsNullOrWhiteSpace(c.Field) && !symbols.Contains(c.Field))
                     diagnostics.Add(new RuleDiagnostic("EDP004", $"Condition references undeclared symbol '{c.Field}'.", RuleErrorSeverity.Error, c.Field));
             }
+            foreach (var quantifier in group.Quantifiers)
+                ValidateQuantifier(quantifier, symbols, diagnostics);
             foreach (var nested in group.Groups)
                 ValidateGroup(nested, symbols, diagnostics);
         }
+
+        private static readonly HashSet<string> ArgMaxModes =
+            new HashSet<string>(new[] { "latest", "earliest", "highest", "lowest" }, StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Author-time gates on population retrieval (F2). These are guard rails, not style: an
+        /// unfiltered or unbounded read is how a rule quietly scans a table during a payment run.
+        /// </summary>
+        private void ValidateRetrievals(PcrmDocument doc, List<RuleDiagnostic> diagnostics)
+        {
+            var declared = new HashSet<string>(
+                doc.Inputs.Select(i => i.Name).Concat(doc.Variables.Select(v => v.Name)),
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var retrieval in doc.Retrievals)
+            {
+                if (string.IsNullOrWhiteSpace(retrieval.Name))
+                    diagnostics.Add(new RuleDiagnostic("EDP050", "Retrieval has no name, so no rule can reference it.", RuleErrorSeverity.Error));
+                else if (declared.Contains(retrieval.Name))
+                    diagnostics.Add(new RuleDiagnostic("EDP050", $"Retrieval '{retrieval.Name}' collides with an existing input or variable.", RuleErrorSeverity.Error, retrieval.Name));
+
+                if (string.IsNullOrWhiteSpace(retrieval.Entity) || !_metadata.EntityExists(retrieval.Entity))
+                    diagnostics.Add(new RuleDiagnostic("EDP051", $"Retrieval entity '{retrieval.Entity}' not found in metadata.", RuleErrorSeverity.Error, retrieval.Name));
+
+                // FR-F11 — an unfiltered population read must never reach publish.
+                if (retrieval.Filter == null || IsEmpty(retrieval.Filter))
+                    diagnostics.Add(new RuleDiagnostic("EDP052", $"Retrieval '{retrieval.Name}' has no filter. An unfiltered population read is not permitted.", RuleErrorSeverity.Error, retrieval.Name));
+
+                // FR-F13 — a ceiling is mandatory, and exceeding it fails rather than truncating.
+                if (retrieval.MaxRows <= 0)
+                    diagnostics.Add(new RuleDiagnostic("EDP053", $"Retrieval '{retrieval.Name}' declares no row ceiling (maxRows).", RuleErrorSeverity.Error, retrieval.Name));
+
+                ValidateArgMax(retrieval, diagnostics);
+            }
+        }
+
+        private void ValidateArgMax(PcrmRetrieval retrieval, List<RuleDiagnostic> diagnostics)
+        {
+            var groupBy = retrieval.GroupBy;
+            if (groupBy == null) return;
+
+            if (string.IsNullOrWhiteSpace(groupBy.Key) || string.IsNullOrWhiteSpace(groupBy.By))
+                diagnostics.Add(new RuleDiagnostic("EDP054", $"Retrieval '{retrieval.Name}' groups records but does not say by which key and ordering field.", RuleErrorSeverity.Error, retrieval.Name));
+
+            if (!ArgMaxModes.Contains(groupBy.Select ?? string.Empty))
+                diagnostics.Add(new RuleDiagnostic("EDP055", $"Unknown group selection '{groupBy.Select}'. Expected latest, earliest, highest or lowest.", RuleErrorSeverity.Error, retrieval.Name));
+        }
+
+        private static readonly HashSet<string> QuantifierKinds =
+            new HashSet<string>(new[] { "some", "all", "none" }, StringComparer.OrdinalIgnoreCase);
+
+        private void ValidateQuantifier(PcrmQuantifier quantifier, HashSet<string>? symbols, List<RuleDiagnostic> diagnostics)
+        {
+            if (!QuantifierKinds.Contains(quantifier.Kind ?? string.Empty))
+                diagnostics.Add(new RuleDiagnostic("EDP040", $"Unknown quantifier '{quantifier.Kind}'. Expected some, all or none.", RuleErrorSeverity.Error, quantifier.Collection));
+
+            if (string.IsNullOrWhiteSpace(quantifier.Collection))
+                diagnostics.Add(new RuleDiagnostic("EDP041", "Quantifier does not name a collection.", RuleErrorSeverity.Error));
+            else if (symbols != null && !symbols.Contains(quantifier.Collection))
+                diagnostics.Add(new RuleDiagnostic("EDP041", $"Quantifier references undeclared collection '{quantifier.Collection}'.", RuleErrorSeverity.Error, quantifier.Collection));
+
+            if (IsEmpty(quantifier.Where))
+                diagnostics.Add(new RuleDiagnostic("EDP042", $"Quantifier over '{quantifier.Collection}' has an empty predicate, so every element satisfies it.", RuleErrorSeverity.Warning, quantifier.Collection));
+
+            // Element fields are not declared symbols: the element schema is only known once
+            // retrieval declares it (F2). Checking them here would emit EDP004 for every
+            // legitimate child-field reference, so symbol checking is suppressed in the body.
+            ValidateGroup(quantifier.Where, null, diagnostics);
+        }
+
+        private static bool IsEmpty(PcrmGroup group)
+            => group.Conditions.Count == 0 && group.Groups.Count == 0 && group.Quantifiers.Count == 0;
 
         private void ValidateTable(PcrmLogic logic, HashSet<string> symbols, List<RuleDiagnostic> diagnostics)
         {

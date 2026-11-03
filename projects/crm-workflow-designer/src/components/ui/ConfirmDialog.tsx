@@ -62,17 +62,26 @@ export function ConfirmDialogHost() {
   const isDanger = request.tone === 'danger';
 
   return (
-    <div style={backdrop} role="presentation" onClick={() => settle(false)}>
-      <div style={dialog} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-        <div style={titleStyle}>{request.title ?? 'Please confirm'}</div>
-        <div style={messageStyle}>{request.message}</div>
-        <div style={actions}>
-          <button type="button" style={cancelBtn} onClick={() => settle(false)}>
+    <div className="dialog-backdrop" role="presentation" onClick={() => settle(false)}>
+      <div
+        className="dialog"
+        style={{ width: 400 }}
+        role="dialog"
+        aria-modal="true"
+        aria-label={request.title ?? 'Please confirm'}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="dialog-head">
+          <h2>{request.title ?? 'Please confirm'}</h2>
+        </div>
+        <div className="dialog-body">{request.message}</div>
+        <div className="dialog-foot">
+          <button type="button" className="btn" onClick={() => settle(false)}>
             {request.cancelLabel ?? 'Cancel'}
           </button>
           <button
             type="button"
-            style={{ ...confirmBtn, ...(isDanger ? dangerBtn : primaryBtn) }}
+            className={isDanger ? 'btn primary danger-fill' : 'btn primary'}
             onClick={() => settle(true)}
             autoFocus
           >
@@ -84,63 +93,3 @@ export function ConfirmDialogHost() {
   );
 }
 
-const backdrop: React.CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  background: 'rgba(15,23,42,0.45)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 3000,
-  backdropFilter: 'blur(1px)',
-};
-
-const dialog: React.CSSProperties = {
-  background: '#fff',
-  borderRadius: 10,
-  padding: '20px 22px 16px',
-  width: 380,
-  maxWidth: '90vw',
-  boxShadow: '0 12px 40px rgba(0,0,0,0.25)',
-};
-
-const titleStyle: React.CSSProperties = {
-  fontSize: 15,
-  fontWeight: 700,
-  color: '#0f172a',
-  marginBottom: 8,
-};
-
-const messageStyle: React.CSSProperties = {
-  fontSize: 13,
-  color: '#475569',
-  lineHeight: 1.5,
-  marginBottom: 18,
-  whiteSpace: 'pre-wrap',
-};
-
-const actions: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'flex-end',
-  gap: 8,
-};
-
-const baseBtn: React.CSSProperties = {
-  fontSize: 13,
-  fontWeight: 600,
-  padding: '8px 16px',
-  borderRadius: 6,
-  cursor: 'pointer',
-  border: '1px solid transparent',
-};
-
-const cancelBtn: React.CSSProperties = {
-  ...baseBtn,
-  background: '#fff',
-  border: '1px solid #cbd5e1',
-  color: '#334155',
-};
-
-const confirmBtn: React.CSSProperties = { ...baseBtn, color: '#fff' };
-const primaryBtn: React.CSSProperties = { background: '#2563eb' };
-const dangerBtn: React.CSSProperties = { background: '#dc2626' };

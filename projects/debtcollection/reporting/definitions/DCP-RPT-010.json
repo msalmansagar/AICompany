@@ -1,0 +1,28 @@
+{
+  "code": "DCP-RPT-010",
+  "name": "DCP — Activities by month recorded",
+  "description": "Collection activities grouped by the month they were recorded in. Grain: ACTIVITY. Source: qdb_collectionactivity · createdon. Both CRMs. Narrowed by activity type and the recorded-on window when supplied. DCP catalogue DCP-RPT-010.",
+  "version": 1,
+  "mainEntity": "qdb_collectionactivity",
+  "category": "Management",
+  "rowLimit": 5000,
+  "grain": "ACTIVITY",
+  "mode": "fetchxml",
+  "fetchXml": "<fetch aggregate=\"true\"><entity name=\"qdb_collectionactivity\"><attribute name=\"createdon\" groupby=\"true\" dategrouping=\"year\" alias=\"year\"/><attribute name=\"createdon\" groupby=\"true\" dategrouping=\"month\" alias=\"month\"/><attribute name=\"activityid\" aggregate=\"count\" alias=\"activities\"/><order alias=\"year\"/><order alias=\"month\"/></entity></fetch>",
+  "entity": { "logicalName": "qdb_collectionactivity", "alias": "t" },
+  "columns": [
+    { "name": "Year", "attribute": "createdon", "alias": "year", "dataType": "Integer", "aggregate": "None", "sortOrder": 1 },
+    { "name": "Month", "attribute": "createdon", "alias": "month", "dataType": "Integer", "aggregate": "None", "sortOrder": 2 },
+    { "name": "Activities", "attribute": "activityid", "alias": "activities", "dataType": "Integer", "aggregate": "None", "sortOrder": 3 }
+  ],
+  "filters": [
+    { "name": "Activity type", "field": "qdb_activitytypeid", "operator": "Equals", "value": "ActivityType", "runtimePrompt": true },
+    { "name": "Recorded from", "field": "createdon", "operator": "GreaterThan", "value": "DateFrom", "runtimePrompt": true },
+    { "name": "Recorded before", "field": "createdon", "operator": "LessThan", "value": "DateTo", "runtimePrompt": true }
+  ],
+  "parameters": [
+    { "name": "ActivityType", "label": "Activity type (id)", "type": "Lookup", "required": false },
+    { "name": "DateFrom", "label": "Recorded on or after (ISO date)", "type": "Date", "required": false },
+    { "name": "DateTo", "label": "Recorded before (ISO date)", "type": "Date", "required": false }
+  ]
+}

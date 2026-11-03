@@ -1,0 +1,87 @@
+=== qdb_ Phase 3 smoke — configuration and decision foundation ===
+
+  Organisation: org5869857f.crm4.dynamics.com
+
+─── Seeding configuration ───
+  contact 41ca6c85-4db3-f111-aaac-000d3abd8313, strategy 4993af83-4db3-f111-aaac-70a8a55bc6a5, assignment 60c6ac89-4db3-f111-aaac-70a8a55bc6a5
+
+─── Collection Strategy configuration ───
+  PASS  Strategy read from the organisation with its criteria as data — {"customerType":"Individual","dpdFrom":1,"dpdTo":30,"nplFlag":false}
+  PASS  Strategy actions read and linked to their strategy — 3 action(s)
+  PASS  Ruleset selects the strategy; the service resolves it — SMOKE-MU6TWH4B-STRATEGY
+  PASS  Active actions returned in sequence order, the retired one omitted — 10:ACTION-FIRST, 20:ACTION-SECOND
+  PASS  Communication channel read as a label from the provisioned choice — SMS / Email
+
+─── Strategy configuration failures are named, not guessed ───
+  PASS  A strategy code with no configuration is refused by kind — The strategy ruleset selected 'NO-SUCH-CODE', which no Collection Strategy configuration d
+  PASS  "No strategy applies" is a refusal, not a default treatment — The strategy ruleset returned no applicable strategy for this case
+  PASS  Refusals reach the technical log with an actionable code — strategy_NotFound, strategy_NoneApplicable
+
+─── Assignment configuration and Smart Assignment (KI-09) ───
+  PASS  Assignment configuration read with its method as a label — SmartAssignment, ref SMOKE-MU6TWH4B-SAREF
+  PASS  Smart Assignment refuses rather than inventing routing (KI-09) — Assignment configuration 'SMOKE-MU6TWH4B-ASSIGNMENT' selects SmartAssignment, but QDB's Smart Assign
+
+─── Rule Engine client fails closed on the live organisation ───
+  PASS  An unconfigured operation name is refused before any call — Rule Engine eligibility decision refused — this deployment has not configured a Rule Engine ope
+  PASS  An operation the organisation does not expose is refused, not defaulted — Rule Engine eligibility decision refused — operation 'qdb_dcp_NoSuchOperation_MU6TWH4B' failed:
+
+─── Platform configuration and KI-47 ───
+  PASS  Platform configuration reads for the organisation — customerEntity=contacts
+  PASS  Collection runtime configuration assembles from the organisation — policy=AllReceived key=[sourceSystem,facilityNumber,snapshotDate] numbering=Provisional
+  PASS  A configured strategy ruleset code is returned — SMOKE-MU6TWH4B-STRAT
+  PASS  An unconfigured Contact Hold ruleset fails closed (KI-44) — Organisation HL has no contactHold ruleset code configured (qdb_platformconfiguration.qdb_conta
+  PASS  KI-47: qdb_facilitysourcesystem exists on the snapshot, 50 characters — qdb_facilitysourcesystem(50)
+
+─── Case numbering uniqueness (KI-49) ───
+  PASS  A case is created with the provisional number — SMOKE-MU6TWH4B-CASE-E1
+  PASS  A duplicate case number is refused by the alternate key — Entity Key Case Number violated. A record with the same value for Case Number already exists. A dupl
+
+─── Cleanup ───
+
+─── Records identified ───
+  collection case                  52ca6c85-4db3-f111-aaac-000d3abd8313  SMOKE-MU6TWH4B-FAC-A
+  strategy action                  4aca6c85-4db3-f111-aaac-000d3abd8313  SMOKE-MU6TWH4B-ACTION-FIRST
+  strategy action                  5ec6ac89-4db3-f111-aaac-70a8a55bc6a5  SMOKE-MU6TWH4B-ACTION-SECOND
+  strategy action                  5fc6ac89-4db3-f111-aaac-70a8a55bc6a5  SMOKE-MU6TWH4B-ACTION-RETIRED
+  collection strategy              4993af83-4db3-f111-aaac-70a8a55bc6a5  SMOKE-MU6TWH4B-STRATEGY
+  assignment configuration         60c6ac89-4db3-f111-aaac-70a8a55bc6a5  SMOKE-MU6TWH4B-ASSIGNMENT
+  platform configuration (smoke)   4bca6c85-4db3-f111-aaac-000d3abd8313  SMOKE-MU6TWH4B-ENV
+  contact (smoke customer)         41ca6c85-4db3-f111-aaac-000d3abd8313  SMOKE-MU6TWH4B-QID
+  8 record(s) — every one matched on the "SMOKE-" marker.
+
+─── Checking for anything else that references them ───
+  Nothing outside the smoke set references them.
+
+─── Temporarily disabling the three qdb_ Delete guards ───
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation)
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation)
+  [DISABLED] ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation)
+
+─── Deleting guarded rows ───
+  [DELETED] collection case SMOKE-MU6TWH4B-FAC-A (52ca6c85-4db3-f111-aaac-000d3abd8313)
+
+─── Restoring the guards ───
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation)
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation)
+  [ENABLED]  ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation)
+
+─── Verifying the restored registration ───
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_delinquencysnapshot (PreValidation) — enabled=true filter=(none) images=(none)
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_collectionactivity (PreValidation) — enabled=true filter=(none) images=PreImage(statecode)
+  PASS  ImmutabilityGuardPlugin: Delete of qdb_collectioncase (PreValidation) — enabled=true filter=(none) images=(none)
+
+─── Deleting reference data (no guard involved) ───
+  [DELETED] strategy action SMOKE-MU6TWH4B-ACTION-FIRST (4aca6c85-4db3-f111-aaac-000d3abd8313)
+  [DELETED] strategy action SMOKE-MU6TWH4B-ACTION-SECOND (5ec6ac89-4db3-f111-aaac-70a8a55bc6a5)
+  [DELETED] strategy action SMOKE-MU6TWH4B-ACTION-RETIRED (5fc6ac89-4db3-f111-aaac-70a8a55bc6a5)
+  [DELETED] collection strategy SMOKE-MU6TWH4B-STRATEGY (4993af83-4db3-f111-aaac-70a8a55bc6a5)
+  [DELETED] assignment configuration SMOKE-MU6TWH4B-ASSIGNMENT (60c6ac89-4db3-f111-aaac-70a8a55bc6a5)
+  [DELETED] platform configuration (smoke) SMOKE-MU6TWH4B-ENV (4bca6c85-4db3-f111-aaac-000d3abd8313)
+  [DELETED] contact (smoke customer) SMOKE-MU6TWH4B-QID (41ca6c85-4db3-f111-aaac-000d3abd8313)
+
+─── Confirming no residue remains ───
+  PASS  0 smoke record(s) remain
+
+Cleanup complete. The guards are registered and enabled exactly as before.
+
+=== 19/19 checks passed ===

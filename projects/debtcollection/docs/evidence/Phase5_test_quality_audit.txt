@@ -1,0 +1,86 @@
+=== Test-quality audit — 47 test file(s) scanned ===
+
+── MEDIUM (21)
+   apps/api/src/__tests__/collection-portability.test.ts:64  [assert-nothing-when-empty]
+      for (const pattern of ORGANISATION_BRANCHES) expect(code, `${file} branches on HL/BFD`).not.toMa
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+   apps/api/src/__tests__/collection-portability.test.ts:70  [assert-nothing-when-empty]
+      for (const pattern of THRESHOLD_COMPARISONS) {
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+   apps/api/src/__tests__/collection-repositories.test.ts:48  [assert-nothing-when-empty]
+      for (const episode of [1, 3, 2]) crm.seed('qdb_collectioncases', 'qdb_collectioncaseid', { qdb_f
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+   apps/api/src/__tests__/large-volume-paging.test.ts:77  [assert-nothing-when-empty]
+      for (const record of page.data.items) {
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+   apps/api/src/__tests__/large-volume-paging.test.ts:169  [assert-nothing-when-empty]
+      for (const r of page.data.items) { if (seen.has(r.facilityNumber)) duplicates++; seen.add(r.faci
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+   apps/web/src/__tests__/noBusinessLogic.test.ts:50  [assert-nothing-when-empty]
+      for (const entry of readdirSync(directory)) {
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+   apps/web/src/__tests__/performance.test.tsx:218  [assert-nothing-when-empty]
+      for (const m of measurements) {
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+   apps/web/src/__tests__/performance.test.tsx:224  [assert-nothing-when-empty]
+      for (const m of measurements.filter(x => x.population === 100_000)) {
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+   apps/web/src/__tests__/platform.test.ts:295  [assert-nothing-when-empty]
+      for (const method of ['retrieve', 'retrieveByKey', 'retrieveMultiple', 'retrievePage', 'create',
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+   apps/web/src/__tests__/platform.test.ts:306  [assert-nothing-when-empty]
+      for (const forbidden of ['dpd', 'arrear', 'bucket', 'eligib', 'strategy']) {
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+   crm/scripts/lib/tooling-auth.test.mjs:21  [assert-nothing-when-empty]
+      for (const mode of ['entra', 'adfs', 'ifd', 'windows']) {
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+   packages/domain/src/activityLifecycle.test.ts:60  [assert-nothing-when-empty]
+      for (const m of body.matchAll(/public const int (\w+) = (\d+);/g)) codes[m[1]!] = Number(m[2]);
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+   packages/domain/src/activityLifecycle.test.ts:67  [assert-nothing-when-empty]
+      for (const m of body.matchAll(/\[PtpStatus\.(\w+)\]\s*=\s*new HashSet<int>\s*(?:\{([^}]*)\}|\(\)
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+   packages/domain/src/activityLifecycle.test.ts:80  [assert-nothing-when-empty]
+      for (const m of body.slice(0, body.indexOf('}')).matchAll(/public const int (\w+) = (\d+);/g)) c
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+   packages/domain/src/activityLifecycle.test.ts:86  [assert-nothing-when-empty]
+      for (const from of Object.keys(PTP_STATUS_CODES) as PtpStatus[]) {
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+   packages/domain/src/caseLifecycle.test.ts:90  [assert-nothing-when-empty]
+      for (const match of body.matchAll(entry)) {
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+   packages/domain/src/caseLifecycle.test.ts:100  [assert-nothing-when-empty]
+      for (const match of body.matchAll(/public const int (\w+) = (\d+);/g)) codes[match[1]!] = Number
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+   packages/domain/src/caseLifecycle.test.ts:111  [assert-nothing-when-empty]
+      for (const from of ALL_STATUSES) {
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+   packages/domain/src/collectionActivity.test.ts:38  [assert-nothing-when-empty]
+      for (const forbidden of ['body', 'messageBody', 'channel', 'recipient', 'sender', 'deliveryStatu
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+   packages/domain/src/eligibility.test.ts:25  [assert-nothing-when-empty]
+      for (const outcome of NON_CASE_OUTCOMES) {
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+   packages/domain/src/misNormalization.test.ts:122  [assert-nothing-when-empty]
+      for (const code of ['31-60', '61-90', '91-180', '181-270', '271-360', '361-500', '501-1000', '10
+      why: A for-of over a possibly-empty collection asserts nothing when it is empty. Assert the population first.
+
+── LOW (5)
+   apps/api/src/__tests__/platform-configuration-service.test.ts:138  [empty-array-equality]
+      expect(configuration.mappings).toEqual([]);
+      why: Asserting an empty array passes when the query silently returned nothing.
+   apps/web/src/__tests__/noBusinessLogic.test.ts:85  [empty-array-equality]
+      expect(offenders, `${offenders.join(', ')} appears to decide something`).toEqual([]);
+      why: Asserting an empty array passes when the query silently returned nothing.
+   apps/web/src/__tests__/platform.test.ts:301  [empty-array-equality]
+      expect(names.filter(n => /decide|evaluate|calculate|score|assign|eligib/i.test(n))).toEqual([]);
+      why: Asserting an empty array passes when the query silently returned nothing.
+   packages/domain/src/paging.test.ts:160  [empty-array-equality]
+      expect(page.items).toEqual([]);
+      why: Asserting an empty array passes when the query silently returned nothing.
+   packages/domain/src/paging.test.ts:167  [empty-array-equality]
+      expect(page.items).toEqual([]);
+      why: Asserting an empty array passes when the query silently returned nothing.
+
+26 finding(s). Each needs a human decision: a loop over a constant table is
+fine, a loop over a query result is not. The point is that none of them goes unnoticed.
