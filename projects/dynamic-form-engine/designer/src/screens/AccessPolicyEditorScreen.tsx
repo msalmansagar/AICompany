@@ -26,7 +26,7 @@ const ACCESS_TYPE_COLORS: Record<AccessPolicyType, 'brand' | 'success' | 'warnin
 };
 
 const useStyles = makeStyles({
-  root: { display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: tokens.colorNeutralBackground3 },
+  root: { display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: tokens.colorNeutralBackground3 },
   topBar: { display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 20px', backgroundColor: tokens.colorNeutralBackground1, borderBottom: `1px solid ${tokens.colorNeutralStroke1}`, flexShrink: 0 },
   body: { flex: 1, overflow: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '760px', margin: '0 auto', width: '100%' },
   infoBox: { padding: '12px 16px', backgroundColor: tokens.colorNeutralBackground2, borderRadius: '6px', border: `1px solid ${tokens.colorNeutralStroke1}`, display: 'flex', gap: '8px', alignItems: 'flex-start' },

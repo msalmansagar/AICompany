@@ -39,7 +39,9 @@ export type ValidationRuleType =
   // DFE-ENH-001 FR-006 — field becomes required when conditions are all true
   | 'conditional_required'
   // DFE-ENH-001 FR-007 — compare source field against another field using an operator
-  | 'cross_field';
+  | 'cross_field'
+  // DFE-APIVAL-CAM-001 — the front end checks the value with an external API chosen by key
+  | 'api_validation';
 
 // ── DesignerValidationRule ─────────────────────────────────────────────────────
 
@@ -65,6 +67,9 @@ export interface DesignerValidationRule {
   // DFE-ENH-001 FR-007 — schema name of the field to compare against.
   // Populated when ruleType = 'cross_field'. Persisted via qdb_rule_json.
   crossFieldTargetRef?: string | null;
+  // DFE-APIVAL-CAM-001 — which external check the front end runs, e.g. "IBAN".
+  // Populated when ruleType = 'api_validation'. Persisted via qdb_rule_json.
+  validationKey?: string | null;
 }
 
 // ── DesignerBusinessRule ───────────────────────────────────────────────────────

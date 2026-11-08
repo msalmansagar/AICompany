@@ -210,13 +210,13 @@ Write-Host ''
 
 # Validate build output exists
 if (-not (Test-Path $BuildPath)) {
-    Write-Error "Build output not found at: $BuildPath`nRun: npm run build"
+    Write-Error "Build output not found at: $BuildPath`nRun: npm run build:singlefile"
     exit 1
 }
 
 $files = Get-ChildItem -Path $BuildPath -Recurse -File
 if ($files.Count -eq 0) {
-    Write-Error 'No files found in build output. Run: npm run build'
+    Write-Error 'No files found in build output. Run: npm run build:singlefile'
     exit 1
 }
 
@@ -280,6 +280,7 @@ else {
     Write-Host 'All files deployed successfully.' -ForegroundColor Green
     Write-Host ''
     Write-Host 'Open in browser:'
-    Write-Host "  $CrmUrl/WebResources/qdb_/form-designer/index.html"
+    # Only main.aspx exposes parent.Xrm; the raw /WebResources/ path hides base-resolution faults.
+    Write-Host "  $CrmUrl/main.aspx?pagetype=webresource&webresourceName=qdb_%2Fform-designer%2Findex.html"
 }
 Write-Host ''

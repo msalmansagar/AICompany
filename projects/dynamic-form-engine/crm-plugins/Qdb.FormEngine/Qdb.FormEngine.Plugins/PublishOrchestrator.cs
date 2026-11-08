@@ -21,7 +21,6 @@ namespace Qdb.FormEngine.Plugins
         private readonly IPublishJobRepository _publishJobRepository;
         private readonly IRenderCacheRepository _renderCacheRepository;
         private readonly IFormJsonGenerator _formJsonGenerator;
-        private readonly ISecurityStripper _securityStripper;
         private readonly IJsonSerializer _jsonSerializer;
         private readonly ITracingService _tracingService;
         private readonly string _generatorVersion;
@@ -34,7 +33,6 @@ namespace Qdb.FormEngine.Plugins
             IPublishJobRepository publishJobRepository,
             IRenderCacheRepository renderCacheRepository,
             IFormJsonGenerator formJsonGenerator,
-            ISecurityStripper securityStripper,
             IJsonSerializer jsonSerializer,
             ITracingService tracingService,
             string generatorVersion)
@@ -43,7 +41,6 @@ namespace Qdb.FormEngine.Plugins
             _publishJobRepository = publishJobRepository ?? throw new ArgumentNullException("publishJobRepository");
             _renderCacheRepository = renderCacheRepository ?? throw new ArgumentNullException("renderCacheRepository");
             _formJsonGenerator = formJsonGenerator ?? throw new ArgumentNullException("formJsonGenerator");
-            _securityStripper = securityStripper ?? throw new ArgumentNullException("securityStripper");
             _jsonSerializer = jsonSerializer ?? throw new ArgumentNullException("jsonSerializer");
             _tracingService = tracingService ?? throw new ArgumentNullException("tracingService");
             _generatorVersion = generatorVersion ?? "1.0.0";
@@ -141,9 +138,12 @@ namespace Qdb.FormEngine.Plugins
 
             _tracingService.Trace("Generating form model for language '{0}'", languageCode);
             var startMs = Environment.TickCount;
+            // The published JSON carries every authored field, hidden ones included. A hidden
+            // field is "not drawn", not "not published": the runtime skips rendering it and
+            // drops its value from the submission, and a rule that shows it later — or that is
+            // triggered by it — needs the field to still be in the form it evaluates.
             var model = _formJsonGenerator.Generate(rawData, languageCode);
-            var stripped = _securityStripper.Strip(model);
-            var json = _jsonSerializer.Serialize(stripped);
+            var json = _jsonSerializer.Serialize(model);
             var jsonBytes = Encoding.UTF8.GetBytes(json);
             var compressedBytes = GzipCompressor.Compress(jsonBytes);
             var hash = HashService.ComputeSha256Hex(compressedBytes);

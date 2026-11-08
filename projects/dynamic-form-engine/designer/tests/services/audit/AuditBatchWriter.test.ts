@@ -42,7 +42,7 @@ function makeAuditEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
     after: 'true',
     action: 'update',
     eventType: 'FieldChange',
-    changedBy: 'user-abc',
+    changedBy: '4f2b9c1e-7a3d-4e5f-8b6a-1c2d3e4f5a6b',
     changedOn: '2026-07-11T10:00:00.000Z',
     ...overrides,
   };
@@ -227,9 +227,29 @@ describe('AuditBatchWriter', () => {
   });
 
   it('writeEntries_includesChangedByLookupBind_whenChangedByPresent', async () => {
-    await writer.writeEntries([makeAuditEntry({ changedBy: 'user-xyz' })]);
+    const actorId = '9a8b7c6d-5e4f-4a3b-2c1d-0e9f8a7b6c5d';
+
+    await writer.writeEntries([makeAuditEntry({ changedBy: actorId })]);
 
     const [, record] = (webApi.createRecord as ReturnType<typeof vi.fn>).mock.calls[0] as [string, Record<string, unknown>];
-    expect(record['qdb_changed_by@odata.bind']).toBe('/systemusers(user-xyz)');
+    expect(record['qdb_changed_by@odata.bind']).toBe(`/systemusers(${actorId})`);
+  });
+
+  // Running the designer standalone there is no signed-in user, so the context substitutes
+  // the placeholder 'rest-mode-user'. Bound into /systemusers(...) Dataverse rejects the whole
+  // create — "')' or ',' expected at position 5" — and every save reported that its change
+  // history could not be written. The entry is worth keeping without an actor.
+  it('writeEntries_omitsTheChangedByBind_whenTheActorIsNotAGuid', async () => {
+    await writer.writeEntries([makeAuditEntry({ changedBy: 'rest-mode-user' })]);
+
+    const [, record] = (webApi.createRecord as ReturnType<typeof vi.fn>).mock.calls[0] as [string, Record<string, unknown>];
+    expect(record['qdb_changed_by@odata.bind']).toBeUndefined();
+  });
+
+  it('writeEntries_stillWritesTheEntry_whenTheActorIsNotAGuid', async () => {
+    const failed = await writer.writeEntries([makeAuditEntry({ changedBy: 'rest-mode-user' })]);
+
+    expect(webApi.createRecord).toHaveBeenCalledOnce();
+    expect(failed).toEqual([]);
   });
 });

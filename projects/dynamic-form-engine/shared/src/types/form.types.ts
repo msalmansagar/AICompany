@@ -53,7 +53,9 @@ export type ValidationRuleType =
   | 'crossField'
   | 'customExpression'
   // DFE-ENH-001 FR-006 — field becomes required when structured conditions are all true
-  | 'conditionalRequired';
+  | 'conditionalRequired'
+  // DFE-APIVAL-CAM-001 — the front end checks the value with an external API chosen by key
+  | 'apiValidation';
 
 // ── Cross-field comparison operator ──────────────────────────────
 // Used by both conditionalRequired rule conditions and cross-field rule comparisons.
@@ -95,6 +97,15 @@ export type BusinessRuleAction =
   | 'calculateValue'
   | 'filterOptions'
   | 'filterLookup'
+  // Keeps the named options visible but unselectable; filterOptions removes the rest.
+  | 'disableOptions'
+  // Grid-column targets: targetFieldId names the grid, targetColumnId the column.
+  | 'showColumn'
+  | 'hideColumn'
+  | 'makeColumnRequired'
+  | 'makeColumnOptional'
+  | 'makeColumnReadonly'
+  | 'makeColumnEditable'
   | 'validateField'
   | 'validateForm';
 
@@ -108,6 +119,9 @@ export type ConditionOperator =
   | 'greaterThanOrEqual'
   | 'lessThanOrEqual'
   | 'contains'
+  // The designer has always offered Not Contains. It reached the runtime's operator table
+  // without ever reaching this union, so the backend could not compile the mapping for it.
+  | 'notContains'
   | 'inList'
   | 'notInList';
 
@@ -149,6 +163,9 @@ export type NavigationTargetType =
   | 'section'
   | 'nextStep'
   | 'previousStep'
+  // Step through the sections of one tab, when that tab reveals them one at a time.
+  | 'nextSection'
+  | 'previousSection'
   | 'externalUrl'
   | 'anotherForm';
 
@@ -336,7 +353,11 @@ export interface ValidationRule {
   conditions?: StructuredCondition[];
   // DFE-ENH-001 FR-007 — extended cross-field: operator and target field schema name
   crossFieldOperator?: CrossFieldComparisonOperator;
+  // A field schema name, or a relative date token such as '@today' or '@monthEnd+10y'
+  // (see engines/relativeDate) when the bound moves with the calendar.
   crossFieldTargetRef?: string;
+  // DFE-APIVAL-CAM-001 — which external check an apiValidation rule asks for (e.g. "IBAN").
+  validationKey?: string;
 }
 
 // ── Business rule condition ───────────────────────────────────
@@ -344,23 +365,47 @@ export interface ValidationRule {
 export interface RuleCondition {
   fieldId: string;
   operator: ConditionOperator;
+  /**
+   * A column of the record selected in the lookup fieldId names. When set, the condition
+   * reads that column instead of the lookup's own value (see rules/relatedFacts).
+   */
+  relatedAttribute?: string;
   value?: string | number | boolean | string[];
   logicalOperator?: LogicalOperator; // connector to the NEXT condition in the list
 }
 
 // ── Business rule ─────────────────────────────────────────────
 
+/**
+ * When a rule's conditions are read.
+ *
+ * Every event reads the SAME conditions; they differ only in which moment's field values
+ * those conditions are read against. That is what makes the choice observable: an on_blur
+ * rule does not react to each keystroke, and an on_save rule holds until the user submits.
+ */
+export type RuleTriggerEvent = 'on_change' | 'on_load' | 'on_blur' | 'on_save';
+
+export const RULE_TRIGGER_EVENTS: readonly RuleTriggerEvent[] =
+  ['on_change', 'on_load', 'on_blur', 'on_save'];
+
+/** Rules published before trigger events existed carry no value and behave as they always did. */
+export const DEFAULT_RULE_TRIGGER_EVENT: RuleTriggerEvent = 'on_change';
+
 export interface BusinessRule {
   id: string;
   name: string;
   description?: string;
+  /** Absent on rules published before this existed — treat as on_change. */
+  triggerEvent?: RuleTriggerEvent;
   conditions: RuleCondition[];
   conditionsLogic: LogicalOperator; // how the conditions array is combined
   action: BusinessRuleAction;
   targetFieldId?: string;
   targetSectionId?: string;
   targetTabId?: string;
-  actionValue?: string;             // for setValue / calculateValue / filterOptions
+  /** The grid column a column action targets; targetFieldId then names the grid. */
+  targetColumnId?: string;
+  actionValue?: string;             // for setValue / calculateValue / filterOptions / disableOptions
   priority: number;
   isActive: boolean;
 }
@@ -382,7 +427,14 @@ export interface FileUploadConfig {
    *  absent when only the legacy qdb_allowed_mime_types memo was used.
    *  The portal does not need to inspect these — use allowedMimeTypes instead. */
   allowedFileExtensions?: number[];
+  /**
+   * DFE-APIVAL-CAM-001: 'camera' opens the rear camera on phones; desktop browsers ignore it
+   * and show the file picker. Absent means 'any'.
+   */
+  captureMode?: FileCaptureMode;
 }
+
+export type FileCaptureMode = 'any' | 'camera';
 
 // ── Submission mapping ────────────────────────────────────────
 
@@ -392,9 +444,18 @@ export interface SubmissionMapping {
   fieldId: string;
   targetEntityLogicalName: string;
   targetAttributeLogicalName: string;
+  // Optional binding overrides. Blank is the normal case: the engine resolves the
+  // navigation property and entity set from metadata. Set one only where metadata cannot
+  // be read, or where the value must be pinned for review.
+  targetNavigationProperty?: string;
+  targetEntitySetName?: string;
   isMappedToChildEntity: boolean;
   childEntityRelationshipName?: string; // relationship used to link child to parent
   transformExpression?: string;         // optional value transform before write
+  // DFE-GRIDCHILD-001: the entry-grid column whose value feeds this target attribute.
+  // Set on a child mapping, the source field is the grid and the engine writes ONE CHILD
+  // RECORD PER ROW. Blank keeps the existing behaviour: one child per mapping group.
+  gridColumnAttribute?: string;
   isActive: boolean;
 }
 
@@ -441,6 +502,15 @@ export interface FieldDefinition {
   numberDisplayStyle?: 'textbox' | 'bar';
   barMaxFieldSchemaName?: string;    // schema name of the field providing the bar's maximum (total)
   barValueFieldSchemaName?: string;  // schema name of the field providing the bar's value (fill); absent = this field's own value
+  // DFE-BARSRC-001: where the bar's BOUNDS come from. Absent = 'formField', the original
+  // behaviour above. The AMOUNT is independent — it is this field's own value unless
+  // barValueFieldSchemaName names another field, in every mode.
+  barSource?: BarSource;
+  barMin?: number;              // static bounds
+  barMax?: number;              // static bounds
+  barSourceEntity?: string;     // dynamic bounds — table the values are read from
+  barMinAttribute?: string;     // dynamic bounds — column holding the minimum
+                                // (the maximum reuses barMaxFieldSchemaName)
   maxRows?: number;                // repeatingGrid
   componentKey?: string;           // custom field type — key used to resolve from ComponentRegistry
 
@@ -451,6 +521,11 @@ export interface FieldDefinition {
   staticContent?: string;
   sourceFieldSchemaName?: string;
 
+  // Which actions a read-only file field offers per document. Undefined counts as true, so
+  // fields created before these toggles existed keep offering both.
+  showDocumentView?: boolean;
+  showDocumentDownload?: boolean;
+
   // DFE-ADD-002: Boolean field config (qdb_true_label, qdb_false_label, qdb_bool_render_style)
   trueLabel?: string;
   falseLabel?: string;
@@ -460,7 +535,8 @@ export interface FieldDefinition {
   multiselectRenderStyle?: 'dropdown' | 'checkboxes';
 
   // Radio render style (list = vertical radio buttons, cards = selectable card grid)
-  radioRenderStyle?: 'list' | 'cards';
+  // 'rating' draws the options as stars (option N = N stars); honoured for dropdowns too.
+  radioRenderStyle?: 'list' | 'cards' | 'rating';
 
   // Option source from CRM optionset — when set, options come from the CRM attribute's OptionSet
   // instead of qdb_form_option_value records. Falls back to manual options when not set.
@@ -530,6 +606,9 @@ export interface TabDefinition {
   // navigation bar but still renders this tab's sections and fields.
   // Absent/undefined is treated as false (bar shown).
   hideTabBar?: boolean;
+  // When true the renderer shows one section at a time instead of all of them, advanced by a
+  // section-scoped button targeting nextSection/previousSection. Absent/undefined is all at once.
+  revealsSectionsOneAtATime?: boolean;
   sections: SectionDefinition[];
   // DFE-BTN-001: tab-scoped buttons (additive; defaults to [] for existing forms)
   buttons?: ScopedButton[];
@@ -537,6 +616,10 @@ export interface TabDefinition {
   // (additive; default [] for existing forms). Body fields stay in section.fields.
   headerFields?: FieldDefinition[];
   footerFields?: FieldDefinition[];
+  // DFE-SUBMITCONFIRM-002: acknowledgement required on this tab. Present only when the
+  // maker enabled it; the user cannot move forward past the tab, and cannot submit the
+  // form, until it is ticked.
+  submitConfirmation?: SubmitConfirmationConfig;
 }
 
 // ── Form version ──────────────────────────────────────────────
@@ -598,6 +681,23 @@ export type GridViewMode = 'both' | 'table' | 'card';
 
 export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
 
+/** Direction a grid lookup column orders its options by the display attribute. */
+export type GridLookupSort = 'asc' | 'desc';
+
+/**
+ * Shape a grid cell's value must take. 'custom' defers to the column's validationPattern;
+ * every other member carries its own pattern (see GRID_FORMAT_PATTERNS) so a maker picks a
+ * name rather than writing a regular expression.
+ */
+export type GridValidationFormat =
+  | 'none'
+  | 'email'
+  | 'phone'
+  | 'url'
+  | 'numeric'
+  | 'alphanumeric'
+  | 'custom';
+
 export interface GridColumnOptionValue {
   value: string;
   label: string;
@@ -609,6 +709,22 @@ export interface GridColumnConfig {
   columnLabel: string;
   targetAttribute: string;
   columnFieldType: string;
+  // Hidden means "not drawn", NOT "not published". Readers used to filter qdb_is_visible
+  // out of the query, so a hidden column vanished from the JSON entirely and its value
+  // could not round-trip. Absent ⇒ visible, so forms published before this stay unchanged.
+  isVisible?: boolean;
+  // Published true when the column's Is Editable is No, and absent otherwise. A rule can
+  // override it at runtime in either direction. Absent ⇒ editable.
+  isReadonly?: boolean;
+  // Per-column validation. All optional and all default to off, so a grid published before
+  // these existed validates exactly as it did. See validateGridCell for how they combine.
+  isRequired?: boolean;
+  maxLength?: number;
+  validationFormat?: GridValidationFormat;
+  /** Regular expression source, honoured only when validationFormat is 'custom'. */
+  validationPattern?: string;
+  /** Shown when this column fails. Blank falls back to a generated message. */
+  validationMessage?: string;
   filterType?: GridColumnFilterType;
   // Only populated when filterType === 'lookup'; used by backend to generate link-entity join.
   lookupTargetEntity?: string;
@@ -616,8 +732,18 @@ export interface GridColumnConfig {
   // The target-entity attribute used as the stored record ID. Absent ⇒ the
   // entity's primary key ({entity}id) — see CrmLookupService.
   lookupValueAttribute?: string;
+  // Order the lookup's options by its display attribute. Absent ⇒ the query is left
+  // unordered, which is how every grid lookup published before this behaved.
+  lookupSort?: GridLookupSort;
   // Options for dropdown-type columns within a grid.
   options?: GridColumnOptionValue[];
+}
+
+/** What rules have set on one grid column. An absent key leaves the column's own setting. */
+export interface GridColumnRuleState {
+  isVisible?: boolean;
+  isRequired?: boolean;
+  isReadonly?: boolean;
 }
 
 export interface GridFieldConfig {
@@ -676,9 +802,35 @@ export interface GridSchemaHashResult {
 // ── Form definition (root) ────────────────────────────────────
 
 // DFE-SUBMITCONFIRM-001: manual acknowledgement gate shown on the final step.
+/**
+ * DFE-BARSRC-001: where a utilization bar's minimum and maximum come from.
+ *  · formField — other fields on this form (the original behaviour, and the default)
+ *  · static    — the literal barMin / barMax values
+ *  · dynamic   — a column on another table
+ *
+ * The AMOUNT is a separate decision in every mode: this field's own value, unless
+ * barValueFieldSchemaName names another field to read it from.
+ */
+export type BarSource = 'formField' | 'static' | 'dynamic';
+
 export interface SubmitConfirmationConfig {
   checkboxLabel: string;           // label shown next to the acknowledgement checkbox
   dialogMessage?: string;          // body text of the confirmation dialog
+}
+
+/**
+ * A maker-authored band above or below the form.
+ *
+ * `text` is PLAIN text, not HTML — line breaks survive rendering, markup does not. Accepting
+ * HTML would need a sanitiser the form side does not have, and an unsanitised banner authored
+ * by anyone with designer access reaches every user of the form.
+ *
+ * Emitted only when at least one part is set, so a form with no bands publishes unchanged.
+ */
+export interface FormBand {
+  text?: string;
+  /** Absolute https image. Guarded by isRenderableImageUrl before it is published. */
+  imageUrl?: string;
 }
 
 export interface FormDefinition {
@@ -688,6 +840,14 @@ export interface FormDefinition {
   description?: string;
   status: FormStatus;
   version: number;
+  /** Fluent icon name shown beside the title. Ignored when imageUrl is set. */
+  iconName?: string;
+  /** Absolute https image shown beside the title, in place of the icon. */
+  imageUrl?: string;
+  /** Maker-authored band above the form. Absent when the maker configured neither part. */
+  header?: FormBand;
+  /** Maker-authored band below the form. */
+  footer?: FormBand;
   allowSaveDraft: boolean;
   draftExpiryDays: number;
   powerAutomateFlowId?: string;    // triggered on successful submit
@@ -833,6 +993,10 @@ export interface RuleEvaluationResult {
   fieldReadonly: Record<string, boolean>;
   fieldValues: Record<string, unknown>; // fields that had values set/cleared/calculated
   filteredOptions: Record<string, OptionValue[]>;
+  // Option values (or lookup record ids) a rule has made unselectable, keyed by field id.
+  disabledOptions: Record<string, string[]>;
+  // Column states rules have set, keyed by grid field id then column id.
+  gridColumnState: Record<string, Record<string, GridColumnRuleState>>;
   // DFE-CBTN-001: per-button conditional state, keyed by button id. A button id
   // is present only when that button declares the corresponding condition set;
   // absent ⇒ the button's static isVisible / isActive flag applies (legacy).

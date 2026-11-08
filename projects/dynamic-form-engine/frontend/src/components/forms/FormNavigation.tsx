@@ -13,6 +13,7 @@ import type { TabDefinition } from '@qdb/shared';
 import { getAllTabFields, getTabZoneFields } from './tabFields';
 import { useFormContext } from '../../contexts/FormContext';
 import { useDesignContext } from '../../contexts/DesignContext';
+import { isFieldVisible } from '../../engine/fieldVisibility';
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
@@ -172,8 +173,7 @@ export function useTabStatus() {
       if (!sectionVisible) continue;
 
       for (const field of section.fields) {
-        const fieldVisible = ruleState.fieldVisibility[field.id] ?? field.isVisible;
-        if (!fieldVisible || field.isHidden) continue;
+        if (!isFieldVisible(field, ruleState.fieldVisibility)) continue;
 
         const isRequired = ruleState.fieldRequired[field.id] ?? field.isRequired;
         if (!isRequired) continue;
@@ -188,8 +188,7 @@ export function useTabStatus() {
 
     // DFE-TABZONE-001: header/footer required fields also gate tab completion.
     for (const field of getTabZoneFields(tab)) {
-      const fieldVisible = ruleState.fieldVisibility[field.id] ?? field.isVisible;
-      if (!fieldVisible || field.isHidden) continue;
+      if (!isFieldVisible(field, ruleState.fieldVisibility)) continue;
 
       const isRequired = ruleState.fieldRequired[field.id] ?? field.isRequired;
       if (!isRequired) continue;

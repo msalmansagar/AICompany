@@ -138,6 +138,29 @@ export class ScopedButtonDesignService {
     return result.entities.map(mapRecord);
   }
 
+  /**
+   * Every section button on a form, grouped by section id.
+   *
+   * One request rather than one per section: the publish gate needs all of them at once to
+   * check that a tab revealing sections one at a time leaves no section without a way forward,
+   * and a form can carry dozens of sections.
+   */
+  async listSectionButtonsByForm(formDefinitionId: string): Promise<Record<string, ScopedButtonRecord[]>> {
+    const options =
+      `?$filter=${SCOPED_BUTTON_ATTRS.FORM_VALUE} eq ${formDefinitionId}`
+      + ` and ${SCOPED_BUTTON_ATTRS.SECTION_VALUE} ne null and statecode eq 0`
+      + `&$orderby=${SCOPED_BUTTON_ATTRS.DISPLAY_ORDER} asc`;
+    const result = await this.webApi.retrieveMultipleRecords(ENTITY_NAMES.FORM_SCOPED_BUTTON, options);
+
+    const bySection: Record<string, ScopedButtonRecord[]> = {};
+    for (const entity of result.entities) {
+      const sectionId = String(entity[SCOPED_BUTTON_ATTRS.SECTION_VALUE] ?? '').toLowerCase();
+      if (!sectionId) continue;
+      (bySection[sectionId] ??= []).push(mapRecord(entity));
+    }
+    return bySection;
+  }
+
   async create(input: CreateScopedButtonInput): Promise<string> {
     const placementNav = input.placementScope === 'section' ? SCOPED_BUTTON_NAV.SECTION : SCOPED_BUTTON_NAV.TAB;
     const placementSet = input.placementScope === 'section' ? SCOPED_BUTTON_BIND_SETS.SECTION : SCOPED_BUTTON_BIND_SETS.TAB;

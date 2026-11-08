@@ -1,11 +1,13 @@
 import { makeStyles, tokens } from '@fluentui/react-components';
-import type { FieldDefinition, TabDefinition } from '@qdb/shared';
+import type { FieldDefinition, SectionDefinition, TabDefinition } from '@qdb/shared';
 import { SectionRenderer } from './SectionRenderer';
 import { SaveDraftButton } from './SaveDraftButton';
 import { SubmitButton } from './SubmitButton';
 import { ScopedButtonBar } from './ScopedButtonBar';
+import { TabConfirmationGate } from './TabConfirmationGate';
 import { FieldRenderer } from './FieldRenderer';
 import { useFormContext } from '../../contexts/FormContext';
+import { isFieldVisible } from '../../engine/fieldVisibility';
 
 const useStyles = makeStyles({
   tabPanel: {
@@ -73,7 +75,7 @@ function TabFieldZone({
   const { ruleState, validationErrors } = useFormContext();
 
   const visibleFields = fields
-    .filter((field) => (ruleState.fieldVisibility[field.id] ?? field.isVisible) && !field.isHidden)
+    .filter((field) => isFieldVisible(field, ruleState.fieldVisibility))
     .sort((a, b) => a.displayOrder - b.displayOrder);
 
   if (visibleFields.length === 0) return null;
@@ -101,6 +103,21 @@ function TabFieldZone({
   );
 }
 
+/**
+ * The one section to show on a tab that reveals them one at a time, as a list so the caller
+ * renders it the same way it renders all of them.
+ *
+ * Clamped rather than indexed directly: a business rule can hide the section the user was on,
+ * which would leave the index past the end and render an empty tab with no way forward.
+ */
+function sectionAtIndex(
+  sections: readonly SectionDefinition[],
+  index: number,
+): SectionDefinition[] {
+  if (sections.length === 0) return [];
+  return [sections[Math.min(Math.max(index, 0), sections.length - 1)]];
+}
+
 export function TabRenderer({
   tab,
   isVisible,
@@ -109,13 +126,19 @@ export function TabRenderer({
   showSubmit = false,
 }: TabRendererProps) {
   const styles = useStyles();
-  const { ruleState } = useFormContext();
+  const { ruleState, activeSectionIndex } = useFormContext();
 
   if (!isVisible) return null;
 
   const visibleSections = tab.sections
     .filter((section) => ruleState.sectionVisibility[section.id] ?? section.isVisible)
     .sort((a, b) => a.displayOrder - b.displayOrder);
+
+  // One section at a time: everything before and after the current one is withheld until the
+  // user steps to it.
+  const revealedSections = tab.revealsSectionsOneAtATime
+    ? sectionAtIndex(visibleSections, activeSectionIndex)
+    : visibleSections;
 
   const showButtonRow = showSaveDraft || showSubmit;
 
@@ -136,7 +159,7 @@ export function TabRenderer({
       {/* DFE-FBE-001: tab description above the sections (OQ-001). */}
       {tab.description && <div className={styles.tabDescription}>{tab.description}</div>}
 
-      {visibleSections.map((section) => (
+      {revealedSections.map((section) => (
         <SectionRenderer
           key={section.id}
           section={section}
@@ -152,6 +175,15 @@ export function TabRenderer({
         ariaLabel={`${tab.label} footer`}
         isTabActive={isTabActive}
       />
+
+      {/*
+        DFE-SUBMITCONFIRM-002: the tab's acknowledgement sits below its content and above
+        the actions, so the user reads the tab before confirming and cannot miss the gate
+        that is disabling Next.
+      */}
+      {tab.submitConfirmation && (
+        <TabConfirmationGate tabId={tab.id} confirmation={tab.submitConfirmation} />
+      )}
 
       {/* DFE-BTN-001: tab-scoped buttons render below this tab's sections. */}
       <ScopedButtonBar buttons={tab.buttons} />

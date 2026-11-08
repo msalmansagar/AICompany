@@ -1,3 +1,4 @@
+import type { RuleTriggerEvent } from '@qdb/shared';
 // Business Rule JSON Schema v1.0
 // Stored in qdb_form_business_rule.qdb_rule_definition as serialized JSON.
 // This contract must be kept in sync with the Dynamic Form Engine portal renderer.
@@ -18,10 +19,42 @@ export type LogicalOperator = 'AND' | 'OR';
 export type RuleActionType =
   | 'show_field'
   | 'hide_field'
+  // Tab and section targets. The runtime and the legacy plugin path have honoured these
+  // since they existed; the designer format could not express them, so a rule aimed at a
+  // tab was published as a rule aimed at nothing.
+  | 'show_tab'
+  | 'hide_tab'
+  | 'show_section'
+  | 'hide_section'
   | 'set_required'
   | 'clear_required'
   | 'set_value'
+  // Sets the target from an expression over field codes, e.g. {quantity} * {unit_price}.
+  // The runtime has evaluated it for a long time; the designer could not author it.
+  | 'calculate_value'
+  // Keeps the named options visible but unselectable. Value = JSON array of option values.
+  | 'disable_options'
+  // Grid-column targets: target_field_code names the grid, target_column_id the column.
+  | 'show_column'
+  | 'hide_column'
+  | 'make_column_required'
+  | 'make_column_optional'
+  | 'make_column_readonly'
+  | 'make_column_editable'
   | 'show_message';
+
+/** Action types that act on a tab rather than a field. */
+export const TAB_ACTION_TYPES: ReadonlySet<RuleActionType> = new Set(['show_tab', 'hide_tab']);
+
+/** Action types that act on one column of an entry grid. */
+export const COLUMN_ACTION_TYPES: ReadonlySet<RuleActionType> = new Set([
+  'show_column', 'hide_column', 'make_column_required',
+  'make_column_optional', 'make_column_readonly', 'make_column_editable',
+]);
+
+/** Action types that act on a section rather than a field. */
+export const SECTION_ACTION_TYPES: ReadonlySet<RuleActionType> =
+  new Set(['show_section', 'hide_section']);
 
 export interface RuleCondition {
   /** Logical code of the triggering field — maps to qdb_form_field.qdb_code */
@@ -29,6 +62,11 @@ export interface RuleCondition {
   operator: ConditionOperator;
   /** null is valid only for is_empty and is_not_empty operators */
   value: string | null;
+  /**
+   * A column of the record the lookup field_code has selected. When set, the condition reads
+   * that column instead of the lookup itself (DFE-RULES-002 item 2).
+   */
+  related_attribute?: string;
 }
 
 export interface RuleConditionGroup {
@@ -38,8 +76,17 @@ export interface RuleConditionGroup {
 
 export interface RuleAction {
   action_type: RuleActionType;
-  /** Logical code of the field this action targets */
-  target_field_code: string;
+  /**
+   * Logical code of the field this action targets. Optional since tab and section actions
+   * exist — readers must not assume every action names a field.
+   */
+  target_field_code?: string;
+  /** Record id of the tab this action targets. Required for show_tab / hide_tab. */
+  target_tab_id?: string;
+  /** Record id of the section this action targets. Required for show_section / hide_section. */
+  target_section_id?: string;
+  /** Record id of the grid column a column action targets; target_field_code names the grid. */
+  target_column_id?: string;
   /** Required for set_value and show_message action types */
   value?: string;
 }
@@ -50,8 +97,11 @@ export interface BusinessRuleDefinition {
   version: '1.0';
   /** Field whose change event triggers rule evaluation */
   trigger_field_code: string;
-  /** Extensible event type — currently only on_change is supported */
-  trigger_event: 'on_change';
+  /**
+   * When the rule's conditions are read. Every event reads the same conditions; they differ
+   * in which moment's field values those conditions are read against.
+   */
+  trigger_event: RuleTriggerEvent;
   condition_group: RuleConditionGroup;
   actions: RuleAction[];
 }

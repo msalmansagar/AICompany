@@ -1,6 +1,6 @@
 # Developer Guide — Form Builder Enhancements (DFE-FBE-001 + FBE-002)
 
-_How the six form-builder features work end to end: Dataverse schema → shared types → C#/Node generators → SecurityStripper → render cache → runtimes (web portal · in-CRM engine · mobile) → designer._
+_How the six form-builder features work end to end: Dataverse schema → shared types → C#/Node generators → render cache → runtimes (web portal · in-CRM engine · mobile) → designer._
 
 Features covered:
 1. Summary mode (system-generated / manual)
@@ -20,14 +20,13 @@ Dataverse attribute  ──▶  C# plugin (on publish)                 ──▶
                             CrmMetadataReader + FieldBuilder
                      ──▶  Node backend (live path)                ──▶  web portal (localhost:3000 / Power Pages)
                             CrmMetadataService
-                     ──▶  SecurityStripper (strips hidden fields; MUST carry every new field)
      Shared types: shared/src/types/form.types.ts (web+backend) AND form.ts (mobile) — keep BOTH in sync.
      Designer authoring: designer/src/... writes the Dataverse attributes.
 ```
 
 **Golden rules when adding/editing a form-level field**
 - Add it to **both** shared barrels (`form.types.ts` + `form.ts`).
-- Add it to the **C# model** (`FormDefinitionModel.cs`) with `NullValueHandling.Ignore` and the **generator** (`FormJsonGenerator`/`FieldBuilder`), the **Node mapper** (`CrmMetadataService`), and **`SecurityStripper`** — the stripper *reconstructs* form/tab/section objects field-by-field, so any field it doesn't explicitly copy is silently dropped from the in-CRM cache.
+- Add it to the **C# model** (`FormDefinitionModel.cs`) with `NullValueHandling.Ignore`, the **generator** (`FormJsonGenerator`/`FieldBuilder`), and the **Node mapper** (`CrmMetadataService`). The generated model is now serialised as it is built — there is no longer a stage that rebuilds it property by property and silently drops whatever it forgets to copy.
 - Emit the field **only when set** (omit when null/false) so existing forms stay byte-identical.
 
 Option-set codes are 1-based from `100000001`.
@@ -65,7 +64,7 @@ Controls the review/summary step: none, an auto-generated summary, or a manual s
 
 **Runtime:** `TabRenderer` shows `{tab.description && <div className={styles.tabDescription}>…}`. `isSummaryTab` marks which tab hosts the manual summary.
 
-**C# gotcha:** `TabDefinition.IsSummaryTab` is `bool?` and set as `... ? (bool?)true : null`. **`SecurityStripper.StripTabs` must copy `Description` and `IsSummaryTab`** or they vanish from the cache.
+**C# gotcha:** `TabDefinition.IsSummaryTab` is `bool?` and set as `... ? (bool?)true : null`, so it is omitted from the published JSON unless the maker set it.
 
 ---
 
@@ -80,7 +79,7 @@ Controls the review/summary step: none, an auto-generated summary, or a manual s
 
 **Runtime:** web `SectionRenderer` renders `{section.iconName && <DynamicIcon iconName={section.iconName} size={20} />}`; mobile uses `InfoCardIcon`. The value is a Fluent icon name string — the runtime resolves it via a dynamic-icon lookup.
 
-**Gotcha:** `SecurityStripper.StripSections` must copy `IconName`.
+**Gotcha:** `IconName` is published only when the maker set one.
 
 ---
 

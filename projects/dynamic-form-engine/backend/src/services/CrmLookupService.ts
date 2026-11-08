@@ -43,6 +43,7 @@ export class CrmLookupService {
     maxResults: number;
     displayColumns?: LookupDisplayColumn[];
     lang?: string;
+    sort?: 'asc' | 'desc';
   }): Promise<LookupResult[]> {
     const query: EntityLookupQuery = {
       entity: params.entityLogicalName,
@@ -53,6 +54,7 @@ export class CrmLookupService {
       maxResults: params.maxResults,
       columns: params.displayColumns?.map(toLookupColumn),
       language: params.lang,
+      sortDirection: params.sort,
     };
 
     const options = await this.lookup.searchEntity(query);

@@ -21,6 +21,7 @@ import { DesignerCanvas } from '@/designer/canvas/DesignerCanvas';
 import { PropertiesPanel } from '@/designer/properties/PropertiesPanel';
 import { DesignerCommandBar } from '@/designer/commandbar/DesignerCommandBar';
 import { ConflictResolutionDialog } from '@/components/concurrency/ConflictResolutionDialog';
+import { TranslationExchangeDialog } from '@/designer/translations/TranslationExchangeDialog';
 import { CrmContext } from '@/app/App';
 import { FormSaveService, PartialSaveError } from '@/services/FormSaveService';
 import { FormDefinitionService } from '@/services/FormDefinitionService';
@@ -42,7 +43,7 @@ const useStyles = makeStyles({
   root: {
     display: 'flex',
     flexDirection: 'column',
-    height: '100vh',
+    height: '100%',
     overflow: 'hidden',
     backgroundColor: tokens.colorNeutralBackground3,
   },
@@ -63,13 +64,6 @@ const useStyles = makeStyles({
     overflow: 'auto',
     backgroundColor: tokens.colorNeutralBackground3,
     padding: '24px',
-  },
-  properties: {
-    width: '320px',
-    flexShrink: 0,
-    borderLeft: `1px solid ${tokens.colorNeutralStroke1}`,
-    overflow: 'auto',
-    backgroundColor: tokens.colorNeutralBackground1,
   },
 });
 
@@ -135,6 +129,7 @@ export function DesignerScreen(): React.ReactElement {
   const crmService = useContext(CrmContext);
   const [activeOverlayLabel, setActiveOverlayLabel] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isTranslationsOpen, setIsTranslationsOpen] = useState(false);
   const [keyboardAnnouncement, setKeyboardAnnouncement] = useState<string>('');
 
   // One WriteQueue per form session — serialises debounced PATCH operations and
@@ -170,7 +165,16 @@ export function DesignerScreen(): React.ReactElement {
     markSaved,
     markResolved,
     navigateTo,
+    clearSelection,
   } = useDesignerStore();
+  useEffect(() => {
+    function clearSelectionOnEscape(event: KeyboardEvent): void {
+      if (event.key === 'Escape') clearSelection();
+    }
+    document.addEventListener('keydown', clearSelectionOnEscape);
+    return () => document.removeEventListener('keydown', clearSelectionOnEscape);
+  }, [clearSelection]);
+
   const { conflictState } = useConcurrencyStore();
   const setConflictState = useConcurrencyStore(s => s.setConflictState);
   const setRecordEtag = useConcurrencyStore(s => s.setRecordEtag);
@@ -329,6 +333,7 @@ export function DesignerScreen(): React.ReactElement {
             isVisible: true,
             requiresPreviousTabComplete: false,
             hideTabBar: false,
+            revealsSectionsOneAtATime: false,
           };
           addTab(newTab);
           return;
@@ -492,6 +497,9 @@ export function DesignerScreen(): React.ReactElement {
   const handleBusinessRules = useCallback(() => navigateTo('rule-config'), [navigateTo]);
   const handleSubmissionMapping = useCallback(() => navigateTo('submission-mapping'), [navigateTo]);
   const handleThemeEditor = useCallback(() => navigateTo('theme-editor'), [navigateTo]);
+  // A dialog rather than a screen: the export and import belong together, and neither one
+  // changes what is on the canvas.
+  const handleTranslations = useCallback(() => setIsTranslationsOpen(true), []);
 
   const handleConflictReload = useCallback(() => {
     setConflictState(null);
@@ -504,7 +512,7 @@ export function DesignerScreen(): React.ReactElement {
 
   if (!form) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
         <Spinner label="Loading form..." />
       </div>
     );
@@ -537,6 +545,7 @@ export function DesignerScreen(): React.ReactElement {
           onBusinessRules={handleBusinessRules}
           onSubmissionMapping={handleSubmissionMapping}
           onThemeEditor={handleThemeEditor}
+          onTranslations={handleTranslations}
           onBack={() => useDesignerStore.getState().navigateTo('form-list')}
         />
         {saveError && (
@@ -559,7 +568,10 @@ export function DesignerScreen(): React.ReactElement {
           <div className={styles.toolbox}>
             <ComponentToolbox />
           </div>
-          <div className={styles.canvas}>
+          <div
+            className={styles.canvas}
+            onClick={(event) => { if (event.target === event.currentTarget) clearSelection(); }}
+          >
             {hasNoTabs ? (
               <EmptyCanvasPrompt />
             ) : (
@@ -574,9 +586,7 @@ export function DesignerScreen(): React.ReactElement {
               />
             )}
           </div>
-          <div className={styles.properties}>
-            <PropertiesPanel />
-          </div>
+          <PropertiesPanel />
         </div>
       </div>
       <DragOverlay>
@@ -606,6 +616,22 @@ export function DesignerScreen(): React.ReactElement {
         {keyboardAnnouncement}
       </div>
     </DndContext>
+
+      {isTranslationsOpen && (
+        <TranslationExchangeDialog
+          isOpen
+          formId={form.id}
+          formCode={form.code}
+          onClose={() => setIsTranslationsOpen(false)}
+          // Same route as the Publish command, so the contrast gate, the draft flush and the
+          // validation screen all still apply — importing translations must not become a way
+          // to publish without them.
+          onPublish={() => {
+            setIsTranslationsOpen(false);
+            void handlePublish();
+          }}
+        />
+      )}
 
       {conflictState && form && crmService && (
         <ConflictResolutionDialog
@@ -640,6 +666,7 @@ function EmptyCanvasPrompt(): React.ReactElement {
       isVisible: true,
       requiresPreviousTabComplete: false,
       hideTabBar: false,
+      revealsSectionsOneAtATime: false,
     });
   }, [addTab, tabOrder.length]);
 

@@ -5,10 +5,25 @@ import { describe, it, expect } from 'vitest';
 import {
   encodeConditionalRequired,
   encodeCrossField,
+  encodeApiValidation,
   decodeRuleJson,
   RULE_JSON_SCHEMA_VERSION,
 } from '@/services/ruleJsonCodec';
 import type { StructuredCondition } from '@/state/models/DesignerRuleModel';
+
+describe('ruleJsonCodec api_validation (DFE-APIVAL-CAM-001)', () => {
+  it('encodeApiValidation_RoundTrip_KeepsTheKey', () => {
+    expect(decodeRuleJson(encodeApiValidation('IBAN'))).toEqual({ kind: 'api_validation', key: 'IBAN' });
+  });
+
+  it('decodeRuleJson_BlankKey_ReadsAsNoPayload', () => {
+    expect(decodeRuleJson(JSON.stringify({ schemaVersion: 2, type: 'api_validation', key: '  ' }))).toBeNull();
+  });
+
+  it('decodeRuleJson_KeyWithSpaces_IsTrimmed', () => {
+    expect(decodeRuleJson(JSON.stringify({ schemaVersion: 2, type: 'api_validation', key: ' IBAN ' }))).toEqual({ kind: 'api_validation', key: 'IBAN' });
+  });
+});
 
 describe('ruleJsonCodec', () => {
   // ── encodeConditionalRequired ──────────────────────────────────

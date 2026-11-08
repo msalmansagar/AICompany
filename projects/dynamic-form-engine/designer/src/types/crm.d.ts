@@ -8,8 +8,8 @@
 // Recommend D365 9.1 on-prem minimum for full UCI stability.
 //
 // RestWebApiAdapter (standalone/dev mode) targets /api/data/v9.1 by default via
-// VITE_API_BASE_URL. In CRM-hosted mode Xrm.WebApi abstracts the version so the
-// target API version is transparent.
+// VITE_API_BASE_URL. In CRM-hosted mode Xrm.WebApi abstracts the version; the few
+// direct fetches derive it from getVersion() (CrmContextService.getWebApiBaseUrl).
 
 declare namespace Xrm {
   namespace WebApi {
@@ -37,6 +37,8 @@ declare namespace Xrm {
 
   interface GlobalContext {
     getClientUrl(): string;
+    /** Server version, e.g. "9.1.0.643" on-prem or "9.2.24093.185" online. */
+    getVersion?(): string;
     /** Returns the current user GUID wrapped in curly braces, e.g. {xxxxxxxx-...} */
     getUserId(): string;
     /** Returns the current user's display name */

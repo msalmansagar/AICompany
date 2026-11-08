@@ -19,6 +19,7 @@ import { DynamicIcon } from './DynamicIcon';
 import { useFormContext } from '../../contexts/FormContext';
 import { useDesignContext } from '../../contexts/DesignContext';
 import { StyleEngine } from '../../theme/StyleEngine';
+import { isFieldVisible } from '../../engine/fieldVisibility';
 
 const useStyles = makeStyles({
   card: {
@@ -117,11 +118,7 @@ function SectionRendererInner({ section, isVisible, isTabActive = false }: Secti
   if (!isVisible) return null;
 
   const visibleFields = section.fields
-    .filter((field) => {
-      const fieldVisible =
-        ruleState.fieldVisibility[field.id] ?? field.isVisible;
-      return fieldVisible && !field.isHidden;
-    })
+    .filter((field) => isFieldVisible(field, ruleState.fieldVisibility))
     .sort((a, b) => a.displayOrder - b.displayOrder);
 
   const gridColumns = sectionDesign?.columnLayout ?? section.columns ?? 1;

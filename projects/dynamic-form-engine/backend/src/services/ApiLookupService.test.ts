@@ -107,3 +107,21 @@ describe('ApiLookupService', () => {
     expect(results).toEqual([{ id: '2', displayName: 'HasId', entityLogicalName: 'hr' }]);
   });
 });
+
+describe('ApiLookupService — result ceiling', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('should_return_at_most_250_results_matching_the_qdb_max_results_range', async () => {
+    const threeHundred = Array.from({ length: 300 }, (_, i) => ({ id: String(i), name: `Row ${i}` }));
+    mockFetch.mockReturnValue(jsonResponse(threeHundred));
+    const { results } = await service().search({ endpointKey: 'hr', ...BASE, searchMode: 'fetchAll', maxResults: 300 });
+    expect(results).toHaveLength(250);
+  });
+
+  it('should_honour_a_maker_limit_of_250_exactly', async () => {
+    const threeHundred = Array.from({ length: 300 }, (_, i) => ({ id: String(i), name: `Row ${i}` }));
+    mockFetch.mockReturnValue(jsonResponse(threeHundred));
+    const { results } = await service().search({ endpointKey: 'hr', ...BASE, searchMode: 'fetchAll', maxResults: 250 });
+    expect(results).toHaveLength(250);
+  });
+});

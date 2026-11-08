@@ -25,6 +25,7 @@ import { LookupControl } from './controls/LookupControl';
 import { MultiLookupControl } from './controls/MultiLookupControl';
 import { CheckboxControl } from './controls/CheckboxControl';
 import { RadioControl } from './controls/RadioControl';
+import { RatingControl } from './controls/RatingControl';
 import { CurrencyControl } from './controls/CurrencyControl';
 import { DecimalControl } from './controls/DecimalControl';
 import { EmailControl } from './controls/EmailControl';
@@ -37,6 +38,7 @@ import { InfoCardField } from './fields/InfoCardField';
 import { LabelField } from './fields/LabelField';
 import { InteractiveGridField } from './fields/InteractiveGridField';
 import { DynamicIcon } from './DynamicIcon';
+import { ApiCheckStatus } from './ApiCheckStatus';
 import { ComponentRegistry } from '../../registry/ComponentRegistry';
 
 const useStyles = makeStyles({
@@ -208,6 +210,8 @@ export function FieldRenderer({
 
       {!isFloating && !tooltipElement && null}
 
+      <ApiCheckStatus fieldId={field.id} />
+
       {error && (
         <Text
           id={errorId}
@@ -250,6 +254,7 @@ function FieldControl({ controlProps }: { controlProps: ControlProps }) {
     case 'datetime':
       return <DateTimeControl {...controlProps} />;
     case 'dropdown':
+      if (field.radioRenderStyle === 'rating') return <RatingControl {...controlProps} />;
       return <DropdownControl {...controlProps} />;
     case 'multiselect':
       return field.multiselectRenderStyle === 'checkboxes'
@@ -262,6 +267,7 @@ function FieldControl({ controlProps }: { controlProps: ControlProps }) {
     case 'checkbox':
       return <CheckboxControl {...controlProps} />;
     case 'radio':
+      if (field.radioRenderStyle === 'rating') return <RatingControl {...controlProps} />;
       return field.radioRenderStyle === 'cards'
         ? <RadioCardControl {...controlProps} />
         : <RadioControl {...controlProps} />;

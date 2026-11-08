@@ -79,9 +79,36 @@ export function collectOrphanedBusinessRuleCodes(
   }
 
   for (const action of definition.actions) {
-    const actionCode = action.target_field_code.trim();
+    // Tab and section actions carry no field code. Reading one off them used to be safe
+    // only because the format could not express those actions at all.
+    const actionCode = action.target_field_code?.trim();
     if (actionCode) referenced.add(actionCode);
   }
 
   return [...referenced].filter(code => !validCodes.has(code));
+}
+
+/**
+ * Tab and section targets a rule names that no longer exist on the form.
+ *
+ * Targets are record ids rather than codes, so a deleted tab leaves a rule pointing at
+ * nothing and the rule silently stops doing anything at runtime — there is no error, the
+ * tab simply never hides. Returns a human-readable descriptor per orphan.
+ */
+export function collectOrphanedBusinessRuleTargets(
+  definition: BusinessRuleDefinition,
+  validTabIds: Set<string>,
+  validSectionIds: Set<string>,
+): string[] {
+  const orphans: string[] = [];
+
+  for (const action of definition.actions) {
+    const tabId = action.target_tab_id?.trim();
+    if (tabId && !validTabIds.has(tabId)) orphans.push(`tab "${tabId}"`);
+
+    const sectionId = action.target_section_id?.trim();
+    if (sectionId && !validSectionIds.has(sectionId)) orphans.push(`section "${sectionId}"`);
+  }
+
+  return [...new Set(orphans)];
 }

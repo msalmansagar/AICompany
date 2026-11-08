@@ -2,7 +2,9 @@
 
 // packageSolution.js — assembles the CRM solution ZIP from the Vite build output.
 //
-// Usage:  node scripts/packageSolution.js [--version <x.y.z>]
+// Usage:  node scripts/packageSolution.js [--version <x.y.z>] [--runtime <index.html>]
+//         --runtime also packages the in-CRM form runtime as qdb_form_runtime.html, so a
+//         single import carries both surfaces. That is the on-prem update path.
 // Before: npm run build  (populates deploy/webresources/qdb_/form-designer/)
 // Output: deploy/FormDesignerWebResource_<version>.zip
 //
@@ -29,6 +31,9 @@ const DIST_DIR = path.join(ROOT, 'deploy', 'webresources', 'qdb_', 'form-designe
 const SOLUTION_TEMPLATE_DIR = path.join(ROOT, 'deploy', 'solution');
 const STAGING_DIR = path.join(ROOT, 'deploy', '.staging');
 const OUTPUT_DIR = path.join(ROOT, 'deploy');
+/** Entry list handed to the zip writer, so no path has to survive shell quoting. */
+const ENTRY_MANIFEST_PATH = path.join(ROOT, 'deploy', '.zip-entries.json');
+const ZIP_SCRIPT_PATH = path.join(ROOT, 'deploy', '.zip-entries.ps1');
 
 // ─── CRM web resource type mapping ───────────────────────────────────────────
 
@@ -87,6 +92,18 @@ function parseVersion(argv) {
   return readPackageVersion();
 }
 
+/**
+ * Path to the built in-CRM runtime bundle, when the caller asked for it to travel in the
+ * same solution. On-prem has no scripted deploy, so shipping the designer and the runtime
+ * as one import is the difference between one manual step and two.
+ */
+function parseRuntimePath(argv) {
+  const flag = argv.indexOf('--runtime');
+  if (flag === -1) return null;
+  if (!argv[flag + 1]) throw new Error('--runtime needs the path to the built runtime index.html');
+  return path.resolve(argv[flag + 1]);
+}
+
 // CRM solution.xml requires a 4-part version (1.0.0.0). npm uses 3-part (1.0.0).
 function toCrmVersion(semver) {
   const parts = semver.split('.');
@@ -134,15 +151,33 @@ function xmlEscape(str) {
     .replace(/"/g, '&quot;');
 }
 
-function buildWebResourceEntry(relativePath, crmVersion) {
-  const ext = path.extname(relativePath).toLowerCase();
+// A web resource to package: the CRM logical name, the path it takes under webresources/
+// inside the ZIP, and the display name a maker sees. Designer chunks and the single-file
+// runtime bundle differ only in these three values.
+function designerResource(relativePath) {
+  return {
+    logicalName: `qdb_/form-designer/${relativePath}`,
+    zipPath: `qdb_/form-designer/${relativePath}`,
+    displayName: inferDisplayName(relativePath),
+  };
+}
+
+/** The in-CRM form runtime, which lives at the web resource root rather than under a folder. */
+const RUNTIME_RESOURCE = {
+  logicalName: 'qdb_form_runtime.html',
+  zipPath: 'qdb_form_runtime.html',
+  displayName: 'Form Runtime',
+};
+
+function buildWebResourceEntry(resource, crmVersion) {
+  const ext = path.extname(resource.logicalName).toLowerCase();
   const type = getWebResourceType(ext);
-  const logicalName = `qdb_/form-designer/${relativePath}`;
+  const logicalName = resource.logicalName;
   const name = xmlEscape(logicalName);
   // Leading slash required: CRM reads the solution ZIP via the .NET OPC API
   // (System.IO.Packaging), which requires every part URI to start with '/'.
-  const fileName = xmlEscape(`/webresources/qdb_/form-designer/${relativePath}`);
-  const displayName = xmlEscape(inferDisplayName(relativePath));
+  const fileName = xmlEscape(`/webresources/${resource.zipPath}`);
+  const displayName = xmlEscape(resource.displayName);
   // WebResourceId is required: without a GUID, CRM cannot create the record and
   // throws "Cannot add a Root Component ... because it is not in the target system".
   // Deterministic GUID ensures re-imports update the same record, not create duplicates.
@@ -167,8 +202,8 @@ function buildWebResourceEntry(relativePath, crmVersion) {
     </WebResource>`;
 }
 
-function generateCustomizationsXml(distFiles, crmVersion) {
-  const webResourceEntries = distFiles.map(f => buildWebResourceEntry(f, crmVersion)).join('\n');
+function generateCustomizationsXml(resources, crmVersion) {
+  const webResourceEntries = resources.map(r => buildWebResourceEntry(r, crmVersion)).join('\n');
 
   return `<?xml version="1.0" encoding="utf-8"?>
 <ImportExportXml version="9.0.0.0"
@@ -214,7 +249,7 @@ function generateCustomizationsXml(distFiles, crmVersion) {
 `;
 }
 
-function generateSolutionXml(crmVersion, distFiles) {
+function generateSolutionXml(crmVersion, resources) {
   let xml = fs.readFileSync(path.join(SOLUTION_TEMPLATE_DIR, 'solution.xml'), 'utf8');
 
   // Update version
@@ -224,11 +259,10 @@ function generateSolutionXml(crmVersion, distFiles) {
   // Both id and schemaName are required:
   //   schemaName — CRM validates "is this component declared?" by name match
   //   id         — CRM resolves the record by GUID after customizations.xml creates it
-  const webResourceLines = distFiles
-    .map(f => {
-      const logicalName = `qdb_/form-designer/${f}`;
-      const guid = deterministicGuid(logicalName);
-      return `      <RootComponent type="61" id="{${guid}}" schemaName="${logicalName}" behavior="0" />`;
+  const webResourceLines = resources
+    .map(resource => {
+      const guid = deterministicGuid(resource.logicalName);
+      return `      <RootComponent type="61" id="{${guid}}" schemaName="${resource.logicalName}" behavior="0" />`;
     })
     .join('\n');
 
@@ -245,8 +279,8 @@ function generateSolutionXml(crmVersion, distFiles) {
   return xml;
 }
 
-function generateContentTypesXml(distFiles) {
-  const extensions = new Set(distFiles.map(f => path.extname(f).replace('.', '')));
+function generateContentTypesXml(resources) {
+  const extensions = new Set(resources.map(r => path.extname(r.logicalName).replace('.', '')));
   extensions.add('xml');
 
   const defaults = [...extensions]
@@ -263,18 +297,48 @@ ${defaults}
 
 // ─── Zip ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Writes the ZIP with forward-slash entry names and no directory entries.
+ *
+ * PowerShell's Compress-Archive writes Windows separators into the entry names. The ZIP
+ * specification requires forward slashes, and CRM reads a solution through the .NET OPC
+ * API, which resolves each entry name as a part URI — a backslash entry does not resolve
+ * to the FileName declared in customizations.xml, and the import fails on a file it can
+ * plainly see in the archive. Every CRM-exported solution uses forward slashes.
+ */
 function createZip(stagingDir, outputPath) {
   removeDir(outputPath);
 
-  if (process.platform === 'win32') {
-    const src = stagingDir.replace(/\//g, '\\');
-    const dest = outputPath.replace(/\//g, '\\');
+  const entries = walkDir(stagingDir).map(relativePath => ({
+    source: path.join(stagingDir, relativePath),
+    entryName: relativePath.replace(/\\/g, '/'),
+  }));
+
+  // The script reads its inputs from a JSON file rather than from arguments, so no path
+  // has to survive two layers of shell quoting.
+  const script = `$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$manifest = Get-Content -Raw -LiteralPath $args[0] | ConvertFrom-Json
+$archive = [System.IO.Compression.ZipFile]::Open($args[1], 'Create')
+try {
+  foreach ($entry in $manifest) {
+    [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $entry.source, $entry.entryName) | Out-Null
+  }
+} finally {
+  $archive.Dispose()
+}
+`;
+
+  fs.writeFileSync(ENTRY_MANIFEST_PATH, JSON.stringify(entries), 'utf8');
+  fs.writeFileSync(ZIP_SCRIPT_PATH, script, 'utf8');
+  try {
     execSync(
-      `powershell -NoProfile -Command "Compress-Archive -Path '${src}\\*' -DestinationPath '${dest}' -Force"`,
-      { stdio: 'inherit' }
+      `powershell -NoProfile -ExecutionPolicy Bypass -File "${ZIP_SCRIPT_PATH}" "${ENTRY_MANIFEST_PATH}" "${outputPath}"`,
+      { stdio: 'inherit' },
     );
-  } else {
-    execSync(`cd "${stagingDir}" && zip -r "${outputPath}" .`, { stdio: 'inherit', shell: true });
+  } finally {
+    fs.rmSync(ENTRY_MANIFEST_PATH, { force: true });
+    fs.rmSync(ZIP_SCRIPT_PATH, { force: true });
   }
 }
 
@@ -282,9 +346,16 @@ function createZip(stagingDir, outputPath) {
 
 function run() {
   const version = parseVersion(process.argv.slice(2));
+  const runtimePath = parseRuntimePath(process.argv.slice(2));
   const crmVersion = toCrmVersion(version);
   const zipName = `FormDesignerWebResource_${version}.zip`;
   const zipPath = path.join(OUTPUT_DIR, zipName);
+
+  if (runtimePath && !fs.existsSync(runtimePath)) {
+    console.error(`\nERROR: runtime bundle not found: ${runtimePath}`);
+    console.error('       Build it: cd ../frontend && npx vite build --config vite.webresource.config.ts\n');
+    process.exit(1);
+  }
 
   console.log(`\nPackaging Form Designer Web Resource v${version}`);
   console.log('─'.repeat(48));
@@ -315,6 +386,14 @@ function run() {
   ensureDir(stagingWebDir);
   fs.cpSync(DIST_DIR, stagingWebDir, { recursive: true });
 
+  const resources = distFiles.map(designerResource);
+  if (runtimePath) {
+    fs.copyFileSync(runtimePath, path.join(STAGING_DIR, 'webresources', RUNTIME_RESOURCE.zipPath));
+    resources.push(RUNTIME_RESOURCE);
+    const sizeKb = (fs.statSync(runtimePath).size / 1024).toFixed(0);
+    console.log(`\nIncluding the runtime bundle as ${RUNTIME_RESOURCE.logicalName} (${sizeKb} KB)`);
+  }
+
   // 4. Copy security roles
   const rolesSource = path.join(SOLUTION_TEMPLATE_DIR, 'Roles');
   if (fs.existsSync(rolesSource)) {
@@ -325,17 +404,17 @@ function run() {
   console.log('\nGenerating solution XML...');
   fs.writeFileSync(
     path.join(STAGING_DIR, 'customizations.xml'),
-    generateCustomizationsXml(distFiles, crmVersion),
+    generateCustomizationsXml(resources, crmVersion),
     'utf8'
   );
   fs.writeFileSync(
     path.join(STAGING_DIR, 'solution.xml'),
-    generateSolutionXml(crmVersion, distFiles),
+    generateSolutionXml(crmVersion, resources),
     'utf8'
   );
   fs.writeFileSync(
     path.join(STAGING_DIR, '[Content_Types].xml'),
-    generateContentTypesXml(distFiles),
+    generateContentTypesXml(resources),
     'utf8'
   );
 

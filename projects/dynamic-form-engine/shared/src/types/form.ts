@@ -30,7 +30,7 @@ export interface OptionValue {
 
 export type BooleanRenderStyle = 'toggle' | 'radio';
 export type MultiselectRenderStyle = 'dropdown' | 'checkboxes';
-export type RadioRenderStyle = 'list' | 'cards';
+export type RadioRenderStyle = 'list' | 'cards' | 'rating';
 export type GridSelectionMode = 'single' | 'multi';
 export type GridMode = 'selection' | 'entry';
 // DFE-GRIDSRC-001: grid data source + display configuration.
@@ -43,6 +43,9 @@ export type InfoCardSectionType = 'numbered-steps' | 'icon-list' | 'download-lis
 
 export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
 
+/** Direction a grid lookup column orders its options by the display attribute. */
+export type GridLookupSort = 'asc' | 'desc';
+
 export interface GridColumnOptionValue {
   value: string;
   label: string;
@@ -54,10 +57,17 @@ export interface GridColumnConfig {
   columnLabel: string;
   displayOrder: number;
   columnFieldType: string;
+  // Hidden means "not drawn", NOT "not published" — see form.types.ts.
+  // Absent ⇒ visible, so forms published before this stay unchanged.
+  isVisible?: boolean;
+  // True when Is Editable is No; a rule can override it — see form.types.ts. Absent ⇒ editable.
+  isReadonly?: boolean;
   filterType?: GridColumnFilterType;
   lookupTargetEntity?: string;
   lookupDisplayAttribute?: string;
   lookupValueAttribute?: string;
+  // Orders the lookup's options by its display attribute — see form.types.ts.
+  lookupSort?: GridLookupSort;
   options?: GridColumnOptionValue[];
 }
 
@@ -72,7 +82,8 @@ export interface GridFieldConfig {
   cardLayout?: GridCardLayout;     // info-card arrangement: 'grid' (default) or 'row' (list)
   selectable?: boolean;            // default true for selection; false = read-only display
   cardIconName?: string;           // optional Fluent icon shown on each info card
-  // Backend pre-filters to visible columns only; absent if no column configs are defined.
+  // Every configured column, visible or not; absent if no column configs are defined.
+  // Renderers skip isVisible === false — they must not assume the backend filtered.
   columnConfigs?: GridColumnConfig[];
   maxRows?: number;
   pageSize?: number;               // records per page for entity selection grids (runtime default 50)
@@ -173,6 +184,12 @@ export interface FieldDefinition {
   numberDisplayStyle?: 'textbox' | 'bar';
   barMaxFieldSchemaName?: string;
   barValueFieldSchemaName?: string;
+  // DFE-BARSRC-001: where the bar BOUNDS come from; absent = formField (original behaviour).
+  barSource?: BarSource;
+  barMin?: number;
+  barMax?: number;
+  barSourceEntity?: string;
+  barMinAttribute?: string;
   childFields?: FieldDefinition[];
   boolRenderStyle?: BooleanRenderStyle;
   multiselectRenderStyle?: MultiselectRenderStyle;
@@ -200,6 +217,10 @@ export interface FieldDefinition {
   // value (sourceFieldSchemaName references that field's key/schema name).
   staticContent?: string;
   sourceFieldSchemaName?: string;
+  // Which actions a read-only file field offers per document. Undefined counts as true, so
+  // fields created before these toggles existed keep offering both.
+  showDocumentView?: boolean;
+  showDocumentDownload?: boolean;
 }
 
 export interface SectionDefinition {
@@ -226,6 +247,9 @@ export interface TabDefinition {
   // but still renders the tab's sections and fields at full width.
   // Absent/undefined is treated as false (bar shown).
   hideTabBar?: boolean;
+  // When true the renderer shows one section at a time instead of all of them, advanced by a
+  // section-scoped button targeting nextSection/previousSection. Absent/undefined is all at once.
+  revealsSectionsOneAtATime?: boolean;
   sections: SectionDefinition[];
   // DFE-BTN-001: tab-scoped buttons (additive; defaults to [] for existing forms)
   buttons?: ScopedButton[];
@@ -233,6 +257,10 @@ export interface TabDefinition {
   // (additive; default [] for existing forms). Body fields stay in section.fields.
   headerFields?: FieldDefinition[];
   footerFields?: FieldDefinition[];
+  // DFE-SUBMITCONFIRM-002: acknowledgement required on this tab. Present only when the
+  // maker enabled it; the user cannot move forward past the tab, and cannot submit the
+  // form, until it is ticked.
+  submitConfirmation?: SubmitConfirmationConfig;
 }
 
 export type ButtonAction = 'submit' | 'saveDraft' | 'cancel' | 'reset';
@@ -263,6 +291,9 @@ export type NavigationTargetType =
   | 'section'
   | 'nextStep'
   | 'previousStep'
+  // Step through the sections of one tab, when that tab reveals them one at a time.
+  | 'nextSection'
+  | 'previousSection'
   | 'externalUrl'
   | 'anotherForm';
 
@@ -358,6 +389,8 @@ export type ConditionOperator =
 export interface RuleCondition {
   fieldId: string;
   operator: ConditionOperator;
+  /** A column of the record the lookup fieldId has selected (DFE-RULES-002 item 2). */
+  relatedAttribute?: string;
   value?: string | number | boolean | string[];
   logicalOperator?: LogicalOperator; // connector to the NEXT condition in the list
 }
@@ -406,6 +439,9 @@ export interface SubmissionMapping {
 }
 
 // DFE-SUBMITCONFIRM-001: manual acknowledgement gate shown on the final step.
+/** DFE-BARSRC-001: where a bar's minimum and maximum come from. */
+export type BarSource = 'formField' | 'static' | 'dynamic';
+
 export interface SubmitConfirmationConfig {
   checkboxLabel: string;
   dialogMessage?: string;

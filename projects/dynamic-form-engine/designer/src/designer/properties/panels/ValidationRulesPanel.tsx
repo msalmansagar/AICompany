@@ -11,6 +11,8 @@ import {
   tokens,
 } from '@fluentui/react-components';
 import { AddRegular, CheckmarkRegular, DeleteRegular, DismissRegular } from '@fluentui/react-icons';
+import { isRelativeDateRef } from '@qdb/shared';
+import { RelativeDateRefEditor } from './RelativeDateRefEditor';
 import { useDesignerStore } from '@/state/designerStore';
 import type {
   DesignerValidationRule,
@@ -22,7 +24,7 @@ import type {
 
 // ── Rule type registry ─────────────────────────────────────────────────────────
 
-type RuleUiMode = 'value' | 'expression' | 'conditions' | 'crossField' | 'none';
+type RuleUiMode = 'value' | 'expression' | 'conditions' | 'crossField' | 'apiKey' | 'none';
 
 interface RuleTypeDef {
   value: ValidationRuleType;
@@ -42,6 +44,8 @@ const RULE_TYPES: RuleTypeDef[] = [
   { value: 'conditional_required',  label: 'Conditional Required',  mode: 'conditions' },
   // DFE-ENH-001 FR-007
   { value: 'cross_field',           label: 'Cross-Field Comparison', mode: 'crossField' },
+  // DFE-APIVAL-CAM-001
+  { value: 'api_validation',        label: 'API Validation',        mode: 'apiKey'     },
 ];
 
 const CONDITION_OPERATORS: Array<{ value: StructuredConditionOperator; label: string }> = [
@@ -242,6 +246,9 @@ function ConditionBuilder({ conditions, allFieldCodes, onChange }: ConditionBuil
 
 // ── Cross-field editor (for cross_field) ───────────────────────────────────────
 
+/** What a maker gets when they switch a bound to a relative date: today, no offset. */
+const DEFAULT_RELATIVE_TARGET = '@today';
+
 interface CrossFieldEditorProps {
   sourceFieldLabel: string;
   operator: CrossFieldComparisonOperator;
@@ -259,6 +266,8 @@ function CrossFieldEditor({
   onOperatorChange,
   onTargetChange,
 }: CrossFieldEditorProps): React.ReactElement {
+  // The target is either a field code or a relative date token; the token's prefix says which.
+  const isRelative = isRelativeDateRef(targetFieldRef);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       <Field label="Source field (this field)">
@@ -279,17 +288,32 @@ function CrossFieldEditor({
       </Field>
       <Field label="Compare against">
         <Select
-          value={targetFieldRef}
-          onChange={(_, d) => onTargetChange(d.value)}
+          value={isRelative ? 'relative' : 'field'}
+          onChange={(_, d) => onTargetChange(d.value === 'relative' ? DEFAULT_RELATIVE_TARGET : (allFieldCodes[0] ?? ''))}
+          aria-label="Compare against"
         >
-          {allFieldCodes.length === 0 && (
-            <option value="">No other fields available</option>
-          )}
-          {allFieldCodes.map(code => (
-            <option key={code} value={code}>{code}</option>
-          ))}
+          <option value="field">Another field</option>
+          <option value="relative">A date relative to today</option>
         </Select>
       </Field>
+      {isRelative ? (
+        <RelativeDateRefEditor value={targetFieldRef} onChange={onTargetChange} />
+      ) : (
+        <Field label="Target field">
+          <Select
+            value={targetFieldRef}
+            onChange={(_, d) => onTargetChange(d.value)}
+            aria-label="Target field"
+          >
+            {allFieldCodes.length === 0 && (
+              <option value="">No other fields available</option>
+            )}
+            {allFieldCodes.map(code => (
+              <option key={code} value={code}>{code}</option>
+            ))}
+          </Select>
+        </Field>
+      )}
     </div>
   );
 }
@@ -325,9 +349,12 @@ function AddRuleForm({
   const [conditions, setConditions] = useState<ConditionEntry[]>([]);
   const [crossFieldOperator, setCrossFieldOperator] = useState<CrossFieldComparisonOperator>('==');
   const [crossFieldTargetRef, setCrossFieldTargetRef] = useState(otherFieldCodes[0] ?? '');
+  const [validationKey, setValidationKey] = useState('');
 
   const selectedTypeDef = RULE_TYPES.find(rt => rt.value === ruleType);
   const mode = selectedTypeDef?.mode ?? 'none';
+  // An API rule without a key names no check, so it cannot be saved.
+  const isSaveBlocked = mode === 'apiKey' && validationKey.trim() === '';
 
   function handleRuleTypeChange(newType: ValidationRuleType): void {
     setRuleType(newType);
@@ -336,6 +363,7 @@ function AddRuleForm({
     setConditions([]);
     setCrossFieldOperator('==');
     setCrossFieldTargetRef(otherFieldCodes[0] ?? '');
+    setValidationKey('');
   }
 
   function handleSave(): void {
@@ -356,6 +384,7 @@ function AddRuleForm({
       conditions: mode === 'conditions' ? persistableConditions : [],
       crossFieldOperator: mode === 'crossField' ? crossFieldOperator : null,
       crossFieldTargetRef: mode === 'crossField' ? crossFieldTargetRef : null,
+      validationKey: mode === 'apiKey' ? validationKey.trim() : null,
     };
     onSave(newRule);
   }
@@ -387,6 +416,16 @@ function AddRuleForm({
             onChange={(_, d) => setRuleValue(d.value)}
             placeholder={ruleType === 'regex' ? 'e.g. ^[A-Z]+$' : 'Enter a number'}
           />
+        </Field>
+      )}
+
+      {mode === 'apiKey' && (
+        <Field
+          label="Validation key"
+          required
+          hint="The front end runs the check registered for this key, e.g. IBAN. The form itself calls no API."
+        >
+          <Input value={validationKey} onChange={(_, d) => setValidationKey(d.value)} placeholder="e.g. IBAN" />
         </Field>
       )}
 
@@ -432,7 +471,7 @@ function AddRuleForm({
         <Button appearance="subtle" size="small" icon={<DismissRegular />} onClick={onCancel}>
           Cancel
         </Button>
-        <Button appearance="primary" size="small" icon={<CheckmarkRegular />} onClick={handleSave}>
+        <Button appearance="primary" size="small" icon={<CheckmarkRegular />} onClick={handleSave} disabled={isSaveBlocked}>
           Add Rule
         </Button>
       </div>
@@ -517,6 +556,9 @@ export function ValidationRulesPanel({ fieldId }: ValidationRulesPanelProps): Re
           )}
           {rule.crossFieldTargetRef && (
             <Text size={200} font="monospace">{rule.crossFieldOperator} {rule.crossFieldTargetRef}</Text>
+          )}
+          {rule.validationKey && (
+            <Text size={200} font="monospace">key: {rule.validationKey}</Text>
           )}
           <span className={styles.ruleMessage} title={rule.errorMessage}>
             {rule.errorMessage}

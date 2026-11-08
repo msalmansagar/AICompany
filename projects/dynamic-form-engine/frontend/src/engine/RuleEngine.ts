@@ -8,8 +8,38 @@ import type {
   OptionValue,
   ScopedButton,
   ButtonConditionSet,
+  RuleTriggerEvent,
+  GridColumnRuleState,
 } from '@qdb/shared';
+import { DEFAULT_RULE_TRIGGER_EVENT, relatedFactName } from '@qdb/shared';
 import { ExpressionEngine, type ExpressionContext } from '@qdb/shared';
+import { logger } from '../utils/logger';
+
+/**
+ * Suffix for the second fact carrying a lookup's display name.
+ *
+ * Chosen to be unusable as a Dataverse schema name, so it can never collide with a real
+ * field's fact.
+ */
+const DISPLAY_FACT_SUFFIX = '::displayName';
+
+function displayFactName(fieldId: string): string {
+  return `${fieldId}${DISPLAY_FACT_SUFFIX}`;
+}
+
+/** A lookup cell's stored shape: the record it points at, plus the text the user saw. */
+function isLookupValue(value: unknown): value is { id: string; displayName: string } {
+  return (
+    typeof value === 'object'
+    && value !== null
+    && !Array.isArray(value)
+    && typeof (value as { id?: unknown }).id === 'string'
+    && typeof (value as { displayName?: unknown }).displayName === 'string'
+  );
+}
+
+/** Operators whose paired lookup conditions must both hold — see convertCondition. */
+const NEGATIVE_OPERATORS: ReadonlySet<string> = new Set(['notEquals', 'notInList', 'notContains']);
 
 const OPERATOR_MAP: Record<string, string> = {
   equals: 'equal',
@@ -18,10 +48,111 @@ const OPERATOR_MAP: Record<string, string> = {
   greaterThanOrEqual: 'greaterThanOrEqualTo',
   lessThan: 'lessThan',
   lessThanOrEqual: 'lessThanOrEqualTo',
-  contains: 'contains',
+  // Deliberately NOT json-rules-engine's built-in 'contains'/'doesNotContain'. Those are
+  // registered with Array.isArray as their fact validator, so a STRING fact can never
+  // satisfy them — a "contains" rule on any text or lookup field silently never fired.
+  // See registerTextOperators.
+  contains: 'textContains',
+  notContains: 'textNotContains',
   inList: 'in',
   notInList: 'notIn',
 };
+
+/**
+ * The moments a rule's conditions can be read against.
+ *
+ * Every trigger event reads the same conditions; they differ only in which snapshot of the
+ * form supplies the values. Omitting a moment falls back to the live values, so a caller
+ * that does not track snapshots keeps the original on-every-change behaviour.
+ */
+export interface RuleEvaluationMoments {
+  /** The values the form loaded with. */
+  atLoad?: FormFieldValues;
+  /** The values as at the last time a field lost focus. */
+  atLastBlur?: FormFieldValues;
+  /** The values submitted. Explicitly null until the user has attempted a save. */
+  atSave?: FormFieldValues | null;
+}
+
+function groupByTriggerEvent(rules: BusinessRule[]): Map<RuleTriggerEvent, BusinessRule[]> {
+  const grouped = new Map<RuleTriggerEvent, BusinessRule[]>();
+
+  for (const rule of rules) {
+    const triggerEvent = rule.triggerEvent ?? DEFAULT_RULE_TRIGGER_EVENT;
+    const existing = grouped.get(triggerEvent);
+    if (existing) existing.push(rule);
+    else grouped.set(triggerEvent, [rule]);
+  }
+
+  return grouped;
+}
+
+/**
+ * The values one trigger event reads, or null when it has nothing to read yet — an on_save
+ * rule before the user has submitted anything has no submitted values to judge.
+ */
+function resolveMomentValues(
+  triggerEvent: RuleTriggerEvent,
+  liveValues: FormFieldValues,
+  moments: RuleEvaluationMoments,
+): FormFieldValues | null {
+  switch (triggerEvent) {
+    case 'on_load':
+      return moments.atLoad ?? liveValues;
+    case 'on_blur':
+      return moments.atLastBlur ?? liveValues;
+    case 'on_save':
+      return moments.atSave === undefined ? liveValues : moments.atSave;
+    default:
+      return liveValues;
+  }
+}
+
+/** The message to log for a rule the engine refused, whatever was thrown. */
+function describeFailure(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Substring operators that work on the values this product actually holds.
+ *
+ * json-rules-engine ships `contains` for ARRAYS only. Form values are overwhelmingly strings
+ * — a text box, or a lookup's display name — so every `contains` rule evaluated to false
+ * without complaint. These replace it under distinct names so the array behaviour is still
+ * available to anything that wants it.
+ *
+ * Matching is case-SENSITIVE, consistent with `equals` and every other operator here.
+ */
+function registerTextOperators(engine: Engine): void {
+  // A related record's option or number column arrives as a number while the maker typed a
+  // string; these compare the two as text so "6" matches 6.
+  engine.addOperator('looseEqual', (factValue: unknown, compareValue: unknown) =>
+    isLooselyEqual(factValue, compareValue));
+  engine.addOperator('looseNotEqual', (factValue: unknown, compareValue: unknown) =>
+    !isLooselyEqual(factValue, compareValue));
+  engine.addOperator('textContains', (factValue: unknown, compareValue: unknown) =>
+    containsValue(factValue, compareValue));
+  engine.addOperator('textNotContains', (factValue: unknown, compareValue: unknown) =>
+    !containsValue(factValue, compareValue));
+}
+
+function isLooselyEqual(factValue: unknown, compareValue: unknown): boolean {
+  if (factValue === null || factValue === undefined) return compareValue === null || compareValue === undefined;
+  return String(factValue) === String(compareValue);
+}
+
+/** Operators a related-record condition uses in place of the strict ones. */
+const RELATED_OPERATOR_MAP: Record<string, string> = {
+  ...OPERATOR_MAP,
+  equals: 'looseEqual',
+  notEquals: 'looseNotEqual',
+};
+
+function containsValue(factValue: unknown, compareValue: unknown): boolean {
+  if (factValue === null || factValue === undefined) return false;
+  if (Array.isArray(factValue)) return factValue.includes(compareValue);
+  return String(factValue).includes(String(compareValue));
+}
 
 interface RuleEvent {
   type: string;
@@ -30,6 +161,7 @@ interface RuleEvent {
     targetFieldId?: string;
     targetSectionId?: string;
     targetTabId?: string;
+    targetColumnId?: string;
     actionValue?: string;
   };
 }
@@ -55,6 +187,53 @@ function buildExpressionContext(values: FormFieldValues): ExpressionContext {
   return ctx;
 }
 
+/**
+ * The option values a disableOptions action names.
+ *
+ * A maker may paste a JSON array or type a comma-separated list; option-set values are
+ * numbers in CRM but strings on the wire, so every entry is compared as a string.
+ */
+function parseOptionValueList(actionValue: string): string[] {
+  const trimmed = actionValue.trim();
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed.map((entry) => String(entry));
+    } catch {
+      return [];
+    }
+  }
+  return trimmed.split(',').map((entry) => entry.trim()).filter((entry) => entry !== '');
+}
+
+/** What each grid-column action sets on its column. */
+const GRID_COLUMN_ACTION_FLAGS: Partial<Record<BusinessRuleAction, GridColumnRuleState>> = {
+  showColumn: { isVisible: true },
+  hideColumn: { isVisible: false },
+  makeColumnRequired: { isRequired: true },
+  makeColumnOptional: { isRequired: false },
+  makeColumnReadonly: { isReadonly: true },
+  makeColumnEditable: { isReadonly: false },
+};
+
+/**
+ * Records a column action's flags against its grid and column. An action that names no grid
+ * or no column cannot be applied to anything, so it changes nothing.
+ */
+function applyColumnFlags(
+  result: RuleEvaluationResult,
+  params: RuleEvent['params'],
+  flags: GridColumnRuleState,
+): void {
+  const { targetFieldId, targetColumnId } = params;
+  if (!targetFieldId || !targetColumnId) return;
+  const gridState = result.gridColumnState[targetFieldId] ?? {};
+  result.gridColumnState[targetFieldId] = {
+    ...gridState,
+    [targetColumnId]: { ...gridState[targetColumnId], ...flags },
+  };
+}
+
 function buildEmptyResult(): RuleEvaluationResult {
   return {
     fieldVisibility: {},
@@ -64,6 +243,8 @@ function buildEmptyResult(): RuleEvaluationResult {
     fieldReadonly: {},
     fieldValues: {},
     filteredOptions: {},
+    disabledOptions: {},
+    gridColumnState: {},
     buttonVisibility: {},
     buttonEnabledState: {},
   };
@@ -77,6 +258,7 @@ export class RuleEngine {
   async evaluate(
     rules: BusinessRule[],
     fieldValues: FormFieldValues,
+    moments: RuleEvaluationMoments = {},
   ): Promise<RuleEvaluationResult> {
     const activeRules = rules.filter((rule) => rule.isActive);
 
@@ -84,23 +266,28 @@ export class RuleEngine {
       return buildEmptyResult();
     }
 
+    // One engine run per trigger event: each group reads its own snapshot of the form, and a
+    // single fact map cannot hold two different values for the same field.
+    const events: RuleEvent[] = [];
+    for (const [triggerEvent, group] of groupByTriggerEvent(activeRules)) {
+      const values = resolveMomentValues(triggerEvent, fieldValues, moments);
+      if (values === null) continue;
+      events.push(...await this.runRuleGroup(group, values));
+    }
+
+    return this.mapEventsToResult(events, fieldValues);
+  }
+
+  private async runRuleGroup(
+    rules: BusinessRule[],
+    values: FormFieldValues,
+  ): Promise<RuleEvent[]> {
     const engine = new Engine();
+    registerTextOperators(engine);
+    rules.forEach((rule) => this.registerRule(engine, rule));
 
-    activeRules.forEach((rule) => {
-      const conditions = this.buildConditions(rule);
-      const event = this.buildEvent(rule);
-
-      engine.addRule({
-        conditions,
-        event,
-        priority: rule.priority,
-      });
-    });
-
-    const facts = this.buildFacts(fieldValues);
-    const { events } = await engine.run(facts);
-
-    return this.mapEventsToResult(events as RuleEvent[], fieldValues);
+    const { events } = await engine.run(this.buildFacts(values));
+    return events as RuleEvent[];
   }
 
   /**
@@ -121,23 +308,18 @@ export class RuleEngine {
     const buttonEnabledState: Record<string, boolean> = {};
 
     const engine = new Engine();
+    registerTextOperators(engine);
     let ruleCount = 0;
 
     for (const button of buttons) {
       if (this.hasConditions(button.visibleWhen)) {
         buttonVisibility[button.id] = false;
-        engine.addRule({
-          conditions: this.buildConditionSet(button.visibleWhen!),
-          event: { type: `vis:${button.id}`, params: { buttonId: button.id, axis: 'visible' } },
-        });
+        this.registerButtonRule(engine, button, 'visible');
         ruleCount += 1;
       }
       if (this.hasConditions(button.enabledWhen)) {
         buttonEnabledState[button.id] = false;
-        engine.addRule({
-          conditions: this.buildConditionSet(button.enabledWhen!),
-          event: { type: `en:${button.id}`, params: { buttonId: button.id, axis: 'enabled' } },
-        });
+        this.registerButtonRule(engine, button, 'enabled');
         ruleCount += 1;
       }
     }
@@ -161,6 +343,56 @@ export class RuleEngine {
 
   private hasConditions(set?: ButtonConditionSet): boolean {
     return !!set && Array.isArray(set.conditions) && set.conditions.length > 0;
+  }
+
+  /**
+   * Adds one rule to the engine, or skips it.
+   *
+   * Every rule on a form is registered against a single engine before any of them runs, so a
+   * rule that could not be built used to throw out of the registration loop and take the whole
+   * form's conditional behaviour with it. A rule the engine cannot express is that rule's own
+   * defect: it is dropped, and the rest of the form keeps working.
+   */
+  private registerRule(engine: Engine, rule: BusinessRule): void {
+    try {
+      engine.addRule({
+        conditions: this.buildConditions(rule),
+        event: this.buildEvent(rule),
+        priority: rule.priority,
+      });
+    } catch (error) {
+      logger.error('rule_skipped', {
+        ruleId: rule.id,
+        ruleName: rule.name,
+        action: rule.action,
+        reason: describeFailure(error),
+      });
+    }
+  }
+
+  /**
+   * Adds one axis of a scoped button's conditions, or skips it. The caller has already
+   * defaulted the axis to false, so a button gated by conditions that cannot be built stays
+   * hidden or disabled rather than falling open.
+   */
+  private registerButtonRule(
+    engine: Engine,
+    button: ScopedButton,
+    axis: 'visible' | 'enabled',
+  ): void {
+    const conditionSet = axis === 'visible' ? button.visibleWhen : button.enabledWhen;
+    try {
+      engine.addRule({
+        conditions: this.buildConditionSet(conditionSet!),
+        event: { type: `${axis}:${button.id}`, params: { buttonId: button.id, axis } },
+      });
+    } catch (error) {
+      logger.error('button_rule_skipped', {
+        buttonId: button.id,
+        axis,
+        reason: describeFailure(error),
+      });
+    }
   }
 
   private buildConditionSet(
@@ -190,6 +422,10 @@ export class RuleEngine {
   }
 
   private convertCondition(condition: RuleCondition): ConditionProperties {
+    if (condition.relatedAttribute) return this.convertRelatedCondition(condition, condition.relatedAttribute);
+
+    // Emptiness is a property of the value itself, so the id fact answers it alone —
+    // pairing here would make "is empty" true whenever EITHER half was blank.
     if (condition.operator === 'isEmpty') {
       return {
         fact: condition.fieldId,
@@ -214,11 +450,31 @@ export class RuleEngine {
       );
     }
 
-    return {
-      fact: condition.fieldId,
-      operator: engineOperator,
-      value: condition.value ?? null,
-    } as ConditionProperties;
+    const value = condition.value ?? null;
+    const onId = { fact: condition.fieldId, operator: engineOperator, value } as ConditionProperties;
+    const onDisplay = { fact: displayFactName(condition.fieldId), operator: engineOperator, value } as ConditionProperties;
+
+    // A lookup matches on either its id or its display name. Which combinator that needs
+    // depends on the operator: "equals X" holds if EITHER half is X, but "not equals X"
+    // only holds if BOTH halves differ — an `any` there would make every lookup condition
+    // true, since the two halves are never both equal to the same string.
+    return (NEGATIVE_OPERATORS.has(condition.operator)
+      ? { all: [onId, onDisplay] }
+      : { any: [onId, onDisplay] }) as unknown as ConditionProperties;
+  }
+
+  /**
+   * A condition on a column of the record a lookup has selected. It reads the one related fact
+   * the form resolved for that column; the lookup's own id and display name play no part.
+   */
+  private convertRelatedCondition(condition: RuleCondition, relatedAttribute: string): ConditionProperties {
+    const fact = relatedFactName(condition.fieldId, relatedAttribute);
+    if (condition.operator === 'isEmpty') return { fact, operator: 'equal', value: null } as ConditionProperties;
+    if (condition.operator === 'isNotEmpty') return { fact, operator: 'notEqual', value: null } as ConditionProperties;
+
+    const engineOperator = RELATED_OPERATOR_MAP[condition.operator];
+    if (!engineOperator) throw new Error(`Unsupported condition operator: ${condition.operator}`);
+    return { fact, operator: engineOperator, value: condition.value ?? null } as ConditionProperties;
   }
 
   private buildEvent(rule: BusinessRule): Event {
@@ -227,6 +483,7 @@ export class RuleEngine {
       targetFieldId: rule.targetFieldId,
       targetSectionId: rule.targetSectionId,
       targetTabId: rule.targetTabId,
+      targetColumnId: rule.targetColumnId,
       actionValue: rule.actionValue,
     };
 
@@ -241,7 +498,22 @@ export class RuleEngine {
     const facts: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(fieldValues)) {
-      facts[key] = value ?? null;
+      const normalised = value ?? null;
+
+      if (isLookupValue(normalised)) {
+        // A lookup stores { id, displayName }. Comparing that object against a maker's
+        // string never matched, so no lookup could ever drive a rule. Both halves become
+        // facts and convertCondition tries each — a maker may reasonably have configured
+        // either the record id or the name they see on screen.
+        facts[key] = normalised.id;
+        facts[displayFactName(key)] = normalised.displayName;
+        continue;
+      }
+
+      facts[key] = normalised;
+      // Registered for every field so the paired condition below is always well defined;
+      // for a non-lookup both facts hold the same value and the pair is a no-op.
+      facts[displayFactName(key)] = normalised;
     }
 
     return facts;
@@ -253,6 +525,12 @@ export class RuleEngine {
     for (const event of events) {
       const { action, targetFieldId, targetSectionId, targetTabId, actionValue } =
         event.params;
+
+      const columnFlags = GRID_COLUMN_ACTION_FLAGS[action];
+      if (columnFlags) {
+        applyColumnFlags(result, event.params, columnFlags);
+        continue;
+      }
 
       switch (action) {
         case 'showField':
@@ -317,6 +595,12 @@ export class RuleEngine {
         case 'filterOptions':
           if (targetFieldId && actionValue) {
             result.filteredOptions[targetFieldId] = this.parseFilteredOptions(actionValue);
+          }
+          break;
+
+        case 'disableOptions':
+          if (targetFieldId && actionValue) {
+            result.disabledOptions[targetFieldId] = parseOptionValueList(actionValue);
           }
           break;
 

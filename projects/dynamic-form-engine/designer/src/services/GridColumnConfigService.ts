@@ -1,15 +1,16 @@
 import type { IWebApiAdapter } from './IWebApiAdapter';
+import { withSequentialDisplayOrder } from '@/services/gridColumnOrder';
 import { assertGuid } from './assertGuid';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import { GRID_COLUMN_CONFIG_ATTRS } from '@/constants/attributeNames';
-import type { DesignerGridColumnConfig, GridColumnFilterType } from '@/state/models/DesignerFormModel';
+import type { DesignerGridColumnConfig, GridColumnFilterType, GridLookupSort, GridValidationFormat } from '@/state/models/DesignerFormModel';
 import { withRetry } from './crmRetry';
 
 // Encodes filter metadata into the v2 extended options JSON format.
 // Falls back to a plain array if no filter metadata is set and options exist.
 function encodeOptionsJson(col: DesignerGridColumnConfig): string | null {
   const hasOptions = col.optionsJson != null && col.optionsJson.trim().startsWith('[');
-  const hasFilterMeta = col.filterType !== 'none' || col.lookupTargetEntity || col.lookupDisplayAttribute || col.lookupValueAttribute;
+  const hasFilterMeta = col.filterType !== 'none' || col.lookupTargetEntity || col.lookupDisplayAttribute || col.lookupValueAttribute || col.lookupSort;
 
   if (!hasOptions && !hasFilterMeta) return null;
 
@@ -28,8 +29,16 @@ function encodeOptionsJson(col: DesignerGridColumnConfig): string | null {
   if (col.lookupTargetEntity) v2['lookupTargetEntity'] = col.lookupTargetEntity;
   if (col.lookupDisplayAttribute) v2['lookupDisplayAttribute'] = col.lookupDisplayAttribute;
   if (col.lookupValueAttribute) v2['lookupValueAttribute'] = col.lookupValueAttribute;
+  if (col.lookupSort) v2['lookupSort'] = col.lookupSort;
 
   return JSON.stringify(v2);
+}
+
+// The sort direction, under either key. The designer writes `lookupSort`; `sort` is
+// accepted because column JSON authored by hand uses the shorter name.
+function readLookupSort(obj: Record<string, unknown>): GridLookupSort | null {
+  const raw = obj['lookupSort'] ?? obj['sort'];
+  return raw === 'asc' || raw === 'desc' ? raw : null;
 }
 
 // Decodes the options JSON field into filter metadata + raw options string.
@@ -39,8 +48,9 @@ function decodeOptionsJson(raw: string | null | undefined): {
   lookupTargetEntity: string | null;
   lookupDisplayAttribute: string | null;
   lookupValueAttribute: string | null;
+  lookupSort: GridLookupSort | null;
 } {
-  const defaults = { optionsJson: null, filterType: 'none' as GridColumnFilterType, lookupTargetEntity: null, lookupDisplayAttribute: null, lookupValueAttribute: null };
+  const defaults = { optionsJson: null, filterType: 'none' as GridColumnFilterType, lookupTargetEntity: null, lookupDisplayAttribute: null, lookupValueAttribute: null, lookupSort: null };
   if (!raw) return defaults;
   try {
     const parsed = JSON.parse(raw) as unknown;
@@ -59,10 +69,36 @@ function decodeOptionsJson(raw: string | null | undefined): {
         lookupTargetEntity: typeof obj['lookupTargetEntity'] === 'string' ? obj['lookupTargetEntity'] : null,
         lookupDisplayAttribute: typeof obj['lookupDisplayAttribute'] === 'string' ? obj['lookupDisplayAttribute'] : null,
         lookupValueAttribute: typeof obj['lookupValueAttribute'] === 'string' ? obj['lookupValueAttribute'] : null,
+        lookupSort: readLookupSort(obj),
       };
     }
   } catch { /* fall through */ }
   return defaults;
+}
+
+const VALIDATION_FORMATS: GridValidationFormat[] =
+  ['none', 'email', 'phone', 'url', 'numeric', 'alphanumeric', 'custom'];
+
+// An unrecognised stored value reads as 'none' rather than passing through, so a typo in
+// the column shows in the panel as "no format" instead of as a blank dropdown.
+function readValidationFormat(stored: unknown): GridValidationFormat {
+  return VALIDATION_FORMATS.includes(stored as GridValidationFormat)
+    ? (stored as GridValidationFormat)
+    : 'none';
+}
+
+// The validation columns, as a CRM payload. A format of 'none' and a blank pattern or
+// message are written as null rather than as strings, so a column a maker has cleared
+// reads back as "no rule" rather than as a rule that matches nothing.
+function validationPayload(col: Partial<DesignerGridColumnConfig>): Record<string, unknown> {
+  return {
+    [GRID_COLUMN_CONFIG_ATTRS.IS_REQUIRED]: col.isRequired ?? false,
+    [GRID_COLUMN_CONFIG_ATTRS.MAX_LENGTH]: col.maxLength ?? null,
+    [GRID_COLUMN_CONFIG_ATTRS.VALIDATION_FORMAT]:
+      col.validationFormat && col.validationFormat !== 'none' ? col.validationFormat : null,
+    [GRID_COLUMN_CONFIG_ATTRS.VALIDATION_PATTERN]: col.validationPattern || null,
+    [GRID_COLUMN_CONFIG_ATTRS.VALIDATION_MESSAGE]: col.validationMessage || null,
+  };
 }
 
 export class GridColumnConfigService {
@@ -78,8 +114,9 @@ export class GridColumnConfigService {
           [GRID_COLUMN_CONFIG_ATTRS.TARGET_ATTR]: col.targetAttribute,
           [GRID_COLUMN_CONFIG_ATTRS.COLUMN_TYPE]: col.columnFieldType,
           [GRID_COLUMN_CONFIG_ATTRS.DISPLAY_ORDER]: col.displayOrder,
-          [GRID_COLUMN_CONFIG_ATTRS.IS_VISIBLE]: true,
+          [GRID_COLUMN_CONFIG_ATTRS.IS_VISIBLE]: col.isVisible,
           [GRID_COLUMN_CONFIG_ATTRS.IS_EDITABLE]: col.isEditable,
+          ...validationPayload(col),
           ...(encodedOptionsJson != null ? { [GRID_COLUMN_CONFIG_ATTRS.OPTIONS_JSON]: encodedOptionsJson } : {}),
         }),
       'createGridColumn',
@@ -93,13 +130,22 @@ export class GridColumnConfigService {
     if (col.targetAttribute !== undefined) data[GRID_COLUMN_CONFIG_ATTRS.TARGET_ATTR] = col.targetAttribute;
     if (col.columnFieldType !== undefined) data[GRID_COLUMN_CONFIG_ATTRS.COLUMN_TYPE] = col.columnFieldType;
     if (col.displayOrder !== undefined) data[GRID_COLUMN_CONFIG_ATTRS.DISPLAY_ORDER] = col.displayOrder;
+    if (col.isVisible !== undefined) data[GRID_COLUMN_CONFIG_ATTRS.IS_VISIBLE] = col.isVisible;
     if (col.isEditable !== undefined) data[GRID_COLUMN_CONFIG_ATTRS.IS_EDITABLE] = col.isEditable;
+
+    const validationChanged = col.isRequired !== undefined
+      || col.maxLength !== undefined
+      || col.validationFormat !== undefined
+      || col.validationPattern !== undefined
+      || col.validationMessage !== undefined;
+    if (validationChanged) Object.assign(data, validationPayload(col));
     // Re-encode options JSON whenever any filter-related field changes.
     const filterFieldChanged = col.optionsJson !== undefined
       || col.filterType !== undefined
       || col.lookupTargetEntity !== undefined
       || col.lookupDisplayAttribute !== undefined
-      || col.lookupValueAttribute !== undefined;
+      || col.lookupValueAttribute !== undefined
+      || col.lookupSort !== undefined;
     if (filterFieldChanged) {
       data[GRID_COLUMN_CONFIG_ATTRS.OPTIONS_JSON] = encodeOptionsJson(col as DesignerGridColumnConfig) ?? null;
     }
@@ -127,11 +173,19 @@ export class GridColumnConfigService {
       GRID_COLUMN_CONFIG_ATTRS.TARGET_ATTR,
       GRID_COLUMN_CONFIG_ATTRS.COLUMN_TYPE,
       GRID_COLUMN_CONFIG_ATTRS.DISPLAY_ORDER,
+      GRID_COLUMN_CONFIG_ATTRS.IS_VISIBLE,
       GRID_COLUMN_CONFIG_ATTRS.IS_EDITABLE,
       GRID_COLUMN_CONFIG_ATTRS.OPTIONS_JSON,
+      GRID_COLUMN_CONFIG_ATTRS.IS_REQUIRED,
+      GRID_COLUMN_CONFIG_ATTRS.MAX_LENGTH,
+      GRID_COLUMN_CONFIG_ATTRS.VALIDATION_FORMAT,
+      GRID_COLUMN_CONFIG_ATTRS.VALIDATION_PATTERN,
+      GRID_COLUMN_CONFIG_ATTRS.VALIDATION_MESSAGE,
     ].join(',');
 
-    const filter = `${GRID_COLUMN_CONFIG_ATTRS.FIELD_ID_VALUE} eq ${fieldId} and ${GRID_COLUMN_CONFIG_ATTRS.IS_VISIBLE} eq true`;
+    // Hidden columns are listed too. Filtering them out here made them invisible to the
+    // designer as well as the runtime, so a maker could neither see nor un-hide one.
+    const filter = `${GRID_COLUMN_CONFIG_ATTRS.FIELD_ID_VALUE} eq ${fieldId}`;
     const orderBy = `${GRID_COLUMN_CONFIG_ATTRS.DISPLAY_ORDER} asc`;
 
     const result = await withRetry(
@@ -147,7 +201,22 @@ export class GridColumnConfigService {
   }
 
   // Full-replace sync: delete removed, create new, update existing (same pattern as OptionValueService).
-  async syncColumns(fieldId: string, columns: DesignerGridColumnConfig[]): Promise<void> {
+  /**
+   * Writes this field's columns and reports the id of every column it created, keyed by the
+   * temporary id it was carrying.
+   *
+   * The caller must fold that into the store. A column whose real id is never written back
+   * keeps its tmp_ id, and the next save does not recognise the row it just wrote: the
+   * delete below removes it and it is created again, so the column churns on every save and
+   * a maker sees it vanish.
+   */
+  async syncColumns(
+    fieldId: string,
+    unorderedColumns: DesignerGridColumnConfig[],
+  ): Promise<Record<string, string>> {
+    // Renumbered here as well as in the panel: qdb_display_order rejects 0, and a column that
+    // reached the store before it was ordered would otherwise fail the entire save.
+    const columns = withSequentialDisplayOrder(unorderedColumns);
     const existing = await this.listColumnsForField(fieldId);
     const currentIds = new Set(
       columns.filter(c => !c.id.startsWith('tmp_')).map(c => c.id),
@@ -159,32 +228,47 @@ export class GridColumnConfigService {
         .map(c => this.deleteColumn(c.id)),
     );
 
+    const resolvedIds: Record<string, string> = {};
     for (const col of columns) {
       if (col.id.startsWith('tmp_')) {
-        await this.createColumn(fieldId, col);
+        resolvedIds[col.id] = await this.createColumn(fieldId, col);
       } else {
         await this.updateColumn(col.id, col);
       }
     }
+    return resolvedIds;
   }
 
   private mapRecord(record: Record<string, unknown>): DesignerGridColumnConfig {
     const rawOptionsJson = record[GRID_COLUMN_CONFIG_ATTRS.OPTIONS_JSON] != null
       ? String(record[GRID_COLUMN_CONFIG_ATTRS.OPTIONS_JSON])
       : null;
-    const { optionsJson, filterType, lookupTargetEntity, lookupDisplayAttribute, lookupValueAttribute } = decodeOptionsJson(rawOptionsJson);
+    const { optionsJson, filterType, lookupTargetEntity, lookupDisplayAttribute, lookupValueAttribute, lookupSort } = decodeOptionsJson(rawOptionsJson);
     return {
       id: String(record[GRID_COLUMN_CONFIG_ATTRS.ID] ?? ''),
       columnLabel: String(record[GRID_COLUMN_CONFIG_ATTRS.COLUMN_LABEL] ?? ''),
       targetAttribute: String(record[GRID_COLUMN_CONFIG_ATTRS.TARGET_ATTR] ?? ''),
       columnFieldType: String(record[GRID_COLUMN_CONFIG_ATTRS.COLUMN_TYPE] ?? 'text'),
       displayOrder: Number(record[GRID_COLUMN_CONFIG_ATTRS.DISPLAY_ORDER] ?? 0),
+      isVisible: record[GRID_COLUMN_CONFIG_ATTRS.IS_VISIBLE] !== false,
       isEditable: Boolean(record[GRID_COLUMN_CONFIG_ATTRS.IS_EDITABLE]),
+      isRequired: record[GRID_COLUMN_CONFIG_ATTRS.IS_REQUIRED] === true,
+      maxLength: record[GRID_COLUMN_CONFIG_ATTRS.MAX_LENGTH] != null
+        ? Number(record[GRID_COLUMN_CONFIG_ATTRS.MAX_LENGTH])
+        : null,
+      validationFormat: readValidationFormat(record[GRID_COLUMN_CONFIG_ATTRS.VALIDATION_FORMAT]),
+      validationPattern: record[GRID_COLUMN_CONFIG_ATTRS.VALIDATION_PATTERN] != null
+        ? String(record[GRID_COLUMN_CONFIG_ATTRS.VALIDATION_PATTERN])
+        : null,
+      validationMessage: record[GRID_COLUMN_CONFIG_ATTRS.VALIDATION_MESSAGE] != null
+        ? String(record[GRID_COLUMN_CONFIG_ATTRS.VALIDATION_MESSAGE])
+        : null,
       optionsJson,
       filterType,
       lookupTargetEntity,
       lookupDisplayAttribute,
       lookupValueAttribute,
+      lookupSort,
     };
   }
 }

@@ -6,6 +6,7 @@
 import type { OptionValue } from '@qdb/shared';
 import { useFormContext } from '../../../contexts/FormContext';
 import type { ControlProps } from '../FieldRenderer';
+import { useDisabledOptions } from './useDisabledOptions';
 
 const useStyles = makeStyles({
   combobox: {
@@ -24,6 +25,7 @@ export function MultiSelectControl({
   const { fieldValues, updateFieldValue, ruleState } = useFormContext();
 
   const filteredByRule = ruleState.filteredOptions[field.id];
+  const disabledOptions = useDisabledOptions(field.id);
   const options: OptionValue[] = filteredByRule ?? field.options ?? [];
   const activeOptions = options.filter((o) => o.isActive);
 
@@ -57,7 +59,7 @@ export function MultiSelectControl({
       {activeOptions
         .sort((a, b) => a.displayOrder - b.displayOrder)
         .map((option) => (
-          <Option key={option.value} value={option.value}>
+          <Option key={option.value} value={option.value} disabled={disabledOptions.has(option.value)}>
             {option.label}
           </Option>
         ))}

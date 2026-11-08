@@ -116,6 +116,30 @@ Already chosen. Aligns with Power Platform design language. Tree-shakeable — o
 
 ---
 
+## 10. Visual Feedback for AI Agents — **agentation** ✅ ADOPT (dev-only)
+
+| Attribute | Value |
+|---|---|
+| Repo | github.com/benjitaylor/agentation |
+| Stars | ~4 500 |
+| License | PolyForm Shield 1.0.0 (NOT OSI open source) |
+| Last active | 2026 |
+
+**Why**: Dev-loop tool: click elements in the running designer, add notes, and
+copy structured markdown (CSS selectors, positions, context) that lets an AI
+coding agent locate the exact component being discussed. Zero runtime
+dependencies. Mounted in `src/main.tsx` behind `import.meta.env.DEV`, so it is
+dead-code-eliminated from the production/CRM bundle — devDependency only.
+
+**License note**: PolyForm Shield permits free internal and commercial use but
+forbids shipping a product that competes with Agentation itself. Acceptable for
+an internal dev tool; would need re-evaluation only if MSS built a competing
+annotation product.
+
+**Decision**: ADOPT as devDependency for local development only.
+
+---
+
 ## Summary Decision Table
 
 | Need | Library | Decision |
@@ -129,3 +153,4 @@ Already chosen. Aligns with Power Platform design language. Tree-shakeable — o
 | UI components | @fluentui/react-components | ADOPT |
 | Build tool | Vite | ADOPT |
 | Rich text | @tiptap/react | ADOPT |
+| AI-agent visual feedback (dev-only) | agentation | ADOPT |

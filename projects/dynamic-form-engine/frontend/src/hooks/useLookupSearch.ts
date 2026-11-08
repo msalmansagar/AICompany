@@ -26,6 +26,8 @@ export interface UseLookupSearchOptions {
   // DFE-LKPCOL-001 — multi-column + language-aware display (entity lookups only).
   displayColumns?: LookupDisplayColumn[];
   lang?: string;
+  // Orders an entity lookup's results by the display attribute.
+  sort?: 'asc' | 'desc';
 }
 
 export interface UseLookupSearchResult {
@@ -47,6 +49,7 @@ export function useLookupSearch({
   apiSource,
   displayColumns,
   lang,
+  sort,
 }: UseLookupSearchOptions): UseLookupSearchResult {
   const [results, setResults] = useState<LookupResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -83,6 +86,7 @@ export function useLookupSearch({
               filter: filterExpression,
               columns: displayColumns && displayColumns.length > 0 ? JSON.stringify(displayColumns) : undefined,
               lang,
+              sort,
             }, abortController.current.signal);
         const envelope = response as unknown as { data: LookupResult[]; meta?: { warning?: string } };
         // FR-026: a proxy degradation (timeout/upstream error) returns empty data +
@@ -99,7 +103,7 @@ export function useLookupSearch({
         setIsSearching(false);
       }
     },
-    [entityName, displayAttribute, valueAttribute, maxResults, filterExpression, apiSource, displayColumns, lang],
+    [entityName, displayAttribute, valueAttribute, maxResults, filterExpression, apiSource, displayColumns, lang, sort],
   );
 
   const search = useCallback(

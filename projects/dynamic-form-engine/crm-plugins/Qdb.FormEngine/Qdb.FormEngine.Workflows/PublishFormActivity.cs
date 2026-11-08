@@ -118,7 +118,6 @@ namespace Qdb.FormEngine.Workflows
                 new PublishJobRepository(service),
                 new RenderCacheRepository(service),
                 new FormJsonGenerator(new TranslationResolver(), tracingService),
-                new SecurityStripper(),
                 new NewtonsoftJsonSerializer(),
                 tracingService,
                 DEFAULT_GENERATOR_VERSION);

@@ -7,7 +7,7 @@ const mockUpdateFieldValue = vi.fn();
 let mockFieldValues: Record<string, unknown> = { entryGrid: [] };
 
 vi.mock('../../../contexts/FormContext', () => ({
-  useFormContext: () => ({ fieldValues: mockFieldValues, updateFieldValue: mockUpdateFieldValue }),
+  useFormContext: () => ({ fieldValues: mockFieldValues, updateFieldValue: mockUpdateFieldValue, validationErrors: {} }),
 }));
 
 const mockUpload = vi.fn();

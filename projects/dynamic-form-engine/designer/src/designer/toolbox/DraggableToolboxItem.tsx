@@ -2,7 +2,7 @@ import React from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { makeStyles, mergeClasses, shorthands, tokens, Text, Tooltip } from '@fluentui/react-components';
 import type { FieldTypeDefinition } from '@/constants/fieldTypes';
-import { FIELD_TYPE_VISUALS, GROUP_COLORS } from './fieldTypeVisuals';
+import { FIELD_TYPE_VISUALS, GROUP_COLOR_VARS } from './fieldTypeVisuals';
 
 const useStyles = makeStyles({
   item: {
@@ -83,7 +83,7 @@ export function DraggableToolboxItem({ fieldDef }: DraggableToolboxItemProps): R
   // lucide-react's icon type resolves against its own bundled React types, tripping TS2786
   // when used as JSX here; narrow to the app's React FC signature for the props we pass.
   const Icon = visual.Icon as React.FC<{ size?: number; strokeWidth?: number; color?: string }>;
-  const iconColor = GROUP_COLORS[visual.group];
+  const iconColor = GROUP_COLOR_VARS[visual.group];
 
   const content = (
     <div
@@ -101,8 +101,8 @@ export function DraggableToolboxItem({ fieldDef }: DraggableToolboxItemProps): R
       aria-grabbed={isDragging}
       aria-disabled={isDisabled}
     >
-      <span className={styles.iconChip}>
-        <Icon size={20} strokeWidth={2} color={iconColor} />
+      <span className={styles.iconChip} style={{ color: iconColor }}>
+        <Icon size={20} strokeWidth={2} />
       </span>
       <Text className={styles.label}>{fieldDef.label}</Text>
       {isDisabled && <Text className={styles.comingSoonBadge}>coming soon</Text>}

@@ -17,6 +17,9 @@ namespace Qdb.FormEngine.Core.Generation
     /// </summary>
     public sealed class FormJsonGenerator : IFormJsonGenerator
     {
+        /// <summary>Used when a tab requires acknowledgement but the maker left the label blank.</summary>
+        private const string DefaultTabConfirmationLabel = "I confirm the information on this tab is correct.";
+
         private readonly ITranslationResolver _translationResolver;
         private readonly ITracingService _tracingService;
 
@@ -56,6 +59,10 @@ namespace Qdb.FormEngine.Core.Generation
                 Description = Resolve(rawData, "qdb_form_definition", formId, "qdb_description", form.GetAttributeValue<string>("qdb_description")),
                 Status = PicklistMapper.ToFormStatus(EntityHelper.GetOptionSetValue(form, "qdb_status")),
                 Version = form.GetAttributeValue<int>("qdb_version"),
+                IconName = NullIfBlank(form.GetAttributeValue<string>("qdb_icon_name")),
+                ImageUrl = RenderableImageUrl(form.GetAttributeValue<string>("qdb_image_url")),
+                Header = BuildBand(rawData, form, formId, "qdb_header_text", "qdb_header_image_url"),
+                Footer = BuildBand(rawData, form, formId, "qdb_footer_text", "qdb_footer_image_url"),
                 AllowSaveDraft = form.GetAttributeValue<bool>("qdb_allow_save_draft"),
                 DraftExpiryDays = form.Contains("qdb_draft_expiry_days") ? (int?)form.GetAttributeValue<int>("qdb_draft_expiry_days") : null,
                 PowerAutomateFlowId = form.GetAttributeValue<string>("qdb_power_automate_flow_id"),
@@ -70,6 +77,7 @@ namespace Qdb.FormEngine.Core.Generation
                 InfocardSkipLabel = Resolve(rawData, "qdb_form_definition", formId, "qdb_infocard_skip_label", form.GetAttributeValue<string>("qdb_infocard_skip_label")),
                 ShowSummaryStep = form.GetAttributeValue<bool>("qdb_show_summary_step"),
                 SummaryMode = PicklistMapper.ToSummaryMode(EntityHelper.GetOptionSetValue(form, "qdb_summary_mode")),
+                SubmitConfirmation = BuildFormSubmitConfirmation(rawData, form, formId),
                 ShowProgressBar = form.GetAttributeValue<bool>("qdb_show_progress_bar") ? (bool?)true : null,
                 CreatedAt = form.Contains("createdon") ? (DateTime?)form.GetAttributeValue<DateTime>("createdon") : null,
                 ModifiedAt = form.Contains("modifiedon") ? (DateTime?)form.GetAttributeValue<DateTime>("modifiedon") : null,
@@ -84,6 +92,47 @@ namespace Qdb.FormEngine.Core.Generation
         private string Resolve(FormRawData rawData, string entityName, Guid recordId, string fieldName, string fallback)
         {
             return _translationResolver.Resolve(rawData.TranslationMap, entityName, recordId, fieldName, fallback);
+        }
+
+        /// <summary>
+        /// A header or footer band, or null when the maker set neither part — a form with no
+        /// bands then publishes byte-identical JSON. The text is translated like any other
+        /// label; the image URL is not, being a URL rather than a string a translator reads.
+        /// </summary>
+        private FormBand BuildBand(
+            FormRawData rawData, Entity form, Guid formId, string textAttribute, string imageAttribute)
+        {
+            var text = Resolve(rawData, "qdb_form_definition", formId, textAttribute,
+                form.GetAttributeValue<string>(textAttribute));
+            var band = new FormBand
+            {
+                Text = NullIfBlank(text),
+                ImageUrl = RenderableImageUrl(form.GetAttributeValue<string>(imageAttribute)),
+            };
+            return band.Text == null && band.ImageUrl == null ? null : band;
+        }
+
+        /// <summary>Blank strings publish as null so the JSON omits the property entirely.</summary>
+        private static string NullIfBlank(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? null : value;
+        }
+
+        /// <summary>
+        /// Publishes a maker-configured image URL only when it is an absolute http(s) URL.
+        /// Mirrors isRenderableImageUrl in the shared types: a javascript: URL executes when
+        /// some browsers resolve it, and a relative path resolves against whichever host is
+        /// serving the form, which differs between the portal, the web resource and dev.
+        /// </summary>
+        private static string RenderableImageUrl(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+
+            Uri parsed;
+            if (!Uri.TryCreate(value, UriKind.Absolute, out parsed)) return null;
+            return parsed.Scheme == Uri.UriSchemeHttps || parsed.Scheme == Uri.UriSchemeHttp
+                ? value
+                : null;
         }
 
         private List<TabDefinition> BuildTabs(FormRawData rawData, Guid formId, FieldBuilder fieldBuilder)
@@ -111,8 +160,50 @@ namespace Qdb.FormEngine.Core.Generation
                 IsVisible = EntityHelper.GetBoolOrTrue(tab, "qdb_is_visible"),
                 RequiresPreviousTabComplete = tab.GetAttributeValue<bool>("qdb_requires_previous_tab_complete"),
                 HideTabBar = tab.GetAttributeValue<bool>("qdb_hide_tab_bar"),
+                // Null on every tab that predates the column, so only a real true is emitted.
+                RevealsSectionsOneAtATime =
+                    tab.GetAttributeValue<bool>("qdb_reveal_sections_one_at_a_time") ? true : (bool?)null,
                 Sections = BuildSections(rawData, tabId, fieldBuilder),
-                Buttons = BuildScopedButtons(rawData, "tab", tabId)
+                Buttons = BuildScopedButtons(rawData, "tab", tabId),
+                SubmitConfirmation = BuildTabSubmitConfirmation(rawData, tab, tabId)
+            };
+        }
+
+        /// <summary>
+        /// The tab's acknowledgement gate, or null when the maker has not enabled it.
+        /// The boolean is the switch here, unlike the form-level one where a non-empty label
+        /// enables it — so a tab can use the default wording.
+        /// </summary>
+        private SubmitConfirmationConfig BuildTabSubmitConfirmation(FormRawData rawData, Entity tab, Guid tabId)
+        {
+            if (!tab.GetAttributeValue<bool>("qdb_require_submit_confirmation")) return null;
+
+            var label = Resolve(rawData, "qdb_form_tab", tabId, "qdb_submit_confirmation_label",
+                tab.GetAttributeValue<string>("qdb_submit_confirmation_label"));
+            var message = Resolve(rawData, "qdb_form_tab", tabId, "qdb_submit_confirmation_message",
+                tab.GetAttributeValue<string>("qdb_submit_confirmation_message"));
+
+            return new SubmitConfirmationConfig
+            {
+                CheckboxLabel = string.IsNullOrWhiteSpace(label) ? DefaultTabConfirmationLabel : label,
+                DialogMessage = string.IsNullOrWhiteSpace(message) ? null : message
+            };
+        }
+
+        /// <summary>The form-level acknowledgement, enabled by a non-empty label.</summary>
+        private SubmitConfirmationConfig BuildFormSubmitConfirmation(FormRawData rawData, Entity form, Guid formId)
+        {
+            var label = Resolve(rawData, "qdb_form_definition", formId, "qdb_submit_confirmation_label",
+                form.GetAttributeValue<string>("qdb_submit_confirmation_label"));
+            if (string.IsNullOrWhiteSpace(label)) return null;
+
+            var message = Resolve(rawData, "qdb_form_definition", formId, "qdb_submit_confirmation_message",
+                form.GetAttributeValue<string>("qdb_submit_confirmation_message"));
+
+            return new SubmitConfirmationConfig
+            {
+                CheckboxLabel = label,
+                DialogMessage = string.IsNullOrWhiteSpace(message) ? null : message
             };
         }
 
@@ -245,9 +336,12 @@ namespace Qdb.FormEngine.Core.Generation
                     FieldId = EntityHelper.GetLookupId(m, "qdb_form_field_id"),
                     TargetEntityLogicalName = m.GetAttributeValue<string>("qdb_target_entity_logical_name"),
                     TargetAttributeLogicalName = m.GetAttributeValue<string>("qdb_target_attribute_logical_name"),
+                    TargetNavigationProperty = m.GetAttributeValue<string>("qdb_target_navigation_property"),
+                    TargetEntitySetName = m.GetAttributeValue<string>("qdb_target_entity_set_name"),
                     IsMappedToChildEntity = m.GetAttributeValue<bool>("qdb_is_child_entity"),
                     ChildEntityRelationshipName = m.GetAttributeValue<string>("qdb_child_entity_relationship_name"),
                     TransformExpression = m.GetAttributeValue<string>("qdb_transform_expression"),
+                    GridColumnAttribute = m.GetAttributeValue<string>("qdb_grid_column_attribute"),
                     IsActive = m.GetAttributeValue<bool>("qdb_is_active")
                 })
                 .ToList();

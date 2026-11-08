@@ -4,6 +4,13 @@
 export const PUBLISH_JOB_ATTRS = {
   ID: 'qdb_publish_jobid',
   FORM_DEFINITION_ID: 'qdb_form_definition_id',
+  /**
+   * The single-valued navigation property, which @odata.bind requires — Dataverse names it
+   * after the relationship's schema name, not the attribute's logical name, and rejects the
+   * whole create with a payload error when given the latter. Reads still use the logical
+   * name and _..._value form above.
+   */
+  FORM_DEFINITION_ID_NAV: 'qdb_Form_Definition_Id',
   FORM_DEFINITION_ID_VALUE: '_qdb_form_definition_id_value',
   FORM_CODE: 'qdb_form_code',
   TARGET_VERSION: 'qdb_target_version',

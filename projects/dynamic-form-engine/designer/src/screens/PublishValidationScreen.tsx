@@ -20,7 +20,9 @@ import { AuditLogService } from '@/services/AuditLogService';
 import { PublishService } from '@/services/PublishService';
 import { PUBLISH_JOB_STATUS } from '@/constants/attributeNames';
 import { useDesignerStore } from '@/state/designerStore';
+import { useConcurrencyStore } from '@/state/concurrencyStore';
 import { validateForPublish, type ValidationIssue } from '@/validation/publishValidation';
+import { ScopedButtonDesignService, type ScopedButtonRecord } from '@/services/ScopedButtonDesignService';
 
 type RenderCacheStatus = 'idle' | 'generating' | 'complete' | 'failed';
 
@@ -37,6 +39,7 @@ const PUBLISH_GATE_DESCRIPTIONS: Record<string, string> = {
   'PV-010': 'Lookup fields have target entity configured',
   'PV-011': 'Form has a target CRM entity configured',
   'PV-012': 'Form has at least one required field',
+  'PV-013': 'Sections revealed one at a time can all be advanced past',
 };
 
 const ALL_GATE_CODES = Object.keys(PUBLISH_GATE_DESCRIPTIONS);
@@ -45,7 +48,7 @@ const useStyles = makeStyles({
   root: {
     display: 'flex',
     flexDirection: 'column',
-    height: '100vh',
+    height: '100%',
     backgroundColor: tokens.colorNeutralBackground3,
   },
   topBar: {
@@ -182,10 +185,27 @@ export function PublishValidationScreen(): React.ReactElement {
 
   useEffect(() => {
     const state = useDesignerStore.getState();
-    const result = validateForPublish(state);
-    setIssues(result.issues);
-    setIsValidating(false);
-  }, []);
+    const formId = state.form?.id;
+
+    // Section buttons live outside the store, so PV-013 needs them fetched. A failure here
+    // must not block publishing on a check we could not make — validate without them and let
+    // the other gates stand.
+    async function validate(): Promise<void> {
+      let sectionButtons: Record<string, ScopedButtonRecord[]> | undefined;
+      if (crmService && formId) {
+        try {
+          sectionButtons = await new ScopedButtonDesignService(crmService.getWebApi())
+            .listSectionButtonsByForm(formId);
+        } catch {
+          sectionButtons = undefined;
+        }
+      }
+      setIssues(validateForPublish(state, sectionButtons).issues);
+      setIsValidating(false);
+    }
+
+    void validate();
+  }, [crmService]);
 
   const handleBack = useCallback(() => {
     navigateTo('designer');
@@ -207,7 +227,21 @@ export function PublishValidationScreen(): React.ReactElement {
       const currentVersion = form.currentVersion;
       const newVersion = versionService.incrementMajorVersion(currentVersion);
 
-      await formService.updateForm(form.id, { status: 'published', currentVersion: newVersion });
+      // Publishing writes status and version onto the form, and every write to a form goes
+      // through a conditional PATCH — updateForm refuses an unconditional one. This call
+      // passed no etag, so Confirm Publish failed with MissingEtagError the moment it became
+      // reachable, without ever creating a publish job.
+      //
+      // The etag captured when the form was opened is used rather than one fetched here, so
+      // publishing still fails with a conflict if someone changed the form underneath the
+      // editor. Fetching a fresh one immediately before writing would defeat If-Match.
+      const etag = useConcurrencyStore.getState().recordEtags[form.id];
+      await formService.updateForm(form.id, { status: 'published', currentVersion: newVersion }, etag);
+
+      // Dataverse invalidates the etag on every write; refresh it so a later save from the
+      // designer does not fail with a spurious 412.
+      const { etag: publishedEtag } = await formService.getFormWithEtag(form.id);
+      if (publishedEtag) useConcurrencyStore.getState().setRecordEtag(form.id, publishedEtag);
 
       const snapshot = useDesignerStore.getState();
       await versionService.createVersion(

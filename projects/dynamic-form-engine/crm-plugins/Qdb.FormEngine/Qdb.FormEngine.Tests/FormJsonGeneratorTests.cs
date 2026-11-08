@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Xrm.Sdk;
 using Newtonsoft.Json.Linq;
 using Moq;
@@ -71,18 +72,119 @@ namespace Qdb.FormEngine.Tests
         [Fact]
         public void Generate_WithHiddenField_FieldIsStillPresent()
         {
-            // Arrange — stripping is SecurityStripper's responsibility, not the generator's
+            // Arrange — a hidden field means "not drawn", not "not published". Nothing in the
+            // publish pipeline removes it, so a rule can still show it or be triggered by it.
             var formId = Guid.NewGuid();
             var rawData = BuildFormRawDataWithHiddenField(formId);
 
             // Act
             var result = _generator.Generate(rawData, "en");
 
-            // Assert: the generator does not strip; the hidden field must be present
+            // Assert
             Assert.True(result.Tabs.Count > 0);
             Assert.True(result.Tabs[0].Sections.Count > 0);
             var field = result.Tabs[0].Sections[0].Fields[0];
-            Assert.True(field.IsHidden, "Generator must preserve hidden field; stripping is SecurityStripper's job.");
+            Assert.True(field.IsHidden, "The published form must keep the hidden field.");
+        }
+
+        [Fact]
+        public void Generate_WithHiddenField_FieldIsNotVisible()
+        {
+            // Arrange — publishing the field must not make it render.
+            var rawData = BuildFormRawDataWithHiddenField(Guid.NewGuid());
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            var field = result.Tabs[0].Sections[0].Fields[0];
+            Assert.False(field.IsVisible, "A hidden field must publish as not visible.");
+        }
+
+        [Fact]
+        public void Generate_DocumentActionToggles_PublishesWhatTheMakerSet()
+        {
+            // Arrange
+            var rawData = BuildFormRawDataWithHiddenField(Guid.NewGuid());
+            rawData.Fields[0]["qdb_show_document_view"] = true;
+            rawData.Fields[0]["qdb_show_document_download"] = false;
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            var field = result.Tabs[0].Sections[0].Fields[0];
+            Assert.True(field.ShowDocumentView);
+            Assert.False(field.ShowDocumentDownload);
+        }
+
+        [Fact]
+        public void Generate_DocumentActionTogglesUnset_OmitsThemSoTheRuntimeDefaultsToBoth()
+        {
+            // Arrange — fields that predate the toggles carry neither attribute. Publishing
+            // false would silently strip actions the maker never turned off.
+            var rawData = BuildFormRawDataWithHiddenField(Guid.NewGuid());
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            var field = result.Tabs[0].Sections[0].Fields[0];
+            Assert.Null(field.ShowDocumentView);
+            Assert.Null(field.ShowDocumentDownload);
+        }
+
+        [Fact]
+        public void Generate_GridField_PublishesTheSavedViewIdFromGridConfig()
+        {
+            // Arrange — the saved view lives in the form's Grid Config section
+            var savedViewId = Guid.NewGuid().ToString();
+            var rawData = BuildGridFormRawData(gridConfigView: savedViewId, legacyView: null);
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            Assert.Equal(savedViewId, result.Tabs[0].Sections[0].Fields[0].GridConfig.SavedViewId);
+        }
+
+        [Fact]
+        public void Generate_GridFieldWithOnlyLegacyView_FallsBackToIt()
+        {
+            // Arrange — fields configured before the setting moved out of Lookup Config
+            var legacyViewId = Guid.NewGuid().ToString();
+            var rawData = BuildGridFormRawData(gridConfigView: null, legacyView: legacyViewId);
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            Assert.Equal(legacyViewId, result.Tabs[0].Sections[0].Fields[0].GridConfig.SavedViewId);
+        }
+
+        [Fact]
+        public void Generate_GridFieldWithBothViews_PrefersGridConfig()
+        {
+            // Arrange — a migrated field carries both; Grid Config is the field of record
+            var gridConfigView = Guid.NewGuid().ToString();
+            var rawData = BuildGridFormRawData(gridConfigView, legacyView: Guid.NewGuid().ToString());
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            Assert.Equal(gridConfigView, result.Tabs[0].Sections[0].Fields[0].GridConfig.SavedViewId);
+        }
+
+        private FormRawData BuildGridFormRawData(string gridConfigView, string legacyView)
+        {
+            var rawData = BuildFormRawDataWithHiddenField(Guid.NewGuid());
+            var gridField = rawData.Fields[0];
+            gridField["qdb_grid_mode"] = new OptionSetValue(100000000);
+            gridField["qdb_grid_entity_name"] = "contact";
+            if (gridConfigView != null) gridField["qdb_grid_saved_view_id"] = gridConfigView;
+            if (legacyView != null) gridField["qdb_saved_view_id"] = legacyView;
+            return rawData;
         }
 
         [Fact]
@@ -369,11 +471,37 @@ namespace Qdb.FormEngine.Tests
             rule["qdb_is_active"] = true;
             rawData.BusinessRules = new List<Entity> { rule };
 
+            // The rule is triggered by qdb_status, so that field has to exist for the rule to
+            // attach anywhere. The old build attached by target and never needed it.
+            var triggerEntity = new Entity("qdb_form_field", Guid.NewGuid());
+            triggerEntity["qdb_form_section_id"] = rawData.Fields[0]["qdb_form_section_id"];
+            triggerEntity["qdb_field_type"] = new OptionSetValue(100000006); // dropdown
+            triggerEntity["qdb_schema_name"] = "qdb_status";
+            triggerEntity["qdb_label"] = "Status";
+            triggerEntity["qdb_display_order"] = 5;
+            triggerEntity["qdb_column_span"] = new OptionSetValue(100000001);
+            triggerEntity["qdb_is_required"] = false;
+            triggerEntity["qdb_is_readonly"] = false;
+            triggerEntity["qdb_is_hidden"] = false;
+            triggerEntity["qdb_is_visible"] = true;
+            rawData.Fields.Add(triggerEntity);
+
             var result = _generator.Generate(rawData, "en");
 
-            var field = result.Tabs[0].Sections[0].Fields[0];
-            Assert.Single(field.BusinessRules);
-            var br = field.BusinessRules[0];
+            // The rule hangs off the field that TRIGGERS it, not the one it acts on — it has to
+            // re-evaluate when qdb_status changes. Attaching by target also dropped every rule
+            // aimed at a section or tab, which has no target field at all.
+            var allFields = result.Tabs
+                .SelectMany(t => t.Sections)
+                .SelectMany(s => s.Fields)
+                .ToList();
+            var triggerField = allFields.First(f => f.SchemaName == "qdb_status");
+            var targetField = allFields.First(f => f.Id == targetFieldId);
+
+            Assert.Empty(targetField.BusinessRules);
+            Assert.Single(triggerField.BusinessRules);
+
+            var br = triggerField.BusinessRules[0];
             Assert.Equal("hideField", br.Action);                    // action_type mapped
             Assert.Equal(targetFieldId, br.TargetFieldId.Value);     // target_field_code resolved to GUID
             Assert.Equal("AND", br.ConditionsLogic);
@@ -382,6 +510,51 @@ namespace Qdb.FormEngine.Tests
             Assert.Equal("equals", br.Conditions[0].Operator);
         }
 
+        [Fact]
+        public void Generate_WithSectionRevealOn_EmitsTheFlag()
+        {
+            // Arrange
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithTabRevealFlag(formId, true);
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            Assert.True(result.Tabs[0].RevealsSectionsOneAtATime);
+        }
+
+        [Fact]
+        public void Generate_WithSectionRevealOff_OmitsTheFlag()
+        {
+            // Arrange — a tab that predates the column reads false and must stay byte-identical.
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithTabRevealFlag(formId, false);
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            Assert.Null(result.Tabs[0].RevealsSectionsOneAtATime);
+        }
+
+        private static FormRawData BuildFormRawDataWithTabRevealFlag(Guid formId, bool revealsOneAtATime)
+        {
+            var rawData = BuildMinimalFormRawData(formId);
+
+            var tabId = Guid.NewGuid();
+            var tabEntity = new Entity("qdb_form_tab", tabId);
+            tabEntity["qdb_form_definition_id"] = new EntityReference("qdb_form_definition", formId);
+            tabEntity["qdb_label"] = "Tab One";
+            tabEntity["qdb_display_order"] = 1;
+            tabEntity["qdb_is_visible"] = true;
+            tabEntity["qdb_requires_previous_tab_complete"] = false;
+            tabEntity["qdb_hide_tab_bar"] = false;
+            tabEntity["qdb_reveal_sections_one_at_a_time"] = revealsOneAtATime;
+            rawData.Tabs.Add(tabEntity);
+
+            return rawData;
+        }
         private static FormRawData BuildMinimalFormRawData(Guid formId)
         {
             var formEntity = new Entity("qdb_form_definition", formId);

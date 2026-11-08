@@ -22,6 +22,13 @@ export interface UpsertTranslationRequest {
   fieldName: string;
   languageCode: string;
   value: string;
+  /**
+   * The source text this was translated from. Stored so a later export can tell a translation
+   * that is still current from one whose English has since changed. Optional only because
+   * callers that genuinely do not know the source would otherwise have to invent one — a
+   * translation written without it can never be checked, only reported UNKNOWN.
+   */
+  sourceValue?: string;
 }
 
 export interface SavedTranslation {
@@ -82,6 +89,7 @@ export class CrmTranslationWriteService {
       await this.webApi.updateRecord(ENTITY_NAMES.TRANSLATION, existing.translationId, {
         [TRANSLATION_ATTRS.TRANSLATED_VALUE]: req.value,
         [TRANSLATION_ATTRS.IS_ACTIVE]: true,
+        ...sourceSnapshot(req),
       });
       return { ...existing, value: req.value };
     }
@@ -93,6 +101,7 @@ export class CrmTranslationWriteService {
       [TRANSLATION_ATTRS.LANGUAGE_CODE]: req.languageCode,
       [TRANSLATION_ATTRS.TRANSLATED_VALUE]: req.value,
       [TRANSLATION_ATTRS.IS_ACTIVE]: true,
+      ...sourceSnapshot(req),
     });
 
     return {
@@ -192,6 +201,15 @@ export class TranslationWriteService {
 }
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Omitted entirely when the caller did not supply one, rather than written as an empty string:
+ * an absent snapshot means "cannot be checked", and blanking an existing one would throw away
+ * a comparison that was already possible.
+ */
+function sourceSnapshot(req: UpsertTranslationRequest): Record<string, string> {
+  return req.sourceValue === undefined ? {} : { [TRANSLATION_ATTRS.SOURCE_VALUE]: req.sourceValue };
+}
 
 function mapRawTranslation(raw: Record<string, unknown>): SavedTranslation {
   return {

@@ -2,10 +2,16 @@
 // `data` query parameter, resolves its form code, and renders the reused DynamicFormRenderer.
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { FluentProvider, webLightTheme, Spinner } from '@fluentui/react-components';
+import { Spinner } from '@fluentui/react-components';
 import { DynamicFormRenderer } from '../src/components/forms/DynamicFormRenderer';
 import { LanguageProvider } from '../src/i18n';
 import { webApi, cleanGuid } from './xrm/xrmClient';
+import { AppearanceProvider } from '../src/theme/AppearanceProvider';
+import { exposeApiValidatorRegistration } from '../src/engine/apiValidators';
+// Shared with the designer so the two cannot drift; the '@qdb/shared' alias
+// resolves to a barrel file rather than a directory, hence the path.
+import '../../shared/src/theme/tokens.css';
+import '../src/styles/components.css';
 
 function readFormDefinitionId(): string | null {
   const params = new URLSearchParams(window.location.search);
@@ -36,15 +42,19 @@ function FormHost() {
   return <DynamicFormRenderer formCode={formCode} />;
 }
 
+// DFE-APIVAL-CAM-001: a script on the hosting CRM page registers API validation handlers
+// through this frame's window.DynamicFormEngine.registerApiValidator.
+exposeApiValidatorRegistration();
+
 const rootElement = document.getElementById('root');
 if (rootElement) {
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
-      <FluentProvider theme={webLightTheme}>
+      <AppearanceProvider>
         <LanguageProvider>
           <FormHost />
         </LanguageProvider>
-      </FluentProvider>
+      </AppearanceProvider>
     </React.StrictMode>,
   );
 }

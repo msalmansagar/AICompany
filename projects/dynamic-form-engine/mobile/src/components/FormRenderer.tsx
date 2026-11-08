@@ -8,6 +8,7 @@ import { InfoCardFlow } from './info-card/InfoCardFlow';
 import { FormSummaryScreen } from './FormSummaryScreen';
 import { ScopedButtonBar } from './ScopedButtonBar';
 import { resolveNavigationTabIndex, resolveSectionTabIndex } from './scopedButtonNavigation';
+import { sectionsToRender, visibleSectionsOf, nextSectionIndex, isSectionComplete } from './sectionReveal';
 import { InfoCardIcon } from './info-card/InfoCardIcon';
 import { MobileProgressBar } from './MobileProgressBar';
 import { MobileFormProvider, useMobileFormContext } from '../context/MobileFormContext';
@@ -89,6 +90,10 @@ export function FormRenderer({
 
   const [phase, setPhase] = useState<Phase>('form');
   const [activeTabIndex, setActiveTabIndex] = useState(0);
+  // Index into the active tab's VISIBLE sections, for a tab that reveals them one at a time.
+  // Leaving a tab abandons its position: coming back starts at the beginning rather than
+  // dropping the user somewhere they have no context for.
+  const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const [infoCardViewed, setInfoCardViewed] = useState(false);
 
   // DFE-BTN-001 section navigation: the content ScrollView, each section's measured Y
@@ -216,11 +221,17 @@ export function FormRenderer({
         }
         return;
       }
+      // nextSection/previousSection are handled in TabContent, which sits under the form
+      // provider and so can read rule state to gate the step.
+      if (action.target === 'nextSection' || action.target === 'previousSection') return;
       if (action.target !== 'tab' && action.target !== 'nextStep' && action.target !== 'previousStep') {
         return; // externalUrl/anotherForm (gated)
       }
       const targetIndex = resolveNavigationTabIndex(action, tabs, activeTabIndex);
-      if (targetIndex !== null) setActiveTabIndex(targetIndex);
+      if (targetIndex !== null) {
+        setActiveSectionIndex(0);
+        setActiveTabIndex(targetIndex);
+      }
     }
   }
 
@@ -330,6 +341,9 @@ export function FormRenderer({
               control={control}
               accessToken={accessToken}
               activeTabId={activeTabId ?? ''}
+              activeSectionIndex={activeSectionIndex}
+              onSectionIndexChange={setActiveSectionIndex}
+              getValues={getValues}
               isSubmitting={isSubmitting}
               onScopedButton={dispatchScopedButton}
               onSectionLayout={handleSectionLayout}
@@ -456,13 +470,51 @@ interface TabContentProps {
   control: ReturnType<typeof useForm<Record<string, unknown>>>['control'];
   accessToken: string;
   activeTabId: string;
+  activeSectionIndex: number;
+  onSectionIndexChange: (index: number) => void;
+  getValues: () => Record<string, unknown>;
   isSubmitting: boolean;
   onScopedButton: (button: ScopedButton) => void;
   onSectionLayout: (sectionId: string, y: number) => void;
 }
 
-function TabContent({ tab, control, accessToken, activeTabId, isSubmitting, onScopedButton, onSectionLayout }: TabContentProps) {
-  const sections = [...tab.sections].sort((a, b) => a.displayOrder - b.displayOrder);
+function TabContent({
+  tab, control, accessToken, activeTabId, activeSectionIndex, onSectionIndexChange,
+  getValues, isSubmitting, onScopedButton, onSectionLayout,
+}: TabContentProps) {
+  const { ruleState } = useMobileFormContext();
+  // One section at a time when the tab says so; every visible section otherwise.
+  const sections = sectionsToRender(tab, ruleState, activeSectionIndex);
+
+  /**
+   * Forward stepping is gated on the section being left; back never is, so an incomplete
+   * section cannot trap the user behind it. Handled here rather than in the parent because
+   * only components under the form provider can read rule state.
+   */
+  function stepSection(direction: 1 | -1): void {
+    if (direction === 1) {
+      const visible = visibleSectionsOf(tab, ruleState);
+      const current = visible[Math.min(activeSectionIndex, visible.length - 1)];
+      if (current && !isSectionComplete(current, getValues(), ruleState)) {
+        Alert.alert(
+          'Incomplete section',
+          'Please fill in the required fields in this section before continuing.',
+        );
+        return;
+      }
+    }
+    const target = nextSectionIndex(tab, ruleState, activeSectionIndex, direction);
+    if (target !== null) onSectionIndexChange(target);
+  }
+
+  function handleScopedButton(button: ScopedButton): void {
+    const action = button.action;
+    if (action.type === 'navigate' && tab.revealsSectionsOneAtATime) {
+      if (action.target === 'nextSection') return stepSection(1);
+      if (action.target === 'previousSection') return stepSection(-1);
+    }
+    onScopedButton(button);
+  }
   const isActive = tab.tabId === activeTabId;
   return (
     <>
@@ -476,7 +528,7 @@ function TabContent({ tab, control, accessToken, activeTabId, isSubmitting, onSc
           accessToken={accessToken}
           isTabActive={isActive}
           isSubmitting={isSubmitting}
-          onScopedButton={onScopedButton}
+          onScopedButton={handleScopedButton}
           onSectionLayout={onSectionLayout}
         />
       ))}

@@ -30,6 +30,8 @@ export const RULE_TYPE_TO_PICKLIST: Record<string, number> = {
   custom_expression:     100000012,
   // DFE-ENH-001 FR-006 — Dataverse optionset value provisioned in Phase-4-C deployment
   conditional_required:  100000013,
+  // DFE-APIVAL-CAM-001 — provisioned by scripts/provision-apival-camera-schema.mjs
+  api_validation:        100000014,
 };
 export const PICKLIST_TO_RULE_TYPE: Record<number, string> = Object.fromEntries(
   Object.entries(RULE_TYPE_TO_PICKLIST).map(([k, v]) => [v, k])

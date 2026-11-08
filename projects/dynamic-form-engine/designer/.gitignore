@@ -1,5 +1,11 @@
 node_modules/
-deploy/
+# deploy/ is build output, EXCEPT deploy/solution — the solution manifest and the
+# security roles there are SOURCE that packageSolution.js reads. solution.xml is
+# not reproducible from anything else in the repo; without it the package cannot be
+# built at all. Excluding deploy/* rather than deploy/ so git still descends into
+# the directory and the negation below can take effect.
+deploy/*
+!deploy/solution/
 dist/
 coverage/
 *.local

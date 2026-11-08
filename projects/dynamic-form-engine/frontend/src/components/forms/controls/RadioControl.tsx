@@ -6,6 +6,7 @@ import {
 } from '@fluentui/react-components';
 import { useFormContext } from '../../../contexts/FormContext';
 import type { ControlProps } from '../FieldRenderer';
+import { useDisabledOptions } from './useDisabledOptions';
 
 const useStyles = makeStyles({
   radioGroup: {
@@ -26,6 +27,7 @@ export function RadioControl({
   const { fieldValues, updateFieldValue, ruleState } = useFormContext();
 
   const filteredByRule = ruleState.filteredOptions[field.id];
+  const disabledOptions = useDisabledOptions(field.id);
   const options = (filteredByRule ?? field.options ?? []).filter((o) => o.isActive);
 
   const rawValue = fieldValues[field.schemaName];
@@ -54,6 +56,7 @@ export function RadioControl({
             key={option.value}
             value={option.value}
             label={option.label}
+            disabled={disabledOptions.has(option.value)}
           />
         ))}
     </RadioGroup>

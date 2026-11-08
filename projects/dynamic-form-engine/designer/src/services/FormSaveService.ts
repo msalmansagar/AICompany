@@ -141,6 +141,10 @@ export class FormSaveService {
         isVisible: tab.isVisible,
         requiresPreviousTabComplete: tab.requiresPreviousTabComplete,
         hideTabBar: tab.hideTabBar,
+        revealsSectionsOneAtATime: tab.revealsSectionsOneAtATime,
+        requireSubmitConfirmation: tab.requireSubmitConfirmation,
+        submitConfirmationLabel: tab.submitConfirmationLabel,
+        submitConfirmationMessage: tab.submitConfirmationMessage,
       });
       resolvedIds[tempTabId] = realId;
     }
@@ -253,7 +257,7 @@ export class FormSaveService {
 
         // Step 3d: Sync grid columns for new grid fields
         if (GRID_FIELD_TYPES.has(field.fieldType) && field.gridColumns.length > 0) {
-          await this.gridColumnService.syncColumns(realId, field.gridColumns);
+          Object.assign(resolvedIds, await this.gridColumnService.syncColumns(realId, field.gridColumns));
         }
 
         // Step 3e: Create validation rules for new fields
@@ -282,6 +286,10 @@ export class FormSaveService {
           isVisible: tab.isVisible,
           requiresPreviousTabComplete: tab.requiresPreviousTabComplete,
           hideTabBar: tab.hideTabBar,
+          revealsSectionsOneAtATime: tab.revealsSectionsOneAtATime,
+          requireSubmitConfirmation: tab.requireSubmitConfirmation,
+          submitConfirmationLabel: tab.submitConfirmationLabel,
+          submitConfirmationMessage: tab.submitConfirmationMessage,
         });
       } else if (sections[id]) {
         const section = sections[id];
@@ -364,7 +372,7 @@ export class FormSaveService {
 
         // Step 4d: Sync grid columns for dirty grid fields
         if (GRID_FIELD_TYPES.has(field.fieldType)) {
-          await this.gridColumnService.syncColumns(id, field.gridColumns);
+          Object.assign(resolvedIds, await this.gridColumnService.syncColumns(id, field.gridColumns));
         }
 
         // Step 4e: Sync validation rules for dirty fields
@@ -391,9 +399,17 @@ export class FormSaveService {
       }
     }
 
-      // Step 6: Sync business rules for the form
+      // Step 6: Sync business rules for the form.
+      // Rule actions name a field by CODE, but the structured mirror column is a lookup, so
+      // the service needs the code → record id map to fill it. Built after the field saves
+      // above so newly created fields carry their real ids, not tmp_ ones.
       if (form.id && !form.id.startsWith('tmp_')) {
-        await this.businessRuleService.syncRules(form.id, Object.values(businessRules));
+        const fieldCodeToId = new Map<string, string>();
+        for (const field of Object.values(fields)) {
+          const realId = resolvedIds[field.id] ?? field.id;
+          if (field.code && !realId.startsWith('tmp_')) fieldCodeToId.set(field.code, realId);
+        }
+        await this.businessRuleService.syncRules(form.id, Object.values(businessRules), fieldCodeToId);
       }
 
       // Step 7: Update form definition header with conditional PATCH (If-Match: formEtag).

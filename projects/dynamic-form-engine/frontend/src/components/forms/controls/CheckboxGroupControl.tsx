@@ -2,6 +2,7 @@ import { Checkbox, makeStyles, tokens } from '@fluentui/react-components';
 import type { OptionValue } from '@qdb/shared';
 import { useFormContext } from '../../../contexts/FormContext';
 import type { ControlProps } from '../FieldRenderer';
+import { useDisabledOptions } from './useDisabledOptions';
 
 const useStyles = makeStyles({
   group: {
@@ -19,6 +20,7 @@ export function CheckboxGroupControl({
   const { fieldValues, updateFieldValue, ruleState } = useFormContext();
 
   const filteredByRule = ruleState.filteredOptions[field.id];
+  const disabledOptions = useDisabledOptions(field.id);
   const options: OptionValue[] = (filteredByRule ?? field.options ?? []).filter((o) => o.isActive);
 
   const rawValue = fieldValues[field.schemaName];
@@ -40,7 +42,7 @@ export function CheckboxGroupControl({
             key={option.value}
             label={option.label}
             checked={selectedValues.includes(option.value)}
-            disabled={isReadonly}
+            disabled={isReadonly || disabledOptions.has(option.value)}
             onChange={(_e, data) => handleChange(option.value, !!data.checked)}
           />
         ))}

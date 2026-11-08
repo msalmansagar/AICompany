@@ -17,6 +17,7 @@ import type { OptionValue } from '@qdb/shared';
 import { useFormContext } from '../../../contexts/FormContext';
 import type { ControlProps } from '../FieldRenderer';
 import type { FC } from 'react';
+import { useDisabledOptions } from './useDisabledOptions';
 
 // Registry of supported Fluent UI icon names → components (24px).
 // Add entries here as new icon names are introduced in option data.
@@ -149,13 +150,18 @@ export function RadioCardControl({
   const { fieldValues, updateFieldValue, ruleState } = useFormContext();
 
   const filteredByRule = ruleState.filteredOptions[field.id];
+  const disabledOptions = useDisabledOptions(field.id);
   const options: OptionValue[] = (filteredByRule ?? field.options ?? []).filter((o) => o.isActive);
 
   const rawValue = fieldValues[field.schemaName];
   const selectedValue = rawValue !== null && rawValue !== undefined ? String(rawValue) : '';
 
+  function isOptionDisabled(value: string): boolean {
+    return isReadonly || disabledOptions.has(value);
+  }
+
   function handleSelect(value: string) {
-    if (!isReadonly) updateFieldValue(field.schemaName, value);
+    if (!isOptionDisabled(value)) updateFieldValue(field.schemaName, value);
   }
 
   return (
@@ -172,6 +178,7 @@ export function RadioCardControl({
         .sort((a, b) => a.displayOrder - b.displayOrder)
         .map((option) => {
           const isSelected = selectedValue === option.value;
+          const isDisabled = isOptionDisabled(option.value);
           const IconComponent = option.iconName ? ICON_REGISTRY[option.iconName] : undefined;
 
           return (
@@ -179,15 +186,15 @@ export function RadioCardControl({
               key={option.value}
               role="radio"
               aria-checked={isSelected}
-              aria-disabled={isReadonly}
+              aria-disabled={isDisabled}
               aria-label={option.description
                 ? `${option.label}: ${option.description}`
                 : option.label}
-              tabIndex={isReadonly ? -1 : 0}
+              tabIndex={isDisabled ? -1 : 0}
               className={mergeClasses(
                 styles.card,
                 isSelected && styles.cardSelected,
-                isReadonly && styles.cardDisabled,
+                isDisabled && styles.cardDisabled,
               )}
               onClick={() => handleSelect(option.value)}
               onKeyDown={(e) => {

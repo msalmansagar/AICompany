@@ -2,6 +2,8 @@
 // Replaces the portal's axios apiClient — all data flows through the CRM Web API,
 // so the web resource is self-contained (no external backend at runtime).
 
+import { webApiBaseUrlFor } from '@qdb/shared';
+
 interface XrmExecuteResponse {
   ok: boolean;
   json(): Promise<Record<string, unknown>>;
@@ -20,7 +22,7 @@ interface XrmWebApi {
 }
 interface XrmGlobal {
   WebApi: XrmWebApi;
-  Utility?: { getGlobalContext?: () => { getClientUrl?: () => string } };
+  Utility?: { getGlobalContext?: () => { getClientUrl?: () => string; getVersion?: () => string } };
 }
 
 function resolveXrm(): XrmGlobal | undefined {
@@ -33,11 +35,11 @@ function resolveXrm(): XrmGlobal | undefined {
   return hosts.find((candidate) => candidate?.WebApi);
 }
 
-/** The org Web API base URL (e.g. https://host/org/api/data/v9.2) for metadata calls Xrm.WebApi cannot make. */
+/** The org Web API base URL (e.g. https://host/org/api/data/v9.1) for metadata calls Xrm.WebApi cannot make. */
 export function webApiBaseUrl(): string {
-  const xrm = resolveXrm();
-  const clientUrl = xrm?.Utility?.getGlobalContext?.()?.getClientUrl?.() ?? window.location.origin;
-  return `${clientUrl}/api/data/v9.2`;
+  const globalContext = resolveXrm()?.Utility?.getGlobalContext?.();
+  const clientUrl = globalContext?.getClientUrl?.() ?? window.location.origin;
+  return webApiBaseUrlFor(clientUrl, globalContext?.getVersion?.());
 }
 declare global {
   // eslint-disable-next-line no-var

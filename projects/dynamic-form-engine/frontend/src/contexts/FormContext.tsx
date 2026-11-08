@@ -15,9 +15,16 @@ import type {
   DraftSubmission,
   ScopedButton,
 } from '@qdb/shared';
+import { resolveFieldDefaultValue } from '@qdb/shared';
 import { formApi } from '../api/formApi';
+import { lookupApi } from '../api/lookupApi';
+import { createRelatedFactResolver } from '../engine/relatedRecordFacts';
+import { useApiValidation } from '../hooks/useApiValidation';
 import { ruleEngine } from '../engine/RuleEngine';
 import { validationEngine } from '../engine/ValidationEngine';
+import { isFieldVisible } from '../engine/fieldVisibility';
+import { mapRuleValuesToSchemaNames } from '../engine/ruleValueTargets';
+import { applyGridColumnRuleStateToForm, lockColumnsOfReadonlyGrids } from '../engine/gridColumnRuleState';
 import { getAllFormFields, getAllTabFields, getTabZoneFields } from '../components/forms/tabFields';
 
 export interface FormContextValue {
@@ -30,17 +37,37 @@ export interface FormContextValue {
   fieldValues: FormFieldValues;
   ruleState: RuleEvaluationResult;
   validationErrors: Record<string, string[]>;
+  /** DFE-APIVAL-CAM-001: fields whose API validation is still running, by field id. */
+  checkingFieldIds: ReadonlySet<string>;
   isDirty: boolean;
   isSubmitting: boolean;
   draftId: string | null;
   activeTabIndex: number;
   setActiveTabIndex: (index: number) => void;
+  /**
+   * Index into the active tab's VISIBLE sections, for a tab that reveals them one at a time.
+   * Meaningless on a tab that shows all sections, where the renderer ignores it. Resets to the
+   * first section whenever the active tab changes, so returning to a tab does not drop the
+   * user into the middle of it.
+   */
+  activeSectionIndex: number;
+  setActiveSectionIndex: (index: number) => void;
+  /**
+   * Shows errors against specific fields without running a full validation pass. Used when a
+   * section step is refused, so the user sees which fields are holding them rather than a
+   * button that appears to do nothing.
+   */
+  reportValidationErrors: (errors: Record<string, string[]>) => void;
   submissionReference: string | null;
   isSubmitted: boolean;
   // DFE-SUBMITCONFIRM-001: user has acknowledged the submit-confirmation gate.
   submitAcknowledged: boolean;
   setSubmitAcknowledged: (acknowledged: boolean) => void;
-  updateFieldValue: (fieldId: string, value: unknown) => void;
+  // DFE-SUBMITCONFIRM-002: acknowledgement per tab, for tabs that require one.
+  tabAcknowledgements: Record<string, boolean>;
+  setTabAcknowledged: (tabId: string, acknowledged: boolean) => void;
+  /** Keyed by schema name, as fieldValues is. */
+  updateFieldValue: (fieldSchemaName: string, value: unknown) => void;
   saveDraft: () => Promise<void>;
   submitForm: (submitButtonId?: string) => Promise<void>;
   resetForm: () => void;
@@ -54,6 +81,8 @@ const EMPTY_RULE_STATE: RuleEvaluationResult = {
   fieldReadonly: {},
   fieldValues: {},
   filteredOptions: {},
+  disabledOptions: {},
+  gridColumnState: {},
   buttonVisibility: {},
   buttonEnabledState: {},
 };
@@ -84,14 +113,55 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [activeTabIndex, setActiveTabIndex] = useState(0);
+  const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const [submissionReference, setSubmissionReference] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
   // DFE-SUBMITCONFIRM-001: acknowledgement gate state (only meaningful when the form
   // has submitConfirmation configured).
   const [submitAcknowledged, setSubmitAcknowledged] = useState(false);
+  // DFE-SUBMITCONFIRM-002: per-tab acknowledgements, keyed by tab id.
+  const [tabAcknowledgements, setTabAcknowledgements] = useState<Record<string, boolean>>({});
+  // The moments a rule's trigger event can read. Each is state rather than a ref so that
+  // capturing one re-runs the evaluation below — a rule that reads a snapshot only takes
+  // effect when that snapshot moves.
+  const [valuesAtLoad, setValuesAtLoad] = useState<FormFieldValues | undefined>(undefined);
+  const [valuesAtLastBlur, setValuesAtLastBlur] = useState<FormFieldValues | undefined>(undefined);
+  const [valuesAtSave, setValuesAtSave] = useState<FormFieldValues | null>(null);
+
+  const setTabAcknowledged = useCallback((tabId: string, acknowledged: boolean) => {
+    setTabAcknowledgements((current) => ({ ...current, [tabId]: acknowledged }));
+  }, []);
 
   // Debounce timer ref for rule evaluation
   const ruleDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // DFE-APIVAL-CAM-001: the front end's external checks, run on leaving a field and on submit.
+  const visibleFieldIds = useMemo(
+    () => (formDefinition ? computeVisibleFieldIds(formDefinition, ruleState) : new Set<string>()),
+    [formDefinition, ruleState],
+  );
+  const apiValidation = useApiValidation({ formDefinition, formCode, fieldValues, visibleFieldIds });
+  const { clearFieldError: clearApiFieldError, checkFields: checkApiFields, apiFields } = apiValidation;
+
+  // API failures sit beside the ordinary ones, so every field and the error count see both.
+  const allValidationErrors = useMemo(
+    () => mergeApiErrors(validationErrors, apiValidation.apiErrors),
+    [validationErrors, apiValidation.apiErrors],
+  );
+
+  // DFE-RULES-002 item 2: reads the columns of lookup-selected records that rule conditions
+  // name. One resolver per loaded form, so its record cache lives as long as the form does.
+  const resolveRelatedFacts = useMemo(() => {
+    if (!formDefinition) return async () => ({});
+    return createRelatedFactResolver({
+      rules: collectAllRules(formDefinition),
+      fields: getAllFormFields(formDefinition),
+      read: async (request) => {
+        const response = await lookupApi.getRelatedRecord(formCode, request);
+        return response.data ?? {};
+      },
+    });
+  }, [formDefinition, formCode]);
 
   // Track whether this is the first load for the current formCode so we apply
   // initial field values on first fetch but preserve them on language switches.
@@ -103,6 +173,12 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
     prevFormCodeRef.current = formCode;
     isFirstLoadRef.current = true;
   }
+
+  // Leaving a tab abandons its section position: coming back should start at the beginning
+  // rather than resuming somewhere the user has no context for.
+  useEffect(() => {
+    setActiveSectionIndex(0);
+  }, [activeTabIndex]);
 
   // â”€â”€ Load form metadata and initial data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
@@ -132,10 +208,13 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
             const existingData = (dataResponse as unknown as { data: FormFieldValues }).data;
 
             if (!cancelled) {
-              setFieldValues({ ...initialValues, ...existingData });
+              const loadedValues = { ...initialValues, ...existingData };
+              setFieldValues(loadedValues);
+              setValuesAtLoad(loadedValues);
             }
           } else {
             setFieldValues(initialValues);
+            setValuesAtLoad(initialValues);
           }
         }
       } catch (loadError) {
@@ -170,14 +249,23 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
       clearTimeout(ruleDebounceTimer.current);
     }
 
+    // A related-record read can outlive this evaluation's values. When the values change first,
+    // its late result must not overwrite the newer rule state.
+    let isSuperseded = false;
+
     ruleDebounceTimer.current = setTimeout(() => {
       const allRules = collectAllRules(formDefinition);
       const allButtons = collectAllButtons(formDefinition);
 
-      void Promise.all([
-        ruleEngine.evaluate(allRules, fieldValues),
-        ruleEngine.evaluateButtons(allButtons, fieldValues),
-      ]).then(([fieldResult, buttonResult]) => {
+      void resolveRelatedFacts(fieldValues).then((relatedFacts) => Promise.all([
+        ruleEngine.evaluate(allRules, { ...fieldValues, ...relatedFacts }, {
+          atLoad: withRelatedFacts(valuesAtLoad, relatedFacts),
+          atLastBlur: withRelatedFacts(valuesAtLastBlur, relatedFacts),
+          atSave: withRelatedFacts(valuesAtSave, relatedFacts),
+        }),
+        ruleEngine.evaluateButtons(allButtons, { ...fieldValues, ...relatedFacts }),
+      ])).then(([fieldResult, buttonResult]) => {
+        if (isSuperseded) return;
         // DFE-CBTN-001: fold per-button conditional state into the rule state so
         // ScopedButtonBar reads visibility/enablement from a single source.
         const result: RuleEvaluationResult = {
@@ -188,7 +276,7 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
         setRuleState(result);
 
         // Apply setValue/clearValue/calculateValue from rules
-        const ruleSetValues = result.fieldValues;
+        const ruleSetValues = mapRuleValuesToSchemaNames(result.fieldValues, getAllFormFields(formDefinition));
         const hasSetValues = Object.keys(ruleSetValues).length > 0;
 
         if (hasSetValues) {
@@ -210,18 +298,39 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
     }, 150);
 
     return () => {
+      isSuperseded = true;
       if (ruleDebounceTimer.current) {
         clearTimeout(ruleDebounceTimer.current);
       }
     };
-  }, [fieldValues, formDefinition]);
+  }, [fieldValues, formDefinition, valuesAtLoad, valuesAtLastBlur, valuesAtSave, resolveRelatedFacts]);
+
+  // on_blur rules read the values as at the last time focus left a control. Listening for
+  // focusout at the document keeps that out of every individual control: blur does not
+  // bubble, focusout does, and any control losing focus is exactly the moment being named.
+  useEffect(() => {
+    function captureBlurSnapshot(): void {
+      setValuesAtLastBlur(fieldValues);
+    }
+    document.addEventListener('focusout', captureBlurSnapshot);
+    return () => document.removeEventListener('focusout', captureBlurSnapshot);
+  }, [fieldValues]);
 
   // â”€â”€ Field value update â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const updateFieldValue = useCallback((fieldId: string, value: unknown) => {
-    setFieldValues((prev) => ({ ...prev, [fieldId]: value }));
+  // Values are keyed by schema name but errors by field id, so clearing an edited field's error
+  // needs the one translated to the other. Clearing by schema name never matched an error.
+  const fieldIdBySchemaName = useMemo(
+    () => new Map((formDefinition ? getAllFormFields(formDefinition) : []).map((field) => [field.schemaName, field.id])),
+    [formDefinition],
+  );
+
+  const updateFieldValue = useCallback((fieldSchemaName: string, value: unknown) => {
+    setFieldValues((prev) => ({ ...prev, [fieldSchemaName]: value }));
     setIsDirty(true);
+    clearApiFieldError(fieldSchemaName);
 
     // Clear validation error for this field when user edits it
+    const fieldId = fieldIdBySchemaName.get(fieldSchemaName) ?? fieldSchemaName;
     setValidationErrors((prev) => {
       if (!prev[fieldId]) return prev;
 
@@ -229,7 +338,7 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
       delete updated[fieldId];
       return updated;
     });
-  }, []);
+  }, [clearApiFieldError, fieldIdBySchemaName]);
 
   // â”€â”€ Save draft â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const saveDraft = useCallback(async () => {
@@ -264,7 +373,11 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
   // â”€â”€ Reset form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const resetForm = useCallback(() => {
     if (!formDefinition) return;
-    setFieldValues(buildInitialValues(formDefinition));
+    const resetValues = buildInitialValues(formDefinition);
+    setFieldValues(resetValues);
+    setValuesAtLoad(resetValues);
+    setValuesAtLastBlur(undefined);
+    setValuesAtSave(null);
     setValidationErrors({});
     setIsDirty(false);
     setActiveTabIndex(0);
@@ -274,14 +387,18 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
   const submitForm = useCallback(async (submitButtonId?: string) => {
     if (!formDefinition) return;
 
+    // on_save rules judge what the user actually submitted, so the snapshot is taken before
+    // validation can turn them back.
+    setValuesAtSave(fieldValues);
+
     // Compute visible fields before validation
     const visibleFieldIds = computeVisibleFieldIds(formDefinition, ruleState);
 
-    const errors = validationEngine.validateForm(
-      formDefinition,
-      fieldValues,
-      visibleFieldIds,
+    const formAsRulesLeftIt = lockColumnsOfReadonlyGrids(
+      applyGridColumnRuleStateToForm(formDefinition, ruleState.gridColumnState ?? {}),
+      ruleState.fieldReadonly,
     );
+    const errors = validationEngine.validateForm(formAsRulesLeftIt, fieldValues, visibleFieldIds);
 
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);
@@ -289,6 +406,18 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
       if (firstErrorTabIndex !== null) {
         setActiveTabIndex(firstErrorTabIndex);
       }
+      return;
+    }
+
+    // The front end's external checks run last and are awaited, so submit holds until every
+    // visible API-validated field has an answer.
+    const apiFailures = await checkApiFields(
+      apiFields.filter((field) => visibleFieldIds.has(field.id)),
+      fieldValues,
+    );
+    if (Object.keys(apiFailures).length > 0) {
+      const firstErrorTabIndex = findFirstErrorTabIndex(formDefinition, mergeApiErrors({}, apiFailures));
+      if (firstErrorTabIndex !== null) setActiveTabIndex(firstErrorTabIndex);
       return;
     }
 
@@ -307,7 +436,7 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
     } finally {
       setIsSubmitting(false);
     }
-  }, [formDefinition, ruleState, fieldValues, formCode]);
+  }, [formDefinition, ruleState, fieldValues, formCode, checkApiFields, apiFields]);
 
   // Memoize contextValue so consumers only re-render when something they
   // actually care about changes — not on every internal FormProvider re-render.
@@ -320,16 +449,22 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
       error,
       fieldValues,
       ruleState,
-      validationErrors,
+      validationErrors: allValidationErrors,
+      checkingFieldIds: apiValidation.checkingFieldIds,
       isDirty,
       isSubmitting,
       draftId,
       activeTabIndex,
       setActiveTabIndex,
+      activeSectionIndex,
+      setActiveSectionIndex,
+      reportValidationErrors: setValidationErrors,
       submissionReference,
       isSubmitted,
       submitAcknowledged,
       setSubmitAcknowledged,
+      tabAcknowledgements,
+      setTabAcknowledged,
       updateFieldValue,
       saveDraft,
       submitForm,
@@ -337,8 +472,9 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
     }),
     [
       formCode, lang, formDefinition, isLoading, error, fieldValues, ruleState,
-      validationErrors, isDirty, isSubmitting, draftId, activeTabIndex,
-      submissionReference, isSubmitted, submitAcknowledged, updateFieldValue, saveDraft, submitForm, resetForm,
+      allValidationErrors, apiValidation.checkingFieldIds, isDirty, isSubmitting, draftId, activeTabIndex, activeSectionIndex,
+      submissionReference, isSubmitted, submitAcknowledged, tabAcknowledgements,
+      setTabAcknowledged, updateFieldValue, saveDraft, submitForm, resetForm,
     ],
   );
 
@@ -347,6 +483,19 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
       {children}
     </FormContext.Provider>
   );
+}
+
+/** Adds each API failure to its field's error list, after any ordinary errors. */
+function mergeApiErrors(
+  errors: Record<string, string[]>,
+  apiErrors: Record<string, string>,
+): Record<string, string[]> {
+  if (Object.keys(apiErrors).length === 0) return errors;
+  const merged = { ...errors };
+  for (const [fieldId, message] of Object.entries(apiErrors)) {
+    merged[fieldId] = [...(merged[fieldId] ?? []), message];
+  }
+  return merged;
 }
 
 export function useFormContext(): FormContextValue {
@@ -361,12 +510,26 @@ export function useFormContext(): FormContextValue {
 
 // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+/**
+ * A snapshot with the related-record facts added. Related facts always describe the record
+ * selected now, so every trigger moment reads the same ones; an absent snapshot stays absent.
+ */
+function withRelatedFacts<T extends FormFieldValues | null | undefined>(
+  snapshot: T,
+  relatedFacts: Record<string, unknown>,
+): T {
+  if (!snapshot) return snapshot;
+  return { ...snapshot, ...relatedFacts } as T;
+}
+
 function buildInitialValues(formDefinition: FormDefinition): FormFieldValues {
   const values: FormFieldValues = {};
 
   // DFE-TABZONE-001: include header/footer zone fields, not only section fields.
   for (const field of getAllFormFields(formDefinition)) {
-    values[field.schemaName] = field.defaultValue ?? null;
+    // One text column carries the default for every field type, so it has to be coerced
+    // to the shape the control expects — a multi-select reads a list, a checkbox a boolean.
+    values[field.schemaName] = resolveFieldDefaultValue(field);
   }
 
   return values;
@@ -405,20 +568,14 @@ function computeVisibleFieldIds(
       if (!sectionVisible) continue;
 
       for (const field of section.fields) {
-        const fieldVisible = ruleState.fieldVisibility[field.id] ?? field.isVisible;
-        if (fieldVisible && !field.isHidden) {
-          visible.add(field.id);
-        }
+        if (isFieldVisible(field, ruleState.fieldVisibility)) visible.add(field.id);
       }
     }
 
     // DFE-TABZONE-001: header/footer fields are gated by tab visibility only
     // (they belong to no section).
     for (const field of getTabZoneFields(tab)) {
-      const fieldVisible = ruleState.fieldVisibility[field.id] ?? field.isVisible;
-      if (fieldVisible && !field.isHidden) {
-        visible.add(field.id);
-      }
+      if (isFieldVisible(field, ruleState.fieldVisibility)) visible.add(field.id);
     }
   }
 

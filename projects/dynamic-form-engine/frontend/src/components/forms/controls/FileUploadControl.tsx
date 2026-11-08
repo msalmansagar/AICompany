@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { resolveFileCapture } from './fileCapture';
 import {
   Button,
   Text,
@@ -14,10 +15,12 @@ import {
   DocumentRegular,
   DeleteRegular,
   ArrowUploadRegular,
+  CameraRegular,
   ArrowDownloadRegular,
   DocumentAddRegular,
 } from '@fluentui/react-icons';
 import { DynamicIcon } from '../DynamicIcon';
+import { DocumentListControl } from './DocumentListControl';
 import { useFormContext } from '../../../contexts/FormContext';
 import { filesApi, UploadedFileReference } from '../../../api/filesApi';
 import type { ControlProps } from '../FieldRenderer';
@@ -117,7 +120,14 @@ interface FileUploadEntry {
   previewUrl: string;
 }
 
-export function FileUploadControl({
+export function FileUploadControl(props: ControlProps) {
+  // A read-only file field is a document display, not an upload: it lists what was
+  // uploaded with View and Download, which is what a summary page needs.
+  if (props.isReadonly) return <DocumentListControl {...props} />;
+  return <FileUploadZone {...props} />;
+}
+
+function FileUploadZone({
   field,
   inputId,
   isRequired,
@@ -167,9 +177,17 @@ export function FileUploadControl({
 
   const config = field.fileUploadConfig;
   const maxFiles = config?.maxFiles ?? 1;
+  // Multi-document fields stay collapsed behind a command button — the upload
+  // placeholder only appears once the user asks for it. Single-document fields
+  // keep the always-visible dropzone.
+  const isMultiDocument = maxFiles > 1;
+  const [isUploadZoneOpen, setIsUploadZoneOpen] = useState(!isMultiDocument);
   const maxSize = config?.maxFileSizeBytes ?? 10 * 1024 * 1024;
-  const accept = config?.allowedMimeTypes
-    ? Object.fromEntries(config.allowedMimeTypes.map((m) => [m, []]))
+  // DFE-APIVAL-CAM-001: camera mode narrows to images and asks a phone for the rear camera.
+  const fileCapture = resolveFileCapture(config?.captureMode, config?.allowedMimeTypes);
+  const isCameraCapture = fileCapture.capture !== undefined;
+  const accept = fileCapture.acceptedMimeTypes
+    ? Object.fromEntries(fileCapture.acceptedMimeTypes.map((m) => [m, []]))
     : undefined;
 
   const updateEntry = useCallback(
@@ -196,6 +214,8 @@ export function FileUploadControl({
       }));
 
       setUploadEntries((prev) => [...prev, ...newEntries]);
+      // Collapse the placeholder again — progress is reported by the file list below.
+      if (isMultiDocument) setIsUploadZoneOpen(false);
 
       await Promise.all(
         acceptedFiles.map(async (file, relativeIndex) => {
@@ -220,7 +240,7 @@ export function FileUploadControl({
         }),
       );
     },
-    [field.id, uploadEntries.length, updateEntry],
+    [field.id, isMultiDocument, uploadEntries.length, updateEntry],
   );
 
   function removeFile(index: number) {
@@ -232,7 +252,7 @@ export function FileUploadControl({
     setUploadEntries((prev) => prev.filter((_, i) => i !== index));
   }
 
-  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept,
     maxSize,
@@ -281,37 +301,6 @@ export function FileUploadControl({
           )}
         </button>
       )}
-      {canAddMore && uploadEntries.length === 0 && (
-        <div
-          {...getRootProps()}
-          className={`${styles.dropzone} ${isDragActive ? styles.dropzoneActive : ''}`}
-          id={inputId}
-          aria-required={isRequired}
-          aria-describedby={errorId}
-          aria-invalid={!!errorId}
-          role="button"
-          tabIndex={0}
-        >
-          <input {...getInputProps()} aria-label={`Upload files for ${field.label}`} />
-          <div className={styles.uploadIcon}>
-            <ArrowUploadRegular />
-          </div>
-          <Text>
-            {isDragActive
-              ? 'Drop files here'
-              : 'Drag and drop files here, or click to browse'}
-          </Text>
-          <div className={styles.hint}>
-            <Text>{allowedTypes} — max {formattedMaxSize} per file</Text>
-            {maxFiles > 1 && (
-              <Text block>
-                Up to {maxFiles} files ({uploadEntries.length} uploaded)
-              </Text>
-            )}
-          </div>
-        </div>
-      )}
-
       {failedEntries.length > 0 && (
         <MessageBar intent="error" style={{ marginTop: tokens.spacingVerticalS }}>
           <MessageBarBody>
@@ -360,25 +349,65 @@ export function FileUploadControl({
         </div>
       )}
 
-      {/* Explicit add-more affordance once at least one document is present.
-          The hidden input must stay mounted here — open() clicks it, and the
-          drag-and-drop dropzone above (which also carries the input) is not
-          rendered once files exist. */}
-      {canAddMore && uploadEntries.length > 0 && (
-        <>
-          <input {...getInputProps()} aria-label={`Upload more files for ${field.label}`} />
+      {/* Multi-document fields reveal the upload placeholder on demand, so the form
+          shows one command button instead of a permanently open dropzone. */}
+      {canAddMore && isMultiDocument && (
+        <div>
           <Button
-            appearance="secondary"
+            appearance="transparent"
             icon={<DocumentAddRegular />}
-            onClick={open}
-            style={{ marginTop: tokens.spacingVerticalS }}
+            onClick={() => setIsUploadZoneOpen((isOpen) => !isOpen)}
+            aria-expanded={isUploadZoneOpen}
+            aria-controls={inputId}
+            style={{ marginTop: tokens.spacingVerticalS, paddingLeft: 0 }}
           >
-            Add new Document
+            {resolveAddDocumentLabel(isUploadZoneOpen, uploadEntries.length)}
           </Button>
-        </>
+        </div>
+      )}
+
+      {canAddMore && isUploadZoneOpen && (
+        <div
+          {...getRootProps()}
+          className={`${styles.dropzone} ${isDragActive ? styles.dropzoneActive : ''}`}
+          id={inputId}
+          aria-required={isRequired}
+          aria-describedby={errorId}
+          aria-invalid={!!errorId}
+          role="button"
+          tabIndex={0}
+        >
+          <input
+            {...getInputProps()}
+            capture={fileCapture.capture}
+            aria-label={isCameraCapture ? `Take a photo for ${field.label}` : `Upload files for ${field.label}`}
+          />
+          <div className={styles.uploadIcon}>
+            {isCameraCapture ? <CameraRegular /> : <ArrowUploadRegular />}
+          </div>
+          <Text>
+            {isCameraCapture && 'Tap to take a photo'}
+            {!isCameraCapture && (isDragActive
+              ? 'Drop files here'
+              : 'Drag and drop files here, or click to browse')}
+          </Text>
+          <div className={styles.hint}>
+            <Text>{allowedTypes} — max {formattedMaxSize} per file</Text>
+            {isMultiDocument && (
+              <Text block>
+                Up to {maxFiles} files ({uploadEntries.length} uploaded)
+              </Text>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
+}
+
+function resolveAddDocumentLabel(isUploadZoneOpen: boolean, uploadedCount: number): string {
+  if (isUploadZoneOpen) return 'Cancel';
+  return uploadedCount === 0 ? 'Add Document' : 'Add new Document';
 }
 
 function formatBytes(bytes: number): string {

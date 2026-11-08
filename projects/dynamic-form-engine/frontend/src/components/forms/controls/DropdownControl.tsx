@@ -8,6 +8,10 @@ import type { OptionValue } from '@qdb/shared';
 import { useFormContext } from '../../../contexts/FormContext';
 import { optionsApi } from '../../../api/optionsApi';
 import type { ControlProps } from '../FieldRenderer';
+import { useDisabledOptions } from './useDisabledOptions';
+
+// One shared empty list: a fresh [] per render would change resolvedOptions every render.
+const NO_OPTIONS: OptionValue[] = [];
 
 const useStyles = makeStyles({
   dropdown: {
@@ -26,14 +30,20 @@ export function DropdownControl({
   const { formCode, fieldValues, updateFieldValue, ruleState } = useFormContext();
 
   const [dynamicOptions, setDynamicOptions] = useState<OptionValue[] | null>(null);
+  const disabledOptions = useDisabledOptions(field.id);
 
   const filteredByRule = ruleState.filteredOptions[field.id];
-  const staticOptions = field.options ?? [];
+  // A CRM option source replaces the static rows outright. The CRM publisher still emits a
+  // field's qdb_form_option_value rows next to its source, so preferring them showed the
+  // stale hand-copied list instead of the live option set.
+  const hasOptionSource = Boolean(field.optionSourceEntity && field.optionSourceAttribute);
+  const staticOptions = hasOptionSource ? NO_OPTIONS : (field.options ?? NO_OPTIONS);
   const resolvedOptions = filteredByRule ?? dynamicOptions ?? staticOptions;
 
-  // Load options dynamically when none are defined statically
+  // Load options from the server for a CRM option source, or when none are defined statically.
   useEffect(() => {
-    if (staticOptions.length > 0 || filteredByRule) return;
+    if (filteredByRule) return;
+    if (!hasOptionSource && staticOptions.length > 0) return;
 
     let cancelled = false;
 
@@ -49,7 +59,7 @@ export function DropdownControl({
     return () => {
       cancelled = true;
     };
-  }, [field.id, staticOptions.length, filteredByRule]);
+  }, [field.id, hasOptionSource, staticOptions.length, filteredByRule]);
 
   const rawValue = fieldValues[field.schemaName];
 
@@ -74,11 +84,21 @@ export function DropdownControl({
     [resolvedOptions],
   );
 
+  // Fluent's Dropdown keeps its display text in its own uncontrolled state, so a remount
+  // (switching tabs and back) showed the placeholder again even though the value was still
+  // set — the user reads that as "my filter cleared". Driving `value` from the selection
+  // makes the text survive the remount.
+  const selectedLabel = useMemo(() => {
+    if (selectedValue.length === 0) return '';
+    return activeOptions.find((option) => option.value === selectedValue[0])?.label ?? '';
+  }, [activeOptions, selectedValue]);
+
   return (
     <Dropdown
       id={inputId}
       className={styles.dropdown}
       selectedOptions={selectedValue}
+      value={selectedLabel}
       onOptionSelect={handleOptionSelect}
       placeholder={field.placeholder ?? 'Select an option'}
       disabled={isReadonly}
@@ -87,7 +107,7 @@ export function DropdownControl({
       aria-invalid={!!errorId}
     >
       {activeOptions.map((option) => (
-        <Option key={option.value} value={option.value}>
+        <Option key={option.value} value={option.value} disabled={disabledOptions.has(option.value)}>
           {option.label}
         </Option>
       ))}
