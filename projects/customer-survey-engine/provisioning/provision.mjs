@@ -39,8 +39,12 @@ async function run() {
   if (seed.org.replace(/\/$/, '') !== client.orgUrl) throw new Error(`Seed file is for ${seed.org}, but DV_DATAVERSE_URL is ${client.orgUrl}`);
 
   const { report, counts } = createReporter();
-  const context = { client, isApply: values.apply, report, languageCode: LANGUAGE_CODE };
   console.log(`${values.apply ? 'APPLY' : 'PLAN (no changes)'} — ${client.orgUrl}`);
+  await runSteps({ client, isApply: values.apply, report, languageCode: LANGUAGE_CODE }, seed);
+  console.log(`\nSummary: ${Object.entries(counts).map(([action, count]) => `${action} ${count}`).join(', ')}`);
+}
+
+async function runSteps(context, seed) {
   console.log('[1] Solution'); await ensureSolution({ ...context, solution: SOLUTION });
   console.log('[2] Tables and columns'); await ensureTables({ ...context, tables: TABLES });
   console.log('[3] Relationships'); await ensureRelationships({ ...context, relationships: RELATIONSHIPS });
@@ -48,7 +52,6 @@ async function run() {
   console.log('[5] Alternate keys'); await ensureAlternateKeys({ ...context, alternateKeys: ALTERNATE_KEYS });
   console.log('[6] Roles'); await ensureRoles({ ...context, roles: ROLES, solutionUniqueName: SOLUTION.uniqueName });
   console.log('[7] Seed rows'); await ensureSeedRows({ ...context, seed });
-  console.log(`\nSummary: ${Object.entries(counts).map(([action, count]) => `${action} ${count}`).join(', ')}`);
 }
 
 run().catch((error) => { console.error(`✗ ${error.message}`); process.exit(1); });

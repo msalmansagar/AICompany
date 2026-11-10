@@ -37,6 +37,13 @@ test('roles_answerContent_isReadableOnlyByAnalystAndIntegration', () => {
   assert.deepEqual(readers.map((r) => r.name).sort(), ['Survey Analyst', 'Survey Integration']);
 });
 
+test('roles_surveyAdmin_cannotWriteSources', () => {
+  // Writing a source could flip it active; activation is System Administrator only (FR-CSE-003, section 11.1).
+  const admin = ROLES.find((role) => role.name === 'Survey Admin');
+  const sourceRights = admin.privileges.find((p) => p.table === 'qdb_survey_source').rights;
+  assert.ok(!sourceRights.includes('Write'), sourceRights.join(','));
+});
+
 test('roles_suppressionLog_isNeverWritableOrDeletable', () => {
   const logPrivileges = ROLES.flatMap((role) => role.privileges.filter((p) => p.table === 'qdb_survey_suppression_log'));
   for (const privilege of logPrivileges) {

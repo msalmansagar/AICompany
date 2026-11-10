@@ -48,6 +48,20 @@ async function grantPrivileges({ client, isApply, report }, role, roleId) {
   await client.send('POST', `roles(${roleId})/Microsoft.Dynamics.CRM.AddPrivilegesRole`, {
     Privileges: privileges.map((privilege) => ({ PrivilegeId: privilege.privilegeid, Depth: 'Global' })),
   });
+  await verifyOrganizationDepth(client, role, roleId, privileges);
+  report('verified', `role ${role.name}: all ${privileges.length} privileges at organization depth`);
+}
+
+// A grant at the wrong depth fails silently: an organization-owned row is then invisible to
+// the role. Reading the role back is the only proof the grant landed as intended.
+async function verifyOrganizationDepth(client, role, roleId, privileges) {
+  const granted = (await client.send('GET', `RetrieveRolePrivilegesRole(RoleId=${roleId})`)).json.RolePrivileges;
+  const depthById = new Map(granted.map((g) => [g.PrivilegeId, String(g.Depth)]));
+  const wrong = privileges.filter((p) => !['Global', '3'].includes(depthById.get(p.privilegeid)));
+  if (wrong.length > 0) {
+    const detail = wrong.map((p) => `${p.name}=${depthById.get(p.privilegeid) ?? 'missing'}`).join(', ');
+    throw new Error(`Role ${role.name}: privileges not at organization depth: ${detail}`);
+  }
 }
 
 async function resolvePrivileges(client, names) {

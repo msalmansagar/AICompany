@@ -21,6 +21,14 @@ test('buildEntityPayload_surveyTable_isOrganizationOwnedWithAPrimaryName', () =>
   assert.equal(payload.Attributes[0].IsPrimaryName, true);
 });
 
+test('buildEntityPayload_tableWithColumns_createsThemInTheSameCall', () => {
+  // A column created right after its new table can 404 while metadata propagates (GOT-013).
+  const columns = [{ name: 'qdb_form_code', type: 'string', label: 'Form Code', maxLength: 100 }, { name: 'qdb_is_active', type: 'boolean', label: 'Is Active', defaultValue: false }];
+  const payload = buildEntityPayload({ name: 'qdb_survey_setup', label: 'S', pluralLabel: 'Ss', description: 'd', columns }, LANGUAGE_CODE);
+
+  assert.deepEqual(payload.Attributes.map((a) => a.SchemaName), ['qdb_name', 'qdb_form_code', 'qdb_is_active']);
+});
+
 test('buildEntityPayload_tableWithActivities_enablesActivities', () => {
   const payload = buildEntityPayload({ name: 'qdb_survey_invitation', label: 'I', pluralLabel: 'Is', description: 'd', hasActivities: true, columns: [] }, LANGUAGE_CODE);
 
@@ -106,6 +114,11 @@ test('buildAlternateKeyPayload_key_listsItsColumns', () => {
 
   assert.equal(payload.SchemaName, 'qdb_invitation_dedupe');
   assert.deepEqual(payload.KeyAttributes, ['qdb_dedupe_key']);
+});
+
+test('privilegeNamesFor_systemTable_usesTheLogicalName', () => {
+  // Dataverse matches privilege names case-insensitively, so prvReadaccount finds prvReadAccount.
+  assert.deepEqual(privilegeNamesFor({ table: 'account', rights: ['Read'] }), ['prvReadaccount']);
 });
 
 test('privilegeNamesFor_rights_mapsToPlatformPrivilegeNames', () => {

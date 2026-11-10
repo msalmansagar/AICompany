@@ -231,7 +231,8 @@ export const ROLES = Object.freeze([
     name: 'Survey Admin',
     privileges: [
       ...CONFIG_TABLES.map((table) => ({ table, rights: FULL })),
-      { table: 'qdb_survey_source', rights: ['Read', 'Write', 'Append', 'AppendTo'] },
+      // Read only (section 11.1): writing a source could flip it active, which is System Administrator only.
+      { table: 'qdb_survey_source', rights: READ },
       { table: 'qdb_survey_invitation', rights: READ },
       { table: 'qdb_survey_suppression_log', rights: ['Read'] },
     ],

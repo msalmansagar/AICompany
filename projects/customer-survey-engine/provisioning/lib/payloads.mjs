@@ -22,8 +22,9 @@ export function label(text, languageCode) {
 const requiredLevel = (isRequired) => ({ Value: isRequired ? 'ApplicationRequired' : 'None' });
 
 /**
- * Entity create payload. The primary name column is created with the entity because Dataverse
- * refuses an entity without one.
+ * Entity create payload carrying the primary name and every manifest column, so the table
+ * arrives complete in one call: a column created separately right after its new table can
+ * 404 while metadata propagates (GOT-013).
  *
  * @param {import('../manifest.mjs').TableSpec} table
  * @param {number} languageCode
@@ -47,7 +48,7 @@ export function buildEntityPayload(table, languageCode) {
       FormatName: { Value: 'Text' },
       RequiredLevel: requiredLevel(false),
       DisplayName: label('Name', languageCode),
-    }],
+    }, ...table.columns.map((column) => buildAttributePayload(column, languageCode))],
   };
 }
 

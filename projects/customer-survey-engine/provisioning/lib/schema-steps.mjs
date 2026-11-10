@@ -40,20 +40,24 @@ export async function ensureSolution({ client, solution, isApply, report }) {
  */
 export async function ensureTables(context) {
   for (const table of context.tables) {
-    await ensureTable(context, table);
-    for (const column of table.columns) await ensureColumn(context, table, column);
+    const isTablePresent = Boolean(await context.client.find(`${entityPath(table.name)}?$select=LogicalName`));
+    if (isTablePresent) {
+      context.report('exists', `table ${table.name}`);
+      for (const column of table.columns) await ensureColumn(context, table, column);
+    } else {
+      await createTable(context, table);
+    }
   }
 }
 
-async function ensureTable({ client, languageCode, isApply, report }, table) {
-  if (await client.find(`${entityPath(table.name)}?$select=LogicalName`)) return report('exists', `table ${table.name}`);
-  report('create', `table ${table.name}`);
+async function createTable({ client, languageCode, isApply, report }, table) {
+  report('create', `table ${table.name} with ${table.columns.length} columns`);
   if (isApply) await client.send('POST', 'EntityDefinitions', buildEntityPayload(table, languageCode));
 }
 
+// Only for a table that already exists: a column added to the manifest after the first run.
 async function ensureColumn({ client, languageCode, isApply, report }, table, column) {
-  const isTablePresent = isApply || await client.find(`${entityPath(table.name)}?$select=LogicalName`);
-  if (isTablePresent && await client.find(attributePath(table.name, column.name))) return report('exists', `column ${table.name}.${column.name}`, true);
+  if (await client.find(attributePath(table.name, column.name))) return report('exists', `column ${table.name}.${column.name}`, true);
   report('create', `column ${table.name}.${column.name} (${column.type})`);
   if (isApply) await client.send('POST', `${entityPath(table.name)}/Attributes`, buildAttributePayload(column, languageCode));
 }
