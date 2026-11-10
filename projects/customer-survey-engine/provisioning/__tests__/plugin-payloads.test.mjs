@@ -3,7 +3,18 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildStepPayload, buildPreImagePayload, stepsForSources, stepName, PLUGIN } from '../lib/plugin-payloads.mjs';
+import { buildStepPayload, buildPreImagePayload, stepsForSources, stepName, PLUGIN, ACTIVATION_APIS, buildCustomApiPayload } from '../lib/plugin-payloads.mjs';
+
+test('buildCustomApiPayload_activate_isAnUnboundActionWithAGuidInputAndAStringOutput', () => {
+  const payload = buildCustomApiPayload(ACTIVATION_APIS[0], 'type-id');
+
+  assert.equal(payload.uniquename, 'qdb_srv_ActivateSource');
+  assert.equal(payload.bindingtype, 0);
+  assert.equal(payload.isfunction, false);
+  assert.equal(payload['PluginTypeId@odata.bind'], '/plugintypes(type-id)');
+  assert.deepEqual(payload.CustomAPIRequestParameters.map((p) => [p.uniquename, p.type, p.isoptional]), [['SourceId', 12, false]]);
+  assert.deepEqual(payload.CustomAPIResponseProperties.map((p) => [p.uniquename, p.type]), [['Message', 10]]);
+});
 
 const IDS = { messageId: 'm', filterId: 'f', pluginTypeId: 't' };
 

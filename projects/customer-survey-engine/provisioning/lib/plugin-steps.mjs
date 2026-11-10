@@ -5,7 +5,7 @@
  *
  * @module survey-provisioning/plugin-steps
  */
-import { PLUGIN, buildStepPayload, buildPreImagePayload, stepName } from './plugin-payloads.mjs';
+import { PLUGIN, ACTIVATION_APIS, buildStepPayload, buildPreImagePayload, buildCustomApiPayload, stepName } from './plugin-payloads.mjs';
 
 const ASSEMBLY_COMPONENT_TYPE = 91;
 const STEP_COMPONENT_TYPE = 92;
@@ -36,17 +36,34 @@ export async function ensureAssembly({ client, dll, solutionUniqueName, isApply,
 
 /**
  * @param {{ client: object, assemblyId: string|null, isApply: boolean, report: Function }} context
+ * @param {{ typeName: string, description: string }} [type] Defaults to SurveyTriggerPlugin.
  */
-export async function ensurePluginType({ client, assemblyId, isApply, report }) {
-  const existing = (await client.send('GET', `plugintypes?$select=plugintypeid&$filter=typename eq '${PLUGIN.typeName}'`)).json.value[0];
-  if (existing) { report('exists', `plugin type ${PLUGIN.typeName}`); return existing.plugintypeid; }
-  report('create', `plugin type ${PLUGIN.typeName}`);
+export async function ensurePluginType({ client, assemblyId, isApply, report }, type = { typeName: PLUGIN.typeName, description: 'Generic survey trigger (CSE-ENG-001 section 6).' }) {
+  const existing = (await client.send('GET', `plugintypes?$select=plugintypeid&$filter=typename eq '${type.typeName}'`)).json.value[0];
+  if (existing) { report('exists', `plugin type ${type.typeName}`); return existing.plugintypeid; }
+  report('create', `plugin type ${type.typeName}`);
   if (!isApply) return null;
   const { entityId } = await client.send('POST', 'plugintypes', {
-    typename: PLUGIN.typeName, name: PLUGIN.typeName, friendlyname: 'SurveyTriggerPlugin',
-    description: 'Generic survey trigger (CSE-ENG-001 section 6).', 'pluginassemblyid@odata.bind': `/pluginassemblies(${assemblyId})`,
+    typename: type.typeName, name: type.typeName, friendlyname: type.typeName.split('.').pop(),
+    description: type.description, 'pluginassemblyid@odata.bind': `/pluginassemblies(${assemblyId})`,
   });
   return entityId;
+}
+
+/**
+ * Ensures each activation Custom API exists with its plugin type (A3). An existing API is left
+ * as it is: its plugin type is fixed at creation.
+ *
+ * @param {{ client: object, assemblyId: string|null, isApply: boolean, report: Function }} context
+ */
+export async function ensureActivationApis(context) {
+  for (const api of ACTIVATION_APIS) {
+    const pluginTypeId = await ensurePluginType(context, api);
+    const existing = (await context.client.send('GET', `customapis?$select=customapiid&$filter=uniquename eq '${api.uniqueName}'`)).json.value[0];
+    if (existing) { context.report('exists', `custom API ${api.uniqueName}`); continue; }
+    context.report('create', `custom API ${api.uniqueName} (SourceId → Message)`);
+    if (context.isApply) await context.client.send('POST', 'customapis', buildCustomApiPayload(api, pluginTypeId));
+  }
 }
 
 /**

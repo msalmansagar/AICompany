@@ -15,7 +15,7 @@ import { parseArgs } from 'node:util';
 import { SOLUTION } from './manifest.mjs';
 import { createDataverseClient } from './lib/dataverse-client.mjs';
 import { stepsForSources } from './lib/plugin-payloads.mjs';
-import { ensureAssembly, ensurePluginType, ensureSteps } from './lib/plugin-steps.mjs';
+import { ensureAssembly, ensurePluginType, ensureSteps, ensureActivationApis } from './lib/plugin-steps.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DLL_PATH = resolve(HERE, '../crm-plugins/Qdb.SurveyEngine/bin/Release/net471/Qdb.SurveyEngine.dll');
@@ -37,6 +37,8 @@ async function run() {
   const pluginTypeId = await ensurePluginType({ ...context, assemblyId });
   console.log('[3] Steps (disabled)');
   await ensureSteps({ ...context, pluginTypeId, steps: stepsForSources(seed.sources) });
+  console.log('[4] Source activation Custom APIs');
+  await ensureActivationApis({ ...context, assemblyId });
 }
 
 run().catch((error) => { console.error(`✗ ${error.message}`); process.exit(1); });

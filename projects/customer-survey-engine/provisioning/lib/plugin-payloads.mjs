@@ -57,6 +57,32 @@ export function buildPreImagePayload(statusField, stepId) {
   };
 }
 
+const CUSTOM_API_GLOBAL_BINDING = 0;
+const CUSTOM_API_NO_CUSTOM_STEPS = 0;
+const PARAMETER_TYPE = Object.freeze({ string: 10, guid: 12 });
+
+/** The source activation Custom APIs (A3) and the plugin type behind each. */
+export const ACTIVATION_APIS = Object.freeze([
+  { uniqueName: 'qdb_srv_ActivateSource', displayName: 'Activate Survey Source', typeName: 'Qdb.SurveyEngine.Plugins.ActivateSourcePlugin',
+    description: 'Enables (or creates) the survey trigger steps for a source and marks it active. System Administrator only (FR-CSE-003).' },
+  { uniqueName: 'qdb_srv_DeactivateSource', displayName: 'Deactivate Survey Source', typeName: 'Qdb.SurveyEngine.Plugins.DeactivateSourcePlugin',
+    description: 'Deletes the steps activation created, disables the rest, and marks the source inactive. System Administrator only (FR-CSE-003).' },
+]);
+
+/**
+ * An unbound Custom API action with input SourceId (Guid) and output Message (string), created
+ * with its parameter and property in one deep insert.
+ */
+export function buildCustomApiPayload(api, pluginTypeId) {
+  return {
+    uniquename: api.uniqueName, name: api.uniqueName, displayname: api.displayName, description: api.description,
+    bindingtype: CUSTOM_API_GLOBAL_BINDING, isfunction: false, isprivate: false, allowedcustomprocessingsteptype: CUSTOM_API_NO_CUSTOM_STEPS,
+    'PluginTypeId@odata.bind': `/plugintypes(${pluginTypeId})`,
+    CustomAPIRequestParameters: [{ uniquename: 'SourceId', name: 'SourceId', displayname: 'Source Id', description: 'The qdb_survey_source to act on.', type: PARAMETER_TYPE.guid, isoptional: false }],
+    CustomAPIResponseProperties: [{ uniquename: 'Message', name: 'Message', displayname: 'Message', description: 'What was done.', type: PARAMETER_TYPE.string }],
+  };
+}
+
 /** The Create and Update steps for each seed source. */
 export function stepsForSources(sources) {
   return sources.flatMap((source) => ['Create', 'Update'].map((message) => ({

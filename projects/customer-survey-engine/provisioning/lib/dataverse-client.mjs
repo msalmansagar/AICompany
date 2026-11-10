@@ -62,6 +62,9 @@ export async function createDataverseClient({ solutionUniqueName }) {
   /** A write outside the solution: creating the solution itself, which cannot name itself yet. */
   const sendOutsideSolution = (method, path, body) => request(method, path, body, baseHeaders);
 
+  /** A call made on behalf of another CRM user (MSCRMCallerID), for testing permission checks. */
+  const sendAsUser = (method, path, body, systemUserId) => request(method, path, body, { ...baseHeaders, MSCRMCallerID: systemUserId });
+
   /** GET that answers null on 404 instead of throwing, for existence checks. */
   async function find(path) {
     try {
@@ -72,7 +75,7 @@ export async function createDataverseClient({ solutionUniqueName }) {
     }
   }
 
-  return { orgUrl, send, sendOutsideSolution, find };
+  return { orgUrl, send, sendOutsideSolution, sendAsUser, find };
 }
 
 // A Dataverse create answers 204 with an empty body; the new id is only in OData-EntityId.
