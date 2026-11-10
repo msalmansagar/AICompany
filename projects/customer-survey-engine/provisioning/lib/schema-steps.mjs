@@ -5,7 +5,7 @@
  *
  * @module survey-provisioning/schema-steps
  */
-import { buildEntityPayload, buildAttributePayload, buildRelationshipPayload, buildAlternateKeyPayload } from './payloads.mjs';
+import { buildEntityPayload, buildAttributePayload, buildRelationshipPayload, buildAlternateKeyPayload, label } from './payloads.mjs';
 import { createUntilPresent } from './create-until-present.mjs';
 
 const KEY_POLL_INTERVAL_MS = 5000;
@@ -74,13 +74,30 @@ async function createTable(context, table) {
 // Only for a table that already exists: a column added to the manifest after the first run.
 async function ensureColumn(context, table, column) {
   const presencePath = attributePath(table.name, column.name);
-  if (await context.client.find(presencePath)) return context.report('exists', `column ${table.name}.${column.name}`, true);
+  if (await context.client.find(presencePath)) {
+    context.report('exists', `column ${table.name}.${column.name}`, true);
+    if (column.type === 'picklist') await ensurePicklistOptions(context, table, column);
+    return;
+  }
   const subject = `column ${table.name}.${column.name} (${column.type})`;
   context.report('create', subject);
   if (!context.isApply) return;
   await createMetadata(context, {
     path: `${entityPath(table.name)}/Attributes`, payload: buildAttributePayload(column, context.languageCode), presencePath, subject,
   });
+}
+
+/** Adds manifest options missing from an existing choice column; existing options are never changed or removed. */
+async function ensurePicklistOptions(context, table, column) {
+  const path = `${entityPath(table.name)}/Attributes(LogicalName='${column.name}')/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$select=LogicalName&$expand=OptionSet($select=Options)`;
+  const existingValues = new Set((await context.client.find(path)).OptionSet.Options.map((option) => option.Value));
+  for (const option of column.options.filter((o) => !existingValues.has(o.value))) {
+    context.report('create', `option ${table.name}.${column.name} ${option.value} "${option.label}"`);
+    if (!context.isApply) continue;
+    await context.client.send('POST', 'InsertOptionValue', {
+      EntityLogicalName: table.name, AttributeLogicalName: column.name, Value: option.value, Label: label(option.label, context.languageCode),
+    });
+  }
 }
 
 /**

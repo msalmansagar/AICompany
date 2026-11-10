@@ -42,6 +42,9 @@ export const INVITATION_CHANNEL_OPTIONS = Object.freeze([option(0, 'Portal'), op
 export const SUPPRESSION_REASON_OPTIONS = Object.freeze([
   option(0, 'Fatigue'), option(1, 'Priority lost'), option(2, 'Duplicate'), option(3, 'Channel none'),
   option(4, 'Postponed expired'), option(5, 'Outside window'), option(6, 'Inactive'),
+  // B2: without these two a trigger with no customer, or a form not yet published, would
+  // have to be mislabelled or dropped silently (NFR-CSE-001).
+  option(7, 'No customer'), option(8, 'Form not published'),
 ]);
 export const RETENTION_MODE_OPTIONS = Object.freeze([option(0, 'Delete'), option(1, 'Anonymise')]);
 
