@@ -18,7 +18,7 @@ namespace Qdb.SurveyEngine.Services
         public RecordChange Change { get; }
     }
 
-    /// <summary>What makes an invitation unique: its dedupe key and, for a milestone, the index.</summary>
+    /// <summary>What makes an invitation unique: its dedupe key and, for a milestone, the index; for a schedule, the period.</summary>
     public sealed class InvitationKey
     {
         public InvitationKey(string dedupeKey, int? milestoneIndex)
@@ -27,10 +27,35 @@ namespace Qdb.SurveyEngine.Services
             MilestoneIndex = milestoneIndex;
         }
 
+        /// <summary>A scheduled invitation's key: unique per setup, customer and calendar period.</summary>
+        public InvitationKey(string dedupeKey, ScheduledSlot slot)
+        {
+            DedupeKey = dedupeKey ?? throw new ArgumentNullException(nameof(dedupeKey));
+            Slot = slot ?? throw new ArgumentNullException(nameof(slot));
+        }
+
         public string DedupeKey { get; }
 
         /// <summary>Set for a milestone trigger: the index this invitation fulfils.</summary>
         public int? MilestoneIndex { get; }
+
+        /// <summary>Set for a scheduled trigger: the period surveyed and any fixed expiry.</summary>
+        public ScheduledSlot Slot { get; }
+    }
+
+    /// <summary>The calendar period a scheduled invitation belongs to.</summary>
+    public sealed class ScheduledSlot
+    {
+        public ScheduledSlot(string periodKey, DateTime? fixedExpiresOn)
+        {
+            PeriodKey = periodKey ?? throw new ArgumentNullException(nameof(periodKey));
+            FixedExpiresOn = fixedExpiresOn;
+        }
+
+        public string PeriodKey { get; }
+
+        /// <summary>Quarterly: one month into the next quarter (FR-CSE-016); null = the setup's expiry days.</summary>
+        public DateTime? FixedExpiresOn { get; }
     }
 
     /// <summary>The decisions already made for an invitation before its form version is pinned.</summary>
@@ -71,23 +96,25 @@ namespace Qdb.SurveyEngine.Services
         {
             var setup = candidate.Evaluation.Trigger.Setup;
             var change = candidate.Evaluation.Change;
+            var slot = candidate.Plan.Key.Slot;
             return new InvitationDraft
             {
-                Name = $"{setup.FormCode} — {change.TableLogicalName} {change.RecordId:D}",
+                Name = slot == null ? $"{setup.FormCode} — {change.TableLogicalName} {change.RecordId:D}" : $"{setup.FormCode} — {slot.PeriodKey}",
                 CustomerId = change.CustomerId.Value,
                 SetupId = setup.Id,
                 TriggerId = candidate.Evaluation.Trigger.Id,
                 SourceTable = change.TableLogicalName,
-                SourceRecordId = change.RecordId,
+                SourceRecordId = change.SourceRecordId,
                 FormCode = setup.FormCode,
                 PinnedVersion = candidate.PinnedVersion,
                 LanguageCode = candidate.Plan.LanguageCode,
                 Status = status,
                 Channel = candidate.Plan.Delivery == DeliveryChoice.SecureLink ? InvitationChannel.SecureLink : InvitationChannel.Portal,
                 GeneratedOn = generatedOnUtc,
-                ExpiresOn = setup.ExpiryDays.HasValue ? generatedOnUtc.AddDays(setup.ExpiryDays.Value) : (DateTime?)null,
+                ExpiresOn = slot?.FixedExpiresOn ?? (setup.ExpiryDays.HasValue ? generatedOnUtc.AddDays(setup.ExpiryDays.Value) : (DateTime?)null),
                 DedupeKey = candidate.Plan.Key.DedupeKey,
                 MilestoneIndex = candidate.Plan.Key.MilestoneIndex,
+                SchedulePeriodKey = slot?.PeriodKey,
             };
         }
     }

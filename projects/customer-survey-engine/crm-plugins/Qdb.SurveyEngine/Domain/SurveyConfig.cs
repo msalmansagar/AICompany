@@ -71,6 +71,9 @@ namespace Qdb.SurveyEngine.Domain
         public DateTime CreatedOn { get; set; }
 
         public MilestoneSettings Milestone { get; set; } = new MilestoneSettings();
+
+        /// <summary>Set for a scheduled trigger only.</summary>
+        public ScheduleSettings Schedule { get; set; }
     }
 
     /// <summary>What a blocked trigger does (FR-CSE-041).</summary>
@@ -104,5 +107,28 @@ namespace Qdb.SurveyEngine.Domain
         public string LanguageField { get; set; }
 
         public string DefaultLanguage { get; set; } = "en";
+
+        /// <summary>Days a response is kept; null or 0 = retention off until Compliance sets it (FR-CSE-058, OQ-A1).</summary>
+        public int? RetentionDays { get; set; }
+
+        /// <summary>Delete or anonymise; null = not chosen, so the retention pass does nothing.</summary>
+        public RetentionMode? RetentionMode { get; set; }
+    }
+
+    /// <summary>qdb_survey_settings.qdb_retention_mode.</summary>
+    public enum RetentionMode
+    {
+        Delete = 100000000,
+        Anonymise = 100000001,
+    }
+
+    /// <summary>A scheduled trigger's calendar and population (FR-CSE-031, 032).</summary>
+    public sealed class ScheduleSettings
+    {
+        public SchedulePeriod Period { get; set; }
+        public SchedulePopulation Population { get; set; }
+
+        /// <summary>For Active in period: the source whose records make a customer active; null otherwise.</summary>
+        public SurveySource PopulationSource { get; set; }
     }
 }

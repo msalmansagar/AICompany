@@ -33,7 +33,8 @@ namespace Qdb.SurveyEngine.Services
                 || dependencies.Invitations == null || dependencies.Suppressions == null || dependencies.Clock == null || dependencies.Trace == null)
                 throw new ArgumentException("Every SurveyTriggerDependencies member is required.", nameof(dependencies));
             var suppressions = new SuppressionRecorder(dependencies);
-            return new SurveyTriggerService(dependencies, new CandidatePreparer(dependencies, suppressions), new InvitationDispatcher(dependencies, suppressions));
+            var preparer = new CandidatePreparer(dependencies, suppressions, new FormPinner(dependencies, suppressions));
+            return new SurveyTriggerService(dependencies, preparer, new InvitationDispatcher(dependencies, suppressions));
         }
 
         /// <summary>Evaluates every active trigger of the change's source table.</summary>

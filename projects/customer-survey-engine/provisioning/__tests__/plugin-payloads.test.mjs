@@ -3,10 +3,23 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildStepPayload, buildPreImagePayload, stepsForSources, stepName, PLUGIN, ACTIVATION_APIS, buildCustomApiPayload } from '../lib/plugin-payloads.mjs';
+import { buildStepPayload, buildPreImagePayload, stepsForSources, stepName, PLUGIN, CUSTOM_APIS, buildCustomApiPayload, describeSignature } from '../lib/plugin-payloads.mjs';
+
+const apiNamed = (uniqueName) => CUSTOM_APIS.find((api) => api.uniqueName === uniqueName);
+
+test('buildCustomApiPayload_runDueSurveys_hasAnOptionalStringDateAndSummaryPlusIsCompleteOutputs', () => {
+  const payload = buildCustomApiPayload(apiNamed('qdb_srv_RunDueSurveys'), 'type-id');
+
+  assert.deepEqual(payload.CustomAPIRequestParameters.map((p) => [p.uniquename, p.type, p.isoptional]), [['RunDate', 10, true]]);
+  assert.deepEqual(payload.CustomAPIResponseProperties.map((p) => [p.uniquename, p.type]), [['Summary', 10], ['IsComplete', 0]]);
+});
+
+test('describeSignature_runDueSurveys_listsInputsAndOutputs', () => {
+  assert.equal(describeSignature(apiNamed('qdb_srv_RunDueSurveys')), 'RunDate → Summary, IsComplete');
+});
 
 test('buildCustomApiPayload_activate_isAnUnboundActionWithAGuidInputAndAStringOutput', () => {
-  const payload = buildCustomApiPayload(ACTIVATION_APIS[0], 'type-id');
+  const payload = buildCustomApiPayload(apiNamed('qdb_srv_ActivateSource'), 'type-id');
 
   assert.equal(payload.uniquename, 'qdb_srv_ActivateSource');
   assert.equal(payload.bindingtype, 0);

@@ -11,12 +11,11 @@
  *
  *   node --env-file=<dfe>/scripts/.env b4-activation-e2e.mjs
  */
-import { openSession, pollFor, createDisbursement, moveDisbursement, findDisbursementSource, failedPluginJobsSince, runStamp, PAYMENT_PROCESSED, LETTER_OF_CREDIT } from './e2e-helpers.mjs';
+import { openSession, pollFor, createDisbursement, moveDisbursement, findDisbursementSource, failedPluginJobsSince, runStamp, isAdministrator, findNonAdministrator, PAYMENT_PROCESSED, LETTER_OF_CREDIT } from './e2e-helpers.mjs';
 import { ensureSurveyForm, ensureCompletionSetup, COMPLETION_FORM_CODE } from './e2e-fixtures.mjs';
 import { stepName } from '../provisioning/lib/plugin-payloads.mjs';
 
 const TEMP_TABLE = 'qdb_survey_sms_config';
-const SYSTEM_ADMINISTRATOR_TEMPLATE = '627090ff-40a3-4053-8790-584edc5be201';
 
 const activate = (session, sourceId) => session.client.send('POST', 'qdb_srv_ActivateSource', { SourceId: sourceId });
 const deactivate = (session, sourceId) => session.client.send('POST', 'qdb_srv_DeactivateSource', { SourceId: sourceId });
@@ -30,20 +29,6 @@ async function stepsOf(session, table) {
 async function sourceState(session, sourceId) {
   const [row] = await session.rows(`qdb_survey_sources?$select=qdb_is_active,qdb_step_registration_json&$filter=qdb_survey_sourceid eq ${sourceId}`);
   return { isActive: row.qdb_is_active, registrations: row.qdb_step_registration_json ? JSON.parse(row.qdb_step_registration_json) : [] };
-}
-
-// Mirrors AdministratorCheck: the System Administrator role directly or through a team.
-async function isAdministrator(session, userId) {
-  const direct = `_roletemplateid_value eq ${SYSTEM_ADMINISTRATOR_TEMPLATE} and systemuserroles_association/any(u:u/systemuserid eq ${userId})`;
-  if ((await session.rows(`roles?$select=roleid&$filter=${encodeURIComponent(direct)}`)).length > 0) return true;
-  const viaTeam = `_roletemplateid_value eq ${SYSTEM_ADMINISTRATOR_TEMPLATE} and teamroles_association/any(t:t/teammembership_association/any(u:u/systemuserid eq ${userId}))`;
-  return (await session.rows(`roles?$select=roleid&$filter=${encodeURIComponent(viaTeam)}`)).length > 0;
-}
-
-async function findNonAdministrator(session) {
-  const users = await session.rows(`systemusers?$select=systemuserid,fullname&$filter=isdisabled eq false and accessmode eq 0 and applicationid eq null&$top=25`);
-  for (const user of users) if (!(await isAdministrator(session, user.systemuserid))) return user;
-  return null;
 }
 
 async function scenarioActivateSeedSource(session, { source, completion }) {

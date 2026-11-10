@@ -74,7 +74,7 @@ namespace Qdb.SurveyEngine.Data
             ["qdb_survey_setup_id"] = new EntityReference("qdb_survey_setup", draft.SetupId),
             ["qdb_survey_trigger_id"] = new EntityReference("qdb_survey_trigger", draft.TriggerId),
             ["qdb_source_table"] = draft.SourceTable,
-            ["qdb_source_record_id"] = draft.SourceRecordId.ToString("D"),
+            ["qdb_source_record_id"] = draft.SourceRecordId?.ToString("D"),
             ["qdb_form_code"] = draft.FormCode,
             ["qdb_pinned_version"] = draft.PinnedVersion,
             ["qdb_language_code"] = draft.LanguageCode,
@@ -84,6 +84,7 @@ namespace Qdb.SurveyEngine.Data
             ["qdb_expires_on"] = draft.ExpiresOn,
             ["qdb_dedupe_key"] = draft.DedupeKey,
             ["qdb_milestone_index"] = draft.MilestoneIndex,
+            ["qdb_schedule_period_key"] = draft.SchedulePeriodKey,
         };
 
         internal static string Truncate(string text, int maxLength) =>
@@ -105,16 +106,17 @@ namespace Qdb.SurveyEngine.Data
         {
             var row = new Entity("qdb_survey_suppression_log")
             {
-                ["qdb_name"] = InvitationRepository.Truncate($"{entry.Reason} — {entry.SourceTable} {entry.SourceRecordId:D}", 200),
+                ["qdb_name"] = InvitationRepository.Truncate($"{entry.Reason} — {entry.SourceTable ?? "scheduled"} {entry.SourceRecordId:D}".TrimEnd(), 200),
                 ["qdb_reason"] = new OptionSetValue((int)entry.Reason),
-                ["qdb_survey_trigger_id"] = new EntityReference("qdb_survey_trigger", entry.TriggerId),
                 ["qdb_survey_setup_id"] = new EntityReference("qdb_survey_setup", entry.SetupId),
                 ["qdb_source_table"] = entry.SourceTable,
-                ["qdb_source_record_id"] = entry.SourceRecordId.ToString("D"),
+                ["qdb_source_record_id"] = entry.SourceRecordId?.ToString("D"),
                 ["qdb_detail"] = entry.Detail,
                 ["qdb_logged_on"] = entry.LoggedOn,
             };
             if (entry.CustomerId.HasValue) row["qdb_customer_id"] = new EntityReference("account", entry.CustomerId.Value);
+            // A postponed invitation whose trigger was deleted since still gets its discard logged.
+            if (entry.TriggerId != Guid.Empty) row["qdb_survey_trigger_id"] = new EntityReference("qdb_survey_trigger", entry.TriggerId);
             _service.Create(row);
         }
     }

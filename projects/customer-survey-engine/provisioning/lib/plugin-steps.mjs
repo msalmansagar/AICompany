@@ -5,7 +5,7 @@
  *
  * @module survey-provisioning/plugin-steps
  */
-import { PLUGIN, ACTIVATION_APIS, buildStepPayload, buildPreImagePayload, buildCustomApiPayload, stepName } from './plugin-payloads.mjs';
+import { PLUGIN, CUSTOM_APIS, buildStepPayload, buildPreImagePayload, buildCustomApiPayload, describeSignature, stepName } from './plugin-payloads.mjs';
 
 const ASSEMBLY_COMPONENT_TYPE = 91;
 const STEP_COMPONENT_TYPE = 92;
@@ -51,17 +51,17 @@ export async function ensurePluginType({ client, assemblyId, isApply, report }, 
 }
 
 /**
- * Ensures each activation Custom API exists with its plugin type (A3). An existing API is left
+ * Ensures each survey Custom API exists with its plugin type (A1, A3). An existing API is left
  * as it is: its plugin type is fixed at creation.
  *
  * @param {{ client: object, assemblyId: string|null, isApply: boolean, report: Function }} context
  */
-export async function ensureActivationApis(context) {
-  for (const api of ACTIVATION_APIS) {
+export async function ensureCustomApis(context) {
+  for (const api of CUSTOM_APIS) {
     const pluginTypeId = await ensurePluginType(context, api);
     const existing = (await context.client.send('GET', `customapis?$select=customapiid&$filter=uniquename eq '${api.uniqueName}'`)).json.value[0];
     if (existing) { context.report('exists', `custom API ${api.uniqueName}`); continue; }
-    context.report('create', `custom API ${api.uniqueName} (SourceId → Message)`);
+    context.report('create', `custom API ${api.uniqueName} (${describeSignature(api)})`);
     if (context.isApply) await context.client.send('POST', 'customapis', buildCustomApiPayload(api, pluginTypeId));
   }
 }

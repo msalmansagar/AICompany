@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Security;
 using System.Text;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
@@ -37,21 +36,13 @@ namespace Qdb.SurveyEngine.Data
             var table = query.Source.TableLogicalName;
             var fields = query.Source.Fields;
             var filter = new StringBuilder();
-            filter.Append(Condition(fields.CustomerLookup, "eq", query.CustomerId.ToString("D")));
-            filter.Append(InCondition(fields.Status, query.Settings.StatusValues.ToArray()));
-            if (!query.Settings.TypeValues.IsEmpty && !string.IsNullOrWhiteSpace(fields.Type)) filter.Append(InCondition(fields.Type, query.Settings.TypeValues.ToArray()));
-            if (query.Settings.CountFrom.HasValue) filter.Append(Condition("createdon", "on-or-after", query.Settings.CountFrom.Value.ToString("yyyy-MM-dd")));
-            if (query.CreatedBefore.HasValue) filter.Append(Condition("createdon", "lt", query.CreatedBefore.Value.ToUniversalTime().ToString("o")));
-            return $"<fetch aggregate='true'><entity name='{Escape(table)}'><attribute name='{Escape(table)}id' alias='{CountAlias}' aggregate='count' />"
+            filter.Append(FetchXml.Condition(fields.CustomerLookup, "eq", query.CustomerId.ToString("D")));
+            filter.Append(FetchXml.In(fields.Status, query.Settings.StatusValues.ToArray()));
+            if (!query.Settings.TypeValues.IsEmpty && !string.IsNullOrWhiteSpace(fields.Type)) filter.Append(FetchXml.In(fields.Type, query.Settings.TypeValues.ToArray()));
+            if (query.Settings.CountFrom.HasValue) filter.Append(FetchXml.Condition("createdon", "on-or-after", query.Settings.CountFrom.Value.ToString("yyyy-MM-dd")));
+            if (query.CreatedBefore.HasValue) filter.Append(FetchXml.Condition("createdon", "lt", query.CreatedBefore.Value.ToUniversalTime().ToString("o")));
+            return $"<fetch aggregate='true'><entity name='{FetchXml.Escape(table)}'><attribute name='{FetchXml.Escape(table)}id' alias='{CountAlias}' aggregate='count' />"
                 + $"<filter type='and'>{filter}</filter></entity></fetch>";
         }
-
-        private static string Condition(string attribute, string op, string value) =>
-            $"<condition attribute='{Escape(attribute)}' operator='{op}' value='{Escape(value)}' />";
-
-        private static string InCondition(string attribute, string[] values) =>
-            $"<condition attribute='{Escape(attribute)}' operator='in'>{string.Concat(values.Select(v => $"<value>{Escape(v)}</value>"))}</condition>";
-
-        private static string Escape(string text) => SecurityElement.Escape(text);
     }
 }

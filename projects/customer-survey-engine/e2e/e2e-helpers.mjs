@@ -90,6 +90,23 @@ export async function failedPluginJobsSince(session, startedOn) {
   return session.rows(`asyncoperations?$select=name,message,friendlymessage&$filter=createdon ge ${startedOn} and statuscode eq 31 and contains(name,'SurveyTriggerPlugin')`);
 }
 
+const SYSTEM_ADMINISTRATOR_TEMPLATE = '627090ff-40a3-4053-8790-584edc5be201';
+
+/** Mirrors AdministratorCheck: the System Administrator role directly or through a team. */
+export async function isAdministrator(session, userId) {
+  const direct = `_roletemplateid_value eq ${SYSTEM_ADMINISTRATOR_TEMPLATE} and systemuserroles_association/any(u:u/systemuserid eq ${userId})`;
+  if ((await session.rows(`roles?$select=roleid&$filter=${encodeURIComponent(direct)}`)).length > 0) return true;
+  const viaTeam = `_roletemplateid_value eq ${SYSTEM_ADMINISTRATOR_TEMPLATE} and teamroles_association/any(t:t/teammembership_association/any(u:u/systemuserid eq ${userId}))`;
+  return (await session.rows(`roles?$select=roleid&$filter=${encodeURIComponent(viaTeam)}`)).length > 0;
+}
+
+/** The first enabled interactive user without System Administrator, or null when none of the first 25 qualifies. */
+export async function findNonAdministrator(session) {
+  const users = await session.rows(`systemusers?$select=systemuserid,fullname&$filter=isdisabled eq false and accessmode eq 0 and applicationid eq null&$top=25`);
+  for (const user of users) if (!(await isAdministrator(session, user.systemuserid))) return user;
+  return null;
+}
+
 /** A run-unique suffix, so each run uses fresh records. */
 export function runStamp() {
   return new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);

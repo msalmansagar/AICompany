@@ -145,6 +145,10 @@ namespace Qdb.SurveyEngine.Domain
         public static string ForMilestone(Guid setupId, Guid customerId, int index) =>
             string.Format("{0:D}|{1:D}|M{2}", setupId, customerId, index);
 
+        /// <summary>{setupId}|{customerId}|{periodKey}: one invitation per calendar period (FR-CSE-033, 044).</summary>
+        public static string ForSchedule(Guid setupId, Guid customerId, string periodKey) =>
+            string.Format("{0:D}|{1:D}|{2}", setupId, customerId, periodKey);
+
         private static string Sha256Hex(string text)
         {
             using (var sha = SHA256.Create())

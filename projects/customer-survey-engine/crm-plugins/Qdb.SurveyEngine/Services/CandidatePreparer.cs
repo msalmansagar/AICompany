@@ -11,11 +11,13 @@ namespace Qdb.SurveyEngine.Services
     {
         private readonly SurveyTriggerDependencies _deps;
         private readonly SuppressionRecorder _suppressions;
+        private readonly FormPinner _pinner;
 
-        public CandidatePreparer(SurveyTriggerDependencies dependencies, SuppressionRecorder suppressions)
+        public CandidatePreparer(SurveyTriggerDependencies dependencies, SuppressionRecorder suppressions, FormPinner pinner)
         {
             _deps = dependencies ?? throw new ArgumentNullException(nameof(dependencies));
             _suppressions = suppressions ?? throw new ArgumentNullException(nameof(suppressions));
+            _pinner = pinner ?? throw new ArgumentNullException(nameof(pinner));
         }
 
         /// <summary>The candidate, or null when the trigger was suppressed or no milestone was reached.</summary>
@@ -30,7 +32,7 @@ namespace Qdb.SurveyEngine.Services
             var key = FindInvitationKey(evaluation);
             if (key == null) return null;
             if (_deps.Invitations.ExistsWithDedupeKey(key.DedupeKey)) return Suppressed(evaluation, SuppressionReason.Duplicate, "An invitation for this event already exists.");
-            return PinForm(evaluation, new InvitationPlan(delivery, key, ResolveLanguage(change.CustomerId.Value, settings)));
+            return _pinner.Pin(evaluation, new InvitationPlanRequest { Delivery = delivery, Key = key, Settings = settings });
         }
 
         // Event/created triggers key on the record; milestone triggers on the index reached, or nothing when none was.
@@ -38,7 +40,7 @@ namespace Qdb.SurveyEngine.Services
         {
             var setupId = evaluation.Trigger.Setup.Id;
             var customerId = evaluation.Change.CustomerId.Value;
-            if (evaluation.Trigger.Kind != TriggerKind.Milestone) return new InvitationKey(DedupeKey.ForRecord(setupId, customerId, evaluation.Change), null);
+            if (evaluation.Trigger.Kind != TriggerKind.Milestone) return new InvitationKey(DedupeKey.ForRecord(setupId, customerId, evaluation.Change), (int?)null);
             var index = FindMilestoneIndex(evaluation);
             return index.HasValue ? new InvitationKey(DedupeKey.ForMilestone(setupId, customerId, index.Value), index) : null;
         }
@@ -67,20 +69,6 @@ namespace Qdb.SurveyEngine.Services
 
         private static MilestoneCountQuery WithCreatedBefore(MilestoneCountQuery query, DateTime before) =>
             new MilestoneCountQuery { Source = query.Source, Settings = query.Settings, CustomerId = query.CustomerId, CreatedBefore = before };
-
-        private InvitationCandidate PinForm(TriggerEvaluation evaluation, InvitationPlan plan)
-        {
-            var formCode = evaluation.Trigger.Setup.FormCode;
-            var version = _deps.RenderCache.FindActivePublishedVersion(formCode, plan.LanguageCode);
-            if (!version.HasValue) return Suppressed(evaluation, SuppressionReason.FormNotPublished, $"Form {formCode} has no active published version in '{plan.LanguageCode}'.");
-            return new InvitationCandidate(evaluation, plan, version.Value);
-        }
-
-        private string ResolveLanguage(Guid customerId, SurveySettings settings)
-        {
-            if (string.IsNullOrWhiteSpace(settings.LanguageField)) return settings.DefaultLanguage;
-            return LanguageCode.Normalise(_deps.Languages.ReadLanguageValue(customerId, settings.LanguageField), settings.DefaultLanguage);
-        }
 
         private InvitationCandidate Suppressed(TriggerEvaluation evaluation, SuppressionReason reason, string detail)
         {

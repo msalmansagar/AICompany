@@ -28,5 +28,11 @@ namespace Qdb.SurveyEngine.Domain
 
         /// <summary>The account the request belongs to; null when the lookup is empty.</summary>
         public Guid? CustomerId { get; set; }
+
+        /// <summary>The source record's id, or null for a scheduled evaluation, which has no record.</summary>
+        public Guid? SourceRecordId => RecordId == Guid.Empty ? (Guid?)null : RecordId;
+
+        /// <summary>A scheduled trigger's evaluation of one customer: no table and no record.</summary>
+        public static RecordChange ForScheduledCustomer(Guid customerId) => new RecordChange { CustomerId = customerId };
     }
 }

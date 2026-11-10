@@ -23,7 +23,7 @@ namespace Qdb.SurveyEngine.Services
                 TriggerId = evaluation.Trigger.Id,
                 SetupId = evaluation.Trigger.Setup.Id,
                 SourceTable = evaluation.Change.TableLogicalName,
-                SourceRecordId = evaluation.Change.RecordId,
+                SourceRecordId = evaluation.Change.SourceRecordId,
                 Detail = detail,
                 LoggedOn = _deps.Clock.UtcNow,
             });
