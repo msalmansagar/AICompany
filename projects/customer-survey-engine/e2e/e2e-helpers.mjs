@@ -73,6 +73,18 @@ export async function findDisbursementSource(session) {
   return source;
 }
 
+/**
+ * Waits until the async jobs about a record have run. Two completions seconds apart can otherwise
+ * both be evaluated after both are complete, and a live milestone count then fires on the first
+ * record instead of the one that reached it. A job is first awaited for up to a minute (it may not
+ * be queued yet); successful jobs delete themselves, so "none left unfinished" means done.
+ */
+export async function waitForJobsOn(session, recordId) {
+  const unfinished = () => session.rows(`asyncoperations?$select=asyncoperationid,statecode&$filter=_regardingobjectid_value eq ${recordId} and statecode ne 3`);
+  for (let attempt = 0; attempt < 6 && (await unfinished()).length === 0; attempt += 1) await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+  for (let attempt = 0; attempt < POLL_ATTEMPTS && (await unfinished()).length > 0; attempt += 1) await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+}
+
 /** Failed SurveyTriggerPlugin system jobs created since the given ISO time. */
 export async function failedPluginJobsSince(session, startedOn) {
   return session.rows(`asyncoperations?$select=name,message,friendlymessage&$filter=createdon ge ${startedOn} and statuscode eq 31 and contains(name,'SurveyTriggerPlugin')`);

@@ -17,7 +17,7 @@
  */
 import {
   openSession, pollFor, setDisbursementStep, createDisbursement, moveDisbursement, findDisbursementSource,
-  failedPluginJobsSince, runStamp, PAYMENT_PROCESSED, LETTER_OF_CREDIT, REMITTANCE,
+  failedPluginJobsSince, runStamp, waitForJobsOn, PAYMENT_PROCESSED, LETTER_OF_CREDIT, REMITTANCE,
 } from './e2e-helpers.mjs';
 import { ensureSurveyForm, ensureCompletionSetup, ensureMilestoneSetup, COMPLETION_FORM_CODE, MILESTONE_FORM_CODE } from './e2e-fixtures.mjs';
 
@@ -58,7 +58,10 @@ async function runFatigueScenario(session, { stamp, completion, milestone }) {
 async function runPriorityScenario(session, { stamp, completion, milestone }) {
   console.log('Customer C — priority');
   const accountId = await createCustomer(session, 'C', stamp);
-  await completeDisbursement(session, { accountId, type: REMITTANCE, name: `SURVEY-E2E-C1-${stamp}` });
+  const firstId = await completeDisbursement(session, { accountId, type: REMITTANCE, name: `SURVEY-E2E-C1-${stamp}` });
+  console.log('  waiting for D1\'s job to finish before D2 completes');
+  await waitForJobsOn(session, firstId);
+  session.check('D1 (Remittance, count 1) sent nothing', (await invitationsOf(session, accountId)).length === 0);
   const secondId = await completeDisbursement(session, { accountId, type: LETTER_OF_CREDIT, name: `SURVEY-E2E-C2-${stamp}` });
   const winners = await pollFor('the milestone invitation', () => invitationsOf(session, accountId));
   const winner = winners[0];
