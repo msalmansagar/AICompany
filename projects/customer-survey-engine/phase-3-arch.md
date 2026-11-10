@@ -628,3 +628,13 @@ These challenges must be addressed before Phase 4 begins.
 | 6 | **Approved scope addition:** a "Survey health" view (suppression reasons, plugin and job errors) so admins see failures. Built in B8. Traced to this approval, not to a BRD FR. |
 | 7 | **The plugin steps for the three known sources ship pre-registered in the solution.** `ActivateSource` registers steps dynamically only for sources added later. This removes go-live dependence on step-registration rights (R6). |
 | 8 | Check whether the runtime's existing Save Draft works for survey forms. If it does, keep it. If not, there is no draft/resume in release 1. |
+
+### Implementation decisions (B0, 2026-11-10)
+
+| Topic | Decision | Why |
+|---|---|---|
+| Survey code prefix (FR-CSE-023, §5.3) | `srv-` **or** `srv_`, lowercase, not `SRV-` | Publish rule PV-002 accepts only lowercase codes, so an `SRV-` code could never publish. The designer's Code box turns hyphens into underscores, while existing org codes use hyphens, so both separators count. |
+| `qdb_form_type` values (§5.1) | Standard = 100000000, Survey = 100000001 | Matches every other DFE picklist (100000000 range), instead of the 1 / 2 sketched in §5.1. |
+| Save defect scope (FR-CSE-024, §5.4) | 17 properties fixed, not 4 | FormSaveService also dropped the bar fields, document view/download toggles, info-card list style and download icon, file download label/icon, document settings and Label content. One mapper now feeds create and update. Unset values are omitted so an org lacking a newer column is not broken. |
+| Unprovisioned column | Load falls back to a select without `qdb_form_type`; Save writes it only when a type was chosen | The column exists on no org yet. Naming a missing column fails the whole request. |
+| Regression gate stamps (§5.5) | Strips `version` and `modifiedAt`, the keys the C# publisher actually emits | The first draft listed field names the publisher never writes. Re-publish bumps `version`, which would have failed every form. |
