@@ -4,6 +4,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { VIEWS, CHARTS, FORMS, APP } from '../ui-manifest.mjs';
+import { ICONS, iconResourceName } from '../ui-icons.mjs';
+import { TABLES } from '../manifest.mjs';
 import { buildViewFetchXml, buildViewLayoutXml, buildChartDataXml, buildChartPresentationXml, buildFormXml, buildSiteMapXml, describeField, stableGuid } from '../lib/ui-payloads.mjs';
 
 const viewNamed = (name) => VIEWS.find((v) => v.name === name);
@@ -77,6 +79,20 @@ test('buildFormXml_sameForm_isIdenticalOnEveryRun', () => {
 
 test('stableGuid_seed_isAVersion4ShapedGuid', () => {
   assert.match(stableGuid('x'), /^\{[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}\}$/);
+});
+
+test('ICONS_everySurveyTable_hasAWellFormedIconInTheFormEngineStyle', () => {
+  const surveyTables = TABLES.map((t) => t.name).sort();
+
+  assert.deepEqual(Object.keys(ICONS).sort(), surveyTables);
+  for (const { svg } of Object.values(ICONS)) {
+    assert.match(svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 20 20" fill="none">.*<\/svg>$/);
+    assert.match(svg, /stroke="#0078d4"/);
+  }
+});
+
+test('iconResourceName_table_followsTheFormEngineConvention', () => {
+  assert.equal(iconResourceName('qdb_survey_setup'), 'qdb_icon_survey_setup');
 });
 
 test('buildSiteMapXml_app_hasConfigurationAndResultsGroups', () => {

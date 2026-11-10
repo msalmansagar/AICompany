@@ -77,6 +77,42 @@ export async function ensureForms({ client, forms, viewIdFor, isApply, report })
   }
 }
 
+const SVG_WEB_RESOURCE = 11;
+
+/**
+ * Gives each table its icon (Form Engine pattern): an SVG web resource, then IconVectorName on
+ * the table, which needs the full definition PUT back. Publishes the icons; the tables are
+ * published by publishTables.
+ */
+export async function ensureIcons({ client, icons, resourceNameFor, isApply, report }) {
+  const resourceIds = [];
+  for (const [table, icon] of Object.entries(icons)) {
+    const name = resourceNameFor(table);
+    resourceIds.push(await ensureSvgResource(client, { name, icon, isApply, report }));
+    const definition = (await client.send('GET', `EntityDefinitions(LogicalName='${table}')`)).json;
+    if (definition.IconVectorName === name) { report('exists', `icon on ${table}`); continue; }
+    report('update', `icon on ${table} → ${name}`);
+    if (isApply) await client.putMetadata(`EntityDefinitions(LogicalName='${table}')`, withoutAnnotations({ ...definition, IconVectorName: name }));
+  }
+  if (!isApply) return;
+  const webresources = resourceIds.map((id) => `<webresource>{${id}}</webresource>`).join('');
+  await client.send('POST', 'PublishXml', { ParameterXml: `<importexportxml><webresources>${webresources}</webresources></importexportxml>` });
+}
+
+async function ensureSvgResource(client, { name, icon, isApply, report }) {
+  const payload = { name, displayname: `${icon.label} Icon`, webresourcetype: SVG_WEB_RESOURCE, content: Buffer.from(icon.svg, 'utf8').toString('base64') };
+  const existing = await first(client, `webresourceset?$select=webresourceid&$filter=name eq '${name}'`);
+  report(existing ? 'update' : 'create', `web resource ${name}`);
+  if (!isApply) return existing?.webresourceid;
+  if (existing) { await client.send('PATCH', `webresourceset(${existing.webresourceid})`, { content: payload.content, displayname: payload.displayname }); return existing.webresourceid; }
+  return (await client.send('POST', 'webresourceset', payload)).entityId;
+}
+
+// A metadata PUT is refused while the body still carries OData annotations.
+function withoutAnnotations(definition) {
+  return Object.fromEntries(Object.entries(definition).filter(([key]) => !key.startsWith('@')));
+}
+
 export async function publishTables({ client, tables, isApply, report }) {
   report('publish', `${tables.length} tables (views, charts, forms)`);
   if (!isApply) return;

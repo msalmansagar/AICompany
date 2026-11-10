@@ -62,6 +62,13 @@ export async function createDataverseClient({ solutionUniqueName }) {
   /** A write outside the solution: creating the solution itself, which cannot name itself yet. */
   const sendOutsideSolution = (method, path, body) => request(method, path, body, baseHeaders);
 
+  /**
+   * PUT of a full metadata definition. MergeLabels keeps labels in languages the body does not
+   * carry (e.g. Arabic) instead of deleting them.
+   */
+  const putMetadata = (path, body) =>
+    request('PUT', path, body, { ...baseHeaders, 'MSCRM.SolutionUniqueName': solutionUniqueName, 'MSCRM.MergeLabels': 'true' });
+
   /** A call made on behalf of another CRM user (MSCRMCallerID), for testing permission checks. */
   const sendAsUser = (method, path, body, systemUserId) => request(method, path, body, { ...baseHeaders, MSCRMCallerID: systemUserId });
 
@@ -75,7 +82,7 @@ export async function createDataverseClient({ solutionUniqueName }) {
     }
   }
 
-  return { orgUrl, send, sendOutsideSolution, sendAsUser, find };
+  return { orgUrl, send, sendOutsideSolution, sendAsUser, putMetadata, find };
 }
 
 // A Dataverse create answers 204 with an empty body; the new id is only in OData-EntityId.
