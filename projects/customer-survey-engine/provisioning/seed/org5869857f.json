@@ -1,0 +1,45 @@
+{
+  "org": "https://org5869857f.crm4.dynamics.com",
+  "notes": "Per-org seed data (FR-CSE-005/006). Field names were read from this org's metadata on 2026-11-10. TO_CONFIRM rows are skipped by the provisioner until a person confirms the value.",
+  "sources": [
+    {
+      "qdb_name": "Applications",
+      "qdb_table_logical_name": "qdb_loan_application",
+      "qdb_customer_lookup_field": "TO_CONFIRM",
+      "qdb_type_field": "qdb_loanappl_type",
+      "qdb_status_field": "statuscode",
+      "qdb_origin_field": "TO_CONFIRM",
+      "qdb_counts_toward_milestones": false,
+      "qdb_is_active": false
+    },
+    {
+      "qdb_name": "Disbursements",
+      "qdb_table_logical_name": "qdb_payment_authorization_ticket",
+      "qdb_customer_lookup_field": "qdb_customer_name",
+      "qdb_type_field": "qdb_disbursement_type_1",
+      "qdb_status_field": "statuscode",
+      "qdb_origin_field": "qdb_source_location",
+      "qdb_origin_digital_values": "751090002",
+      "qdb_counts_toward_milestones": true,
+      "qdb_is_active": false
+    },
+    {
+      "qdb_name": "Fund Transfer",
+      "qdb_table_logical_name": "qdb_cheque_clearing",
+      "qdb_customer_lookup_field": "qdb_cif_no",
+      "qdb_type_field": "qdb_type",
+      "qdb_status_field": "statuscode",
+      "qdb_origin_field": "qdb_source_location",
+      "qdb_origin_digital_values": "751090002",
+      "qdb_counts_toward_milestones": false,
+      "qdb_is_active": false
+    }
+  ],
+  "settings": {
+    "qdb_name": "Survey Settings",
+    "qdb_fatigue_min_days": 30,
+    "qdb_default_language": "en",
+    "qdb_securelink_enabled": false
+  },
+  "smsConfigs": []
+}

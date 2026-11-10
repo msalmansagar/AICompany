@@ -638,3 +638,18 @@ These challenges must be addressed before Phase 4 begins.
 | Save defect scope (FR-CSE-024, §5.4) | 17 properties fixed, not 4 | FormSaveService also dropped the bar fields, document view/download toggles, info-card list style and download icon, file download label/icon, document settings and Label content. One mapper now feeds create and update. Unset values are omitted so an org lacking a newer column is not broken. |
 | Unprovisioned column | Load falls back to a select without `qdb_form_type`; Save writes it only when a type was chosen | The column exists on no org yet. Naming a missing column fails the whole request. |
 | Regression gate stamps (§5.5) | Strips `version` and `modifiedAt`, the keys the C# publisher actually emits | The first draft listed field names the publisher never writes. Re-publish bumps `version`, which would have failed every form. |
+| Regression gate scope (§5.5, §13.2) | Targeted Save test on 3 forms instead of re-publishing all 31 | Re-publishing publishes each form's current definition: `equipment-request` (definition v11, live v7) would have pushed unpublished drafts to customers. A baseline taken from an old cache also contains publisher changes since that publish, so differences must be read against the publisher's history. |
+| Grid column Is Editable | Empty now loads as editable (`4086e2f1`) | The publisher treats empty as editable; the designer loaded it as read-only and wrote that back on Save. |
+
+### Implementation decisions (B1, 2026-11-10)
+
+| Topic | Decision | Why |
+|---|---|---|
+| Schema source of truth | `provisioning/manifest.mjs`; the provisioner plans by default and writes only with `--apply` | One declaration feeds the cloud provisioner and the on-prem packager; plan mode lets every live change be reviewed first. |
+| Choice values (§4) | 100000000-based on every survey picklist | Same convention as DFE; the 1/2/3 codes in §4 were illustrative. |
+| Customer lookup (§4.4–4.7) | Lookup to `account` | All known sources point their customer field at `account` on the cloud org (`qdb_customer_name`, `qdb_cif_no`). A polymorphic lookup would add a second target nothing uses. |
+| Publisher | Pinned to unique name `qdb` (owner of `QdbDynamicFormEngine`) | Four publishers share the `qdb` prefix on the cloud org. |
+| Delete behaviour | Cascade only for setup→trigger, invitation→response, response→answer; RemoveLink elsewhere; never Restrict | Restrict would block the retention pass from deleting invitations. |
+| Primary name | Every survey table has `qdb_name` (200) | Dataverse requires a primary name column; runtime tables fill it with a readable summary. |
+| Integration role | Adds Read + AppendTo on `account`, Read on `qdb_form_render_cache` and `qdb_form_definition` | Linking an invitation to its customer needs AppendTo on account; the survey JSON and form type live in DFE tables. |
+| Seed data | Per-org JSON (`provisioning/seed/<org>.json`); `TO_CONFIRM` rows are skipped, never guessed; existing rows are never overwritten | Field names differ per org (FR-CSE-006). On the cloud org `qdb_loan_application` has no `qdb_customerid` and its Digital/Legacy field is unconfirmed. Disbursements and Fund Transfer use `qdb_source_location` with 751090002 = QDB Digital. |
