@@ -28,10 +28,39 @@ namespace Qdb.SurveyEngine.Activation
             var source = LoadForAdministrator(sourceId, callerId);
             EnsureTableSupportsSteps(source);
             EnsureTriggerCodesExist(source);
-            var registrations = Messages.Select(message => EnableStep(new StepSpec(message, source.TableLogicalName, source.StatusField))).ToList();
-            _deps.Sources.SaveActivation(source.Id, true, registrations);
+            var registrations = EnableStepsOrRollBack(source);
             var created = registrations.Count(r => r.WasCreatedByActivation);
             return $"Source {source.Name} is active: {registrations.Count} steps enabled ({created} created, {registrations.Count - created} reused).";
+        }
+
+        // There is no transaction across step registration, so a failure part-way undoes what was
+        // already done: otherwise an enabled step would fire on live records for an inactive source.
+        private IReadOnlyList<StepRegistration> EnableStepsOrRollBack(ActivationSource source)
+        {
+            var registrations = new List<StepRegistration>();
+            try
+            {
+                foreach (var message in Messages) registrations.Add(EnableStep(new StepSpec(message, source.TableLogicalName, source.StatusField)));
+                _deps.Sources.SaveActivation(source.Id, true, registrations);
+                return registrations;
+            }
+            catch (Exception failure)
+            {
+                RollBack(registrations, failure);
+                throw;
+            }
+        }
+
+        private void RollBack(IEnumerable<StepRegistration> registrations, Exception failure)
+        {
+            try
+            {
+                foreach (var registration in registrations) RemoveStep(registration);
+            }
+            catch (Exception rollbackFailure)
+            {
+                throw new AggregateException("Activation failed and its rollback failed too; deactivate the source to clean up.", failure, rollbackFailure);
+            }
         }
 
         /// <summary>Deactivates the source: deletes the steps activation created, disables the rest.</summary>

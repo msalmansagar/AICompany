@@ -32,9 +32,12 @@ async function sourceState(session, sourceId) {
   return { isActive: row.qdb_is_active, registrations: row.qdb_step_registration_json ? JSON.parse(row.qdb_step_registration_json) : [] };
 }
 
+// Mirrors AdministratorCheck: the System Administrator role directly or through a team.
 async function isAdministrator(session, userId) {
-  const filter = `roletemplateid eq ${SYSTEM_ADMINISTRATOR_TEMPLATE} and systemuserroles_association/any(u:u/systemuserid eq ${userId})`;
-  return (await session.rows(`roles?$select=roleid&$filter=${encodeURIComponent(filter)}`)).length > 0;
+  const direct = `roletemplateid eq ${SYSTEM_ADMINISTRATOR_TEMPLATE} and systemuserroles_association/any(u:u/systemuserid eq ${userId})`;
+  if ((await session.rows(`roles?$select=roleid&$filter=${encodeURIComponent(direct)}`)).length > 0) return true;
+  const viaTeam = `roletemplateid eq ${SYSTEM_ADMINISTRATOR_TEMPLATE} and teamroles_association/any(t:t/teammembership_association/any(u:u/systemuserid eq ${userId}))`;
+  return (await session.rows(`roles?$select=roleid&$filter=${encodeURIComponent(viaTeam)}`)).length > 0;
 }
 
 async function findNonAdministrator(session) {

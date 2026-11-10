@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using Microsoft.Crm.Sdk.Messages;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
 using Qdb.SurveyEngine.Activation;
@@ -80,11 +81,12 @@ namespace Qdb.SurveyEngine.Data
         /// <inheritdoc />
         public void SetEnabled(Guid stepId, bool isEnabled)
         {
-            // A plain Update with state and status is what the Web API PATCH does; it needs no Proxy assembly.
-            _service.Update(new Entity("sdkmessageprocessingstep", stepId)
+            // SetStateRequest, not a plain Update of statecode: the on-prem 9.1 orgs do not guarantee the latter.
+            _service.Execute(new SetStateRequest
             {
-                ["statecode"] = new OptionSetValue(isEnabled ? 0 : 1),
-                ["statuscode"] = new OptionSetValue(isEnabled ? 1 : 2),
+                EntityMoniker = new EntityReference("sdkmessageprocessingstep", stepId),
+                State = new OptionSetValue(isEnabled ? 0 : 1),
+                Status = new OptionSetValue(isEnabled ? 1 : 2),
             });
         }
 

@@ -31,8 +31,12 @@ namespace Qdb.SurveyEngine.Tests
         public bool IsSystemAdministrator(Guid userId) => Administrators.Contains(userId);
         public IReadOnlyCollection<string> ReadCodes(string table, string column) => ColumnCodes.TryGetValue(column, out var codes) ? codes : null;
 
+        /// <summary>When set, creating the step for this message fails, as a transient Dataverse error would.</summary>
+        public string FailCreateFor { get; set; }
+
         public Guid Create(StepSpec spec)
         {
+            if (spec.Message == FailCreateFor) throw new InvalidOperationException("Simulated Dataverse failure.");
             var step = new RegisteredStep { Id = Guid.NewGuid(), IsEnabled = true, FilteringAttributes = spec.IsUpdate ? spec.StatusField : null, PreImageAttributes = spec.IsUpdate ? spec.StatusField : null };
             StepsByName[StepRegistry.StepName(spec)] = step;
             return step.Id;
@@ -149,6 +153,28 @@ namespace Qdb.SurveyEngine.Tests
             Assert.Equal(2, _store.StepsByName.Count);
             Assert.All(_store.SavedRegistrations, r => Assert.True(r.WasCreatedByActivation));
             Assert.Contains("2 created", message);
+        }
+
+        [Fact]
+        public void Activate_SecondStepFails_TurnsTheFirstOffAgainAndRethrows()
+        {
+            var create = PreRegister("Create");
+            _store.FailCreateFor = "Update";
+
+            Assert.Throws<InvalidOperationException>(() => _store.Service().Activate(SourceId, AdminId));
+
+            Assert.False(create.IsEnabled);
+            Assert.Null(_store.SavedIsActive);
+        }
+
+        [Fact]
+        public void Activate_SecondStepFailsAfterCreatingTheFirst_DeletesTheCreatedStep()
+        {
+            _store.FailCreateFor = "Update";
+
+            Assert.Throws<InvalidOperationException>(() => _store.Service().Activate(SourceId, AdminId));
+
+            Assert.Empty(_store.StepsByName);
         }
 
         [Fact]
