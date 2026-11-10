@@ -6,6 +6,8 @@ import { FormDefinitionService } from './FormDefinitionService';
 import { TabService } from './TabService';
 import { SectionService } from './SectionService';
 import { FieldService } from './FieldService';
+import type { UpdateFieldDto } from './FieldService';
+import type { DesignerFieldModel } from '@/state/models/DesignerFormModel';
 import { OptionValueService } from './OptionValueService';
 import { LookupConfigService } from './LookupConfigService';
 import { ValidationRuleService } from './ValidationRuleService';
@@ -37,6 +39,52 @@ function resolveZoneTabId(
 /** True when the (resolved) id refers to a persisted, non-deleted record. */
 function isPersistableId(id: string, resolvedIds: Record<string, string>, deleted: Set<string>): boolean {
   return !deleted.has(id) && !resolveRealId(id, resolvedIds).startsWith('tmp_');
+}
+
+type DisplayAndDocumentProperties = Pick<
+  UpdateFieldDto,
+  | 'numberDisplayStyle'
+  | 'radioRenderStyle'
+  | 'fileCaptureMode'
+  | 'barMaxFieldSchemaName'
+  | 'barValueFieldSchemaName'
+  | 'showDocumentView'
+  | 'showDocumentDownload'
+  | 'componentKey'
+  | 'infoCardListType'
+  | 'infoCardListMarker'
+  | 'infoCardDownloadIcon'
+  | 'fileDownloadLabel'
+  | 'fileDownloadIcon'
+  | 'uploadDocumentSetting'
+  | 'downloadDocumentSetting'
+  | 'staticContent'
+  | 'sourceFieldSchemaName'
+>;
+
+// FR-CSE-024: these properties were never handed to FieldService, so a designer-set
+// value vanished on reload. An unset value is omitted rather than written as null:
+// an org that lacks one of the newer columns rejects any write that names it.
+function toDisplayAndDocumentProperties(field: DesignerFieldModel): DisplayAndDocumentProperties {
+  return {
+    numberDisplayStyle: field.numberDisplayStyle ?? undefined,
+    radioRenderStyle: field.radioRenderStyle ?? undefined,
+    fileCaptureMode: field.fileCaptureMode ?? undefined,
+    barMaxFieldSchemaName: field.barMaxFieldSchemaName ?? undefined,
+    barValueFieldSchemaName: field.barValueFieldSchemaName ?? undefined,
+    showDocumentView: field.showDocumentView ?? undefined,
+    showDocumentDownload: field.showDocumentDownload ?? undefined,
+    componentKey: field.componentKey ?? undefined,
+    infoCardListType: field.infoCardListType ?? undefined,
+    infoCardListMarker: field.infoCardListMarker ?? undefined,
+    infoCardDownloadIcon: field.infoCardDownloadIcon ?? undefined,
+    fileDownloadLabel: field.fileDownloadLabel ?? undefined,
+    fileDownloadIcon: field.fileDownloadIcon ?? undefined,
+    uploadDocumentSetting: field.uploadDocumentSetting ?? undefined,
+    downloadDocumentSetting: field.downloadDocumentSetting ?? undefined,
+    staticContent: field.staticContent ?? undefined,
+    sourceFieldSchemaName: field.sourceFieldSchemaName ?? undefined,
+  };
 }
 
 function asJson(value: Record<string, string> | undefined): string | undefined {
@@ -226,6 +274,7 @@ export class FormSaveService {
           gridCardIcon: field.gridCardIcon,
           gridPageSize: field.gridPageSize,
           gridPagingStyle: field.gridPagingStyle,
+          ...toDisplayAndDocumentProperties(field),
         });
         resolvedIds[tempFieldId] = realId;
 
@@ -350,6 +399,7 @@ export class FormSaveService {
           gridCardIcon: field.gridCardIcon,
           gridPageSize: field.gridPageSize,
           gridPagingStyle: field.gridPagingStyle,
+          ...toDisplayAndDocumentProperties(field),
         });
 
         // Step 4b: Sync options for dirty dropdown/multi_select/radio fields
