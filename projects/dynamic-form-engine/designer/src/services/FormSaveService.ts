@@ -468,7 +468,8 @@ export class FormSaveService {
         name: form.name,
         code: form.code,
         description: form.description,
-        formType: form.formType,
+        // FR-CSE-019: an org without qdb_form_type rejects any write naming it.
+        formType: form.isFormTypeAvailable === true ? form.formType : undefined,
         allowSaveDraft: form.allowSaveDraft,
         draftExpiryDays: form.draftExpiryDays,
         showSummaryStep: form.showSummaryStep,

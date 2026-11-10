@@ -4,11 +4,11 @@
  *
  * @module regression-gate/lib/normalise
  */
-import { DEFAULT_VOLATILE_STAMPS } from './volatile-stamps.mjs';
+import { DEFAULT_VOLATILE_STAMPS, ROOT_VOLATILE_STAMPS } from './volatile-stamps.mjs';
 
 /**
- * Returns a deep copy of parsedJson with all volatile stamp keys removed at every
- * level of the object graph.
+ * Returns a deep copy of parsedJson with volatile stamp keys removed: the root stamps
+ * from the form root only, the default and extra stamps at every level.
  *
  * @param {unknown} parsedJson - Any JSON value.
  * @param {readonly string[]} [extraStamps] - Additional key names to strip beyond the defaults.
@@ -16,7 +16,18 @@ import { DEFAULT_VOLATILE_STAMPS } from './volatile-stamps.mjs';
  */
 export function normalise(parsedJson, extraStamps = []) {
   const stampSet = new Set([...DEFAULT_VOLATILE_STAMPS, ...extraStamps]);
-  return stripStamps(parsedJson, stampSet);
+  const stripped = stripStamps(parsedJson, stampSet);
+  return stripRootStamps(stripped);
+}
+
+/**
+ * @param {unknown} value
+ * @returns {unknown}
+ */
+function stripRootStamps(value) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return value;
+  const rootStamps = new Set(ROOT_VOLATILE_STAMPS);
+  return Object.fromEntries(Object.entries(value).filter(([key]) => !rootStamps.has(key)));
 }
 
 /**

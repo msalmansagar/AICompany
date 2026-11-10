@@ -67,6 +67,35 @@ describe('FormDefinitionService — form type', () => {
     expect(queries[queries.length - 1]).not.toContain(FORM_DEFINITION_ATTRS.FORM_TYPE);
   });
 
+  it('getFormWithEtag_columnDeployed_marksFormTypeAvailable', async () => {
+    const service = new FormDefinitionService(webApiWith(async () => FORM_RECORD));
+
+    const { model } = await service.getFormWithEtag(FORM_ID);
+
+    expect(model.isFormTypeAvailable).toBe(true);
+  });
+
+  it('getFormWithEtag_columnMissingOnOrg_marksFormTypeUnavailable', async () => {
+    const service = new FormDefinitionService(webApiWith(async (query) => {
+      if (query.includes(FORM_DEFINITION_ATTRS.FORM_TYPE)) {
+        throw new Error(`Could not find a property named '${FORM_DEFINITION_ATTRS.FORM_TYPE}'`);
+      }
+      return FORM_RECORD;
+    }));
+
+    const { model } = await service.getFormWithEtag(FORM_ID);
+
+    expect(model.isFormTypeAvailable).toBe(false);
+  });
+
+  it('getFormWithEtag_networkFailure_propagatesInsteadOfFallingBack', async () => {
+    const retrieve = vi.fn(async () => { throw new Error('Request failed (403)'); });
+    const service = new FormDefinitionService(webApiWith(retrieve));
+
+    await expect(service.getFormWithEtag(FORM_ID)).rejects.toThrow(/403/);
+    expect(retrieve).toHaveBeenCalledTimes(1);
+  });
+
   it('getForm_columnDeployedButEmpty_leavesTypeUnset', async () => {
     const service = new FormDefinitionService(webApiWith(async () => FORM_RECORD));
 

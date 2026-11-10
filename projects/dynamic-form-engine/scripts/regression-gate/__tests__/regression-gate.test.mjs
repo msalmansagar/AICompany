@@ -149,6 +149,12 @@ describe('normalise', () => {
     assert.deepEqual(normalise(republished), normalise(baseline));
   });
 
+  it('keeps a nested version key, which is content rather than a publish stamp', () => {
+    const baseline = { version: 3, tabs: [{ version: 1 }] };
+    const changed = { version: 4, tabs: [{ version: 2 }] };
+    assert.notDeepEqual(normalise(changed), normalise(baseline));
+  });
+
   it('strips all default volatile stamp variants (camelCase, snake_case, qdb_ prefix)', () => {
     const input = {
       qdb_published_on: '2026-11-09',

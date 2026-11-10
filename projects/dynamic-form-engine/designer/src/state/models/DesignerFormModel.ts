@@ -31,6 +31,9 @@ export interface DesignerFormModel {
   // FR-CSE-019: undefined until a maker chooses a type; undefined behaves as Standard and is
   // never written, because qdb_form_type is not provisioned on every org.
   formType?: FormType;
+  // True only when the form was loaded from an org that has qdb_form_type. A new, never-loaded
+  // form is unknown, so the type is neither offered nor written until the form is reopened.
+  isFormTypeAvailable?: boolean;
   themeId: string | null;
   allowSaveDraft: boolean;
   draftExpiryDays: number | null;

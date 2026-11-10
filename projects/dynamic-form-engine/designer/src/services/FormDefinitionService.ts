@@ -12,7 +12,7 @@ import {
 } from '@/constants/attributeNames';
 import type { DesignerFormModel, FormStatus } from '@/state/models/DesignerFormModel';
 import type { FormType, SummaryMode } from '@qdb/shared';
-import { withRetry } from './crmRetry';
+import { isMissingColumnError, withRetry } from './crmRetry';
 
 const FORM_SELECT_COLUMNS = [
   FORM_DEFINITION_ATTRS.ID,
@@ -43,12 +43,10 @@ const FORM_SELECT_COLUMNS = [
   FORM_DEFINITION_ATTRS.MODIFIED_ON,
 ];
 
-// Widest first. qdb_form_type (FR-CSE-019) is not provisioned on every org, and naming a
-// missing column fails the whole retrieve, so an org without it loads the form untyped.
-const FORM_SELECT_TIERS = [
-  [...FORM_SELECT_COLUMNS, FORM_DEFINITION_ATTRS.FORM_TYPE],
-  FORM_SELECT_COLUMNS,
-];
+interface RetrievedFormRecord {
+  record: Record<string, unknown>;
+  isFormTypeAvailable: boolean;
+}
 
 function readFormType(record: Record<string, unknown>): FormType | undefined {
   const raw = record[FORM_DEFINITION_ATTRS.FORM_TYPE];
@@ -203,17 +201,17 @@ export class FormDefinitionService {
   }
 
   async getForm(id: string): Promise<DesignerFormModel> {
-    const record = await this.retrieveFormRecord(id, 'getForm');
-    return this.mapRecordToModel(record);
+    const retrieved = await this.retrieveFormRecord(id, 'getForm');
+    return this.mapRecordToModel(retrieved);
   }
 
   /** Returns the form model together with its current @odata.etag for optimistic concurrency. */
   async getFormWithEtag(id: string): Promise<{ model: DesignerFormModel; etag: string | null }> {
-    const record = await this.retrieveFormRecord(id, 'getFormWithEtag');
-    const rawEtag = record['@odata.etag'];
+    const retrieved = await this.retrieveFormRecord(id, 'getFormWithEtag');
+    const rawEtag = retrieved.record['@odata.etag'];
     const etag = typeof rawEtag === 'string' ? rawEtag : null;
 
-    return { model: this.mapRecordToModel(record), etag };
+    return { model: this.mapRecordToModel(retrieved), etag };
   }
 
   async listForms(filter?: FormListFilter): Promise<FormSummary[]> {
@@ -271,24 +269,27 @@ export class FormDefinitionService {
     );
   }
 
-  /** Retrieves the form with the widest column set this environment accepts. */
-  private async retrieveFormRecord(id: string, operation: string): Promise<Record<string, unknown>> {
+  /**
+   * Retrieves the form, with qdb_form_type when this org has it. The column (FR-CSE-019)
+   * is not provisioned everywhere, and naming a missing column fails the whole retrieve,
+   * so only that specific error falls back; every other failure propagates.
+   */
+  private async retrieveFormRecord(id: string, operation: string): Promise<RetrievedFormRecord> {
     const retrieveWith = (columns: string[]) =>
       withRetry(
         () => this.webApi.retrieveRecord(ENTITY_NAMES.FORM_DEFINITION, id, `?$select=${columns.join(',')}`),
         operation,
       );
-    for (const columns of FORM_SELECT_TIERS.slice(0, -1)) {
-      try {
-        return await retrieveWith(columns);
-      } catch {
-        // A column in this tier is not deployed here; try the next, narrower tier.
-      }
+    try {
+      const record = await retrieveWith([...FORM_SELECT_COLUMNS, FORM_DEFINITION_ATTRS.FORM_TYPE]);
+      return { record, isFormTypeAvailable: true };
+    } catch (error) {
+      if (!isMissingColumnError(error)) throw error;
     }
-    return retrieveWith(FORM_SELECT_TIERS[FORM_SELECT_TIERS.length - 1]!);
+    return { record: await retrieveWith(FORM_SELECT_COLUMNS), isFormTypeAvailable: false };
   }
 
-  private mapRecordToModel(record: Record<string, unknown>): DesignerFormModel {
+  private mapRecordToModel({ record, isFormTypeAvailable }: RetrievedFormRecord): DesignerFormModel {
     return {
       id: String(record[FORM_DEFINITION_ATTRS.ID] ?? ''),
       name: String(record[FORM_DEFINITION_ATTRS.NAME] ?? ''),
@@ -308,6 +309,7 @@ export class FormDefinitionService {
       status: picklistToStatus(record[FORM_DEFINITION_ATTRS.STATUS]),
       currentVersion: versionToString(record[FORM_DEFINITION_ATTRS.CURRENT_VERSION]),
       formType: readFormType(record),
+      isFormTypeAvailable,
       themeId: null,
       allowSaveDraft: record[FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT] !== false,
       draftExpiryDays: record[FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS] != null

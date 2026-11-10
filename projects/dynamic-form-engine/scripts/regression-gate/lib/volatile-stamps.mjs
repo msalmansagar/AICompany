@@ -13,14 +13,17 @@
  * @module regression-gate/lib/volatile-stamps
  */
 
+/**
+ * The keys the C# publisher actually emits on the form root (FormDefinitionModel.cs).
+ * Re-publishing bumps `version`, and `modifiedAt` moves with any definition save. They
+ * are stripped at the root only: a nested key of the same name would be real content.
+ *
+ * @type {readonly string[]}
+ */
+export const ROOT_VOLATILE_STAMPS = Object.freeze(['version', 'modifiedAt']);
+
 /** @type {readonly string[]} */
 export const DEFAULT_VOLATILE_STAMPS = Object.freeze([
-  // The keys the C# publisher actually emits (FormDefinitionModel.cs). Re-publishing
-  // bumps `version`, and `modifiedAt` moves with any definition save. Neither key is
-  // used below the form root, so stripping them at every depth hides no content.
-  'version',
-  'modifiedAt',
-
   // Defensive aliases: not emitted today, enrolled so a future generator stamp under
   // one of these names cannot fail the gate on its own.
   // Timestamps written by the publish plugin on every re-publish.

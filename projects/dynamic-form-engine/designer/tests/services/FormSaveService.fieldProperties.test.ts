@@ -10,13 +10,15 @@ import { describe, it, expect, vi } from 'vitest';
 import { FormSaveService } from '@/services/FormSaveService';
 import { DEFAULT_DESIGN_PAYLOAD } from '@/state/designerStore';
 import {
+  FORM_DEFINITION_ATTRS,
   FORM_FIELD_ATTRS,
+  FORM_TYPE_TO_PICKLIST,
   FILE_CAPTURE_MODE_TO_PICKLIST,
   NUMBER_DISPLAY_STYLE_TO_PICKLIST,
   RADIO_RENDER_STYLE_TO_PICKLIST,
 } from '@/constants/formAttributeNames';
 import type { IWebApiAdapter } from '@/services/IWebApiAdapter';
-import type { DesignerFieldModel } from '@/state/models/DesignerFormModel';
+import type { DesignerFieldModel, DesignerFormModel } from '@/state/models/DesignerFormModel';
 
 type SaveableState = Parameters<FormSaveService['save']>[0];
 
@@ -181,6 +183,37 @@ function fieldPayloadSentBy(mock: unknown): Record<string, unknown> {
   if (!fieldCall) throw new Error('No qdb_form_field write was made');
   return fieldCall[fieldCall.length - 1] as Record<string, unknown>;
 }
+
+describe('FormSaveService — form type write guard (FR-CSE-019)', () => {
+  function formPatch(webApi: IWebApiAdapter): Record<string, unknown> {
+    const call = (webApi.updateRecordConditional as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    return call[2] as Record<string, unknown>;
+  }
+
+  function stateWithFormType(form: Partial<DesignerFormModel>): SaveableState {
+    const base = makeState(makeField(EXISTING_FIELD_ID), {});
+    if (!base.form) throw new Error('makeState must provide a form');
+    return { ...base, form: { ...base.form, ...form } };
+  }
+
+  it('save_typeChosenButColumnUnavailable_sendsNoFormType', async () => {
+    // A maker can pick a type on an org that has no qdb_form_type column; naming it
+    // would make that org reject the whole save of an existing form.
+    const webApi = makeWebApi();
+
+    await makeSaveService(webApi).save(stateWithFormType({ formType: 'Standard', isFormTypeAvailable: false }));
+
+    expect(formPatch(webApi)).not.toHaveProperty(FORM_DEFINITION_ATTRS.FORM_TYPE);
+  });
+
+  it('save_surveyWithColumnAvailable_sendsSurvey', async () => {
+    const webApi = makeWebApi();
+
+    await makeSaveService(webApi).save(stateWithFormType({ formType: 'Survey', isFormTypeAvailable: true }));
+
+    expect(formPatch(webApi)[FORM_DEFINITION_ATTRS.FORM_TYPE]).toBe(FORM_TYPE_TO_PICKLIST.Survey);
+  });
+});
 
 describe('FormSaveService — field properties reach FieldService (FR-CSE-024)', () => {
   it('createField_newFieldWithAllProperties_persistsEveryProperty', async () => {

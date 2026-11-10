@@ -104,9 +104,12 @@ export function FormProperties(): React.ReactElement {
           unwritten, so standard forms on an org without the column keep saving. */}
       <Field
         label="Form Type"
-        hint="Survey forms are sent to customers by the Survey Engine and need an srv_ code."
+        hint={form.isFormTypeAvailable === true
+          ? 'Survey forms are sent to customers by the Survey Engine and need an srv_ code.'
+          : 'Not available: this org has no Form Type column yet, or the form has not been saved and reopened.'}
       >
         <Dropdown
+          disabled={form.isFormTypeAvailable !== true}
           selectedOptions={[form.formType ?? 'Standard']}
           value={form.formType ?? 'Standard'}
           onOptionSelect={(_, data) => updateForm({ formType: data.optionValue as FormType })}
