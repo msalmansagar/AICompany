@@ -38,6 +38,7 @@ namespace Qdb.SurveyEngine.Integration
     public sealed class SurveyQuestion
     {
         private const char MultiValueSeparator = ',';
+        private static readonly HashSet<string> NumericFieldTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "number", "decimal", "currency" };
         private readonly Dictionary<string, string> _optionLabels;
 
         internal SurveyQuestion(RuntimeField field, int order)
@@ -45,6 +46,8 @@ namespace Qdb.SurveyEngine.Integration
             Code = field.SchemaName;
             Label = field.Label;
             Order = order;
+            // Only a star rating or a number question is a score; a choice's option code ("1" = Portal) is not.
+            IsScored = string.Equals(field.RadioRenderStyle, "rating", StringComparison.OrdinalIgnoreCase) || NumericFieldTypes.Contains(field.FieldType ?? string.Empty);
             _optionLabels = (field.Options ?? new List<RuntimeOption>()).Where(o => o.Value != null)
                 .GroupBy(o => o.Value, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First().Label, StringComparer.Ordinal);
         }
@@ -53,9 +56,12 @@ namespace Qdb.SurveyEngine.Integration
         public string Label { get; }
         public int Order { get; }
 
+        /// <summary>True for a star rating or a number question, whose answer is also stored as a number for charts.</summary>
+        public bool IsScored { get; }
+
         /// <summary>
-        /// The answer row: option values become their labels (several are comma-separated), and a single
-        /// numeric value, such as a star rating, is also kept as a number so it can be charted.
+        /// The answer row: option values become their labels (several are comma-separated), and a scored
+        /// question's value, such as a star rating, is also kept as a number so it can be charted.
         /// </summary>
         public AnswerRow Answer(string value) => new AnswerRow
         {
@@ -63,7 +69,7 @@ namespace Qdb.SurveyEngine.Integration
             QuestionLabel = Label,
             QuestionOrder = Order,
             AnswerText = DisplayText(value),
-            AnswerNumeric = decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var number) ? number : (decimal?)null,
+            AnswerNumeric = IsScored && decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var number) ? number : (decimal?)null,
         };
 
         private string DisplayText(string value)
@@ -100,6 +106,8 @@ namespace Qdb.SurveyEngine.Integration
         [DataMember(Name = "schemaName")] public string SchemaName { get; set; }
         [DataMember(Name = "label")] public string Label { get; set; }
         [DataMember(Name = "displayOrder")] public int DisplayOrder { get; set; }
+        [DataMember(Name = "fieldType")] public string FieldType { get; set; }
+        [DataMember(Name = "radioRenderStyle")] public string RadioRenderStyle { get; set; }
         [DataMember(Name = "options")] public List<RuntimeOption> Options { get; set; }
     }
 

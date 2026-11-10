@@ -12,12 +12,12 @@ const PENDING = 100000000;
 /** Public views. Columns are [logicalName, width]; `links` add columns from a related table. */
 export const VIEWS = Object.freeze([
   {
-    table: 'qdb_survey_response', name: 'Survey Responses - All', description: 'Every submitted response, newest first (FR-CSE-057).',
+    table: 'qdb_survey_response', name: 'Survey Responses - All', description: 'Every submitted response, newest first (FR-CSE-057).', isDefault: true,
     columns: [['qdb_name', 220], ['qdb_survey_setup_id', 180], ['qdb_customer_id', 200], ['qdb_submitted_on', 140], ['qdb_form_code', 170], ['qdb_language_code', 80], ['qdb_source_table', 170]],
     order: { attribute: 'qdb_submitted_on', descending: true },
   },
   {
-    table: 'qdb_survey_answer', name: 'Survey Answers - All', description: 'One row per answered question, with its setup, customer and date (FR-CSE-057).',
+    table: 'qdb_survey_answer', name: 'Survey Answers - All', description: 'One row per answered question, with its setup, customer and date (FR-CSE-057).', isDefault: true,
     columns: [['qdb_survey_response_id', 200], ['qdb_question_order', 70], ['qdb_question_label', 280], ['qdb_answer_text', 240], ['qdb_answer_numeric', 90]],
     links: [{ alias: 'response', table: 'qdb_survey_response', lookup: 'qdb_survey_response_id', columns: [['qdb_survey_setup_id', 170], ['qdb_customer_id', 180], ['qdb_submitted_on', 130]] }],
     order: { attribute: 'qdb_question_order', descending: false },
@@ -28,12 +28,12 @@ export const VIEWS = Object.freeze([
     filters: [['qdb_status', 'eq', PENDING]], order: { attribute: 'qdb_generated_on', descending: true },
   },
   {
-    table: 'qdb_survey_invitation', name: 'Survey Invitations - All', description: 'Every invitation with its status.',
+    table: 'qdb_survey_invitation', name: 'Survey Invitations - All', description: 'Every invitation with its status.', isDefault: true,
     columns: [['qdb_name', 240], ['qdb_customer_id', 200], ['qdb_survey_setup_id', 180], ['qdb_status', 100], ['qdb_channel', 100], ['qdb_generated_on', 140], ['qdb_expires_on', 140]],
     order: { attribute: 'qdb_generated_on', descending: true },
   },
   {
-    table: 'qdb_survey_suppression_log', name: 'Survey Suppressions - Last 30 Days', description: 'Why triggers did not send, last 30 days (NFR-CSE-001).',
+    table: 'qdb_survey_suppression_log', name: 'Survey Suppressions - Last 30 Days', description: 'Why triggers did not send, last 30 days (NFR-CSE-001).', isDefault: true,
     columns: [['qdb_logged_on', 140], ['qdb_reason', 140], ['qdb_customer_id', 200], ['qdb_survey_setup_id', 180], ['qdb_detail', 400]],
     filters: [['qdb_logged_on', 'last-x-days', 30]], order: { attribute: 'qdb_logged_on', descending: true },
   },

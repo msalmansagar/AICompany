@@ -257,6 +257,14 @@ namespace Qdb.SurveyEngine.Tests
         }
 
         [Fact]
+        public void Submit_ChoiceThatIsNotARating_StoresNoNumber()
+        {
+            Submit(ForCustomer(CustomerId), @"[{""questionCode"":""srv_channel"",""value"":""1""}]");
+
+            Assert.Null(_store.Responses.Single().Answers.Single().AnswerNumeric);
+        }
+
+        [Fact]
         public void Submit_SeveralOptions_JoinsTheirLabels()
         {
             Submit(ForCustomer(CustomerId), @"[{""questionCode"":""srv_channel"",""value"":""1,2""}]");

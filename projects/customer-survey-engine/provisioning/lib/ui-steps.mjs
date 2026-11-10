@@ -31,8 +31,10 @@ export async function ensureViews({ client, views, isApply, report }) {
     const existing = await findView(client, view);
     report(existing ? 'update' : 'create', `view ${view.table} "${view.name}"`);
     if (!isApply) continue;
-    if (existing) await client.send('PATCH', `savedqueries(${existing.savedqueryid})`, { fetchxml: payload.fetchxml, layoutxml: payload.layoutxml, description: payload.description });
-    else await client.send('POST', 'savedqueries', payload);
+    const id = existing ? existing.savedqueryid : (await client.send('POST', 'savedqueries', payload)).entityId;
+    if (existing) await client.send('PATCH', `savedqueries(${id})`, { fetchxml: payload.fetchxml, layoutxml: payload.layoutxml, description: payload.description });
+    // Making a view the default unsets the platform's own "Active ..." default for that table.
+    if (view.isDefault) await client.send('PATCH', `savedqueries(${id})`, { isdefault: true });
   }
 }
 
