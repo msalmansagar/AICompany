@@ -1,7 +1,7 @@
 // Domain model for a form definition as held in the designer local state.
 // Temp IDs are prefixed with 'tmp_' until the record is persisted to CRM.
 
-import type { SummaryMode, GridValidationFormat } from '@qdb/shared';
+import type { SummaryMode, GridValidationFormat, FormType } from '@qdb/shared';
 
 export type { GridValidationFormat };
 
@@ -28,6 +28,9 @@ export interface DesignerFormModel {
   footerImageUrl?: string | null;
   status: FormStatus;
   currentVersion: string;
+  // FR-CSE-019: undefined until a maker chooses a type; undefined behaves as Standard and is
+  // never written, because qdb_form_type is not provisioned on every org.
+  formType?: FormType;
   themeId: string | null;
   allowSaveDraft: boolean;
   draftExpiryDays: number | null;

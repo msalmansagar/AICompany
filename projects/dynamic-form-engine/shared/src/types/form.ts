@@ -12,6 +12,9 @@ export type FieldType =
 // DFE-FBE-001: form-level summary behaviour (None | SystemGenerated | Manual).
 export type SummaryMode = 'None' | 'SystemGenerated' | 'Manual';
 
+/** FR-CSE-019: a Survey form submits to the survey response tables; absent means Standard. */
+export type FormType = 'Standard' | 'Survey';
+
 export interface ValidationRule {
   ruleId: string;
   ruleType: string;
@@ -453,6 +456,8 @@ export interface FormDefinition {
   displayName: string;
   description: string;
   version: number;
+  // FR-CSE-019: absent on every form published before survey support ⇒ Standard.
+  formType?: FormType;
   allowSaveDraft: boolean;
   showSummaryStep?: boolean;
   // DFE-FBE-001: None | SystemGenerated | Manual (undefined → derive from showSummaryStep).

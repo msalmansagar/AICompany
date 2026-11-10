@@ -39,6 +39,9 @@ export type FieldType =
 // Manual = the designer builds a summary tab (isSummaryTab) from Label fields.
 export type SummaryMode = 'None' | 'SystemGenerated' | 'Manual';
 
+/** FR-CSE-019: a Survey form submits to the survey response tables; absent means Standard. */
+export type FormType = 'Standard' | 'Survey';
+
 export type ValidationRuleType =
   | 'required'
   | 'minLength'
@@ -840,6 +843,8 @@ export interface FormDefinition {
   description?: string;
   status: FormStatus;
   version: number;
+  // FR-CSE-019: absent on every form published before survey support ⇒ Standard.
+  formType?: FormType;
   /** Fluent icon name shown beside the title. Ignored when imageUrl is set. */
   iconName?: string;
   /** Absolute https image shown beside the title, in place of the icon. */

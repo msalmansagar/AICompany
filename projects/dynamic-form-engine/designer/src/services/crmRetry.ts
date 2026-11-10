@@ -11,11 +11,15 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// Xrm.WebApi reports a column this org has not provisioned without an HTTP status in the
+// message. It is as permanent as a 4xx, and column-tier fallbacks hit it on every load.
+const MISSING_COLUMN_PATTERN = /Could not find a property named|0x80060888/;
+
 // 4xx errors are deterministic client mistakes — retrying won't help.
 function isClientError(error: unknown): boolean {
   if (error == null || typeof error !== 'object') return false;
   const msg = String((error as Record<string, unknown>).message ?? '');
-  return /\(4\d{2}\)/.test(msg);
+  return /\(4\d{2}\)/.test(msg) || MISSING_COLUMN_PATTERN.test(msg);
 }
 
 export class CrmApiError extends Error {

@@ -17,12 +17,13 @@ import {
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
-import type { SummaryMode } from '@qdb/shared';
+import type { FormType, SummaryMode } from '@qdb/shared';
 import { isRenderableImageUrl } from '@qdb/shared';
 import { useDesignerStore } from '@/state/designerStore';
 import { SUBMIT_CONFIRMATION_LABEL_MAX_LENGTH } from '@/constants/columnLimits';
 import { EntityCombobox } from '@/components/EntityCombobox';
 import { TranslationsPanel } from '@/designer/properties/panels/TranslationsPanel';
+import { findSurveyCodeError } from '@/validation/surveyFormCode';
 
 // DFE-FBE-001: display label for a summary mode value.
 function summaryModeLabel(mode: SummaryMode): string {
@@ -85,6 +86,8 @@ export function FormProperties(): React.ReactElement {
 
   if (!form) return <></>;
 
+  const surveyCodeError = findSurveyCodeError(form);
+
   return (
     <div className={styles.form}>
       <SectionHeading label="Identity" />
@@ -97,10 +100,28 @@ export function FormProperties(): React.ReactElement {
         />
       </Field>
 
+      {/* FR-CSE-019: survey forms submit to the survey response tables. Undefined stays
+          unwritten, so standard forms on an org without the column keep saving. */}
+      <Field
+        label="Form Type"
+        hint="Survey forms are sent to customers by the Survey Engine and need an srv_ code."
+      >
+        <Dropdown
+          selectedOptions={[form.formType ?? 'Standard']}
+          value={form.formType ?? 'Standard'}
+          onOptionSelect={(_, data) => updateForm({ formType: data.optionValue as FormType })}
+        >
+          <Option value="Standard">Standard</Option>
+          <Option value="Survey">Survey</Option>
+        </Dropdown>
+      </Field>
+
       <Field
         label="Form Code"
         required
-        hint="Unique identifier. Lowercase letters, numbers, underscores only."
+        hint={surveyCodeError ? undefined : 'Unique identifier. Lowercase letters, numbers, underscores only.'}
+        validationState={surveyCodeError ? 'error' : 'none'}
+        validationMessage={surveyCodeError ?? undefined}
       >
         <Input
           value={form.code}

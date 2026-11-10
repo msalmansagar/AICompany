@@ -7,10 +7,53 @@ import {
   STATUS_TO_PICKLIST,
   SUMMARY_MODE_TO_PICKLIST,
   PICKLIST_TO_SUMMARY_MODE,
+  FORM_TYPE_TO_PICKLIST,
+  PICKLIST_TO_FORM_TYPE,
 } from '@/constants/attributeNames';
 import type { DesignerFormModel, FormStatus } from '@/state/models/DesignerFormModel';
-import type { SummaryMode } from '@qdb/shared';
+import type { FormType, SummaryMode } from '@qdb/shared';
 import { withRetry } from './crmRetry';
+
+const FORM_SELECT_COLUMNS = [
+  FORM_DEFINITION_ATTRS.ID,
+  FORM_DEFINITION_ATTRS.NAME,
+  FORM_DEFINITION_ATTRS.CODE,
+  FORM_DEFINITION_ATTRS.DESCRIPTION,
+  FORM_DEFINITION_ATTRS.ENTITY_LOGICAL_NAME,
+  FORM_DEFINITION_ATTRS.ICON_NAME,
+  FORM_DEFINITION_ATTRS.IMAGE_URL,
+  FORM_DEFINITION_ATTRS.HEADER_TEXT,
+  FORM_DEFINITION_ATTRS.HEADER_IMAGE_URL,
+  FORM_DEFINITION_ATTRS.FOOTER_TEXT,
+  FORM_DEFINITION_ATTRS.FOOTER_IMAGE_URL,
+  FORM_DEFINITION_ATTRS.STATUS,
+  FORM_DEFINITION_ATTRS.CURRENT_VERSION,
+  FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT,
+  FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS,
+  FORM_DEFINITION_ATTRS.SHOW_SUMMARY_STEP,
+  FORM_DEFINITION_ATTRS.SUMMARY_MODE,
+  FORM_DEFINITION_ATTRS.SHOW_PROGRESS_BAR,
+  FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID,
+  FORM_DEFINITION_ATTRS.CONFIRMATION_MESSAGE,
+  FORM_DEFINITION_ATTRS.CONFIRMATION_RECORD_REF_ATTRIBUTE,
+  FORM_DEFINITION_ATTRS.ACCESS_GROUP_ID,
+  FORM_DEFINITION_ATTRS.CREATED_BY,
+  FORM_DEFINITION_ATTRS.CREATED_ON,
+  FORM_DEFINITION_ATTRS.MODIFIED_BY,
+  FORM_DEFINITION_ATTRS.MODIFIED_ON,
+];
+
+// Widest first. qdb_form_type (FR-CSE-019) is not provisioned on every org, and naming a
+// missing column fails the whole retrieve, so an org without it loads the form untyped.
+const FORM_SELECT_TIERS = [
+  [...FORM_SELECT_COLUMNS, FORM_DEFINITION_ATTRS.FORM_TYPE],
+  FORM_SELECT_COLUMNS,
+];
+
+function readFormType(record: Record<string, unknown>): FormType | undefined {
+  const raw = record[FORM_DEFINITION_ATTRS.FORM_TYPE];
+  return raw != null ? PICKLIST_TO_FORM_TYPE[Number(raw)] : undefined;
+}
 
 export interface CreateFormDto {
   name: string;
@@ -33,6 +76,7 @@ export interface UpdateFormDto {
   footerImageUrl?: string | null;
   status?: FormStatus;
   currentVersion?: string;
+  formType?: FormType;
   themeId?: string | null;
   allowSaveDraft?: boolean;
   draftExpiryDays?: number | null;
@@ -110,6 +154,7 @@ export class FormDefinitionService {
     if (dto.currentVersion !== undefined) {
       data[FORM_DEFINITION_ATTRS.CURRENT_VERSION] = parseInt(dto.currentVersion, 10) || 1;
     }
+    if (dto.formType !== undefined) data[FORM_DEFINITION_ATTRS.FORM_TYPE] = FORM_TYPE_TO_PICKLIST[dto.formType];
     if (dto.allowSaveDraft !== undefined) data[FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT] = dto.allowSaveDraft;
     if (dto.draftExpiryDays !== undefined) data[FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS] = dto.draftExpiryDays;
     if (dto.showSummaryStep !== undefined) data[FORM_DEFINITION_ATTRS.SHOW_SUMMARY_STEP] = dto.showSummaryStep;
@@ -158,79 +203,13 @@ export class FormDefinitionService {
   }
 
   async getForm(id: string): Promise<DesignerFormModel> {
-    const select = [
-      FORM_DEFINITION_ATTRS.ID,
-      FORM_DEFINITION_ATTRS.NAME,
-      FORM_DEFINITION_ATTRS.CODE,
-      FORM_DEFINITION_ATTRS.DESCRIPTION,
-      FORM_DEFINITION_ATTRS.ENTITY_LOGICAL_NAME,
-      FORM_DEFINITION_ATTRS.ICON_NAME,
-      FORM_DEFINITION_ATTRS.IMAGE_URL,
-      FORM_DEFINITION_ATTRS.HEADER_TEXT,
-      FORM_DEFINITION_ATTRS.HEADER_IMAGE_URL,
-      FORM_DEFINITION_ATTRS.FOOTER_TEXT,
-      FORM_DEFINITION_ATTRS.FOOTER_IMAGE_URL,
-      FORM_DEFINITION_ATTRS.STATUS,
-      FORM_DEFINITION_ATTRS.CURRENT_VERSION,
-      FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT,
-      FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS,
-      FORM_DEFINITION_ATTRS.SHOW_SUMMARY_STEP,
-      FORM_DEFINITION_ATTRS.SUMMARY_MODE,
-      FORM_DEFINITION_ATTRS.SHOW_PROGRESS_BAR,
-      FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID,
-      FORM_DEFINITION_ATTRS.CONFIRMATION_MESSAGE,
-      FORM_DEFINITION_ATTRS.CONFIRMATION_RECORD_REF_ATTRIBUTE,
-      FORM_DEFINITION_ATTRS.ACCESS_GROUP_ID,
-      FORM_DEFINITION_ATTRS.CREATED_BY,
-      FORM_DEFINITION_ATTRS.CREATED_ON,
-      FORM_DEFINITION_ATTRS.MODIFIED_BY,
-      FORM_DEFINITION_ATTRS.MODIFIED_ON,
-    ].join(',');
-
-    const record = await withRetry(
-      () => this.webApi.retrieveRecord(ENTITY_NAMES.FORM_DEFINITION, id, `?$select=${select}`),
-      'getForm'
-    );
-
+    const record = await this.retrieveFormRecord(id, 'getForm');
     return this.mapRecordToModel(record);
   }
 
   /** Returns the form model together with its current @odata.etag for optimistic concurrency. */
   async getFormWithEtag(id: string): Promise<{ model: DesignerFormModel; etag: string | null }> {
-    const select = [
-      FORM_DEFINITION_ATTRS.ID,
-      FORM_DEFINITION_ATTRS.NAME,
-      FORM_DEFINITION_ATTRS.CODE,
-      FORM_DEFINITION_ATTRS.DESCRIPTION,
-      FORM_DEFINITION_ATTRS.ENTITY_LOGICAL_NAME,
-      FORM_DEFINITION_ATTRS.ICON_NAME,
-      FORM_DEFINITION_ATTRS.IMAGE_URL,
-      FORM_DEFINITION_ATTRS.HEADER_TEXT,
-      FORM_DEFINITION_ATTRS.HEADER_IMAGE_URL,
-      FORM_DEFINITION_ATTRS.FOOTER_TEXT,
-      FORM_DEFINITION_ATTRS.FOOTER_IMAGE_URL,
-      FORM_DEFINITION_ATTRS.STATUS,
-      FORM_DEFINITION_ATTRS.CURRENT_VERSION,
-      FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT,
-      FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS,
-      FORM_DEFINITION_ATTRS.SHOW_SUMMARY_STEP,
-      FORM_DEFINITION_ATTRS.SUMMARY_MODE,
-      FORM_DEFINITION_ATTRS.SHOW_PROGRESS_BAR,
-      FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID,
-      FORM_DEFINITION_ATTRS.CONFIRMATION_MESSAGE,
-      FORM_DEFINITION_ATTRS.CONFIRMATION_RECORD_REF_ATTRIBUTE,
-      FORM_DEFINITION_ATTRS.ACCESS_GROUP_ID,
-      FORM_DEFINITION_ATTRS.CREATED_BY,
-      FORM_DEFINITION_ATTRS.CREATED_ON,
-      FORM_DEFINITION_ATTRS.MODIFIED_BY,
-      FORM_DEFINITION_ATTRS.MODIFIED_ON,
-    ].join(',');
-
-    const record = await withRetry(
-      () => this.webApi.retrieveRecord(ENTITY_NAMES.FORM_DEFINITION, id, `?$select=${select}`),
-      'getFormWithEtag',
-    );
-
+    const record = await this.retrieveFormRecord(id, 'getFormWithEtag');
     const rawEtag = record['@odata.etag'];
     const etag = typeof rawEtag === 'string' ? rawEtag : null;
 
@@ -292,6 +271,23 @@ export class FormDefinitionService {
     );
   }
 
+  /** Retrieves the form with the widest column set this environment accepts. */
+  private async retrieveFormRecord(id: string, operation: string): Promise<Record<string, unknown>> {
+    const retrieveWith = (columns: string[]) =>
+      withRetry(
+        () => this.webApi.retrieveRecord(ENTITY_NAMES.FORM_DEFINITION, id, `?$select=${columns.join(',')}`),
+        operation,
+      );
+    for (const columns of FORM_SELECT_TIERS.slice(0, -1)) {
+      try {
+        return await retrieveWith(columns);
+      } catch {
+        // A column in this tier is not deployed here; try the next, narrower tier.
+      }
+    }
+    return retrieveWith(FORM_SELECT_TIERS[FORM_SELECT_TIERS.length - 1]!);
+  }
+
   private mapRecordToModel(record: Record<string, unknown>): DesignerFormModel {
     return {
       id: String(record[FORM_DEFINITION_ATTRS.ID] ?? ''),
@@ -311,6 +307,7 @@ export class FormDefinitionService {
       footerImageUrl: readOptionalText(record, FORM_DEFINITION_ATTRS.FOOTER_IMAGE_URL),
       status: picklistToStatus(record[FORM_DEFINITION_ATTRS.STATUS]),
       currentVersion: versionToString(record[FORM_DEFINITION_ATTRS.CURRENT_VERSION]),
+      formType: readFormType(record),
       themeId: null,
       allowSaveDraft: record[FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT] !== false,
       draftExpiryDays: record[FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS] != null

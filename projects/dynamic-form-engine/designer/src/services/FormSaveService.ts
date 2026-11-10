@@ -468,6 +468,7 @@ export class FormSaveService {
         name: form.name,
         code: form.code,
         description: form.description,
+        formType: form.formType,
         allowSaveDraft: form.allowSaveDraft,
         draftExpiryDays: form.draftExpiryDays,
         showSummaryStep: form.showSummaryStep,

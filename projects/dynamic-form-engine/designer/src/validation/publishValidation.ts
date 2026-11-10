@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { DesignerState } from '@/state/designerStore';
 import { FIELD_TYPE } from '@/constants/fieldTypes';
 import type { ScopedButtonRecord } from '@/services/ScopedButtonDesignService';
+import { findSurveyCodeError } from './surveyFormCode';
 
 export interface ValidationIssue {
   code: string;
@@ -40,6 +41,11 @@ function validateFormBasics(state: DesignerState, issues: ValidationIssue[]): vo
   const codeResult = formCodeSchema.safeParse(state.form?.code ?? '');
   if (!codeResult.success) {
     issues.push({ code: 'PV-002', message: codeResult.error.errors[0]?.message ?? 'Invalid form code', severity: 'error' });
+  }
+
+  const surveyCodeError = state.form ? findSurveyCodeError(state.form) : null;
+  if (surveyCodeError) {
+    issues.push({ code: 'PV-014', message: surveyCodeError, severity: 'error' });
   }
 }
 

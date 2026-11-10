@@ -2,6 +2,7 @@
 // Less strict than publish validation — allows incomplete forms to be saved.
 
 import type { DesignerFormModel } from '@/state/models/DesignerFormModel';
+import { findSurveyCodeError } from './surveyFormCode';
 
 export interface DraftValidationResult {
   isValid: boolean;
@@ -18,6 +19,9 @@ export function validateForDraftSave(form: DesignerFormModel): DraftValidationRe
   if (!form.code || form.code.trim() === '') {
     errors.push('Form code is required before saving');
   }
+
+  const surveyCodeError = findSurveyCodeError(form);
+  if (surveyCodeError) errors.push(surveyCodeError);
 
   return {
     isValid: errors.length === 0,

@@ -244,6 +244,22 @@ describe('validateForPublish', () => {
     expect(result.issues.find(i => i.code === 'PV-002')).toBeDefined();
   });
 
+  it('validateForPublish_surveyWithoutSurveyPrefix_returnsPV014', () => {
+    const state = makeValidState({ form: makeForm({ formType: 'Survey', code: 'cust-001' }) });
+
+    const result = validateForPublish(state);
+
+    expect(result.issues.find(i => i.code === 'PV-014')?.severity).toBe('error');
+  });
+
+  it('validateForPublish_surveyWithSurveyPrefix_hasNoPV014', () => {
+    const state = makeValidState({ form: makeForm({ formType: 'Survey', code: 'srv-001' }) });
+
+    const result = validateForPublish(state);
+
+    expect(result.issues.find(i => i.code === 'PV-014')).toBeUndefined();
+  });
+
   it('validateForPublish_returnsError_whenFormCodeIsInvalid', () => {
     // Arrange — code contains punctuation the schema does not allow
     const state = makeValidState({

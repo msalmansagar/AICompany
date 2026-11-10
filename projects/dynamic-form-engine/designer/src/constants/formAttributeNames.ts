@@ -2,6 +2,8 @@
 // Split from attributeNames.ts (SC-09 — NFR-014 line-cap compliance).
 // Never use inline attribute name strings — always import from here or the barrel.
 
+import type { FormType } from '@qdb/shared';
+
 export const FORM_DEFINITION_ATTRS = {
   ID: 'qdb_form_definitionid',
   NAME: 'qdb_title',
@@ -23,6 +25,7 @@ export const FORM_DEFINITION_ATTRS = {
   SHOW_SUMMARY_STEP: 'qdb_show_summary_step',
   SUMMARY_MODE: 'qdb_summary_mode',                 // DFE-FBE-001 — Picklist, see SUMMARY_MODE_TO_PICKLIST
   SHOW_PROGRESS_BAR: 'qdb_show_progress_bar',        // DFE-FBE-002
+  FORM_TYPE: 'qdb_form_type',                        // FR-CSE-019 — Picklist, see FORM_TYPE_TO_PICKLIST
   POWER_AUTOMATE_FLOW_ID: 'qdb_power_automate_flow_id',
   CONFIRMATION_MESSAGE: 'qdb_confirmation_message',
   // DFE-SUBMITCONFIRM-001: acknowledgement gate (label present ⇒ gate active).
@@ -85,6 +88,15 @@ export const SUMMARY_MODE_TO_PICKLIST: Record<string, number> = {
 };
 export const PICKLIST_TO_SUMMARY_MODE: Record<number, 'None' | 'SystemGenerated' | 'Manual'> = {
   100000001: 'None', 100000002: 'SystemGenerated', 100000003: 'Manual',
+};
+
+// FR-CSE-019 — qdb_form_type picklist. Not yet provisioned on every org: never name the
+// column in a write unless a type was explicitly chosen (see FormDefinitionService).
+export const FORM_TYPE_TO_PICKLIST: Record<FormType, number> = {
+  Standard: 100000000, Survey: 100000001,
+};
+export const PICKLIST_TO_FORM_TYPE: Record<number, FormType> = {
+  100000000: 'Standard', 100000001: 'Survey',
 };
 
 // DFE-NUMBAR — number/decimal/currency display style — qdb_number_display_style picklist

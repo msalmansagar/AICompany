@@ -47,6 +47,17 @@ describe('withRetry', () => {
     expect(operation).toHaveBeenCalledTimes(4);
   });
 
+  it('withRetry_missingColumnError_doesNotRetry', async () => {
+    const operation = vi.fn().mockRejectedValue(new Error("Could not find a property named 'qdb_form_type'"));
+
+    const resultPromise = withRetry(operation, 'testOp');
+    const rejectCheck = expect(resultPromise).rejects.toBeInstanceOf(CrmApiError);
+    await vi.runAllTimersAsync();
+    await rejectCheck;
+
+    expect(operation).toHaveBeenCalledTimes(1);
+  });
+
   it('withRetry_CrmApiError_containsOperationName', async () => {
     const operation = vi.fn().mockRejectedValue(new Error('network error'));
 
