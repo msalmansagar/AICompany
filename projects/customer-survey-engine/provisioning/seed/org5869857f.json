@@ -1,14 +1,13 @@
 {
   "org": "https://org5869857f.crm4.dynamics.com",
-  "notes": "Per-org seed data (FR-CSE-005/006). Field names were read from this org's metadata on 2026-11-10. TO_CONFIRM rows are skipped by the provisioner until a person confirms the value.",
+  "notes": "Per-org seed data (FR-CSE-005/006). Field names were read from this org's metadata on 2026-11-10. TO_CONFIRM rows are skipped by the provisioner until a person confirms the value. Applications: customer = qdb_cif_no (user-confirmed 2026-11-10); its Digital/Legacy field is not yet known, so qdb_origin_field is left empty and must be set before the source is activated.",
   "sources": [
     {
       "qdb_name": "Applications",
       "qdb_table_logical_name": "qdb_loan_application",
-      "qdb_customer_lookup_field": "TO_CONFIRM",
+      "qdb_customer_lookup_field": "qdb_cif_no",
       "qdb_type_field": "qdb_loanappl_type",
       "qdb_status_field": "statuscode",
-      "qdb_origin_field": "TO_CONFIRM",
       "qdb_counts_toward_milestones": false,
       "qdb_is_active": false
     },
