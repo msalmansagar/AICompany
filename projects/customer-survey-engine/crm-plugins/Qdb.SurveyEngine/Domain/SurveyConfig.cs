@@ -113,6 +113,9 @@ namespace Qdb.SurveyEngine.Domain
 
         /// <summary>Delete or anonymise; null = not chosen, so the retention pass does nothing.</summary>
         public RetentionMode? RetentionMode { get; set; }
+
+        /// <summary>False until the NFR-CSE-009 security review signs off; every token request is refused while false.</summary>
+        public bool SecureLinkEnabled { get; set; }
     }
 
     /// <summary>qdb_survey_settings.qdb_retention_mode.</summary>

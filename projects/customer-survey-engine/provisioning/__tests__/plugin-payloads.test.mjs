@@ -14,6 +14,26 @@ test('buildCustomApiPayload_runDueSurveys_hasAnOptionalStringDateAndSummaryPlusI
   assert.deepEqual(payload.CustomAPIResponseProperties.map((p) => [p.uniquename, p.type]), [['Summary', 10], ['IsComplete', 0]]);
 });
 
+test('CUSTOM_APIS_integration_registersTheFourApisWithTheirPluginTypes', () => {
+  const names = ['qdb_srv_ListPendingSurveys', 'qdb_srv_GetSurvey', 'qdb_srv_SubmitResponse', 'qdb_srv_ValidateLinkToken'];
+
+  assert.deepEqual(names.map((name) => apiNamed(name)?.typeName.split('.').pop()),
+    ['ListPendingSurveysPlugin', 'GetSurveyPlugin', 'SubmitResponsePlugin', 'ValidateLinkTokenPlugin']);
+});
+
+test('buildCustomApiPayload_submitResponse_requiresAnswersJsonAndKeepsIdentificationOptional', () => {
+  const payload = buildCustomApiPayload(apiNamed('qdb_srv_SubmitResponse'), 'type-id');
+
+  assert.deepEqual(payload.CustomAPIRequestParameters.map((p) => [p.uniquename, p.isoptional]),
+    [['InvitationId', true], ['CallerCustomerId', true], ['Token', true], ['AnswersJson', false]]);
+});
+
+test('buildCustomApiPayload_getSurvey_returnsTheVersionAsAnInteger', () => {
+  const payload = buildCustomApiPayload(apiNamed('qdb_srv_GetSurvey'), 'type-id');
+
+  assert.equal(payload.CustomAPIResponseProperties.find((p) => p.uniquename === 'Version').type, 7);
+});
+
 test('describeSignature_runDueSurveys_listsInputsAndOutputs', () => {
   assert.equal(describeSignature(apiNamed('qdb_srv_RunDueSurveys')), 'RunDate → Summary, IsComplete');
 });

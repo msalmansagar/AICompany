@@ -2,9 +2,11 @@
 // qdb_GetPublishedFormJson action (CRM owns the cache lookup, active-version selection,
 // language fallback, and gzip decompression) and submits via direct Xrm.WebApi writes.
 // Same shape as the portal formApi ({ data } envelope) so the renderer is reused unchanged.
+// In survey mode (surveyApi.startSurvey) both calls go to the survey Custom APIs instead.
 import type { FormDefinition, FormFieldValues } from '@qdb/shared';
 import { executeUnboundAction } from './xrmClient';
 import { submitForm } from './submitEngine';
+import { fetchSurvey, getActiveSurvey, submitSurvey } from './surveyApi';
 
 const GET_PUBLISHED_FORM_JSON = 'qdb_GetPublishedFormJson';
 const LATEST_ACTIVE_VERSION = 0;
@@ -35,7 +37,8 @@ async function fetchPublishedJson(formCode: string, lang: string): Promise<strin
 
 export const formApi = {
   getMetadata: async (formCode: string, lang?: string) => {
-    const runtimeJson = await fetchPublishedJson(formCode, lang ?? 'en');
+    const survey = getActiveSurvey();
+    const runtimeJson = survey ? (await fetchSurvey(survey, lang ?? '')).runtimeJson : await fetchPublishedJson(formCode, lang ?? 'en');
     if (!runtimeJson) {
       throw new Error(`Form '${formCode}' has not been published. Publish it from the form record first.`);
     }
@@ -46,7 +49,8 @@ export const formApi = {
 
   submit: async (_formCode: string, data: FormFieldValues) => {
     if (!loadedForm) throw new Error('Form metadata is not loaded.');
-    const referenceNumber = await submitForm(loadedForm, data);
+    const survey = getActiveSurvey();
+    const referenceNumber = survey ? await submitSurvey(survey, loadedForm, data) : await submitForm(loadedForm, data);
     return wrap({ referenceNumber });
   },
 

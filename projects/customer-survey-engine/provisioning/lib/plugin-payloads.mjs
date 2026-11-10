@@ -59,7 +59,15 @@ export function buildPreImagePayload(statusField, stepId) {
 
 const CUSTOM_API_GLOBAL_BINDING = 0;
 const CUSTOM_API_NO_CUSTOM_STEPS = 0;
-const PARAMETER_TYPE = Object.freeze({ boolean: 0, string: 10, guid: 12 });
+const PARAMETER_TYPE = Object.freeze({ boolean: 0, integer: 7, string: 10, guid: 12 });
+
+const stringInput = (name, description, isOptional = true) => ({ name, displayName: name, description, type: PARAMETER_TYPE.string, isOptional });
+const stringOutput = (name, description) => ({ name, displayName: name, description, type: PARAMETER_TYPE.string });
+const INVITATION_INPUTS = Object.freeze([
+  stringInput('InvitationId', 'The invitation id (GUID); needs CallerCustomerId.'),
+  stringInput('CallerCustomerId', 'The authenticated customer\'s account id (GUID); the invitation must belong to it.'),
+  stringInput('Token', 'A secure-link token instead of InvitationId + CallerCustomerId.'),
+]);
 
 const SOURCE_ID_INPUT = Object.freeze({ name: 'SourceId', displayName: 'Source Id', description: 'The qdb_survey_source to act on.', type: PARAMETER_TYPE.guid, isOptional: false });
 const MESSAGE_OUTPUT = Object.freeze({ name: 'Message', displayName: 'Message', description: 'What was done.', type: PARAMETER_TYPE.string });
@@ -79,7 +87,31 @@ export const CUSTOM_APIS = Object.freeze([
       { name: 'Summary', displayName: 'Summary', description: 'What each pass did.', type: PARAMETER_TYPE.string },
       { name: 'IsComplete', displayName: 'Is Complete', description: 'False when the time budget ran out; call again.', type: PARAMETER_TYPE.boolean },
     ] },
+  integrationApi('qdb_srv_ListPendingSurveys', 'List Pending Surveys', 'ListPendingSurveysPlugin',
+    'A customer\'s open survey invitations with title and message in the requested language (FR-CSE-051, 047).',
+    [stringInput('CustomerId', 'The account id (GUID).', false), stringInput('Language', 'ar or en; empty = the org default.')],
+    [stringOutput('SurveysJson', 'JSON array of { invitationId, setupId, formCode, title, message, pinnedVersion, language, expiresOn, channel }.')]),
+  integrationApi('qdb_srv_GetSurvey', 'Get Survey', 'GetSurveyPlugin',
+    'The published survey JSON of an invitation\'s pinned version (FR-CSE-052). Give InvitationId + CallerCustomerId, or Token.',
+    [...INVITATION_INPUTS, stringInput('Language', 'ar or en; empty = the invitation\'s language.')],
+    [stringOutput('FormCode', 'The survey form code.'), { name: 'Version', displayName: 'Version', description: 'The pinned form version.', type: PARAMETER_TYPE.integer },
+      stringOutput('RenderedLanguage', 'The language returned.'), stringOutput('RuntimeJson', 'The DFE runtime JSON to render.')]),
+  integrationApi('qdb_srv_SubmitResponse', 'Submit Survey Response', 'SubmitResponsePlugin',
+    'Validates the invitation and writes one Response, its Answers and the answers JSON, then closes the invitation (FR-CSE-053, 056).',
+    [...INVITATION_INPUTS, stringInput('AnswersJson', 'JSON array of { questionCode, value } with value as text.', false)],
+    [stringOutput('ResponseId', 'The new response id.'), stringOutput('Status', 'submitted')]),
+  integrationApi('qdb_srv_ValidateLinkToken', 'Validate Survey Link Token', 'ValidateLinkTokenPlugin',
+    'The invitation a secure-link token unlocks, or why not: used, expired or unknown (FR-CSE-054).',
+    [stringInput('Token', 'The token from the link.', false)],
+    [{ name: 'Valid', displayName: 'Valid', description: 'True when the token opens an invitation.', type: PARAMETER_TYPE.boolean },
+      stringOutput('Reason', 'used, expired or unknown when not valid.'), stringOutput('InvitationId', 'The unlocked invitation.'),
+      stringOutput('SetupId', 'Its setup.'), stringOutput('FormCode', 'Its form code.'), stringOutput('Language', 'Its language.')]),
 ]);
+
+/** The integration APIs run as the calling user, so the Survey Integration role decides who may call them. */
+function integrationApi(uniqueName, displayName, pluginClass, description, inputs, outputs) {
+  return { uniqueName, displayName, typeName: `Qdb.SurveyEngine.Plugins.${pluginClass}`, description: `${description} Requires the Survey Integration role.`, inputs, outputs };
+}
 
 /** An unbound Custom API action, created with its parameters and properties in one deep insert. */
 export function buildCustomApiPayload(api, pluginTypeId) {
