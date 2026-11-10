@@ -652,4 +652,12 @@ These challenges must be addressed before Phase 4 begins.
 | Delete behaviour | Cascade only for setup→trigger, invitation→response, response→answer; RemoveLink elsewhere; never Restrict | Restrict would block the retention pass from deleting invitations. |
 | Primary name | Every survey table has `qdb_name` (200) | Dataverse requires a primary name column; runtime tables fill it with a readable summary. |
 | Integration role | Adds Read + AppendTo on `account`, Read on `qdb_form_render_cache` and `qdb_form_definition` | Linking an invitation to its customer needs AppendTo on account; the survey JSON and form type live in DFE tables. |
+| Plugin assembly (B2) | One signed net471 assembly `Qdb.SurveyEngine`, Xrm SDK only, company key; steps registered disabled until activation (B4) | No merge step; registering early has no effect on live saves. |
+| Record read (B2) | Plugin reads the record fresh as SYSTEM; pre-image carries only the status field | Works for any per-org field names; the saving user needs no survey privileges. |
+| Suppression reasons (B2) | Added No customer (100000007) and Form not published (100000008) | Otherwise those outcomes would be mislabelled or dropped silently (NFR-CSE-001). |
+| Fatigue (B3) | Blocks when the customer has a Pending, Submitted or Expired invitation generated within `qdb_fatigue_min_days` | Postponed and Discarded invitations were never sent. |
+| Priority (B3) | Lower wins; unset = milestone 0, others 100; ties milestone-first then trigger id | Milestones rank first by default (FR-CSE-043) and the order is deterministic. |
+| Milestone dedupe (B3) | Key `{setup}\|{customer}\|M{index}` | One invitation per index, whichever record reached it (FR-CSE-038). |
+| Milestone activation (B3) | Baseline counts records created before the setup's Active From, else before the trigger's creation | The schema has no activation timestamp; both are admin-visible. |
+| Milestone not reached (B3) | Traced, not logged | Most completions reach no milestone; logging each would bury real suppressions. |
 | Seed data | Per-org JSON (`provisioning/seed/<org>.json`); `TO_CONFIRM` rows are skipped, never guessed; existing rows are never overwritten | Field names differ per org (FR-CSE-006). On the cloud org the Applications customer field is `qdb_cif_no` (user-confirmed; the BRD's `qdb_customerid` was a mistake) and its Digital/Legacy field is still unknown, so it ships empty and must be set before activation. Disbursements and Fund Transfer use `qdb_source_location` with 751090002 = QDB Digital. |

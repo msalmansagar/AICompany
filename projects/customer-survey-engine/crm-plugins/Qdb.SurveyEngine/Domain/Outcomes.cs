@@ -19,6 +19,9 @@ namespace Qdb.SurveyEngine.Domain
         public DateTime GeneratedOn { get; set; }
         public DateTime? ExpiresOn { get; set; }
         public string DedupeKey { get; set; }
+
+        /// <summary>The milestone index this invitation fulfils; null for event and created triggers.</summary>
+        public int? MilestoneIndex { get; set; }
     }
 
     /// <summary>One row of the append-only suppression log (NFR-CSE-001).</summary>

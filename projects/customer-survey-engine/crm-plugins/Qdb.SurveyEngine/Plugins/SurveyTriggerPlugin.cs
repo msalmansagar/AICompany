@@ -49,6 +49,7 @@ namespace Qdb.SurveyEngine.Plugins
                 Records = new SourceRecordReader(service, preImage),
                 Languages = new CustomerLanguageReader(service),
                 RenderCache = new RenderCacheReader(service),
+                Milestones = new MilestoneCounter(service),
                 Invitations = new InvitationRepository(service),
                 Suppressions = new SuppressionLogWriter(service),
                 Clock = new SystemClock(),

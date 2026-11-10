@@ -24,7 +24,7 @@ namespace Qdb.SurveyEngine.Data
         {
             var query = new QueryExpression("qdb_survey_source")
             {
-                ColumnSet = new ColumnSet("qdb_table_logical_name", "qdb_customer_lookup_field", "qdb_type_field", "qdb_status_field", "qdb_origin_field", "qdb_origin_digital_values"),
+                ColumnSet = new ColumnSet("qdb_table_logical_name", "qdb_customer_lookup_field", "qdb_type_field", "qdb_status_field", "qdb_origin_field", "qdb_origin_digital_values", "qdb_counts_toward_milestones"),
                 TopCount = 1,
             };
             query.Criteria.AddCondition("qdb_table_logical_name", ConditionOperator.Equal, tableLogicalName);
@@ -34,15 +34,16 @@ namespace Qdb.SurveyEngine.Data
         }
 
         /// <inheritdoc />
-        public IReadOnlyList<SurveyTrigger> GetActiveEventTriggers(Guid sourceId)
+        public IReadOnlyList<SurveyTrigger> GetActiveRecordTriggers(Guid sourceId)
         {
             var query = new QueryExpression("qdb_survey_trigger")
             {
-                ColumnSet = new ColumnSet("qdb_trigger_kind", "qdb_status_values", "qdb_type_values"),
+                ColumnSet = new ColumnSet("qdb_trigger_kind", "qdb_status_values", "qdb_type_values", "qdb_priority", "qdb_fatigue_action", "createdon",
+                    "qdb_milestone_every_n", "qdb_milestone_type_values", "qdb_milestone_status_values", "qdb_milestone_count_from", "qdb_milestone_skip_reached"),
             };
             query.Criteria.AddCondition("qdb_source_id", ConditionOperator.Equal, sourceId);
             query.Criteria.AddCondition("qdb_is_active", ConditionOperator.Equal, true);
-            query.Criteria.AddCondition("qdb_trigger_kind", ConditionOperator.In, (int)TriggerKind.Event, (int)TriggerKind.Created);
+            query.Criteria.AddCondition("qdb_trigger_kind", ConditionOperator.In, (int)TriggerKind.Event, (int)TriggerKind.Created, (int)TriggerKind.Milestone);
             query.LinkEntities.Add(BuildActiveSetupLink());
             return _service.RetrieveMultiple(query).Entities.Select(MapTrigger).ToList();
         }
@@ -50,12 +51,13 @@ namespace Qdb.SurveyEngine.Data
         /// <inheritdoc />
         public SurveySettings GetSettings()
         {
-            var query = new QueryExpression("qdb_survey_settings") { ColumnSet = new ColumnSet("qdb_language_field", "qdb_default_language"), TopCount = 1 };
+            var query = new QueryExpression("qdb_survey_settings") { ColumnSet = new ColumnSet("qdb_language_field", "qdb_default_language", "qdb_fatigue_min_days"), TopCount = 1 };
             var row = _service.RetrieveMultiple(query).Entities.FirstOrDefault();
             var settings = new SurveySettings();
             if (row == null) return settings;
             settings.LanguageField = row.GetAttributeValue<string>("qdb_language_field");
             settings.DefaultLanguage = row.GetAttributeValue<string>("qdb_default_language") ?? settings.DefaultLanguage;
+            settings.FatigueMinDays = row.GetAttributeValue<int?>("qdb_fatigue_min_days") ?? settings.FatigueMinDays;
             return settings;
         }
 
@@ -79,6 +81,7 @@ namespace Qdb.SurveyEngine.Data
                 Status = row.GetAttributeValue<string>("qdb_status_field") ?? "statuscode",
                 Origin = row.GetAttributeValue<string>("qdb_origin_field"),
                 DigitalOriginValues = CodeList.Parse(row.GetAttributeValue<string>("qdb_origin_digital_values")),
+                CountsTowardMilestones = row.GetAttributeValue<bool?>("qdb_counts_toward_milestones") ?? false,
             };
             return new SurveySource(row.Id, row.GetAttributeValue<string>("qdb_table_logical_name"), fields);
         }
@@ -89,7 +92,20 @@ namespace Qdb.SurveyEngine.Data
             Kind = (TriggerKind)row.GetAttributeValue<OptionSetValue>("qdb_trigger_kind").Value,
             StatusValues = CodeList.Parse(row.GetAttributeValue<string>("qdb_status_values")),
             TypeValues = CodeList.Parse(row.GetAttributeValue<string>("qdb_type_values")),
+            Priority = row.GetAttributeValue<int?>("qdb_priority"),
+            FatigueAction = (FatigueAction?)row.GetAttributeValue<OptionSetValue>("qdb_fatigue_action")?.Value,
+            CreatedOn = row.GetAttributeValue<DateTime>("createdon"),
+            Milestone = MapMilestone(row),
             Setup = MapSetup(row),
+        };
+
+        private static MilestoneSettings MapMilestone(Entity row) => new MilestoneSettings
+        {
+            EveryN = row.GetAttributeValue<int?>("qdb_milestone_every_n") ?? 5,
+            TypeValues = CodeList.Parse(row.GetAttributeValue<string>("qdb_milestone_type_values")),
+            StatusValues = CodeList.Parse(row.GetAttributeValue<string>("qdb_milestone_status_values")),
+            CountFrom = row.GetAttributeValue<DateTime?>("qdb_milestone_count_from"),
+            SkipReached = row.GetAttributeValue<bool?>("qdb_milestone_skip_reached") ?? true,
         };
 
         private static SurveySetup MapSetup(Entity row) => new SurveySetup

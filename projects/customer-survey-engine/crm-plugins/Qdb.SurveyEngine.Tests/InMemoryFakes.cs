@@ -8,8 +8,11 @@ namespace Qdb.SurveyEngine.Tests
 {
     /// <summary>In-memory stand-ins for the CRM-backed repositories, so the service runs for real in tests.</summary>
     public sealed class InMemorySurveyStore : ISurveyConfigRepository, ISourceRecordReader, ICustomerLanguageReader,
-        IRenderCacheReader, IInvitationRepository, ISuppressionLog, IClock, ITrace
+        IRenderCacheReader, IMilestoneCounter, IInvitationRepository, ISuppressionLog, IClock, ITrace
     {
+        /// <summary>Qualifying records for the milestone count; CreatedOn is compared with CreatedBefore.</summary>
+        public List<DateTime> QualifyingRecordDates { get; } = new List<DateTime>();
+
         public SurveySource ActiveSource { get; set; }
         public List<SurveyTrigger> Triggers { get; } = new List<SurveyTrigger>();
         public SurveySettings Settings { get; set; } = new SurveySettings();
@@ -25,7 +28,16 @@ namespace Qdb.SurveyEngine.Tests
         public SurveySource FindActiveSource(string tableLogicalName) =>
             ActiveSource != null && ActiveSource.TableLogicalName == tableLogicalName ? ActiveSource : null;
 
-        public IReadOnlyList<SurveyTrigger> GetActiveEventTriggers(Guid sourceId) => Triggers;
+        public IReadOnlyList<SurveyTrigger> GetActiveRecordTriggers(Guid sourceId) => Triggers;
+
+        public int CountQualifying(MilestoneCountQuery query) =>
+            QualifyingRecordDates.Count(created => !query.CreatedBefore.HasValue || created < query.CreatedBefore.Value);
+
+        public bool HasSentInvitationSince(Guid customerId, DateTime sinceUtc) =>
+            Invitations.Any(i => i.CustomerId == customerId && i.GeneratedOn >= sinceUtc && i.Status != InvitationStatus.Postponed && i.Status != InvitationStatus.Discarded);
+
+        public int GetLastMilestoneIndex(Guid setupId, Guid customerId) =>
+            Invitations.Where(i => i.SetupId == setupId && i.CustomerId == customerId && i.MilestoneIndex.HasValue).Select(i => i.MilestoneIndex.Value).DefaultIfEmpty(0).Max();
 
         public SurveySettings GetSettings() => Settings;
 
@@ -60,7 +72,7 @@ namespace Qdb.SurveyEngine.Tests
 
         public SurveyTriggerDependencies AsDependencies() => new SurveyTriggerDependencies
         {
-            Config = this, Records = this, Languages = this, RenderCache = this,
+            Config = this, Records = this, Languages = this, RenderCache = this, Milestones = this,
             Invitations = this, Suppressions = this, Clock = this, Trace = this,
         };
     }

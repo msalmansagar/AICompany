@@ -37,5 +37,8 @@ namespace Qdb.SurveyEngine.Domain
 
         /// <summary>True when the code is in the list. A null code is never in it.</summary>
         public bool Contains(string code) => code != null && _codes.Contains(code.Trim());
+
+        /// <summary>The codes in ordinal order, so queries built from them are deterministic.</summary>
+        public string[] ToArray() => _codes.OrderBy(code => code, StringComparer.Ordinal).ToArray();
     }
 }

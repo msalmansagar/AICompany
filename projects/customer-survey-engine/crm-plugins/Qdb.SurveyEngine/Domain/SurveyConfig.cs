@@ -29,6 +29,9 @@ namespace Qdb.SurveyEngine.Domain
         public string Origin { get; set; }
 
         public CodeList DigitalOriginValues { get; set; } = CodeList.Empty;
+
+        /// <summary>Whether this source's records count toward milestones (Disbursements yes, Fund Transfers never; FR-CSE-035).</summary>
+        public bool CountsTowardMilestones { get; set; }
     }
 
     /// <summary>A qdb_survey_setup row: the survey form, delivery per origin and active window.</summary>
@@ -57,11 +60,46 @@ namespace Qdb.SurveyEngine.Domain
         public CodeList StatusValues { get; set; } = CodeList.Empty;
         public CodeList TypeValues { get; set; } = CodeList.Empty;
         public SurveySetup Setup { get; set; }
+
+        /// <summary>Lower wins; null = the kind's default (see <see cref="PriorityRule"/>).</summary>
+        public int? Priority { get; set; }
+
+        /// <summary>What happens when fatigue or a higher-priority trigger blocks this one; null = the kind's default.</summary>
+        public FatigueAction? FatigueAction { get; set; }
+
+        /// <summary>When the trigger row was created; the activation moment when the setup has no Active From.</summary>
+        public DateTime CreatedOn { get; set; }
+
+        public MilestoneSettings Milestone { get; set; } = new MilestoneSettings();
+    }
+
+    /// <summary>What a blocked trigger does (FR-CSE-041).</summary>
+    public enum FatigueAction
+    {
+        Drop = 100000000,
+        Postpone = 100000001,
+    }
+
+    /// <summary>A milestone trigger's counting rules (FR-CSE-034..039).</summary>
+    public sealed class MilestoneSettings
+    {
+        public int EveryN { get; set; } = 5;
+        public CodeList TypeValues { get; set; } = CodeList.Empty;
+        public CodeList StatusValues { get; set; } = CodeList.Empty;
+
+        /// <summary>Only records created on or after this count; null = all history.</summary>
+        public DateTime? CountFrom { get; set; }
+
+        /// <summary>True (default): milestones already passed at activation never fire.</summary>
+        public bool SkipReached { get; set; } = true;
     }
 
     /// <summary>The org-wide qdb_survey_settings row.</summary>
     public sealed class SurveySettings
     {
+        /// <summary>Minimum days between invitations per customer; 0 switches the limit off (FR-CSE-040).</summary>
+        public int FatigueMinDays { get; set; } = 30;
+
         /// <summary>Customer (account) field holding the preferred language; empty = always the default.</summary>
         public string LanguageField { get; set; }
 

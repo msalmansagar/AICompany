@@ -16,8 +16,8 @@ namespace Qdb.SurveyEngine.Services
         /// <summary>The active source for a table, or null when the table is not an active source.</summary>
         SurveySource FindActiveSource(string tableLogicalName);
 
-        /// <summary>Active Event/Created triggers of the source whose setup is also active.</summary>
-        IReadOnlyList<SurveyTrigger> GetActiveEventTriggers(Guid sourceId);
+        /// <summary>Active Event, Created and Milestone triggers of the source whose setup is also active.</summary>
+        IReadOnlyList<SurveyTrigger> GetActiveRecordTriggers(Guid sourceId);
 
         /// <summary>The org settings row; defaults when none exists.</summary>
         SurveySettings GetSettings();
@@ -44,10 +44,33 @@ namespace Qdb.SurveyEngine.Services
         int? FindActivePublishedVersion(string formCode, string languageCode);
     }
 
-    /// <summary>Writes invitations.</summary>
+    /// <summary>Counts a customer's qualifying records for a milestone, live (FR-CSE-039).</summary>
+    public interface IMilestoneCounter
+    {
+        int CountQualifying(MilestoneCountQuery query);
+    }
+
+    /// <summary>What to count: the source's records of one customer matching the milestone filters.</summary>
+    public sealed class MilestoneCountQuery
+    {
+        public SurveySource Source { get; set; }
+        public MilestoneSettings Settings { get; set; }
+        public Guid CustomerId { get; set; }
+
+        /// <summary>Only records created before this moment; null = no upper limit.</summary>
+        public DateTime? CreatedBefore { get; set; }
+    }
+
+    /// <summary>Reads and writes invitations.</summary>
     public interface IInvitationRepository
     {
         bool ExistsWithDedupeKey(string dedupeKey);
+
+        /// <summary>True when the customer has a sent invitation (Pending, Submitted or Expired) generated at or after <paramref name="sinceUtc"/>.</summary>
+        bool HasSentInvitationSince(Guid customerId, DateTime sinceUtc);
+
+        /// <summary>The highest milestone index already generated for the customer and setup; 0 when none.</summary>
+        int GetLastMilestoneIndex(Guid setupId, Guid customerId);
 
         /// <summary>Creates the invitation; false when the dedupe alternate key already holds one (a concurrent duplicate).</summary>
         bool TryCreate(InvitationDraft draft);
@@ -72,6 +95,7 @@ namespace Qdb.SurveyEngine.Services
         public ISourceRecordReader Records { get; set; }
         public ICustomerLanguageReader Languages { get; set; }
         public IRenderCacheReader RenderCache { get; set; }
+        public IMilestoneCounter Milestones { get; set; }
         public IInvitationRepository Invitations { get; set; }
         public ISuppressionLog Suppressions { get; set; }
         public IClock Clock { get; set; }

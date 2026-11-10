@@ -30,6 +30,30 @@ namespace Qdb.SurveyEngine.Data
         }
 
         /// <inheritdoc />
+        public bool HasSentInvitationSince(Guid customerId, DateTime sinceUtc)
+        {
+            var query = new QueryExpression("qdb_survey_invitation") { ColumnSet = new ColumnSet(false), TopCount = 1 };
+            query.Criteria.AddCondition("qdb_customer_id", ConditionOperator.Equal, customerId);
+            query.Criteria.AddCondition("qdb_generated_on", ConditionOperator.GreaterEqual, sinceUtc);
+            // Postponed and Discarded invitations were never sent, so they do not count toward the limit.
+            query.Criteria.AddCondition("qdb_status", ConditionOperator.In,
+                (int)InvitationStatus.Pending, (int)InvitationStatus.Submitted, (int)InvitationStatus.Expired);
+            return _service.RetrieveMultiple(query).Entities.Any();
+        }
+
+        /// <inheritdoc />
+        public int GetLastMilestoneIndex(Guid setupId, Guid customerId)
+        {
+            var query = new QueryExpression("qdb_survey_invitation") { ColumnSet = new ColumnSet("qdb_milestone_index"), TopCount = 1 };
+            query.Criteria.AddCondition("qdb_survey_setup_id", ConditionOperator.Equal, setupId);
+            query.Criteria.AddCondition("qdb_customer_id", ConditionOperator.Equal, customerId);
+            query.Criteria.AddCondition("qdb_milestone_index", ConditionOperator.NotNull);
+            query.AddOrder("qdb_milestone_index", OrderType.Descending);
+            var row = _service.RetrieveMultiple(query).Entities.FirstOrDefault();
+            return row?.GetAttributeValue<int?>("qdb_milestone_index") ?? 0;
+        }
+
+        /// <inheritdoc />
         public bool TryCreate(InvitationDraft draft)
         {
             try
@@ -59,6 +83,7 @@ namespace Qdb.SurveyEngine.Data
             ["qdb_generated_on"] = draft.GeneratedOn,
             ["qdb_expires_on"] = draft.ExpiresOn,
             ["qdb_dedupe_key"] = draft.DedupeKey,
+            ["qdb_milestone_index"] = draft.MilestoneIndex,
         };
 
         internal static string Truncate(string text, int maxLength) =>
