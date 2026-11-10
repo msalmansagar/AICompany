@@ -27,7 +27,7 @@ export async function ensureSolution({ client, solution, isApply, report }) {
   if (publishers[0].customizationprefix !== 'qdb') throw new Error(`Publisher '${solution.publisherUniqueName}' has prefix '${publishers[0].customizationprefix}', expected 'qdb'`);
   report('create', `solution ${solution.uniqueName} (publisher ${publishers[0].uniquename})`);
   if (!isApply) return;
-  await client.send('POST', 'solutions', {
+  await client.sendOutsideSolution('POST', 'solutions', {
     uniquename: solution.uniqueName, friendlyname: solution.friendlyName, version: solution.version,
     description: solution.description, 'publisherid@odata.bind': `/publishers(${publishers[0].publisherid})`,
   });

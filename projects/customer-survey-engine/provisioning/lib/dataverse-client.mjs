@@ -49,13 +49,18 @@ export async function createDataverseClient({ solutionUniqueName }) {
     'OData-MaxVersion': '4.0', 'OData-Version': '4.0',
   };
 
-  async function send(method, path, body, extraHeaders = {}) {
-    const headers = { ...baseHeaders, ...(method === 'GET' ? {} : { 'MSCRM.SolutionUniqueName': solutionUniqueName }), ...extraHeaders };
+  async function request(method, path, body, headers) {
     const response = await fetch(`${apiUrl}/${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
     const text = await response.text();
     if (!response.ok) throw new DataverseRequestError(method, path, response.status, text);
     return { json: text ? JSON.parse(text) : null, entityId: parseEntityId(response.headers.get('OData-EntityId')) };
   }
+
+  const send = (method, path, body) =>
+    request(method, path, body, method === 'GET' ? baseHeaders : { ...baseHeaders, 'MSCRM.SolutionUniqueName': solutionUniqueName });
+
+  /** A write outside the solution: creating the solution itself, which cannot name itself yet. */
+  const sendOutsideSolution = (method, path, body) => request(method, path, body, baseHeaders);
 
   /** GET that answers null on 404 instead of throwing, for existence checks. */
   async function find(path) {
@@ -67,7 +72,7 @@ export async function createDataverseClient({ solutionUniqueName }) {
     }
   }
 
-  return { orgUrl, send, find };
+  return { orgUrl, send, sendOutsideSolution, find };
 }
 
 // A Dataverse create answers 204 with an empty body; the new id is only in OData-EntityId.
