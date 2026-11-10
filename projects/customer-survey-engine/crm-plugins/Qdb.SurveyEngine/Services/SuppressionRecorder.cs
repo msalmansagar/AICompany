@@ -1,3 +1,4 @@
+using System;
 using Qdb.SurveyEngine.Domain;
 
 namespace Qdb.SurveyEngine.Services
@@ -9,7 +10,7 @@ namespace Qdb.SurveyEngine.Services
 
         public SuppressionRecorder(SurveyTriggerDependencies dependencies)
         {
-            _deps = dependencies;
+            _deps = dependencies ?? throw new ArgumentNullException(nameof(dependencies));
         }
 
         /// <summary>Records why this trigger sent nothing.</summary>

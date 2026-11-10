@@ -43,7 +43,7 @@ namespace Qdb.SurveyEngine.Plugins
             context.PreEntityImages != null && context.PreEntityImages.Contains(PreImageName) ? context.PreEntityImages[PreImageName] : null;
 
         private static SurveyTriggerService BuildService(IOrganizationService service, Entity preImage, ITracingService tracing) =>
-            new SurveyTriggerService(new SurveyTriggerDependencies
+            SurveyTriggerService.Compose(new SurveyTriggerDependencies
             {
                 Config = new SurveyConfigRepository(service),
                 Records = new SourceRecordReader(service, preImage),

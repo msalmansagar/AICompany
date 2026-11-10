@@ -17,16 +17,23 @@ namespace Qdb.SurveyEngine.Services
         private readonly CandidatePreparer _preparer;
         private readonly InvitationDispatcher _dispatcher;
 
-        /// <summary>Creates the service; every dependency is required.</summary>
-        public SurveyTriggerService(SurveyTriggerDependencies dependencies)
+        /// <summary>Creates the service from its collaborators; see <see cref="Compose"/> for the usual wiring.</summary>
+        public SurveyTriggerService(SurveyTriggerDependencies dependencies, CandidatePreparer preparer, InvitationDispatcher dispatcher)
         {
             _deps = dependencies ?? throw new ArgumentNullException(nameof(dependencies));
-            if (_deps.Config == null || _deps.Records == null || _deps.Languages == null || _deps.RenderCache == null || _deps.Milestones == null
-                || _deps.Invitations == null || _deps.Suppressions == null || _deps.Clock == null || _deps.Trace == null)
+            _preparer = preparer ?? throw new ArgumentNullException(nameof(preparer));
+            _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+        }
+
+        /// <summary>The composition root's wiring: validates every dependency and builds the service graph.</summary>
+        public static SurveyTriggerService Compose(SurveyTriggerDependencies dependencies)
+        {
+            if (dependencies == null) throw new ArgumentNullException(nameof(dependencies));
+            if (dependencies.Config == null || dependencies.Records == null || dependencies.Languages == null || dependencies.RenderCache == null || dependencies.Milestones == null
+                || dependencies.Invitations == null || dependencies.Suppressions == null || dependencies.Clock == null || dependencies.Trace == null)
                 throw new ArgumentException("Every SurveyTriggerDependencies member is required.", nameof(dependencies));
-            var suppressions = new SuppressionRecorder(_deps);
-            _preparer = new CandidatePreparer(_deps, suppressions);
-            _dispatcher = new InvitationDispatcher(_deps, suppressions);
+            var suppressions = new SuppressionRecorder(dependencies);
+            return new SurveyTriggerService(dependencies, new CandidatePreparer(dependencies, suppressions), new InvitationDispatcher(dependencies, suppressions));
         }
 
         /// <summary>Evaluates every active trigger of the change's source table.</summary>

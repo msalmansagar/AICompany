@@ -31,7 +31,7 @@ namespace Qdb.SurveyEngine.Tests
         }
 
         private void HandleStatusChange() =>
-            new SurveyTriggerService(_store.AsDependencies()).Handle(new RecordChange { Message = ChangeMessage.Update, TableLogicalName = Table, RecordId = RecordId });
+            SurveyTriggerService.Compose(_store.AsDependencies()).Handle(new RecordChange { Message = ChangeMessage.Update, TableLogicalName = Table, RecordId = RecordId });
 
         private SuppressionReason OnlySuppressionReason() => _store.Suppressions.Single().Reason;
 
@@ -181,12 +181,12 @@ namespace Qdb.SurveyEngine.Tests
         }
 
         [Fact]
-        public void Constructor_MissingDependency_Throws()
+        public void Compose_MissingDependency_Throws()
         {
             var dependencies = _store.AsDependencies();
             dependencies.Clock = null;
 
-            Assert.Throws<ArgumentException>(() => new SurveyTriggerService(dependencies));
+            Assert.Throws<ArgumentException>(() => SurveyTriggerService.Compose(dependencies));
         }
     }
 }

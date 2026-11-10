@@ -16,8 +16,8 @@ namespace Qdb.SurveyEngine.Services
 
         public InvitationDispatcher(SurveyTriggerDependencies dependencies, SuppressionRecorder suppressions)
         {
-            _deps = dependencies;
-            _suppressions = suppressions;
+            _deps = dependencies ?? throw new System.ArgumentNullException(nameof(dependencies));
+            _suppressions = suppressions ?? throw new System.ArgumentNullException(nameof(suppressions));
         }
 
         /// <summary>All candidates belong to the same customer (one record change).</summary>

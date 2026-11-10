@@ -31,7 +31,9 @@ namespace Qdb.SurveyEngine.Tests
         public IReadOnlyList<SurveyTrigger> GetActiveRecordTriggers(Guid sourceId) => Triggers;
 
         public int CountQualifying(MilestoneCountQuery query) =>
-            QualifyingRecordDates.Count(created => !query.CreatedBefore.HasValue || created < query.CreatedBefore.Value);
+            QualifyingRecordDates.Count(created =>
+                (!query.CreatedBefore.HasValue || created < query.CreatedBefore.Value)
+                && (!query.Settings.CountFrom.HasValue || created.Date >= query.Settings.CountFrom.Value.Date));
 
         public bool HasSentInvitationSince(Guid customerId, DateTime sinceUtc) =>
             Invitations.Any(i => i.CustomerId == customerId && i.GeneratedOn >= sinceUtc && i.Status != InvitationStatus.Postponed && i.Status != InvitationStatus.Discarded);

@@ -14,8 +14,8 @@ namespace Qdb.SurveyEngine.Services
 
         public CandidatePreparer(SurveyTriggerDependencies dependencies, SuppressionRecorder suppressions)
         {
-            _deps = dependencies;
-            _suppressions = suppressions;
+            _deps = dependencies ?? throw new ArgumentNullException(nameof(dependencies));
+            _suppressions = suppressions ?? throw new ArgumentNullException(nameof(suppressions));
         }
 
         /// <summary>The candidate, or null when the trigger was suppressed or no milestone was reached.</summary>
@@ -27,23 +27,20 @@ namespace Qdb.SurveyEngine.Services
             var delivery = ChannelResolver.Resolve(evaluation.Source, setup, change);
             if (delivery == DeliveryChoice.None) return Suppressed(evaluation, SuppressionReason.ChannelNone, $"Delivery is None for origin '{change.Origin ?? "(empty)"}'.");
             if (!ActiveWindow.IsOpen(setup, _deps.Clock.UtcNow)) return Suppressed(evaluation, SuppressionReason.OutsideWindow, "Today is outside the setup's active window.");
-            var plan = PlanKey(evaluation);
-            if (plan == null) return null;
-            if (_deps.Invitations.ExistsWithDedupeKey(plan.DedupeKey)) return Suppressed(evaluation, SuppressionReason.Duplicate, "An invitation for this event already exists.");
-            plan.Delivery = delivery;
-            plan.LanguageCode = ResolveLanguage(change.CustomerId.Value, settings);
-            return PinForm(evaluation, plan);
+            var key = FindInvitationKey(evaluation);
+            if (key == null) return null;
+            if (_deps.Invitations.ExistsWithDedupeKey(key.DedupeKey)) return Suppressed(evaluation, SuppressionReason.Duplicate, "An invitation for this event already exists.");
+            return PinForm(evaluation, new InvitationPlan(delivery, key, ResolveLanguage(change.CustomerId.Value, settings)));
         }
 
         // Event/created triggers key on the record; milestone triggers on the index reached, or nothing when none was.
-        private InvitationPlan PlanKey(TriggerEvaluation evaluation)
+        private InvitationKey FindInvitationKey(TriggerEvaluation evaluation)
         {
             var setupId = evaluation.Trigger.Setup.Id;
             var customerId = evaluation.Change.CustomerId.Value;
-            if (evaluation.Trigger.Kind != TriggerKind.Milestone) return new InvitationPlan { DedupeKey = DedupeKey.ForRecord(setupId, customerId, evaluation.Change) };
+            if (evaluation.Trigger.Kind != TriggerKind.Milestone) return new InvitationKey(DedupeKey.ForRecord(setupId, customerId, evaluation.Change), null);
             var index = FindMilestoneIndex(evaluation);
-            if (!index.HasValue) return null;
-            return new InvitationPlan { DedupeKey = DedupeKey.ForMilestone(setupId, customerId, index.Value), MilestoneIndex = index };
+            return index.HasValue ? new InvitationKey(DedupeKey.ForMilestone(setupId, customerId, index.Value), index) : null;
         }
 
         private int? FindMilestoneIndex(TriggerEvaluation evaluation)

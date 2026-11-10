@@ -42,7 +42,7 @@ namespace Qdb.SurveyEngine.Tests
         }
 
         private void Handle() =>
-            new SurveyTriggerService(_store.AsDependencies()).Handle(new RecordChange { Message = ChangeMessage.Update, TableLogicalName = Table, RecordId = Guid.NewGuid() });
+            SurveyTriggerService.Compose(_store.AsDependencies()).Handle(new RecordChange { Message = ChangeMessage.Update, TableLogicalName = Table, RecordId = Guid.NewGuid() });
 
         private void SentInvitationDaysAgo(int days) =>
             _store.Invitations.Add(new InvitationDraft { CustomerId = CustomerId, GeneratedOn = _store.UtcNow.AddDays(-days), Status = InvitationStatus.Pending, DedupeKey = "earlier" });
@@ -165,6 +165,18 @@ namespace Qdb.SurveyEngine.Tests
         {
             _store.ActiveSource = new SurveySource(Guid.NewGuid(), Table, new SourceFields { CustomerLookup = "qdb_cif_no", CountsTowardMilestones = false });
             _store.Triggers.Add(_milestoneTrigger);
+            QualifyingRecords(5);
+
+            Handle();
+
+            Assert.Empty(_store.Invitations);
+        }
+
+        [Fact]
+        public void Handle_CountFromDate_ExcludesEarlierRecords()
+        {
+            _store.Triggers.Add(_milestoneTrigger);
+            _milestoneTrigger.Milestone.CountFrom = _store.UtcNow.Date.AddDays(-2);
             QualifyingRecords(5);
 
             Handle();
