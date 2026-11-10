@@ -6,12 +6,23 @@
  * @module survey-provisioning/schema-steps
  */
 import { buildEntityPayload, buildAttributePayload, buildRelationshipPayload, buildAlternateKeyPayload } from './payloads.mjs';
+import { createUntilPresent } from './create-until-present.mjs';
 
 const KEY_POLL_INTERVAL_MS = 5000;
 const KEY_POLL_ATTEMPTS = 60;
 
 const entityPath = (table) => `EntityDefinitions(LogicalName='${table}')`;
 const attributePath = (table, column) => `${entityPath(table)}/Attributes(LogicalName='${column}')?$select=LogicalName`;
+
+/** POST through transient timeouts; `presencePath` is re-read before each retry so nothing is created twice. */
+async function createMetadata({ client, report }, { path, payload, presencePath, subject }) {
+  const outcome = await createUntilPresent({
+    create: () => client.send('POST', path, payload),
+    isPresent: async () => Boolean(await client.find(presencePath)),
+    onRetry: (attempt, error) => report('retry', `${subject} (attempt ${attempt}: ${error.message.slice(0, 90)})`),
+  });
+  if (outcome !== 'created') report('present', `${subject} was committed despite the timeout`);
+}
 
 /**
  * Ensures the SurveyEngine solution exists under the org's qdb publisher.
@@ -50,16 +61,26 @@ export async function ensureTables(context) {
   }
 }
 
-async function createTable({ client, languageCode, isApply, report }, table) {
-  report('create', `table ${table.name} with ${table.columns.length} columns`);
-  if (isApply) await client.send('POST', 'EntityDefinitions', buildEntityPayload(table, languageCode));
+async function createTable(context, table) {
+  const subject = `table ${table.name} with ${table.columns.length} columns`;
+  context.report('create', subject);
+  if (!context.isApply) return;
+  await createMetadata(context, {
+    path: 'EntityDefinitions', payload: buildEntityPayload(table, context.languageCode),
+    presencePath: `${entityPath(table.name)}?$select=LogicalName`, subject,
+  });
 }
 
 // Only for a table that already exists: a column added to the manifest after the first run.
-async function ensureColumn({ client, languageCode, isApply, report }, table, column) {
-  if (await client.find(attributePath(table.name, column.name))) return report('exists', `column ${table.name}.${column.name}`, true);
-  report('create', `column ${table.name}.${column.name} (${column.type})`);
-  if (isApply) await client.send('POST', `${entityPath(table.name)}/Attributes`, buildAttributePayload(column, languageCode));
+async function ensureColumn(context, table, column) {
+  const presencePath = attributePath(table.name, column.name);
+  if (await context.client.find(presencePath)) return context.report('exists', `column ${table.name}.${column.name}`, true);
+  const subject = `column ${table.name}.${column.name} (${column.type})`;
+  context.report('create', subject);
+  if (!context.isApply) return;
+  await createMetadata(context, {
+    path: `${entityPath(table.name)}/Attributes`, payload: buildAttributePayload(column, context.languageCode), presencePath, subject,
+  });
 }
 
 /**
@@ -67,14 +88,20 @@ async function ensureColumn({ client, languageCode, isApply, report }, table, co
  *
  * @param {{ client: object, relationships: object[], languageCode: number, isApply: boolean, report: Function }} context
  */
-export async function ensureRelationships({ client, relationships, languageCode, isApply, report }) {
-  for (const relationship of relationships) {
-    const name = `lookup ${relationship.from}.${relationship.lookup} -> ${relationship.to}`;
-    const isFromPresent = isApply || await client.find(`${entityPath(relationship.from)}?$select=LogicalName`);
-    if (isFromPresent && await client.find(attributePath(relationship.from, relationship.lookup))) { report('exists', name, true); continue; }
-    report('create', `${name} (delete: ${relationship.cascade})`);
-    if (isApply) await client.send('POST', 'RelationshipDefinitions', buildRelationshipPayload(relationship, languageCode));
-  }
+export async function ensureRelationships(context) {
+  for (const relationship of context.relationships) await ensureRelationship(context, relationship);
+}
+
+async function ensureRelationship(context, relationship) {
+  const subject = `lookup ${relationship.from}.${relationship.lookup} -> ${relationship.to}`;
+  const presencePath = attributePath(relationship.from, relationship.lookup);
+  const isFromPresent = context.isApply || await context.client.find(`${entityPath(relationship.from)}?$select=LogicalName`);
+  if (isFromPresent && await context.client.find(presencePath)) return context.report('exists', subject, true);
+  context.report('create', `${subject} (delete: ${relationship.cascade})`);
+  if (!context.isApply) return;
+  await createMetadata(context, {
+    path: 'RelationshipDefinitions', payload: buildRelationshipPayload(relationship, context.languageCode), presencePath, subject,
+  });
 }
 
 /**
@@ -95,16 +122,24 @@ export async function publishTables({ client, tableNames, isApply, report }) {
  *
  * @param {{ client: object, alternateKeys: object[], languageCode: number, isApply: boolean, report: Function }} context
  */
-export async function ensureAlternateKeys({ client, alternateKeys, languageCode, isApply, report }) {
-  for (const key of alternateKeys) {
-    const keyPath = `${entityPath(key.table)}/Keys(LogicalName='${key.name}')?$select=EntityKeyIndexStatus`;
-    const existing = await client.find(keyPath);
-    if (existing) { report('exists', `key ${key.name} (${existing.EntityKeyIndexStatus})`); continue; }
-    report('create', `key ${key.name} on ${key.table}(${key.columns.join(', ')})`);
-    if (!isApply) continue;
-    await client.send('POST', `${entityPath(key.table)}/Keys`, buildAlternateKeyPayload(key, languageCode));
-    report('active', `key ${key.name}: ${await waitForKeyIndex(client, keyPath)}`);
+export async function ensureAlternateKeys(context) {
+  for (const key of context.alternateKeys) await ensureAlternateKey(context, key);
+}
+
+async function ensureAlternateKey(context, key) {
+  const keyPath = `${entityPath(key.table)}/Keys(LogicalName='${key.name}')?$select=EntityKeyIndexStatus`;
+  const existing = await context.client.find(keyPath);
+  if (existing?.EntityKeyIndexStatus === 'Active') return context.report('exists', `key ${key.name} (Active)`);
+  if (!existing) {
+    const subject = `key ${key.name} on ${key.table}(${key.columns.join(', ')})`;
+    context.report('create', subject);
+    if (!context.isApply) return;
+    await createMetadata(context, { path: `${entityPath(key.table)}/Keys`, payload: buildAlternateKeyPayload(key, context.languageCode), presencePath: keyPath, subject });
+  } else {
+    context.report('pending', `key ${key.name} (${existing.EntityKeyIndexStatus})`);
+    if (!context.isApply) return;
   }
+  context.report('active', `key ${key.name}: ${await waitForKeyIndex(context.client, keyPath)}`);
 }
 
 async function waitForKeyIndex(client, keyPath) {
