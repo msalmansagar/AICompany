@@ -33,9 +33,15 @@ export async function ensureViews({ client, views, isApply, report }) {
     if (!isApply) continue;
     const id = existing ? existing.savedqueryid : (await client.send('POST', 'savedqueries', payload)).entityId;
     if (existing) await client.send('PATCH', `savedqueries(${id})`, { fetchxml: payload.fetchxml, layoutxml: payload.layoutxml, description: payload.description });
-    // Making a view the default unsets the platform's own "Active ..." default for that table.
-    if (view.isDefault) await client.send('PATCH', `savedqueries(${id})`, { isdefault: true });
+    if (view.isDefault) await makeDefault(client, { table: view.table, viewId: id });
   }
+}
+
+// Setting isdefault on one view does not clear it on the platform's "Active ..." view, so clear the others explicitly.
+async function makeDefault(client, { table, viewId }) {
+  const others = (await client.send('GET', `savedqueries?$select=savedqueryid&$filter=returnedtypecode eq '${table}' and querytype eq 0 and isdefault eq true and savedqueryid ne ${viewId}`)).json.value;
+  for (const other of others) await client.send('PATCH', `savedqueries(${other.savedqueryid})`, { isdefault: false });
+  await client.send('PATCH', `savedqueries(${viewId})`, { isdefault: true });
 }
 
 /** A lookup from (table, view name) to the saved query id; a view not created yet (plan mode) answers a placeholder. */
