@@ -79,15 +79,23 @@ export async function publishTables({ client, tables, isApply, report }) {
 /** Ensures the sitemap and app, adds the tables, gives the app to the survey roles and publishes it. */
 export async function ensureApp({ client, app, isApply, report }) {
   const sitemapId = await ensureSiteMap({ client, app, isApply, report });
-  const existing = await first(client, `appmodules?$select=appmoduleid&$filter=uniquename eq '${app.uniqueName}'`);
+  const existing = await findApp(client, app.uniqueName);
   report(existing ? 'exists' : 'create', `app "${app.name}" (${app.uniqueName}) with ${app.groups.flatMap((g) => g.tables).length} tables`);
   if (!isApply) return;
   const appId = existing?.appmoduleid ?? (await client.send('POST', 'appmodules', {
     name: app.name, uniquename: app.uniqueName, description: app.description, webresourceid: DEFAULT_APP_ICON, clienttype: UNIFIED_INTERFACE,
   })).entityId;
   await addComponents(client, { appId, sitemapId, tables: app.groups.flatMap((g) => g.tables) });
-  await grantAppToRoles(client, { appId, roleNames: app.roles, report });
+  // A new app cannot be read (or linked to roles) until it is published.
   await client.send('POST', 'PublishXml', { ParameterXml: `<importexportxml><appmodules><appmodule>${appId}</appmodule></appmodules><sitemaps><sitemap>${sitemapId}</sitemap></sitemaps></importexportxml>` });
+  await grantAppToRoles(client, { appId, roleNames: app.roles, report });
+}
+
+// A created-but-unpublished app is invisible to a plain query, so look in the unpublished layer too.
+async function findApp(client, uniqueName) {
+  const filter = `$select=appmoduleid&$filter=uniquename eq '${uniqueName}'`;
+  return (await first(client, `appmodules?${filter}`))
+    ?? (await first(client, `appmodules/Microsoft.Dynamics.CRM.RetrieveUnpublishedMultiple()?${filter}`));
 }
 
 async function ensureSiteMap({ client, app, isApply, report }) {

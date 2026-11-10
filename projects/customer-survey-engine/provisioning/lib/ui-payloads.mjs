@@ -116,7 +116,7 @@ function subgridCell(table, subgrid, viewIdFor) {
   const parameters = `<TargetEntityType>${xml(subgrid.table)}</TargetEntityType><RelationshipName>${xml(relationship)}</RelationshipName>`
     + `<ViewId>${viewIdFor(subgrid.table, subgrid.view)}</ViewId><IsUserView>false</IsUserView><RecordsPerPage>10</RecordsPerPage><AutoExpand>Fixed</AutoExpand>`
     + '<EnableQuickFind>false</EnableQuickFind><EnableViewPicker>false</EnableViewPicker><EnableJumpBar>false</EnableJumpBar><ChartGridMode>Grid</ChartGridMode>'
-    + '<VisualizationId /><IsUserChart>false</IsUserChart><EnableChartPicker>false</EnableChartPicker><RelationshipRoleOrdinal>-1</RelationshipRoleOrdinal>';
+    + '<VisualizationId /><IsUserChart>false</IsUserChart><EnableChartPicker>false</EnableChartPicker>';
   return `<row><cell id="${stableGuid(`${table}.${subgrid.table}.subgrid`)}" colspan="1" rowspan="10">${labels(subgrid.view)}`
     + `<control id="${xml(subgrid.table)}_grid" classid="${CONTROL_CLASS.subgrid}" indicationOfSubgrid="true"><parameters>${parameters}</parameters></control></cell></row>`;
 }
