@@ -91,7 +91,7 @@ async function ensureColumn(context, table, column) {
 async function ensurePicklistOptions(context, table, column) {
   const path = `${entityPath(table.name)}/Attributes(LogicalName='${column.name}')/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$select=LogicalName&$expand=OptionSet($select=Options)`;
   const existingValues = new Set((await context.client.find(path)).OptionSet.Options.map((option) => option.Value));
-  for (const option of column.options.filter((o) => !existingValues.has(o.value))) {
+  for (const option of (column.options ?? []).filter((o) => !existingValues.has(o.value))) {
     context.report('create', `option ${table.name}.${column.name} ${option.value} "${option.label}"`);
     if (!context.isApply) continue;
     await context.client.send('POST', 'InsertOptionValue', {
