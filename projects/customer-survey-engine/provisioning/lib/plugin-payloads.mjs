@@ -18,9 +18,23 @@ const PRE_IMAGE_TYPE = 0;
 const SERVER_DEPLOYMENT = 0;
 
 /** The step name, which is also how the registration finds an existing step. */
-export function stepName(message, table) {
-  return `${PLUGIN.typeName}: Async ${message} of ${table}`;
+export function stepName(message, table, typeName = PLUGIN.typeName) {
+  return `${typeName}: Async ${message} of ${table}`;
 }
+
+/**
+ * B7: InvitationDispatchPlugin on the survey's own invitation table. Unlike the trigger steps these
+ * are ENABLED at registration: they act only on Pending secure-link invitations, which are never
+ * sent while the channel is disabled, and they need no pre-image because the plugin reads fresh.
+ */
+export const DISPATCH = Object.freeze({
+  typeName: 'Qdb.SurveyEngine.Plugins.InvitationDispatchPlugin',
+  description: 'Sends secure-link survey invitations by SMS and email (CSE-ENG-001 B7).',
+  steps: Object.freeze(['Create', 'Update'].map((message) => Object.freeze({
+    message, table: 'qdb_survey_invitation', statusField: 'qdb_status', typeName: 'Qdb.SurveyEngine.Plugins.InvitationDispatchPlugin',
+    description: 'Dispatches Pending secure-link invitations by SMS and email (FR-CSE-048, 049).', isEnabled: true, hasPreImage: false,
+  }))),
+});
 
 /**
  * An async post-operation step. Update is filtered to the status field so other saves never
@@ -31,8 +45,8 @@ export function stepName(message, table) {
  */
 export function buildStepPayload(step, ids) {
   return {
-    name: stepName(step.message, step.table),
-    description: `Survey triggers for ${step.table} (FR-CSE-026..030). Enabled when the source is activated.`,
+    name: stepName(step.message, step.table, step.typeName),
+    description: step.description ?? `Survey triggers for ${step.table} (FR-CSE-026..030). Enabled when the source is activated.`,
     mode: ASYNC_MODE,
     stage: POST_OPERATION_STAGE,
     rank: 1,

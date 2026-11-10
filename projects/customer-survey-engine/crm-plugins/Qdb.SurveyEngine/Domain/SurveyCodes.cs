@@ -46,5 +46,8 @@ namespace Qdb.SurveyEngine.Domain
         Inactive = 100000006,
         NoCustomer = 100000007,
         FormNotPublished = 100000008,
+
+        /// <summary>B7: a secure-link invitation that could not be sent by SMS, email or either.</summary>
+        NotDelivered = 100000009,
     }
 }

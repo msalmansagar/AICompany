@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildStepPayload, buildPreImagePayload, stepsForSources, stepName, PLUGIN, CUSTOM_APIS, buildCustomApiPayload, describeSignature } from '../lib/plugin-payloads.mjs';
+import { buildStepPayload, buildPreImagePayload, stepsForSources, stepName, PLUGIN, CUSTOM_APIS, DISPATCH, buildCustomApiPayload, describeSignature } from '../lib/plugin-payloads.mjs';
 
 const apiNamed = (uniqueName) => CUSTOM_APIS.find((api) => api.uniqueName === uniqueName);
 
@@ -87,6 +87,15 @@ test('stepsForSources_threeSources_givesCreateAndUpdateForEach', () => {
 
   assert.equal(steps.length, 6);
   assert.deepEqual(steps.find((s) => s.table === 'b' && s.message === 'Update'), { message: 'Update', table: 'b', statusField: 'qdb_state' });
+});
+
+test('buildStepPayload_dispatchUpdate_isNamedForTheDispatchPluginAndFilteredToStatus', () => {
+  const update = DISPATCH.steps.find((s) => s.message === 'Update');
+  const payload = buildStepPayload(update, IDS);
+
+  assert.equal(payload.name, 'Qdb.SurveyEngine.Plugins.InvitationDispatchPlugin: Async Update of qdb_survey_invitation');
+  assert.equal(payload.filteringattributes, 'qdb_status');
+  assert.ok(update.isEnabled && update.hasPreImage === false);
 });
 
 test('stepName_isStable_soReRunsFindTheExistingStep', () => {

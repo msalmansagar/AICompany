@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { SOLUTION } from './manifest.mjs';
 import { createDataverseClient } from './lib/dataverse-client.mjs';
-import { stepsForSources } from './lib/plugin-payloads.mjs';
+import { stepsForSources, DISPATCH } from './lib/plugin-payloads.mjs';
 import { ensureAssembly, ensurePluginType, ensureSteps, ensureCustomApis } from './lib/plugin-steps.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -37,8 +37,11 @@ async function run() {
   const pluginTypeId = await ensurePluginType({ ...context, assemblyId });
   console.log('[3] Steps (disabled)');
   await ensureSteps({ ...context, pluginTypeId, steps: stepsForSources(seed.sources) });
-  console.log('[4] Custom APIs (source activation, run due surveys)');
+  console.log('[4] Custom APIs (source activation, run due surveys, integration)');
   await ensureCustomApis({ ...context, assemblyId });
+  console.log('[5] Invitation dispatch (enabled; sends only secure-link invitations)');
+  const dispatchTypeId = await ensurePluginType({ ...context, assemblyId }, DISPATCH);
+  await ensureSteps({ ...context, pluginTypeId: dispatchTypeId, steps: DISPATCH.steps });
 }
 
 run().catch((error) => { console.error(`✗ ${error.message}`); process.exit(1); });

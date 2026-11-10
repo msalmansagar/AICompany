@@ -77,16 +77,17 @@ export async function ensureSteps(context) {
 
 async function ensureStep(context, step) {
   const { client, isApply, report } = context;
-  const name = stepName(step.message, step.table);
+  const name = stepName(step.message, step.table, step.typeName);
   const existing = (await client.send('GET', `sdkmessageprocessingsteps?$select=sdkmessageprocessingstepid,statecode&$filter=name eq '${name}'`)).json.value[0];
   if (existing) return report('exists', `step ${name} (${existing.statecode === 1 ? 'disabled' : 'ENABLED'})`);
-  report('create', `step ${name}, disabled${step.message === 'Update' ? `, filtered to ${step.statusField}, pre-image ${step.statusField}` : ''}`);
+  const hasPreImage = step.message === 'Update' && step.hasPreImage !== false;
+  report('create', `step ${name}, ${step.isEnabled ? 'ENABLED' : 'disabled'}${step.message === 'Update' ? `, filtered to ${step.statusField}` : ''}${hasPreImage ? `, pre-image ${step.statusField}` : ''}`);
   if (!isApply) return;
   const messageId = await findMessageId(client, step.message);
   const filterId = await findMessageFilterId(client, messageId, step.table);
   const { entityId } = await client.send('POST', 'sdkmessageprocessingsteps', buildStepPayload(step, { messageId, filterId, pluginTypeId: context.pluginTypeId }));
-  if (step.message === 'Update') await client.send('POST', 'sdkmessageprocessingstepimages', buildPreImagePayload(step.statusField, entityId));
-  await client.send('PATCH', `sdkmessageprocessingsteps(${entityId})`, { statecode: 1, statuscode: 2 });
+  if (hasPreImage) await client.send('POST', 'sdkmessageprocessingstepimages', buildPreImagePayload(step.statusField, entityId));
+  if (!step.isEnabled) await client.send('PATCH', `sdkmessageprocessingsteps(${entityId})`, { statecode: 1, statuscode: 2 });
   await addToSolution(client, { id: entityId, type: STEP_COMPONENT_TYPE, solutionUniqueName: context.solutionUniqueName });
 }
 

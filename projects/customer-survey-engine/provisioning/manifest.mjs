@@ -45,6 +45,8 @@ export const SUPPRESSION_REASON_OPTIONS = Object.freeze([
   // B2: without these two a trigger with no customer, or a form not yet published, would
   // have to be mislabelled or dropped silently (NFR-CSE-001).
   option(7, 'No customer'), option(8, 'Form not published'),
+  // B7: a secure-link invitation that could not be sent by SMS, email or either (NFR-CSE-001).
+  option(9, 'Not delivered'),
 ]);
 export const RETENTION_MODE_OPTIONS = Object.freeze([option(0, 'Delete'), option(1, 'Anonymise')]);
 
@@ -184,6 +186,8 @@ export const TABLES = Object.freeze([
       string('qdb_recipient_field', 'Recipient Field', 128, { required: true }),
       string('qdb_message_field', 'Message Field', 128, { required: true }),
       string('qdb_customer_link_field', 'Customer Link Field', 128),
+      // B7: where the customer's mobile number lives on account differs per org; empty = no SMS.
+      string('qdb_customer_phone_field', 'Customer Mobile Field', 128),
       memo('qdb_static_columns_json', 'Static Columns JSON', 4000),
       boolean('qdb_is_active', 'Is Active', false),
     ],
@@ -209,6 +213,8 @@ export const RELATIONSHIPS = Object.freeze([
   { lookup: 'qdb_customer_id', label: 'Customer', from: 'qdb_survey_suppression_log', to: 'account', cascade: 'RemoveLink' },
   { lookup: 'qdb_survey_trigger_id', label: 'Survey Trigger', from: 'qdb_survey_suppression_log', to: 'qdb_survey_trigger', cascade: 'RemoveLink' },
   { lookup: 'qdb_survey_setup_id', label: 'Survey Setup', from: 'qdb_survey_suppression_log', to: 'qdb_survey_setup', cascade: 'RemoveLink' },
+  // B7: the queue survey emails are sent from; empty = no email (FR-CSE-049).
+  { lookup: 'qdb_email_sender_queue_id', label: 'Email Sender Queue', from: 'qdb_survey_settings', to: 'queue', cascade: 'RemoveLink' },
 ]);
 
 /** Alternate keys enforce uniqueness the plugins rely on (NFR-CSE-002, section 4.4/4.5). */
@@ -238,6 +244,8 @@ export const ROLES = Object.freeze([
       { table: 'qdb_survey_source', rights: READ },
       { table: 'qdb_survey_invitation', rights: READ },
       { table: 'qdb_survey_suppression_log', rights: ['Read'] },
+      // B7: choosing the email sender queue on Survey Settings links to a queue.
+      { table: 'queue', rights: READ },
     ],
   },
   {
