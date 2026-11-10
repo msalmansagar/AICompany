@@ -12,7 +12,7 @@
  *
  *   node --env-file=<dfe>/scripts/.env b7-dispatch-e2e.mjs
  */
-import { openSession, runStamp, pollFor, ensureRow } from './e2e-helpers.mjs';
+import { openSession, runStamp, pollFor, ensureRow, waitForJobsOn } from './e2e-helpers.mjs';
 
 const FORM_CODE = 'srv-customer-feedback-demo';
 const SETUP_NAME = 'Demo - Customer feedback';
@@ -29,7 +29,11 @@ const tokenOf = async (session, invitationId) =>
 const logsFor = async (session, invitationId) =>
   (await session.rows(`qdb_survey_suppression_logs?$select=qdb_reason,qdb_detail&$filter=qdb_reason eq ${NOT_DELIVERED}&$orderby=createdon desc&$top=50`))
     .filter((log) => log.qdb_detail?.includes(invitationId));
-const waitForToken = (session, invitationId) => pollFor('the dispatch job', async () => ((await tokenOf(session, invitationId)) ? [1] : []));
+// The token is saved first and the SMS and email follow in the same job, so wait for the job to finish too.
+const waitForToken = async (session, invitationId) => {
+  await pollFor('the dispatch job', async () => ((await tokenOf(session, invitationId)) ? [1] : []));
+  await waitForJobsOn(session, invitationId);
+};
 const waitForLog = (session, invitationId) => pollFor('the not-delivered log', () => logsFor(session, invitationId));
 
 async function createInvitation(session, { accountId, setupId, label, channel = CHANNEL.secureLink, status = STATUS.pending }) {
@@ -111,12 +115,16 @@ async function configure(session, stamp) {
   return { settings, smsConfigId };
 }
 
-async function restore(session, { settings, smsConfigId, smsRows }) {
+async function restore(session, state) {
+  const { settings, smsConfigId, smsRows } = state;
   await session.write('PATCH', `qdb_survey_settingses(${settings.qdb_survey_settingsid})`, { qdb_securelink_enabled: settings.qdb_securelink_enabled, qdb_securelink_base_url: settings.qdb_securelink_base_url });
   if (!settings._qdb_email_sender_queue_id_value) await session.write('DELETE', `qdb_survey_settingses(${settings.qdb_survey_settingsid})/qdb_email_sender_queue_id/$ref`).catch((error) => console.log(`  restore queue: ${error.message}`));
   await session.write('DELETE', `qdb_survey_sms_configs(${smsConfigId})`);
   for (const id of smsRows) await session.write('DELETE', `faxes(${id})`).catch((error) => console.log(`  delete fax ${id}: ${error.message}`));
-  console.log(`  restored: settings, temporary SMS configuration deleted, ${smsRows.length} test SMS row(s) deleted`);
+  // Emails whose send failed stay as drafts regarding their invitation; the test's own are removed.
+  const drafts = await session.rows(`emails?$select=activityid&$filter=startswith(subject,'How did we do') and statecode eq 0 and createdon ge ${state.startedOn}`);
+  for (const draft of drafts) await session.write('DELETE', `emails(${draft.activityid})`).catch((error) => console.log(`  delete email: ${error.message}`));
+  console.log(`  restored: settings, temporary SMS configuration deleted, ${smsRows.length} test SMS row(s) and ${drafts.length} draft email(s) deleted`);
 }
 
 async function run() {
@@ -127,7 +135,7 @@ async function run() {
   const { entityId: accountId } = await session.write('POST', 'accounts', {
     name: `Survey E2E B7 Customer ${stamp}`, telephone1: FAKE_MOBILE, emailaddress1: 'survey-e2e-b7@example.invalid', description: 'Survey B7 test customer. Safe to delete.',
   });
-  const state = { ...(await configure(session, stamp)), smsRows: [] };
+  const state = { ...(await configure(session, stamp)), smsRows: [], startedOn: new Date().toISOString() };
   try {
     await scenarioBothChannels(session, { accountId, setupId, smsRows: state.smsRows });
     await scenarioNoMobile(session, { setupId, stamp });
