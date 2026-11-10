@@ -90,7 +90,7 @@ export const CUSTOM_APIS = Object.freeze([
   integrationApi('qdb_srv_ListPendingSurveys', 'List Pending Surveys', 'ListPendingSurveysPlugin',
     'A customer\'s open survey invitations with title and message in the requested language (FR-CSE-051, 047).',
     [stringInput('CustomerId', 'The account id (GUID).', false), stringInput('Language', 'ar or en; empty = the org default.')],
-    [stringOutput('SurveysJson', 'JSON array of { invitationId, setupId, formCode, title, message, pinnedVersion, language, expiresOn, channel }.')]),
+    [stringOutput('SurveysJson', 'JSON array of open surveys: invitationId, formCode, title, message, expiresOn...')]),
   integrationApi('qdb_srv_GetSurvey', 'Get Survey', 'GetSurveyPlugin',
     'The published survey JSON of an invitation\'s pinned version (FR-CSE-052). Give InvitationId + CallerCustomerId, or Token.',
     [...INVITATION_INPUTS, stringInput('Language', 'ar or en; empty = the invitation\'s language.')],

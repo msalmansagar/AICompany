@@ -198,6 +198,17 @@ namespace Qdb.SurveyEngine.Tests
         }
 
         [Fact]
+        public void Write_ListAsReturnedByTheLister_SerialisesToAJsonArray()
+        {
+            _store.Open.Add(new PendingInvitation { Invitation = _invitation, TitleEnglish = "Survey" });
+
+            var json = JsonText.Write(new PendingSurveyLister(Deps()).List(CustomerId, "en"));
+
+            Assert.StartsWith("[{", json);
+            Assert.Contains("\"title\":\"Survey\"", json);
+        }
+
+        [Fact]
         public void List_ArabicRequested_UsesArabicWordingAndFallsBackToEnglishWhenEmpty()
         {
             _store.Open.Add(new PendingInvitation { Invitation = _invitation, TitleArabic = "استبيان", TitleEnglish = "Survey", MessageEnglish = "Tell us" });

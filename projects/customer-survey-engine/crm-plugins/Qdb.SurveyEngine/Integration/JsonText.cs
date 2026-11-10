@@ -14,11 +14,13 @@ namespace Qdb.SurveyEngine.Integration
         private static readonly DataContractJsonSerializerSettings Settings = new DataContractJsonSerializerSettings { UseSimpleDictionaryFormat = true };
 
         /// <summary>The object as JSON text.</summary>
-        public static string Write<T>(T value)
+        public static string Write(object value)
         {
+            if (value == null) throw new System.ArgumentNullException(nameof(value));
             using (var stream = new MemoryStream())
             {
-                new DataContractJsonSerializer(typeof(T), Settings).WriteObject(stream, value);
+                // The runtime type, not the declared one: the serializer refuses a List passed as IReadOnlyList.
+                new DataContractJsonSerializer(value.GetType(), Settings).WriteObject(stream, value);
                 return Encoding.UTF8.GetString(stream.ToArray());
             }
         }

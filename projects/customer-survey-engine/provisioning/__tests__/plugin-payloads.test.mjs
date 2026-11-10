@@ -14,6 +14,12 @@ test('buildCustomApiPayload_runDueSurveys_hasAnOptionalStringDateAndSummaryPlusI
   assert.deepEqual(payload.CustomAPIResponseProperties.map((p) => [p.uniquename, p.type]), [['Summary', 10], ['IsComplete', 0]]);
 });
 
+test('CUSTOM_APIS_everyParameterDescription_fitsDataverses100CharacterLimit', () => {
+  const tooLong = CUSTOM_APIS.flatMap((api) => [...api.inputs, ...api.outputs].filter((p) => p.description.length > 100).map((p) => `${api.uniqueName}.${p.name}`));
+
+  assert.deepEqual(tooLong, []);
+});
+
 test('CUSTOM_APIS_integration_registersTheFourApisWithTheirPluginTypes', () => {
   const names = ['qdb_srv_ListPendingSurveys', 'qdb_srv_GetSurvey', 'qdb_srv_SubmitResponse', 'qdb_srv_ValidateLinkToken'];
 
