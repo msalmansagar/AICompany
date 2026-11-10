@@ -149,5 +149,7 @@ export function buildAlternateKeyPayload(key, languageCode) {
  * @returns {string[]}
  */
 export function privilegeNamesFor(privilege) {
+  // A named privilege that is not a table right, e.g. prvExportToExcel (B8).
+  if (privilege.name) return [privilege.name];
   return privilege.rights.map((right) => `prv${right}${privilege.table}`);
 }

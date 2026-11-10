@@ -229,6 +229,7 @@ const CONFIG_TABLES = ['qdb_survey_setup', 'qdb_survey_trigger', 'qdb_survey_set
 const RUNTIME_TABLES = ['qdb_survey_invitation', 'qdb_survey_response', 'qdb_survey_answer'];
 const FULL = ['Create', 'Read', 'Write', 'Delete', 'Append', 'AppendTo'];
 const READ = ['Read', 'AppendTo'];
+const EXPORT_TO_EXCEL = Object.freeze({ name: 'prvExportToExcel' });
 
 /**
  * Roles (section 11.1). Response and Answer content is readable ONLY by Survey Analyst and the
@@ -246,6 +247,8 @@ export const ROLES = Object.freeze([
       { table: 'qdb_survey_suppression_log', rights: ['Read'] },
       // B7: choosing the email sender queue on Survey Settings links to a queue.
       { table: 'queue', rights: READ },
+      // B8: export the suppression log and invitations to Excel.
+      EXPORT_TO_EXCEL,
     ],
   },
   {
@@ -258,6 +261,8 @@ export const ROLES = Object.freeze([
       { table: 'qdb_survey_trigger', rights: READ },
       { table: 'qdb_survey_source', rights: READ },
       { table: 'account', rights: ['Read'] },
+      // B8: FR-CSE-057 — analysts export filtered responses and answers to Excel.
+      EXPORT_TO_EXCEL,
     ],
   },
   {

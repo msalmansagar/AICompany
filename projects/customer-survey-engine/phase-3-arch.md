@@ -713,3 +713,15 @@ These challenges must be addressed before Phase 4 begins.
 | Mobile number | New column `qdb_survey_sms_config.qdb_customer_phone_field`: the account column holding the mobile number (per org). Empty = no SMS | Section 4.9 named the SMS table columns but not where the number comes from. |
 | Email | A CRM email activity from the queue in the new lookup `qdb_survey_settings.qdb_email_sender_queue_id`, to the customer account (CRM resolves `emailaddress1`), regarding the invitation. `SendEmail` with `IssueSend = true` marks it Pending Send for Email Router or server-side sync | Section 10.2. An email needs a sender, so the sender is a setting. Survey Admin gains Read + AppendTo on queue to choose it. |
 | Message | In the invitation's language, falling back to the other language when one is empty. Email HTML is encoded and right-to-left for Arabic | FR-CSE-012/013. |
+
+### Implementation decisions (B8, 2026-11-10)
+
+| Topic | Decision | Why |
+|---|---|---|
+| Scope | Views, charts and Excel export **plus** admin forms and a "Survey Engine" model-driven app (CEO, 2026-11-10) | Without them, setups and triggers can only be configured through bare default forms. They are configuration screens for capabilities the BRD already promises. |
+| Source of truth | `provisioning/ui-manifest.mjs`, applied by `provision-ui.mjs` (plan by default, `--apply` writes). Existing items are updated to match, so re-runs converge | The same declarative approach as the schema. |
+| Views | Responses; Answers (with the response's setup, customer and date as linked columns); Open and All invitations; Suppressions in the last 30 days; Active setups (the table's own default view, now with useful columns); All triggers | FR-CSE-057: filter per setup, customer and source record from any view's column filters, with no extra view per filter. |
+| Excel export | The platform's Export to Excel on these views. `prvExportToExcel` is granted to Survey Analyst and Survey Admin | Nothing to build. The privilege is what was missing. |
+| Charts | Average score by question (numeric answers only); Responses by setup; Responses by month; Suppressions by reason | Answer text is a memo, which Dataverse cannot group by, so answer-distribution charts would need a text column. Deferred until asked. |
+| Forms | Each table's own "Information" main form is replaced. The setup form lists its triggers and responses, and the response form lists its answers. On the source form, Is Active and the step registrations are read-only | The forms were created with our tables, so they are ours to replace. Activation goes only through `qdb_srv_ActivateSource`. Element ids are derived from names, so re-applying a form does not change its ids. |
+| App | "Survey Engine": a Surveys area with Configuration (setup, trigger, source, settings, SMS config) and Results (responses, answers, invitations, suppressions). Given to Survey Admin and Survey Analyst; System Administrators see every app | One place for survey administrators and analysts. |
