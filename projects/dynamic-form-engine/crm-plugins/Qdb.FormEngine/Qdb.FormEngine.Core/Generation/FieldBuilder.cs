@@ -110,7 +110,14 @@ namespace Qdb.FormEngine.Core.Generation
                 FileUploadConfig = BuildFileUploadConfig(field, fieldTypeStr),
                 GridConfig = BuildGridConfig(field, fieldId),
                 ValidationRules = BuildValidationRules(fieldId),
-                BusinessRules = BuildBusinessRules(fieldId)
+                BusinessRules = BuildBusinessRules(fieldId),
+                // FR-CSE-062/063: scoring columns — omitted when absent so non-scoring orgs
+                // publish byte-identical JSON (NFR-CSE-010). Contains guard is redundant here
+                // (GetAttributeValue returns 0 / null for missing decimals) but explicit for
+                // clarity, matching the pattern used for every other optional decimal column.
+                ScoreWeight = field.Contains("qdb_score_weight") ? (decimal?)field.GetAttributeValue<decimal>("qdb_score_weight") : null,
+                ScoreMin = field.Contains("qdb_score_min") ? (decimal?)field.GetAttributeValue<decimal>("qdb_score_min") : null,
+                ScoreMax = field.Contains("qdb_score_max") ? (decimal?)field.GetAttributeValue<decimal>("qdb_score_max") : null
             };
         }
 
@@ -131,7 +138,10 @@ namespace Qdb.FormEngine.Core.Generation
                     Description = Resolve(o.Id, "qdb_form_option_value", "qdb_description", o.GetAttributeValue<string>("qdb_description")),
                     IconName = o.GetAttributeValue<string>("qdb_icon_name"),
                     Notes = Resolve(o.Id, "qdb_form_option_value", "qdb_notes", o.GetAttributeValue<string>("qdb_notes")),
-                    OptionRecordId = o.Id != Guid.Empty ? (Guid?)o.Id : null
+                    OptionRecordId = o.Id != Guid.Empty ? (Guid?)o.Id : null,
+                    // FR-CSE-062: option scoring — omitted when absent so non-scoring orgs
+                    // publish byte-identical JSON (NFR-CSE-010).
+                    ScorePoints = o.Contains("qdb_score_points") ? (decimal?)o.GetAttributeValue<decimal>("qdb_score_points") : null
                 })
                 .ToList();
         }

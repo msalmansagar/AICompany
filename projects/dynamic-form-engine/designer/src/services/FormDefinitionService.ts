@@ -9,9 +9,11 @@ import {
   PICKLIST_TO_SUMMARY_MODE,
   FORM_TYPE_TO_PICKLIST,
   PICKLIST_TO_FORM_TYPE,
+  SCORING_MODE_TO_PICKLIST,
+  PICKLIST_TO_SCORING_MODE,
 } from '@/constants/attributeNames';
 import type { DesignerFormModel, FormStatus } from '@/state/models/DesignerFormModel';
-import type { FormType, SummaryMode } from '@qdb/shared';
+import type { FormType, ScoringMode, SummaryMode } from '@qdb/shared';
 import { isMissingColumnError, withRetry } from './crmRetry';
 
 const FORM_SELECT_COLUMNS = [
@@ -46,11 +48,20 @@ const FORM_SELECT_COLUMNS = [
 interface RetrievedFormRecord {
   record: Record<string, unknown>;
   isFormTypeAvailable: boolean;
+  isScoringAvailable: boolean;
 }
 
 function readFormType(record: Record<string, unknown>): FormType | undefined {
   const raw = record[FORM_DEFINITION_ATTRS.FORM_TYPE];
   return raw != null ? PICKLIST_TO_FORM_TYPE[Number(raw)] : undefined;
+}
+
+function readScoringMode(record: Record<string, unknown>): ScoringMode | undefined {
+  // None (100000000) is the default state — semantically absent — so we return undefined for it,
+  // matching the C# publisher which omits scoringMode from JSON for None. Only Weighted (100000001)
+  // is a meaningful value that the model and UI need to know about.
+  const raw = record[FORM_DEFINITION_ATTRS.SCORING_MODE];
+  return Number(raw) === SCORING_MODE_TO_PICKLIST.Weighted ? 'Weighted' : undefined;
 }
 
 export interface CreateFormDto {
@@ -75,6 +86,8 @@ export interface UpdateFormDto {
   status?: FormStatus;
   currentVersion?: string;
   formType?: FormType;
+  // FR-CSE-061: only written when isScoringAvailable is true on the loaded org.
+  scoringMode?: ScoringMode;
   themeId?: string | null;
   allowSaveDraft?: boolean;
   draftExpiryDays?: number | null;
@@ -153,6 +166,7 @@ export class FormDefinitionService {
       data[FORM_DEFINITION_ATTRS.CURRENT_VERSION] = parseInt(dto.currentVersion, 10) || 1;
     }
     if (dto.formType !== undefined) data[FORM_DEFINITION_ATTRS.FORM_TYPE] = FORM_TYPE_TO_PICKLIST[dto.formType];
+    if (dto.scoringMode !== undefined) data[FORM_DEFINITION_ATTRS.SCORING_MODE] = SCORING_MODE_TO_PICKLIST[dto.scoringMode];
     if (dto.allowSaveDraft !== undefined) data[FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT] = dto.allowSaveDraft;
     if (dto.draftExpiryDays !== undefined) data[FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS] = dto.draftExpiryDays;
     if (dto.showSummaryStep !== undefined) data[FORM_DEFINITION_ATTRS.SHOW_SUMMARY_STEP] = dto.showSummaryStep;
@@ -270,9 +284,13 @@ export class FormDefinitionService {
   }
 
   /**
-   * Retrieves the form, with qdb_form_type when this org has it. The column (FR-CSE-019)
-   * is not provisioned everywhere, and naming a missing column fails the whole retrieve,
-   * so only that specific error falls back; every other failure propagates.
+   * Retrieves the form, adding newer columns progressively as the org supports them.
+   *
+   * Tier 1 (all new): qdb_form_type + qdb_scoring_mode — both available.
+   * Tier 2 (form_type only): qdb_scoring_mode is not yet deployed.
+   * Tier 3 (baseline): qdb_form_type is also missing (pre-survey orgs).
+   *
+   * Only missing-column errors cause fallback; every other error propagates unchanged.
    */
   private async retrieveFormRecord(id: string, operation: string): Promise<RetrievedFormRecord> {
     const retrieveWith = (columns: string[]) =>
@@ -280,16 +298,36 @@ export class FormDefinitionService {
         () => this.webApi.retrieveRecord(ENTITY_NAMES.FORM_DEFINITION, id, `?$select=${columns.join(',')}`),
         operation,
       );
+
+    // Tier 1: both new columns
     try {
-      const record = await retrieveWith([...FORM_SELECT_COLUMNS, FORM_DEFINITION_ATTRS.FORM_TYPE]);
-      return { record, isFormTypeAvailable: true };
+      const record = await retrieveWith([
+        ...FORM_SELECT_COLUMNS,
+        FORM_DEFINITION_ATTRS.FORM_TYPE,
+        FORM_DEFINITION_ATTRS.SCORING_MODE,
+      ]);
+      return { record, isFormTypeAvailable: true, isScoringAvailable: true };
     } catch (error) {
       if (!isMissingColumnError(error)) throw error;
     }
-    return { record: await retrieveWith(FORM_SELECT_COLUMNS), isFormTypeAvailable: false };
+
+    // Tier 2: qdb_form_type only — scoring not yet provisioned
+    try {
+      const record = await retrieveWith([...FORM_SELECT_COLUMNS, FORM_DEFINITION_ATTRS.FORM_TYPE]);
+      return { record, isFormTypeAvailable: true, isScoringAvailable: false };
+    } catch (error) {
+      if (!isMissingColumnError(error)) throw error;
+    }
+
+    // Tier 3: baseline — pre-survey org
+    return {
+      record: await retrieveWith(FORM_SELECT_COLUMNS),
+      isFormTypeAvailable: false,
+      isScoringAvailable: false,
+    };
   }
 
-  private mapRecordToModel({ record, isFormTypeAvailable }: RetrievedFormRecord): DesignerFormModel {
+  private mapRecordToModel({ record, isFormTypeAvailable, isScoringAvailable }: RetrievedFormRecord): DesignerFormModel {
     return {
       id: String(record[FORM_DEFINITION_ATTRS.ID] ?? ''),
       name: String(record[FORM_DEFINITION_ATTRS.NAME] ?? ''),
@@ -310,6 +348,8 @@ export class FormDefinitionService {
       currentVersion: versionToString(record[FORM_DEFINITION_ATTRS.CURRENT_VERSION]),
       formType: readFormType(record),
       isFormTypeAvailable,
+      scoringMode: readScoringMode(record),
+      isScoringAvailable,
       themeId: null,
       allowSaveDraft: record[FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT] !== false,
       draftExpiryDays: record[FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS] != null

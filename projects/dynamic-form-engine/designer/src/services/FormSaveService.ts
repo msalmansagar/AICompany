@@ -60,6 +60,10 @@ type DisplayAndDocumentProperties = Pick<
   | 'downloadDocumentSetting'
   | 'staticContent'
   | 'sourceFieldSchemaName'
+  // FR-CSE-063/064 — weighted scoring
+  | 'scoreWeight'
+  | 'scoreMin'
+  | 'scoreMax'
 >;
 
 // FR-CSE-024: these properties were never handed to FieldService, so a designer-set
@@ -84,6 +88,9 @@ function toDisplayAndDocumentProperties(field: DesignerFieldModel): DisplayAndDo
     downloadDocumentSetting: field.downloadDocumentSetting ?? undefined,
     staticContent: field.staticContent ?? undefined,
     sourceFieldSchemaName: field.sourceFieldSchemaName ?? undefined,
+    scoreWeight: field.scoreWeight ?? undefined,
+    scoreMin: field.scoreMin ?? undefined,
+    scoreMax: field.scoreMax ?? undefined,
   };
 }
 
@@ -287,6 +294,8 @@ export class FormSaveService {
               value: option.value,
               sortOrder: option.sortOrder,
               isDefault: option.isDefault,
+              notes: option.notes,
+              scorePoints: option.scorePoints,
             });
           }
         }
@@ -470,6 +479,8 @@ export class FormSaveService {
         description: form.description,
         // FR-CSE-019: an org without qdb_form_type rejects any write naming it.
         formType: form.isFormTypeAvailable === true ? form.formType : undefined,
+        // FR-CSE-061: same guard — only write when the column is provisioned.
+        scoringMode: form.isScoringAvailable === true ? form.scoringMode : undefined,
         allowSaveDraft: form.allowSaveDraft,
         draftExpiryDays: form.draftExpiryDays,
         showSummaryStep: form.showSummaryStep,

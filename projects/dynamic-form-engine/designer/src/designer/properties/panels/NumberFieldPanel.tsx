@@ -1,5 +1,5 @@
 import React from 'react';
-import { Dropdown, Field, Option, Text, makeStyles, tokens } from '@fluentui/react-components';
+import { Dropdown, Field, Input, Option, Text, makeStyles, tokens } from '@fluentui/react-components';
 import type { DesignerFieldModel } from '@/state/models/DesignerFormModel';
 import { useDesignerStore } from '@/state/designerStore';
 
@@ -30,6 +30,7 @@ export function NumberFieldPanel({ field }: Props): React.ReactElement {
   const allFields = useDesignerStore(state => state.fields);
 
   const isBar = field.numberDisplayStyle === 'bar';
+  const isWeighted = useDesignerStore(s => s.form?.scoringMode === 'Weighted');
   // Candidate "max" fields: other numeric fields on the form.
   const maxOptions = Object.values(allFields).filter(
     f => f.id !== field.id && NUMERIC_TYPES.includes(f.fieldType),
@@ -84,6 +85,59 @@ export function NumberFieldPanel({ field }: Props): React.ReactElement {
               <Option key={f.id} value={f.code}>{f.label || f.code}</Option>
             ))}
           </Dropdown>
+        </Field>
+      )}
+
+      {/* FR-CSE-063: Weight — shown only on weighted surveys. */}
+      {isWeighted && (
+        <Field
+          label="Weight"
+          hint="How much this question counts relative to others. Leave blank to use weight 1."
+        >
+          <Input
+            type="number"
+            min={0}
+            value={field.scoreWeight != null ? String(field.scoreWeight) : ''}
+            onChange={(_, data) =>
+              updateField(field.id, {
+                scoreWeight: data.value !== '' ? Number(data.value) : null,
+              })
+            }
+            placeholder="1"
+          />
+        </Field>
+      )}
+
+      {/* FR-CSE-064: Score range — number/decimal/currency only, weighted surveys only. */}
+      {isWeighted && (
+        <Field
+          label="Score minimum"
+          hint="The numeric value that maps to 0 points. Required when scoring this field."
+        >
+          <Input
+            type="number"
+            value={field.scoreMin != null ? String(field.scoreMin) : ''}
+            onChange={(_, data) =>
+              updateField(field.id, { scoreMin: data.value !== '' ? Number(data.value) : null })
+            }
+            placeholder="e.g. 0"
+          />
+        </Field>
+      )}
+
+      {isWeighted && (
+        <Field
+          label="Score maximum"
+          hint="The numeric value that maps to full points. Must be greater than the minimum."
+        >
+          <Input
+            type="number"
+            value={field.scoreMax != null ? String(field.scoreMax) : ''}
+            onChange={(_, data) =>
+              updateField(field.id, { scoreMax: data.value !== '' ? Number(data.value) : null })
+            }
+            placeholder="e.g. 10"
+          />
         </Field>
       )}
 

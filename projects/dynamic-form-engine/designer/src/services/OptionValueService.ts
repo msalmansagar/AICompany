@@ -12,6 +12,8 @@ export interface CreateOptionDto {
   sortOrder: number;
   isDefault: boolean;
   notes?: string | null;
+  // FR-CSE-062 — only written when set; keeps existing orgs unchanged.
+  scorePoints?: number | null;
 }
 
 export interface UpdateOptionDto {
@@ -20,6 +22,8 @@ export interface UpdateOptionDto {
   sortOrder?: number;
   isDefault?: boolean;
   notes?: string | null;
+  // FR-CSE-062 — undefined = untouched; null = clear the value.
+  scorePoints?: number | null;
 }
 
 export class OptionValueService {
@@ -34,6 +38,7 @@ export class OptionValueService {
       [FORM_OPTION_VALUE_ATTRS.IS_DEFAULT]: dto.isDefault,
     };
     if (dto.notes != null) payload[FORM_OPTION_VALUE_ATTRS.NOTES] = dto.notes;
+    if (dto.scorePoints != null) payload[FORM_OPTION_VALUE_ATTRS.SCORE_POINTS] = dto.scorePoints;
 
     const result = await withRetry(
       () => this.webApi.createRecord(ENTITY_NAMES.FORM_OPTION_VALUE, payload),
@@ -49,6 +54,7 @@ export class OptionValueService {
     if (dto.sortOrder !== undefined) data[FORM_OPTION_VALUE_ATTRS.SORT_ORDER] = dto.sortOrder;
     if (dto.isDefault !== undefined) data[FORM_OPTION_VALUE_ATTRS.IS_DEFAULT] = dto.isDefault;
     if (dto.notes !== undefined) data[FORM_OPTION_VALUE_ATTRS.NOTES] = dto.notes ?? null;
+    if (dto.scorePoints !== undefined) data[FORM_OPTION_VALUE_ATTRS.SCORE_POINTS] = dto.scorePoints ?? null;
 
     if (Object.keys(data).length === 0) return;
 
@@ -75,6 +81,7 @@ export class OptionValueService {
       FORM_OPTION_VALUE_ATTRS.SORT_ORDER,
       FORM_OPTION_VALUE_ATTRS.IS_DEFAULT,
       FORM_OPTION_VALUE_ATTRS.NOTES,
+      FORM_OPTION_VALUE_ATTRS.SCORE_POINTS,
     ].join(',');
 
     const filter = `${FORM_OPTION_VALUE_ATTRS.FIELD_ID_VALUE} eq ${fieldId}`;
@@ -112,6 +119,7 @@ export class OptionValueService {
           sortOrder: option.sortOrder,
           isDefault: option.isDefault,
           notes: option.notes,
+          scorePoints: option.scorePoints,
         });
       } else {
         await this.updateOption(option.id, {
@@ -120,6 +128,7 @@ export class OptionValueService {
           sortOrder: option.sortOrder,
           isDefault: option.isDefault,
           notes: option.notes,
+          scorePoints: option.scorePoints,
         });
       }
     }
@@ -134,6 +143,12 @@ export class OptionValueService {
       isDefault: Boolean(record[FORM_OPTION_VALUE_ATTRS.IS_DEFAULT]),
       notes: record[FORM_OPTION_VALUE_ATTRS.NOTES] != null
         ? String(record[FORM_OPTION_VALUE_ATTRS.NOTES])
+        : null,
+      // FR-CSE-062 — null when unset; the column may also be absent on pre-scoring orgs
+      // (the full $select then fails), but OptionValueService has no tier mechanism so we
+      // accept null and let the select fail gracefully at the platform level.
+      scorePoints: record[FORM_OPTION_VALUE_ATTRS.SCORE_POINTS] != null
+        ? Number(record[FORM_OPTION_VALUE_ATTRS.SCORE_POINTS])
         : null,
     };
   }

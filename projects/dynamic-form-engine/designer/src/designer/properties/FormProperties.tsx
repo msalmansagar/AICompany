@@ -17,7 +17,7 @@ import {
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
-import type { FormType, SummaryMode } from '@qdb/shared';
+import type { FormType, ScoringMode, SummaryMode } from '@qdb/shared';
 import { isRenderableImageUrl } from '@qdb/shared';
 import { useDesignerStore } from '@/state/designerStore';
 import { SUBMIT_CONFIRMATION_LABEL_MAX_LENGTH } from '@/constants/columnLimits';
@@ -118,6 +118,24 @@ export function FormProperties(): React.ReactElement {
           <Option value="Survey">Survey</Option>
         </Dropdown>
       </Field>
+
+      {/* FR-CSE-061: Scoring mode — shown only for Survey forms on orgs that have the column.
+          The column is not provisioned everywhere; isScoringAvailable guards the write too. */}
+      {form.formType === 'Survey' && form.isScoringAvailable === true && (
+        <Field
+          label="Scoring"
+          hint="Weighted surveys score each response based on option points and question weights."
+        >
+          <Dropdown
+            selectedOptions={[form.scoringMode ?? 'None']}
+            value={form.scoringMode ?? 'None'}
+            onOptionSelect={(_, data) => updateForm({ scoringMode: data.optionValue as ScoringMode })}
+          >
+            <Option value="None">None (normal survey)</Option>
+            <Option value="Weighted">Weighted</Option>
+          </Dropdown>
+        </Field>
+      )}
 
       <Field
         label="Form Code"

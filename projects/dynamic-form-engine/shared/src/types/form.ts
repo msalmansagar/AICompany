@@ -15,6 +15,9 @@ export type SummaryMode = 'None' | 'SystemGenerated' | 'Manual';
 /** FR-CSE-019: a Survey form submits to the survey response tables; absent means Standard. */
 export type FormType = 'Standard' | 'Survey';
 
+/** FR-CSE-061: how a survey scores responses. Absent/None keeps today's behaviour. */
+export type ScoringMode = 'None' | 'Weighted';
+
 export interface ValidationRule {
   ruleId: string;
   ruleType: string;
@@ -29,6 +32,8 @@ export interface OptionValue {
   description?: string;
   iconName?: string;
   notes?: string;
+  // FR-CSE-062: points this option contributes in a Weighted survey. Absent when unset.
+  scorePoints?: number;
 }
 
 export type BooleanRenderStyle = 'toggle' | 'radio';
@@ -224,6 +229,14 @@ export interface FieldDefinition {
   // fields created before these toggles existed keep offering both.
   showDocumentView?: boolean;
   showDocumentDownload?: boolean;
+
+  // FR-CSE-063/064 — Weighted survey scoring. Absent on standard forms and unscored questions.
+  /** Multiplier for this field's points contribution. Absent/0 = not scored (default 1). */
+  scoreWeight?: number;
+  /** For number/decimal/currency: the value that maps to 0 points. */
+  scoreMin?: number;
+  /** For number/decimal/currency: the value that maps to full points. Must exceed scoreMin. */
+  scoreMax?: number;
 }
 
 export interface SectionDefinition {
@@ -458,6 +471,8 @@ export interface FormDefinition {
   version: number;
   // FR-CSE-019: absent on every form published before survey support ⇒ Standard.
   formType?: FormType;
+  // FR-CSE-061: absent on non-survey forms and surveys published before scoring ⇒ None.
+  scoringMode?: ScoringMode;
   allowSaveDraft: boolean;
   showSummaryStep?: boolean;
   // DFE-FBE-001: None | SystemGenerated | Manual (undefined → derive from showSummaryStep).

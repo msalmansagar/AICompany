@@ -117,6 +117,10 @@ export interface CreateFieldDto {
   gridCardIcon?: string | null;
   gridPageSize?: number | null;
   gridPagingStyle?: 'prevnext' | 'numbered' | null;
+  // FR-CSE-063/064 — weighted scoring
+  scoreWeight?: number | null;
+  scoreMin?: number | null;
+  scoreMax?: number | null;
 }
 
 export interface UpdateFieldDto {
@@ -188,6 +192,10 @@ export interface UpdateFieldDto {
   gridCardIcon?: string | null;
   gridPageSize?: number | null;
   gridPagingStyle?: 'prevnext' | 'numbered' | null;
+  // FR-CSE-063/064 — weighted scoring
+  scoreWeight?: number | null;
+  scoreMin?: number | null;
+  scoreMax?: number | null;
 }
 
 export class FieldService {
@@ -263,6 +271,10 @@ export class FieldService {
     if (dto.gridCardIcon != null) payload[FORM_FIELD_ATTRS.GRID_CARD_ICON] = dto.gridCardIcon;
     if (dto.gridPageSize != null) payload[FORM_FIELD_ATTRS.GRID_PAGE_SIZE] = dto.gridPageSize;
     if (dto.gridPagingStyle != null) payload[FORM_FIELD_ATTRS.GRID_PAGING_STYLE] = dto.gridPagingStyle;
+    // FR-CSE-063/064 — only written when set; absence keeps org-schema independence.
+    if (dto.scoreWeight != null) payload[FORM_FIELD_ATTRS.SCORE_WEIGHT] = dto.scoreWeight;
+    if (dto.scoreMin != null) payload[FORM_FIELD_ATTRS.SCORE_MIN] = dto.scoreMin;
+    if (dto.scoreMax != null) payload[FORM_FIELD_ATTRS.SCORE_MAX] = dto.scoreMax;
 
     const result = await withRetry(
       () => this.webApi.createRecord(ENTITY_NAMES.FORM_FIELD, payload),
@@ -336,6 +348,10 @@ export class FieldService {
     if (dto.gridCardIcon !== undefined) data[FORM_FIELD_ATTRS.GRID_CARD_ICON] = dto.gridCardIcon ?? null;
     if (dto.gridPageSize !== undefined) data[FORM_FIELD_ATTRS.GRID_PAGE_SIZE] = dto.gridPageSize ?? null;
     if (dto.gridPagingStyle !== undefined) data[FORM_FIELD_ATTRS.GRID_PAGING_STYLE] = dto.gridPagingStyle ?? null;
+    // FR-CSE-063/064 — undefined means untouched; null explicitly clears the value.
+    if (dto.scoreWeight !== undefined) data[FORM_FIELD_ATTRS.SCORE_WEIGHT] = dto.scoreWeight ?? null;
+    if (dto.scoreMin !== undefined) data[FORM_FIELD_ATTRS.SCORE_MIN] = dto.scoreMin ?? null;
+    if (dto.scoreMax !== undefined) data[FORM_FIELD_ATTRS.SCORE_MAX] = dto.scoreMax ?? null;
 
     if (Object.keys(data).length === 0) return;
 
@@ -433,6 +449,14 @@ export class FieldService {
       FORM_FIELD_ATTRS.FILE_CAPTURE_MODE,
     ];
 
+    // FR-CSE-063/064 — weighted scoring columns. Added last so orgs without them lose
+    // only score data, not radioRenderStyle or fileCaptureMode.
+    const SCORING_SELECT = [
+      FORM_FIELD_ATTRS.SCORE_WEIGHT,
+      FORM_FIELD_ATTRS.SCORE_MIN,
+      FORM_FIELD_ATTRS.SCORE_MAX,
+    ];
+
     const filter = `${FORM_FIELD_ATTRS.SECTION_ID_VALUE} eq ${sectionId}`;
     const orderBy = `${FORM_FIELD_ATTRS.SORT_ORDER} asc`;
 
@@ -444,6 +468,7 @@ export class FieldService {
 
     // Widest first; each step drops the newest tier this environment may not have yet.
     const columnTiers = [
+      [...CORE_SELECT, ...EXTENDED_SELECT, ...NEWEST_SELECT, ...SCORING_SELECT],
       [...CORE_SELECT, ...EXTENDED_SELECT, ...NEWEST_SELECT],
       [...CORE_SELECT, ...EXTENDED_SELECT],
       CORE_SELECT,
@@ -574,6 +599,10 @@ export class FieldService {
       gridPageSize: record[FORM_FIELD_ATTRS.GRID_PAGE_SIZE] != null ? Number(record[FORM_FIELD_ATTRS.GRID_PAGE_SIZE]) : null,
       gridPagingStyle: (record[FORM_FIELD_ATTRS.GRID_PAGING_STYLE] as 'prevnext' | 'numbered' | undefined) ?? null,
       gridColumns: [],
+      // FR-CSE-063/064 — null when the SCORING_SELECT tier was not available on this org.
+      scoreWeight: record[FORM_FIELD_ATTRS.SCORE_WEIGHT] != null ? Number(record[FORM_FIELD_ATTRS.SCORE_WEIGHT]) : null,
+      scoreMin: record[FORM_FIELD_ATTRS.SCORE_MIN] != null ? Number(record[FORM_FIELD_ATTRS.SCORE_MIN]) : null,
+      scoreMax: record[FORM_FIELD_ATTRS.SCORE_MAX] != null ? Number(record[FORM_FIELD_ATTRS.SCORE_MAX]) : null,
     };
   }
 }

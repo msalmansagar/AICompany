@@ -13,6 +13,9 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("description")] public string Description { get; set; }
         [JsonProperty("status")] public string Status { get; set; }
         [JsonProperty("version")] public int Version { get; set; }
+        // FR-CSE-061: absent unless the form is a Weighted survey; absent keeps every non-scoring
+        // form byte-identical to its previous publication (NFR-CSE-010).
+        [JsonProperty("scoringMode", NullValueHandling = NullValueHandling.Ignore)] public string ScoringMode { get; set; }
         // Form-level mark shown beside the title. Both omitted when unset so a form with no
         // mark publishes byte-identical JSON.
         [JsonProperty("iconName", NullValueHandling = NullValueHandling.Ignore)] public string IconName { get; set; }
@@ -173,6 +176,11 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("gridConfig")] public GridFieldConfig GridConfig { get; set; }
         [JsonProperty("validationRules")] public List<ValidationRule> ValidationRules { get; set; }
         [JsonProperty("businessRules")] public List<BusinessRule> BusinessRules { get; set; }
+        // FR-CSE-063/064 — weighted-survey scoring. All three are omitted unless set so
+        // existing forms remain byte-identical (NFR-CSE-010).
+        [JsonProperty("scoreWeight", NullValueHandling = NullValueHandling.Ignore)] public decimal? ScoreWeight { get; set; }
+        [JsonProperty("scoreMin", NullValueHandling = NullValueHandling.Ignore)] public decimal? ScoreMin { get; set; }
+        [JsonProperty("scoreMax", NullValueHandling = NullValueHandling.Ignore)] public decimal? ScoreMax { get; set; }
     }
 
     /// <summary>A selectable option for dropdown, multiselect, or radio fields.</summary>
@@ -188,6 +196,9 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("iconName")] public string IconName { get; set; }
         [JsonProperty("notes")] public string Notes { get; set; }
         [JsonProperty("optionRecordId")] public Guid? OptionRecordId { get; set; }
+        // FR-CSE-062: points this option contributes in a Weighted survey. Omitted when
+        // unset so non-scoring forms stay byte-identical (NFR-CSE-010).
+        [JsonProperty("scorePoints", NullValueHandling = NullValueHandling.Ignore)] public decimal? ScorePoints { get; set; }
     }
 
     /// <summary>Configuration for lookup fields that fetch records from CRM.</summary>

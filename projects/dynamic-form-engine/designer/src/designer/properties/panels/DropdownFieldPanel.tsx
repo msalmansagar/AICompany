@@ -3,6 +3,7 @@ import {
   Badge,
   Button,
   Field,
+  Input,
   Select,
   Text,
   makeStyles,
@@ -62,6 +63,7 @@ export function DropdownFieldPanel({ field }: Props): React.ReactElement {
   const updateField = useDesignerStore(s => s.updateField);
   const styleOptions = DISPLAY_STYLES_BY_TYPE[field.fieldType] ?? [];
   const selectItem = useDesignerStore(s => s.selectItem);
+  const isWeighted = useDesignerStore(s => s.form?.scoringMode === 'Weighted');
 
   const optionCount = field.options.length;
   const optionLabel = `${optionCount} option${optionCount !== 1 ? 's' : ''} configured`;
@@ -107,6 +109,26 @@ export function DropdownFieldPanel({ field }: Props): React.ReactElement {
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </Select>
+        </Field>
+      )}
+
+      {/* FR-CSE-063: Weight — shown only on weighted surveys. Empty/absent = effective weight 1. */}
+      {isWeighted && (
+        <Field
+          label="Weight"
+          hint="How much this question counts relative to others. Leave blank to use weight 1."
+        >
+          <Input
+            type="number"
+            min={0}
+            value={field.scoreWeight != null ? String(field.scoreWeight) : ''}
+            onChange={(_, data) =>
+              updateField(field.id, {
+                scoreWeight: data.value !== '' ? Number(data.value) : null,
+              })
+            }
+            placeholder="1"
+          />
         </Field>
       )}
 

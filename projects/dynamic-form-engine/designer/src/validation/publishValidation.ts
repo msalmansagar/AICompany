@@ -161,6 +161,7 @@ export function validateForPublish(
   validateFields(state, issues);
   validateSubmissionMapping(state, issues);
   validateSectionReveal(state, sectionButtons, issues);
+  validateWeightedScoring(state, issues);
 
   const isValid = issues.every(issue => issue.severity !== 'error');
   return { isValid, issues };
@@ -214,4 +215,91 @@ function hasAdvanceButton(buttons: readonly ScopedButtonRecord[]): boolean {
       return false;
     }
   });
+}
+
+// Field types that can carry a Weight in a weighted survey (FR-CSE-063).
+const SCORABLE_OPTION_FIELD_TYPES = new Set([
+  FIELD_TYPE.DROPDOWN, FIELD_TYPE.RADIO, FIELD_TYPE.MULTI_SELECT,
+  FIELD_TYPE.CHECKBOX, FIELD_TYPE.BOOLEAN,
+]);
+const SCORABLE_NUMBER_FIELD_TYPES = new Set(['number', 'decimal', 'currency']);
+
+/**
+ * Effective weight for a field: null/undefined/empty → 1 (default). Explicit 0 → excluded.
+ */
+function effectiveWeight(weight: number | null | undefined): number {
+  return weight != null ? weight : 1;
+}
+
+/**
+ * FR-CSE-070 — refuse to publish a Weighted survey unless:
+ *   PV-015: at least one scorable question has effective weight > 0.
+ *   PV-016: every option of every scored choice question has Points set
+ *           (rating-style questions are exempt — they use the option's numeric value).
+ *   PV-017: every scored number/decimal/currency question has both min and max.
+ *   PV-018: score min < score max for each scored number question.
+ *
+ * Skipped for non-survey forms and non-weighted surveys.
+ */
+function validateWeightedScoring(state: DesignerState, issues: ValidationIssue[]): void {
+  if (state.form?.formType !== 'Survey' || state.form.scoringMode !== 'Weighted') return;
+
+  const fields = Object.values(state.fields);
+
+  // PV-015: at least one scorable question must have effective weight > 0.
+  const hasActivelyScoredField = fields.some(
+    f => (SCORABLE_OPTION_FIELD_TYPES.has(f.fieldType) || SCORABLE_NUMBER_FIELD_TYPES.has(f.fieldType))
+      && effectiveWeight(f.scoreWeight) > 0,
+  );
+  if (!hasActivelyScoredField) {
+    issues.push({
+      code: 'PV-015',
+      message: 'A Weighted survey must have at least one scorable question with a weight greater than 0. '
+        + 'Set a Weight on a dropdown, radio, multi-select, or number question.',
+      severity: 'error',
+    });
+  }
+
+  for (const field of fields) {
+    const weight = effectiveWeight(field.scoreWeight);
+    if (weight <= 0) continue; // excluded from scoring
+
+    // PV-016: every option of a scored choice question must have Points (except rating-style).
+    if (SCORABLE_OPTION_FIELD_TYPES.has(field.fieldType)) {
+      const isRating = field.radioRenderStyle === 'rating';
+      if (!isRating && field.options.some(o => o.scorePoints == null)) {
+        issues.push({
+          code: 'PV-016',
+          message: `Field "${field.label || field.code}" is scored (weight ${weight}) but `
+            + 'one or more options are missing a Points value. Set Points on every option, '
+            + 'or change this field to rating style.',
+          severity: 'error',
+        });
+      }
+    }
+
+    // PV-017: scored number questions must have both min and max.
+    if (SCORABLE_NUMBER_FIELD_TYPES.has(field.fieldType)) {
+      const hasBoth = field.scoreMin != null && field.scoreMax != null;
+      if (!hasBoth) {
+        issues.push({
+          code: 'PV-017',
+          message: `Field "${field.label || field.code}" is a scored number question but `
+            + 'Score minimum and Score maximum must both be set.',
+          severity: 'error',
+        });
+        continue; // skip PV-018 when both are absent
+      }
+
+      // PV-018: min must be strictly less than max.
+      if (field.scoreMin! >= field.scoreMax!) {
+        issues.push({
+          code: 'PV-018',
+          message: `Field "${field.label || field.code}": Score minimum (${field.scoreMin}) `
+            + `must be less than Score maximum (${field.scoreMax}).`,
+          severity: 'error',
+        });
+      }
+    }
+  }
 }
