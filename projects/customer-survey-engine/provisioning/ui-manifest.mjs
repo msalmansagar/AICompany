@@ -38,8 +38,15 @@ export const VIEWS = Object.freeze([
     columns: [['qdb_logged_on', 140], ['qdb_reason', 140], ['qdb_customer_id', 200], ['qdb_survey_setup_id', 180], ['qdb_detail', 400]],
     filters: [['qdb_logged_on', 'last-x-days', 30]], order: { attribute: 'qdb_logged_on', descending: true },
   },
+  // "Active" keeps the CRM meaning (not deactivated): every setup, switched on or off, so the main
+  // list is never empty just because every setup is switched off (seen live, 2026-11-11).
   {
-    table: 'qdb_survey_setup', name: 'Active Survey Setups', description: 'Setups currently able to send.',
+    table: 'qdb_survey_setup', name: 'Active Survey Setups', description: 'Every setup, switched on or off.',
+    columns: [['qdb_name', 240], ['qdb_is_active', 90], ['qdb_form_code', 180], ['qdb_delivery_digital', 120], ['qdb_delivery_legacy', 120], ['qdb_active_from', 110], ['qdb_active_to', 110], ['qdb_expiry_days', 90]],
+    order: { attribute: 'qdb_name', descending: false }, isDefault: true,
+  },
+  {
+    table: 'qdb_survey_setup', name: 'Survey Setups - Switched On', description: 'Setups whose Is Active switch is on, so they can send.',
     columns: [['qdb_name', 240], ['qdb_form_code', 180], ['qdb_delivery_digital', 120], ['qdb_delivery_legacy', 120], ['qdb_active_from', 110], ['qdb_active_to', 110], ['qdb_expiry_days', 90]],
     filters: [['qdb_is_active', 'eq', 1]], order: { attribute: 'qdb_name', descending: false },
   },
