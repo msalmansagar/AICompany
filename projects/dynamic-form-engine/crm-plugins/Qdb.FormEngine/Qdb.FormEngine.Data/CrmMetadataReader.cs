@@ -192,9 +192,9 @@ namespace Qdb.FormEngine.Data
             if (fieldIds == null || fieldIds.Count == 0) return new List<Entity>();
             var query = new QueryExpression("qdb_form_option_value")
             {
-                ColumnSet = new ColumnSet("qdb_value", "qdb_label", "qdb_display_order", "qdb_is_default",
-                    "qdb_parent_option_value", "qdb_is_active", "qdb_description", "qdb_icon_name",
-                    "qdb_notes", "qdb_form_field_id"),
+                // All columns, as for fields: qdb_score_points (FR-CSE-062) exists only on orgs that have the
+                // scoring schema, and naming a missing column would fail every publish on the others.
+                ColumnSet = new ColumnSet(true),
                 NoLock = true
             };
             query.Criteria.AddCondition("qdb_is_active", ConditionOperator.Equal, true);
