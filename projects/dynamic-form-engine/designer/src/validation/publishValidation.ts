@@ -218,9 +218,10 @@ function hasAdvanceButton(buttons: readonly ScopedButtonRecord[]): boolean {
 }
 
 // Field types that can carry a Weight in a weighted survey (FR-CSE-063).
-const SCORABLE_OPTION_FIELD_TYPES = new Set([
+// Exactly the types the survey engine scores (QuestionScoring): choice questions with options.
+// Checkbox and yes/no fields carry no options, so they could never earn points.
+const SCORABLE_OPTION_FIELD_TYPES = new Set<string>([
   FIELD_TYPE.DROPDOWN, FIELD_TYPE.RADIO, FIELD_TYPE.MULTI_SELECT,
-  FIELD_TYPE.CHECKBOX, FIELD_TYPE.BOOLEAN,
 ]);
 const SCORABLE_NUMBER_FIELD_TYPES = new Set(['number', 'decimal', 'currency']);
 

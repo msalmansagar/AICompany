@@ -10,7 +10,6 @@ import {
   FORM_TYPE_TO_PICKLIST,
   PICKLIST_TO_FORM_TYPE,
   SCORING_MODE_TO_PICKLIST,
-  PICKLIST_TO_SCORING_MODE,
 } from '@/constants/attributeNames';
 import type { DesignerFormModel, FormStatus } from '@/state/models/DesignerFormModel';
 import type { FormType, ScoringMode, SummaryMode } from '@qdb/shared';

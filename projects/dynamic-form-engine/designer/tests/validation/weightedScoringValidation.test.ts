@@ -179,7 +179,7 @@ function makeStateWithFields(fields: DesignerFieldModel[], formOverrides: Partia
     markDirty: () => {},
     markDeleted: () => {},
     setPreviewMode: () => {},
-  } as PartialPublishState;
+  } as unknown as PartialPublishState;
 }
 
 function issueCodesFor(state: PartialPublishState): string[] {
@@ -220,6 +220,12 @@ describe('validateWeightedScoring — not applicable', () => {
 // ─── PV-015 ───────────────────────────────────────────────────────────────────
 
 describe('PV-015 — at least one actively-scored question', () => {
+  it('fails_when_the_only_question_is_a_yes_no_field_which_has_no_options_to_score', () => {
+    const state = makeStateWithFields([makeDropdownField({ fieldType: 'boolean', options: [], scoreWeight: 2 })]);
+
+    expect(issueCodesFor(state)).toContain('PV-015');
+  });
+
   it('passes_when_a_dropdown_field_has_default_weight', () => {
     // scoreWeight null/undefined → effective weight 1 → passes PV-015
     const state = makeStateWithFields([makeDropdownField({ scoreWeight: null })]);
