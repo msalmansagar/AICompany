@@ -91,9 +91,12 @@ export function assertOnlySurveyAndOutOfBoxRelationships(text) {
   return { text, removed: 0 };
 }
 
+/** The generic 9.2 → 9.1 transforms, without Debt Collection's own. */
+export const GENERIC_TRANSFORMS = SHARED_TRANSFORMS.filter(([name]) => !DEBT_COLLECTION_ONLY.has(name));
+
 /** Ordered list: [name, why, transform], applied to customizations.xml. */
 export const CUSTOMIZATION_TRANSFORMS = [
-  ...SHARED_TRANSFORMS.filter(([name]) => !DEBT_COLLECTION_ONLY.has(name)),
+  ...GENERIC_TRANSFORMS,
   ['cloud-trigger-steps', 'F4: the six SurveyTriggerPlugin steps name the cloud org\'s request tables; qdb_srv_ActivateSource creates them on-prem', removeCloudTriggerSteps],
   ['own-app-icon', 'F10: the app used the platform default icon web resource, which a 9.1 org may not have', useOwnAppIcon],
   ['out-of-box-table-shells', 'account, contact and queue shells carried the cloud org\'s own customizations of those tables (the Report Engine ribbon on account); the survey needs none of them', removeOutOfBoxTableShells],
