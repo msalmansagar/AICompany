@@ -22,6 +22,7 @@
 | Secure link tokens (single-use, expiring) | JWT libraries (System.IdentityModel.Tokens.Jwt), Hashids | Not adopted | The design uses an opaque random token from .NET's `RandomNumberGenerator`, stored hashed against the invitation. That is simpler and safer than a self-contained JWT, which cannot be made single-use without server state anyway. To be confirmed by the NFR-CSE-009 security review. |
 | Rule / trigger evaluation | json-rules-engine (already used by the Form Engine front end), NRules | Not adopted | Triggers are "status enters a configured set" plus counts. These are simple, data-driven checks, and a rules engine adds no value. The sandbox also blocks most .NET rule engines. |
 | SMS / email sending | Twilio and SendGrid SDKs, MailKit | Not adopted | Out of scope. The existing QDB SMS service and the CRM Email Router / server-side sync are used (BRD FR-CSE-048/049). |
+| 9.2 → 9.1 on-prem solution down-level (B9 item 3) | SolutionPackager (Microsoft, CLI), Debt Collection's `crm/scripts/lib/onprem-transforms.mjs` (in this repo) | **Adopted: the Debt Collection transforms**, imported by path in `onprem/lib/survey-onprem-transforms.mjs` | They were proven on HL CRM test (import 2, 2026-10-04) and refuse to remove non-default values. SolutionPackager unpacks and repacks but does not down-level. Their Regarding-relationship transform is left out because it is written for Debt Collection's own activity table. A change to that file affects both kits; `onprem/__tests__` checks the survey's list. |
 
 ## Plugin sandbox constraint
 
