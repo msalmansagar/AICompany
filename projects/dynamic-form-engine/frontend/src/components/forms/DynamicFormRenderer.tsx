@@ -224,6 +224,7 @@ export function DynamicFormRenderer({
         supportedLanguages={supportedLanguages}
         activeLanguage={language}
         onLanguageSelect={setLanguage}
+        isSingleSubmission={isSingleSubmission}
       />
     </FormProvider>
   );
@@ -239,12 +240,14 @@ interface FormRendererInnerProps {
   supportedLanguages: import('@qdb/shared').LanguageConfig[];
   activeLanguage: string;
   onLanguageSelect: (code: string) => void;
+  isSingleSubmission: boolean;
 }
 
 function FormRendererInner({
   supportedLanguages,
   activeLanguage,
   onLanguageSelect,
+  isSingleSubmission,
 }: FormRendererInnerProps) {
   const styles = useStyles();
   const {
