@@ -1,6 +1,7 @@
 using System;
 using System.ServiceModel;
 using Microsoft.Xrm.Sdk;
+using Qdb.SurveyEngine.Domain;
 using Qdb.SurveyEngine.Integration;
 
 namespace Qdb.SurveyEngine.Data
@@ -12,10 +13,12 @@ namespace Qdb.SurveyEngine.Data
         private const int DuplicateAlternateKeyError = unchecked((int)0x80060892);
         private const int DuplicateRecordError = unchecked((int)0x80040237);
         private readonly IOrganizationService _service;
+        private readonly CustomerLink _customer;
 
-        public ResponseWriter(IOrganizationService service)
+        public ResponseWriter(IOrganizationService service, CustomerLink customer)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
+            _customer = customer ?? throw new ArgumentNullException(nameof(customer));
         }
 
         /// <inheritdoc />
@@ -35,7 +38,7 @@ namespace Qdb.SurveyEngine.Data
         }
 
         // The name carries no personal data, so views and the retention pass never have to clear it.
-        private static Entity ToResponse(ResponseDraft draft)
+        private Entity ToResponse(ResponseDraft draft)
         {
             var invitation = draft.Invitation;
             var response = new Entity("qdb_survey_response")
@@ -43,7 +46,7 @@ namespace Qdb.SurveyEngine.Data
                 ["qdb_name"] = InvitationRepository.Truncate($"{invitation.FormCode} v{invitation.PinnedVersion} — {draft.SubmittedOn:yyyy-MM-dd HH:mm}", 200),
                 ["qdb_survey_invitation_id"] = new EntityReference("qdb_survey_invitation", invitation.Id),
                 ["qdb_survey_setup_id"] = new EntityReference("qdb_survey_setup", invitation.SetupId),
-                ["qdb_customer_id"] = new EntityReference("account", invitation.CustomerId),
+                [_customer.LookupColumn] = _customer.Reference(invitation.CustomerId),
                 ["qdb_source_table"] = invitation.SourceTable,
                 ["qdb_source_record_id"] = invitation.SourceRecordId,
                 ["qdb_form_code"] = invitation.FormCode,

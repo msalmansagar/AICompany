@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
+using Qdb.SurveyEngine.Domain;
 using Qdb.SurveyEngine.Scheduling;
 
 namespace Qdb.SurveyEngine.Data
@@ -12,10 +13,12 @@ namespace Qdb.SurveyEngine.Data
     {
         public const string AnonymisedName = "Anonymised response";
         private readonly IOrganizationService _service;
+        private readonly CustomerLink _customer;
 
-        public ResponseRetentionStore(IOrganizationService service)
+        public ResponseRetentionStore(IOrganizationService service, CustomerLink customer)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
+            _customer = customer ?? throw new ArgumentNullException(nameof(customer));
         }
 
         /// <inheritdoc />
@@ -26,7 +29,7 @@ namespace Qdb.SurveyEngine.Data
         {
             var query = SubmittedBefore(cutoffUtc);
             // An anonymised response has no customer, so it is not picked up again tomorrow.
-            query.Criteria.AddCondition("qdb_customer_id", ConditionOperator.NotNull);
+            query.Criteria.AddCondition(_customer.LookupColumn, ConditionOperator.NotNull);
             return Find(query);
         }
 
@@ -41,7 +44,7 @@ namespace Qdb.SurveyEngine.Data
             _service.Update(new Entity("qdb_survey_response", responseId)
             {
                 ["qdb_name"] = AnonymisedName,
-                ["qdb_customer_id"] = null,
+                [_customer.LookupColumn] = null,
                 ["qdb_answers_json"] = null,
             });
         }

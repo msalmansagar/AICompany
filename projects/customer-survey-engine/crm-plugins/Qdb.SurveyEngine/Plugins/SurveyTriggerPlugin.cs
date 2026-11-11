@@ -42,19 +42,22 @@ namespace Qdb.SurveyEngine.Plugins
         private static Entity PreImageOf(IPluginExecutionContext context) =>
             context.PreEntityImages != null && context.PreEntityImages.Contains(PreImageName) ? context.PreEntityImages[PreImageName] : null;
 
-        private static SurveyTriggerService BuildService(IOrganizationService service, Entity preImage, ITracingService tracing) =>
-            SurveyTriggerService.Compose(new SurveyTriggerDependencies
+        private static SurveyTriggerService BuildService(IOrganizationService service, Entity preImage, ITracingService tracing)
+        {
+            var customer = CustomerLinkReader.Read(service);
+            return SurveyTriggerService.Compose(new SurveyTriggerDependencies
             {
                 Config = new SurveyConfigRepository(service),
-                Records = new SourceRecordReader(service, preImage),
-                Languages = new CustomerLanguageReader(service),
+                Records = new SourceRecordReader(service, preImage, customer),
+                Languages = new CustomerLanguageReader(service, customer),
                 RenderCache = new RenderCacheReader(service),
                 Milestones = new MilestoneCounter(service),
-                Invitations = new InvitationRepository(service),
-                Suppressions = new SuppressionLogWriter(service),
+                Invitations = new InvitationRepository(service, customer),
+                Suppressions = new SuppressionLogWriter(service, customer),
                 Clock = new SystemClock(),
                 Trace = new TracingServiceTrace(tracing),
             });
+        }
     }
 
     /// <summary>The real clock.</summary>

@@ -15,18 +15,20 @@ namespace Qdb.SurveyEngine.Data
         private const int PageSize = 5000;
         private const int ActiveState = 0;
         private readonly IOrganizationService _service;
+        private readonly CustomerLink _customer;
 
-        public CustomerPopulationReader(IOrganizationService service)
+        public CustomerPopulationReader(IOrganizationService service, CustomerLink customer)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
+            _customer = customer ?? throw new ArgumentNullException(nameof(customer));
         }
 
         /// <inheritdoc />
         public IReadOnlyList<Guid> GetActiveCustomers()
         {
-            var query = new QueryExpression("account") { ColumnSet = new ColumnSet(false) };
+            var query = new QueryExpression(_customer.TableLogicalName) { ColumnSet = new ColumnSet(false) };
             query.Criteria.AddCondition("statecode", ConditionOperator.Equal, ActiveState);
-            query.AddOrder("accountid", OrderType.Ascending);
+            query.AddOrder(_customer.TableLogicalName + "id", OrderType.Ascending);
             return _service.RetrieveAll(query).Select(e => e.Id).ToList();
         }
 
@@ -37,18 +39,23 @@ namespace Qdb.SurveyEngine.Data
             for (var pageNumber = 1; ; pageNumber++)
             {
                 var page = _service.RetrieveMultiple(new FetchExpression(BuildFetchXml(query, pageNumber)));
-                foreach (var row in page.Entities) ids.Add(ReadCustomerId(row, query.Source));
+                foreach (var customer in page.Entities.Select(row => ReadCustomer(row, query.Source)).Where(IsInCustomerTable))
+                    ids.Add(customer.Id);
                 if (!page.MoreRecords) return ids.ToList();
             }
         }
 
+        // A polymorphic customer lookup can point at either table; only the org's customer table counts,
+        // as on the trigger path (SourceRecordReader).
+        private bool IsInCustomerTable(EntityReference customer) => customer.LogicalName == _customer.TableLogicalName;
+
         // The query filters out empty customers, so a missing value means the field name is wrong.
-        private static Guid ReadCustomerId(Entity row, SurveySource source)
+        private static EntityReference ReadCustomer(Entity row, SurveySource source)
         {
             var customer = row.GetAttributeValue<EntityReference>(source.Fields.CustomerLookup);
             if (customer == null)
                 throw new InvalidPluginExecutionException($"Source {source.TableLogicalName}: customer field '{source.Fields.CustomerLookup}' returned no lookup value; check the field name on the survey source.");
-            return customer.Id;
+            return customer;
         }
 
         /// <summary>Distinct customers of the source's records created in the period; public so tests can check its filters.</summary>

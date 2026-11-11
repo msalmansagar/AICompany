@@ -15,10 +15,12 @@ namespace Qdb.SurveyEngine.Data
         private const int DuplicateAlternateKeyError = unchecked((int)0x80060892);
         private const int DuplicateRecordError = unchecked((int)0x80040237);
         private readonly IOrganizationService _service;
+        private readonly CustomerLink _customer;
 
-        public InvitationRepository(IOrganizationService service)
+        public InvitationRepository(IOrganizationService service, CustomerLink customer)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
+            _customer = customer ?? throw new ArgumentNullException(nameof(customer));
         }
 
         /// <inheritdoc />
@@ -33,7 +35,7 @@ namespace Qdb.SurveyEngine.Data
         public bool HasSentInvitationSince(Guid customerId, DateTime sinceUtc)
         {
             var query = new QueryExpression("qdb_survey_invitation") { ColumnSet = new ColumnSet(false), TopCount = 1 };
-            query.Criteria.AddCondition("qdb_customer_id", ConditionOperator.Equal, customerId);
+            query.Criteria.AddCondition(_customer.LookupColumn, ConditionOperator.Equal, customerId);
             query.Criteria.AddCondition("qdb_generated_on", ConditionOperator.GreaterEqual, sinceUtc);
             // Postponed and Discarded invitations were never sent, so they do not count toward the limit.
             query.Criteria.AddCondition("qdb_status", ConditionOperator.In,
@@ -46,7 +48,7 @@ namespace Qdb.SurveyEngine.Data
         {
             var query = new QueryExpression("qdb_survey_invitation") { ColumnSet = new ColumnSet("qdb_milestone_index"), TopCount = 1 };
             query.Criteria.AddCondition("qdb_survey_setup_id", ConditionOperator.Equal, setupId);
-            query.Criteria.AddCondition("qdb_customer_id", ConditionOperator.Equal, customerId);
+            query.Criteria.AddCondition(_customer.LookupColumn, ConditionOperator.Equal, customerId);
             query.Criteria.AddCondition("qdb_milestone_index", ConditionOperator.NotNull);
             query.AddOrder("qdb_milestone_index", OrderType.Descending);
             var row = _service.RetrieveMultiple(query).Entities.FirstOrDefault();
@@ -67,10 +69,10 @@ namespace Qdb.SurveyEngine.Data
             }
         }
 
-        private static Entity ToEntity(InvitationDraft draft) => new Entity("qdb_survey_invitation")
+        private Entity ToEntity(InvitationDraft draft) => new Entity("qdb_survey_invitation")
         {
             ["qdb_name"] = Truncate(draft.Name, 200),
-            ["qdb_customer_id"] = new EntityReference("account", draft.CustomerId),
+            [_customer.LookupColumn] = _customer.Reference(draft.CustomerId),
             ["qdb_survey_setup_id"] = new EntityReference("qdb_survey_setup", draft.SetupId),
             ["qdb_survey_trigger_id"] = new EntityReference("qdb_survey_trigger", draft.TriggerId),
             ["qdb_source_table"] = draft.SourceTable,
@@ -95,10 +97,12 @@ namespace Qdb.SurveyEngine.Data
     public sealed class SuppressionLogWriter : ISuppressionLog
     {
         private readonly IOrganizationService _service;
+        private readonly CustomerLink _customer;
 
-        public SuppressionLogWriter(IOrganizationService service)
+        public SuppressionLogWriter(IOrganizationService service, CustomerLink customer)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
+            _customer = customer ?? throw new ArgumentNullException(nameof(customer));
         }
 
         /// <inheritdoc />
@@ -114,7 +118,7 @@ namespace Qdb.SurveyEngine.Data
                 ["qdb_detail"] = entry.Detail,
                 ["qdb_logged_on"] = entry.LoggedOn,
             };
-            if (entry.CustomerId.HasValue) row["qdb_customer_id"] = new EntityReference("account", entry.CustomerId.Value);
+            if (entry.CustomerId.HasValue) row[_customer.LookupColumn] = _customer.Reference(entry.CustomerId.Value);
             // A postponed invitation whose trigger was deleted since still gets its discard logged.
             if (entry.TriggerId != Guid.Empty) row["qdb_survey_trigger_id"] = new EntityReference("qdb_survey_trigger", entry.TriggerId);
             _service.Create(row);
@@ -146,22 +150,24 @@ namespace Qdb.SurveyEngine.Data
         }
     }
 
-    /// <summary>Reads the customer's language field from account.</summary>
+    /// <summary>Reads the customer's language field from the org's customer table.</summary>
     public sealed class CustomerLanguageReader : ICustomerLanguageReader
     {
         private readonly IOrganizationService _service;
+        private readonly CustomerLink _customer;
 
-        public CustomerLanguageReader(IOrganizationService service)
+        public CustomerLanguageReader(IOrganizationService service, CustomerLink customer)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
+            _customer = customer ?? throw new ArgumentNullException(nameof(customer));
         }
 
         /// <inheritdoc />
         public object ReadLanguageValue(Guid customerId, string field)
         {
-            var account = _service.Retrieve("account", customerId, new ColumnSet(field));
-            if (!account.Contains(field)) return null;
-            var value = account[field];
+            var customer = _service.Retrieve(_customer.TableLogicalName, customerId, new ColumnSet(field));
+            if (!customer.Contains(field)) return null;
+            var value = customer[field];
             return value is OptionSetValue option ? (object)option.Value : value;
         }
     }

@@ -36,7 +36,7 @@ This guide explains how the QDB customer portal and mobile app show surveys to c
 | CRM role needed | **Survey Integration** | **Survey Integration** |
 
 - The **Survey Integration** role grants exactly what the APIs need, and nothing about other customers' data beyond that. A caller without it gets HTTP **403** from CRM itself, before any survey code runs.
-- **The customer is identified by your backend, not by CRM.** You pass the authenticated customer's CRM account id as `CallerCustomerId`. The API refuses an invitation that belongs to anyone else (`survey_forbidden`). Never take this id from the browser or the app without checking it against your own session.
+- **The customer is identified by your backend, not by CRM.** You pass the authenticated customer's CRM id as `CallerCustomerId`: the **account** id on the cloud org and BFD/QDB1 (corporate customers), the **contact** id on HL CRM (individuals). Which one an org uses is its Survey Settings → **Customer Table**; `CustomerId` on `ListPendingSurveys` follows the same rule. The API refuses an invitation that belongs to anyone else (`survey_forbidden`). Never take this id from the browser or the app without checking it against your own session.
 
 ---
 

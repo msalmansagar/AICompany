@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using Microsoft.Xrm.Sdk;
+using Microsoft.Xrm.Sdk.Query;
 using Moq;
 using Qdb.SurveyEngine.Data;
 using Qdb.SurveyEngine.Domain;
@@ -459,6 +460,28 @@ namespace Qdb.SurveyEngine.Tests
             Assert.Contains("distinct='true'", fetch);
             Assert.Contains("<condition attribute='statuscode' operator='in'><value>751090050</value></condition>", fetch);
             Assert.Contains("<condition attribute='qdb_disbursement_type_1' operator='in'><value>751090000</value></condition>", fetch);
+        }
+
+        [Fact]
+        public void GetCustomersActiveIn_ContactOrgPolymorphicLookup_KeepsOnlyContacts()
+        {
+            var contactId = Guid.NewGuid();
+            var rows = new EntityCollection(new[]
+            {
+                new Entity("qdb_payment_authorization_ticket") { ["qdb_customer_name"] = new EntityReference("contact", contactId) },
+                new Entity("qdb_payment_authorization_ticket") { ["qdb_customer_name"] = new EntityReference("account", Guid.NewGuid()) },
+            });
+            var service = new Mock<IOrganizationService>();
+            service.Setup(s => s.RetrieveMultiple(It.IsAny<QueryBase>())).Returns(rows);
+            var query = new PopulationQuery
+            {
+                Source = new SurveySource(Guid.NewGuid(), "qdb_payment_authorization_ticket", new SourceFields { CustomerLookup = "qdb_customer_name" }),
+                Period = ScheduleCalendar.PeriodEndingOn(SchedulePeriod.Quarterly, new DateTime(2026, 4, 1)),
+            };
+
+            var customers = new CustomerPopulationReader(service.Object, CustomerLink.Contact).GetCustomersActiveIn(query);
+
+            Assert.Equal(new[] { contactId }, customers);
         }
     }
 }

@@ -725,3 +725,13 @@ These challenges must be addressed before Phase 4 begins.
 | Charts | Average score by question (numeric answers only); Responses by setup; Responses by month; Suppressions by reason | Answer text is a memo, which Dataverse cannot group by, so answer-distribution charts would need a text column. Deferred until asked. |
 | Forms | Each table's own "Information" main form is replaced. The setup form lists its triggers and responses, and the response form lists its answers. On the source form, Is Active and the step registrations are read-only | The forms were created with our tables, so they are ours to replace. Activation goes only through `qdb_srv_ActivateSource`. Element ids are derived from names, so re-applying a form does not change its ids. |
 | App | "Survey Engine": a Surveys area with Configuration (setup, trigger, source, settings, SMS config) and Results (responses, answers, invitations, suppressions). Given to Survey Admin and Survey Analyst; System Administrators see every app | One place for survey administrators and analysts. |
+
+### Implementation decisions (B9, 2026-11-11)
+
+| Topic | Decision | Why |
+|---|---|---|
+| Customer table (readiness finding F1) | **Supersedes the B1 decision "Customer lookup = account".** New setting `qdb_survey_settings.qdb_customer_table` (Account 100000000, the default, or Contact 100000001). Invitation, response and suppression log each get `qdb_customer_contact_id` → contact (RemoveLink) beside `qdb_customer_id` → account. The plugins read the setting once per execution (`CustomerLinkReader`) and every read and write of a customer goes through `CustomerLink`: source lookups, invitations, responses, suppressions, population, language, email, SMS link and retention (CEO, 2026-11-11) | HL CRM keeps its customers as contacts; the cloud org and BFD/QDB1 keep them as accounts. A setting gives one codebase for all three. Existing account data stays as it is, and existing lookup columns cannot change type (option B). |
+| Lookups that point elsewhere | A source lookup (trigger or "Active in period" population) pointing at the other table counts as **no customer** | A polymorphic Customer lookup can hold either table; writing the wrong table's id into the lookup would be rejected. |
+| Roles | Survey Integration gets Read + AppendTo on contact; Survey Analyst gets Read on contact | The same rights they already have on account. |
+| Views and forms | Show both customer columns; on any one org one of them stays empty | No per-org UI variants to maintain. |
+| Deploy order | **Schema before plugins**: the plugins query `qdb_customer_table`, so a plugin deployed first faults on every execution | Applies to the cloud org and to every on-prem kit. |

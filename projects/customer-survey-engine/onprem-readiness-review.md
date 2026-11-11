@@ -48,6 +48,8 @@ The latest on-prem Form Engine kit (`onprem-deploy/2026-10-19`, 1.4.1) predates 
 
 ## Fix options for F1 (customer table)
 
+> **Decided 2026-11-11 (CEO): option A.** Built on `feat/survey-engine`; see phase-3-arch "Implementation decisions (B9)". Not yet applied to org5869857f.
+
 | Option | What changes | Effort | Recommendation |
 |---|---|---|---|
 | **A. Per-org customer table** | One setting `qdb_customer_table` (`account`/`contact`) on Survey Settings. Add a contact lookup beside each account lookup (invitation, response, suppression log); the code writes whichever the setting names. APIs accept the customer id and check it against the column in use. Email and SMS address the right table; "all active customers" reads the right table; language and mobile fields are read from it. | ~3–4 dev-days + cloud re-test of B2–B8 | **Recommended**: works on all three orgs with one codebase, and the existing account data stays as it is. |

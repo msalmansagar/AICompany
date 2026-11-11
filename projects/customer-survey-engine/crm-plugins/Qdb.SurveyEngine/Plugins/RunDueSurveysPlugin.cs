@@ -56,23 +56,24 @@ namespace Qdb.SurveyEngine.Plugins
 
         private static RunDueSurveysService BuildService(IOrganizationService service, IClock clock, ITracingService tracing)
         {
+            var customer = CustomerLinkReader.Read(service);
             return RunDueSurveysService.Compose(new RunDueSurveysDependencies
             {
                 Pipeline = new SurveyTriggerDependencies
                 {
                     Config = new SurveyConfigRepository(service),
-                    Languages = new CustomerLanguageReader(service),
+                    Languages = new CustomerLanguageReader(service, customer),
                     RenderCache = new CachedRenderCacheReader(new RenderCacheReader(service)),
-                    Invitations = new InvitationRepository(service),
-                    Suppressions = new SuppressionLogWriter(service),
+                    Invitations = new InvitationRepository(service, customer),
+                    Suppressions = new SuppressionLogWriter(service, customer),
                     Clock = clock,
                     Trace = new TracingServiceTrace(tracing),
                 },
                 ScheduledTriggers = new ScheduledTriggerRepository(service),
-                Population = new CustomerPopulationReader(service),
+                Population = new CustomerPopulationReader(service, customer),
                 ScheduledInvitations = new ScheduledInvitationReader(service),
-                Postponed = new PostponedInvitationStore(service),
-                Retention = new ResponseRetentionStore(service),
+                Postponed = new PostponedInvitationStore(service, customer),
+                Retention = new ResponseRetentionStore(service, customer),
             });
         }
     }

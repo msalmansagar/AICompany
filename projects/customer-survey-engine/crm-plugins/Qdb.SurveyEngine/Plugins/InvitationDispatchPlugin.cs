@@ -25,14 +25,15 @@ namespace Qdb.SurveyEngine.Plugins
                 return;
             }
             var system = ((IOrganizationServiceFactory)serviceProvider.GetService(typeof(IOrganizationServiceFactory))).CreateOrganizationService(null);
-            var store = new DispatchStore(system);
+            var customer = CustomerLinkReader.Read(system);
+            var store = new DispatchStore(system, customer);
             new InvitationDispatchService(new DispatchDependencies
             {
                 Store = store,
                 Config = store,
-                Sms = new SmsHandOff(system),
-                Email = new EmailSender(system),
-                Suppressions = new SuppressionLogWriter(system),
+                Sms = new SmsHandOff(system, customer),
+                Email = new EmailSender(system, customer),
+                Suppressions = new SuppressionLogWriter(system, customer),
                 Clock = new SystemClock(),
                 Trace = new TracingServiceTrace(tracing),
             }).Dispatch(context.PrimaryEntityId);

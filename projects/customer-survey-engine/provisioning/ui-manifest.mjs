@@ -13,29 +13,29 @@ const PENDING = 100000000;
 export const VIEWS = Object.freeze([
   {
     table: 'qdb_survey_response', name: 'Survey Responses - All', description: 'Every submitted response, newest first (FR-CSE-057).', isDefault: true,
-    columns: [['qdb_name', 220], ['qdb_survey_setup_id', 180], ['qdb_customer_id', 200], ['qdb_submitted_on', 140], ['qdb_score_percent', 90], ['qdb_score_total', 80], ['qdb_score_max', 90],
+    columns: [['qdb_name', 220], ['qdb_survey_setup_id', 180], ['qdb_customer_id', 200], ['qdb_customer_contact_id', 200], ['qdb_submitted_on', 140], ['qdb_score_percent', 90], ['qdb_score_total', 80], ['qdb_score_max', 90],
       ['qdb_form_code', 170], ['qdb_language_code', 80], ['qdb_source_table', 170]],
     order: { attribute: 'qdb_submitted_on', descending: true },
   },
   {
     table: 'qdb_survey_answer', name: 'Survey Answers - All', description: 'One row per answered question, with its setup, customer and date (FR-CSE-057).', isDefault: true,
     columns: [['qdb_survey_response_id', 200], ['qdb_question_order', 70], ['qdb_question_label', 280], ['qdb_answer_text', 240], ['qdb_answer_numeric', 90], ['qdb_points', 70], ['qdb_weighted_points', 90]],
-    links: [{ alias: 'response', table: 'qdb_survey_response', lookup: 'qdb_survey_response_id', columns: [['qdb_survey_setup_id', 170], ['qdb_customer_id', 180], ['qdb_submitted_on', 130]] }],
+    links: [{ alias: 'response', table: 'qdb_survey_response', lookup: 'qdb_survey_response_id', columns: [['qdb_survey_setup_id', 170], ['qdb_customer_id', 180], ['qdb_customer_contact_id', 180], ['qdb_submitted_on', 130]] }],
     order: { attribute: 'qdb_question_order', descending: false },
   },
   {
     table: 'qdb_survey_invitation', name: 'Open Survey Invitations', description: 'Pending invitations not yet answered.',
-    columns: [['qdb_name', 240], ['qdb_customer_id', 200], ['qdb_survey_setup_id', 180], ['qdb_channel', 100], ['qdb_generated_on', 140], ['qdb_expires_on', 140]],
+    columns: [['qdb_name', 240], ['qdb_customer_id', 200], ['qdb_customer_contact_id', 200], ['qdb_survey_setup_id', 180], ['qdb_channel', 100], ['qdb_generated_on', 140], ['qdb_expires_on', 140]],
     filters: [['qdb_status', 'eq', PENDING]], order: { attribute: 'qdb_generated_on', descending: true },
   },
   {
     table: 'qdb_survey_invitation', name: 'Survey Invitations - All', description: 'Every invitation with its status.', isDefault: true,
-    columns: [['qdb_name', 240], ['qdb_customer_id', 200], ['qdb_survey_setup_id', 180], ['qdb_status', 100], ['qdb_channel', 100], ['qdb_generated_on', 140], ['qdb_expires_on', 140]],
+    columns: [['qdb_name', 240], ['qdb_customer_id', 200], ['qdb_customer_contact_id', 200], ['qdb_survey_setup_id', 180], ['qdb_status', 100], ['qdb_channel', 100], ['qdb_generated_on', 140], ['qdb_expires_on', 140]],
     order: { attribute: 'qdb_generated_on', descending: true },
   },
   {
     table: 'qdb_survey_suppression_log', name: 'Survey Suppressions - Last 30 Days', description: 'Why triggers did not send, last 30 days (NFR-CSE-001).', isDefault: true,
-    columns: [['qdb_logged_on', 140], ['qdb_reason', 140], ['qdb_customer_id', 200], ['qdb_survey_setup_id', 180], ['qdb_detail', 400]],
+    columns: [['qdb_logged_on', 140], ['qdb_reason', 140], ['qdb_customer_id', 200], ['qdb_customer_contact_id', 200], ['qdb_survey_setup_id', 180], ['qdb_detail', 400]],
     filters: [['qdb_logged_on', 'last-x-days', 30]], order: { attribute: 'qdb_logged_on', descending: true },
   },
   // "Active" keeps the CRM meaning (not deactivated): every setup, switched on or off, so the main
@@ -123,7 +123,7 @@ export const FORMS = Object.freeze([
   {
     table: 'qdb_survey_settings',
     tabs: [{ label: 'Settings', sections: [
-      { label: 'Invitations', fields: ['qdb_name', 'qdb_fatigue_min_days', 'qdb_default_language', 'qdb_language_field'] },
+      { label: 'Invitations', fields: ['qdb_name', 'qdb_customer_table', 'qdb_fatigue_min_days', 'qdb_default_language', 'qdb_language_field'] },
       { label: 'Retention (set by QDB Compliance)', fields: ['qdb_retention_days', 'qdb_retention_mode'] },
       { label: 'Secure link', fields: ['qdb_securelink_enabled', 'qdb_securelink_base_url', 'qdb_email_sender_queue_id'] },
     ] }],
@@ -139,7 +139,7 @@ export const FORMS = Object.freeze([
     table: 'qdb_survey_response',
     tabs: [
       { label: 'Response', sections: [
-        { label: 'Response', fields: [{ name: 'qdb_name', readOnly: true }, { name: 'qdb_survey_setup_id', readOnly: true }, { name: 'qdb_customer_id', readOnly: true }, { name: 'qdb_survey_invitation_id', readOnly: true }, { name: 'qdb_submitted_on', readOnly: true }] },
+        { label: 'Response', fields: [{ name: 'qdb_name', readOnly: true }, { name: 'qdb_survey_setup_id', readOnly: true }, { name: 'qdb_customer_id', readOnly: true }, { name: 'qdb_customer_contact_id', readOnly: true }, { name: 'qdb_survey_invitation_id', readOnly: true }, { name: 'qdb_submitted_on', readOnly: true }] },
         { label: 'Score (weighted surveys)', fields: [{ name: 'qdb_score_percent', readOnly: true }, { name: 'qdb_score_total', readOnly: true }, { name: 'qdb_score_max', readOnly: true }] },
         { label: 'Survey', fields: [{ name: 'qdb_form_code', readOnly: true }, { name: 'qdb_pinned_version', readOnly: true }, { name: 'qdb_language_code', readOnly: true }, { name: 'qdb_source_table', readOnly: true }, { name: 'qdb_source_record_id', readOnly: true }] },
       ] },

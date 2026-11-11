@@ -14,16 +14,18 @@ namespace Qdb.SurveyEngine.Data
     /// </summary>
     public sealed class SourceRecordReader : ISourceRecordReader
     {
-        private const string CustomerTable = "account";
         private readonly IOrganizationService _service;
         private readonly Entity _preImage;
+        private readonly CustomerLink _customer;
 
         /// <param name="service">Organisation service.</param>
         /// <param name="preImage">The Update step's pre-image; null on Create.</param>
-        public SourceRecordReader(IOrganizationService service, Entity preImage)
+        /// <param name="customer">The org's customer table (account or contact).</param>
+        public SourceRecordReader(IOrganizationService service, Entity preImage, CustomerLink customer)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
             _preImage = preImage;
+            _customer = customer ?? throw new ArgumentNullException(nameof(customer));
         }
 
         /// <inheritdoc />
@@ -49,9 +51,9 @@ namespace Qdb.SurveyEngine.Data
         private static object Value(Entity entity, string attribute) =>
             string.IsNullOrWhiteSpace(attribute) || !entity.Contains(attribute) ? null : entity[attribute];
 
-        // Invitations link to account (B1 decision); a lookup to anything else counts as no customer.
-        private static Guid? CustomerOf(object value) =>
-            value is EntityReference reference && reference.LogicalName == CustomerTable ? reference.Id : (Guid?)null;
+        // Only a lookup to the org's customer table is a customer; anything else counts as none (logged as No customer).
+        private Guid? CustomerOf(object value) =>
+            value is EntityReference reference && reference.LogicalName == _customer.TableLogicalName ? reference.Id : (Guid?)null;
     }
 
     /// <summary>Renders CRM attribute values as the text codes <see cref="CodeList"/> compares.</summary>

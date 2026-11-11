@@ -6,6 +6,7 @@ using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Messages;
 using Microsoft.Xrm.Sdk.Metadata;
 using Qdb.SurveyEngine.Dispatch;
+using Qdb.SurveyEngine.Domain;
 using Qdb.SurveyEngine.Integration;
 
 namespace Qdb.SurveyEngine.Data
@@ -19,10 +20,12 @@ namespace Qdb.SurveyEngine.Data
     public sealed class SmsHandOff : ISmsHandOff
     {
         private readonly IOrganizationService _service;
+        private readonly CustomerLink _customer;
 
-        public SmsHandOff(IOrganizationService service)
+        public SmsHandOff(IOrganizationService service, CustomerLink customer)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
+            _customer = customer ?? throw new ArgumentNullException(nameof(customer));
         }
 
         /// <inheritdoc />
@@ -31,7 +34,7 @@ namespace Qdb.SurveyEngine.Data
             try
             {
                 var row = new Entity(config.TableLogicalName) { [config.RecipientField] = message.Recipient, [config.MessageField] = FitText(config, message) };
-                if (!string.IsNullOrWhiteSpace(config.CustomerLinkField)) row[config.CustomerLinkField] = new EntityReference("account", message.CustomerId);
+                if (!string.IsNullOrWhiteSpace(config.CustomerLinkField)) row[config.CustomerLinkField] = _customer.Reference(message.CustomerId);
                 foreach (var column in ReadStaticColumns(config.StaticColumnsJson)) row[column.Key] = Convert(config.TableLogicalName, column.Key, column.Value);
                 _service.Create(row);
                 return ChannelOutcome.Sent();

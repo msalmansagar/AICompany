@@ -3,6 +3,7 @@ using System.ServiceModel;
 using Microsoft.Crm.Sdk.Messages;
 using Microsoft.Xrm.Sdk;
 using Qdb.SurveyEngine.Dispatch;
+using Qdb.SurveyEngine.Domain;
 
 namespace Qdb.SurveyEngine.Data
 {
@@ -15,10 +16,12 @@ namespace Qdb.SurveyEngine.Data
     public sealed class EmailSender : IEmailSender
     {
         private readonly IOrganizationService _service;
+        private readonly CustomerLink _customer;
 
-        public EmailSender(IOrganizationService service)
+        public EmailSender(IOrganizationService service, CustomerLink customer)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
+            _customer = customer ?? throw new ArgumentNullException(nameof(customer));
         }
 
         /// <inheritdoc />
@@ -36,14 +39,14 @@ namespace Qdb.SurveyEngine.Data
             }
         }
 
-        private static Entity BuildEmail(EmailMessage message) => new Entity("email")
+        private Entity BuildEmail(EmailMessage message) => new Entity("email")
         {
             ["subject"] = message.Subject,
             ["description"] = message.HtmlBody,
             ["directioncode"] = true,
             ["regardingobjectid"] = new EntityReference("qdb_survey_invitation", message.InvitationId),
             ["from"] = new EntityCollection(new[] { Party(new EntityReference("queue", message.SenderQueueId)) }),
-            ["to"] = new EntityCollection(new[] { Party(new EntityReference("account", message.CustomerId)) }),
+            ["to"] = new EntityCollection(new[] { Party(_customer.Reference(message.CustomerId)) }),
         };
 
         private static Entity Party(EntityReference party) => new Entity("activityparty") { ["partyid"] = party };

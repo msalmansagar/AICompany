@@ -17,14 +17,18 @@ namespace Qdb.SurveyEngine.Data
         private const int RowVersionMismatchError = unchecked((int)0x80060882);
         private static readonly string[] InvitationColumns =
         {
-            "qdb_customer_id", "qdb_survey_setup_id", "qdb_form_code", "qdb_pinned_version", "qdb_language_code", "qdb_status", "qdb_channel",
+            "qdb_survey_setup_id", "qdb_form_code", "qdb_pinned_version", "qdb_language_code", "qdb_status", "qdb_channel",
             "qdb_expires_on", "qdb_token_used_on", "qdb_source_table", "qdb_source_record_id", "versionnumber",
         };
         private readonly IOrganizationService _service;
+        private readonly CustomerLink _customer;
+        private readonly string[] _invitationColumns;
 
-        public IntegrationInvitationStore(IOrganizationService service)
+        public IntegrationInvitationStore(IOrganizationService service, CustomerLink customer)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
+            _customer = customer ?? throw new ArgumentNullException(nameof(customer));
+            _invitationColumns = InvitationColumns.Concat(new[] { customer.LookupColumn }).ToArray();
         }
 
         /// <inheritdoc />
@@ -36,8 +40,8 @@ namespace Qdb.SurveyEngine.Data
         /// <inheritdoc />
         public IReadOnlyList<PendingInvitation> ListOpen(Guid customerId, DateTime nowUtc)
         {
-            var query = new QueryExpression("qdb_survey_invitation") { ColumnSet = new ColumnSet(InvitationColumns) };
-            query.Criteria.AddCondition("qdb_customer_id", ConditionOperator.Equal, customerId);
+            var query = new QueryExpression("qdb_survey_invitation") { ColumnSet = new ColumnSet(_invitationColumns) };
+            query.Criteria.AddCondition(_customer.LookupColumn, ConditionOperator.Equal, customerId);
             query.Criteria.AddCondition("qdb_status", ConditionOperator.Equal, (int)InvitationStatus.Pending);
             var notExpired = query.Criteria.AddFilter(LogicalOperator.Or);
             notExpired.AddCondition("qdb_expires_on", ConditionOperator.Null);
@@ -73,13 +77,13 @@ namespace Qdb.SurveyEngine.Data
 
         private InvitationRecord FindOne(string attribute, object value)
         {
-            var query = new QueryExpression("qdb_survey_invitation") { ColumnSet = new ColumnSet(InvitationColumns), TopCount = 1 };
+            var query = new QueryExpression("qdb_survey_invitation") { ColumnSet = new ColumnSet(_invitationColumns), TopCount = 1 };
             query.Criteria.AddCondition(attribute, ConditionOperator.Equal, value);
             var row = _service.RetrieveMultiple(query).Entities.FirstOrDefault();
             return row == null ? null : Map(row);
         }
 
-        private static PendingInvitation MapPending(Entity row) => new PendingInvitation
+        private PendingInvitation MapPending(Entity row) => new PendingInvitation
         {
             Invitation = Map(row),
             TitleEnglish = Aliased(row, "qdb_notif_title_en"),
@@ -88,10 +92,10 @@ namespace Qdb.SurveyEngine.Data
             MessageArabic = Aliased(row, "qdb_notif_message_ar"),
         };
 
-        private static InvitationRecord Map(Entity row) => new InvitationRecord
+        private InvitationRecord Map(Entity row) => new InvitationRecord
         {
             Id = row.Id,
-            CustomerId = row.GetAttributeValue<EntityReference>("qdb_customer_id")?.Id ?? Guid.Empty,
+            CustomerId = _customer.CustomerIdOf(row) ?? Guid.Empty,
             SetupId = row.GetAttributeValue<EntityReference>("qdb_survey_setup_id")?.Id ?? Guid.Empty,
             FormCode = row.GetAttributeValue<string>("qdb_form_code"),
             PinnedVersion = row.GetAttributeValue<int?>("qdb_pinned_version") ?? 0,

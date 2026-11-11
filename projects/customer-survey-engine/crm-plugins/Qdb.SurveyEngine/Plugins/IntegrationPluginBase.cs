@@ -34,14 +34,18 @@ namespace Qdb.SurveyEngine.Plugins
         /// <summary>Reads the inputs, does the work and writes the outputs.</summary>
         protected abstract void Run(PluginCall call);
 
-        private static IntegrationDependencies BuildDependencies(IOrganizationService service) => new IntegrationDependencies
+        private static IntegrationDependencies BuildDependencies(IOrganizationService service)
         {
-            Invitations = new IntegrationInvitationStore(service),
-            Forms = new PublishedFormReader(service),
-            Responses = new ResponseWriter(service),
-            Config = new SurveyConfigRepository(service),
-            Clock = new SystemClock(),
-        };
+            var customer = CustomerLinkReader.Read(service);
+            return new IntegrationDependencies
+            {
+                Invitations = new IntegrationInvitationStore(service, customer),
+                Forms = new PublishedFormReader(service),
+                Responses = new ResponseWriter(service, customer),
+                Config = new SurveyConfigRepository(service),
+                Clock = new SystemClock(),
+            };
+        }
     }
 
     /// <summary>One Custom API call: typed access to its inputs and outputs, plus the services.</summary>

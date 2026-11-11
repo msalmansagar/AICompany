@@ -12,10 +12,12 @@ namespace Qdb.SurveyEngine.Data
     {
         private const string SetupAlias = "setup";
         private readonly IOrganizationService _service;
+        private readonly CustomerLink _customer;
 
-        public DispatchStore(IOrganizationService service)
+        public DispatchStore(IOrganizationService service, CustomerLink customer)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
+            _customer = customer ?? throw new ArgumentNullException(nameof(customer));
         }
 
         /// <inheritdoc />
@@ -23,7 +25,7 @@ namespace Qdb.SurveyEngine.Data
         {
             var query = new QueryExpression("qdb_survey_invitation")
             {
-                ColumnSet = new ColumnSet("qdb_customer_id", "qdb_survey_setup_id", "qdb_survey_trigger_id", "qdb_status", "qdb_channel", "qdb_language_code",
+                ColumnSet = new ColumnSet(_customer.LookupColumn, "qdb_survey_setup_id", "qdb_survey_trigger_id", "qdb_status", "qdb_channel", "qdb_language_code",
                     "qdb_source_table", "qdb_source_record_id", "qdb_token_hash"),
                 TopCount = 1,
             };
@@ -40,7 +42,7 @@ namespace Qdb.SurveyEngine.Data
         /// <inheritdoc />
         public CustomerContact ReadContact(Guid customerId, string phoneField)
         {
-            var email = _service.Retrieve("account", customerId, new ColumnSet("emailaddress1")).GetAttributeValue<string>("emailaddress1");
+            var email = _service.Retrieve(_customer.TableLogicalName, customerId, new ColumnSet("emailaddress1")).GetAttributeValue<string>("emailaddress1");
             return new CustomerContact { Email = email, Mobile = string.IsNullOrWhiteSpace(phoneField) ? null : ReadMobile(customerId, phoneField) };
         }
 
@@ -50,7 +52,7 @@ namespace Qdb.SurveyEngine.Data
         {
             try
             {
-                return _service.Retrieve("account", customerId, new ColumnSet(phoneField)).GetAttributeValue<object>(phoneField)?.ToString();
+                return _service.Retrieve(_customer.TableLogicalName, customerId, new ColumnSet(phoneField)).GetAttributeValue<object>(phoneField)?.ToString();
             }
             catch (System.ServiceModel.FaultException<OrganizationServiceFault>)
             {
@@ -99,14 +101,14 @@ namespace Qdb.SurveyEngine.Data
             };
         }
 
-        private static DispatchInvitation MapInvitation(Entity row)
+        private DispatchInvitation MapInvitation(Entity row)
         {
             var recordId = row.GetAttributeValue<string>("qdb_source_record_id");
             Guid parsed;
             return new DispatchInvitation
             {
                 Id = row.Id,
-                CustomerId = row.GetAttributeValue<EntityReference>("qdb_customer_id")?.Id ?? Guid.Empty,
+                CustomerId = _customer.CustomerIdOf(row) ?? Guid.Empty,
                 SetupId = row.GetAttributeValue<EntityReference>("qdb_survey_setup_id")?.Id ?? Guid.Empty,
                 TriggerId = row.GetAttributeValue<EntityReference>("qdb_survey_trigger_id")?.Id ?? Guid.Empty,
                 Status = (InvitationStatus)(row.GetAttributeValue<OptionSetValue>("qdb_status")?.Value ?? (int)InvitationStatus.Pending),

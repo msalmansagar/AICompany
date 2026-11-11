@@ -19,10 +19,12 @@ namespace Qdb.SurveyEngine.Data
         private const string SetupAlias = "setup";
         private const int RowVersionMismatchError = unchecked((int)0x80060882);
         private readonly IOrganizationService _service;
+        private readonly CustomerLink _customer;
 
-        public PostponedInvitationStore(IOrganizationService service)
+        public PostponedInvitationStore(IOrganizationService service, CustomerLink customer)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
+            _customer = customer ?? throw new ArgumentNullException(nameof(customer));
         }
 
         /// <inheritdoc />
@@ -30,10 +32,10 @@ namespace Qdb.SurveyEngine.Data
         {
             var query = new QueryExpression("qdb_survey_invitation")
             {
-                ColumnSet = new ColumnSet("qdb_customer_id", "qdb_survey_trigger_id", "qdb_source_table", "qdb_source_record_id", "qdb_expires_on", "versionnumber"),
+                ColumnSet = new ColumnSet(_customer.LookupColumn, "qdb_survey_trigger_id", "qdb_source_table", "qdb_source_record_id", "qdb_expires_on", "versionnumber"),
             };
             query.Criteria.AddCondition("qdb_status", ConditionOperator.Equal, (int)InvitationStatus.Postponed);
-            query.Criteria.AddCondition("qdb_customer_id", ConditionOperator.NotNull);
+            query.Criteria.AddCondition(_customer.LookupColumn, ConditionOperator.NotNull);
             query.AddOrder("qdb_generated_on", OrderType.Ascending);
             // Inner join: an invitation whose setup was deleted has nothing to release into.
             query.LinkEntities.Add(new LinkEntity("qdb_survey_invitation", "qdb_survey_setup", "qdb_survey_setup_id", "qdb_survey_setupid", JoinOperator.Inner)
@@ -72,14 +74,14 @@ namespace Qdb.SurveyEngine.Data
             }
         }
 
-        private static PostponedInvitation Map(Entity row)
+        private PostponedInvitation Map(Entity row)
         {
             var recordId = row.GetAttributeValue<string>("qdb_source_record_id");
             Guid parsed;
             return new PostponedInvitation
             {
                 Id = row.Id,
-                CustomerId = row.GetAttributeValue<EntityReference>("qdb_customer_id").Id,
+                CustomerId = _customer.CustomerIdOf(row).Value,
                 TriggerId = row.GetAttributeValue<EntityReference>("qdb_survey_trigger_id")?.Id ?? Guid.Empty,
                 Setup = new SurveySetup
                 {

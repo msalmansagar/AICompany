@@ -49,6 +49,8 @@ export const SUPPRESSION_REASON_OPTIONS = Object.freeze([
   option(9, 'Not delivered'),
 ]);
 export const RETENTION_MODE_OPTIONS = Object.freeze([option(0, 'Delete'), option(1, 'Anonymise')]);
+// B9 finding F1: HL CRM keeps its customers as contacts, the cloud org and BFD/QDB1 as accounts.
+export const CUSTOMER_TABLE_OPTIONS = Object.freeze([option(0, 'Account'), option(1, 'Contact')]);
 
 const sourceRecordColumns = () => [
   string('qdb_source_record_id', 'Source Record Id', 100),
@@ -181,6 +183,7 @@ export const TABLES = Object.freeze([
       string('qdb_default_language', 'Default Language', 10),
       integer('qdb_retention_days', 'Retention Days', { min: 0, max: 36500 }),
       choice('qdb_retention_mode', 'Retention Mode', RETENTION_MODE_OPTIONS),
+      choice('qdb_customer_table', 'Customer Table', CUSTOMER_TABLE_OPTIONS, CUSTOMER_TABLE_OPTIONS[0].value),
       boolean('qdb_securelink_enabled', 'Secure Link Enabled', false),
       string('qdb_securelink_base_url', 'Secure Link Base URL', 500),
     ],
@@ -211,13 +214,16 @@ export const RELATIONSHIPS = Object.freeze([
   { lookup: 'qdb_source_id', label: 'Source', from: 'qdb_survey_trigger', to: 'qdb_survey_source', cascade: 'RemoveLink' },
   { lookup: 'qdb_schedule_population_source_id', label: 'Population Source', from: 'qdb_survey_trigger', to: 'qdb_survey_source', cascade: 'RemoveLink' },
   { lookup: 'qdb_customer_id', label: 'Customer', from: 'qdb_survey_invitation', to: 'account', cascade: 'RemoveLink' },
+  { lookup: 'qdb_customer_contact_id', label: 'Customer (Contact)', from: 'qdb_survey_invitation', to: 'contact', cascade: 'RemoveLink' },
   { lookup: 'qdb_survey_setup_id', label: 'Survey Setup', from: 'qdb_survey_invitation', to: 'qdb_survey_setup', cascade: 'RemoveLink' },
   { lookup: 'qdb_survey_trigger_id', label: 'Survey Trigger', from: 'qdb_survey_invitation', to: 'qdb_survey_trigger', cascade: 'RemoveLink' },
   { lookup: 'qdb_survey_invitation_id', label: 'Survey Invitation', from: 'qdb_survey_response', to: 'qdb_survey_invitation', cascade: 'Cascade' },
   { lookup: 'qdb_survey_setup_id', label: 'Survey Setup', from: 'qdb_survey_response', to: 'qdb_survey_setup', cascade: 'RemoveLink' },
   { lookup: 'qdb_customer_id', label: 'Customer', from: 'qdb_survey_response', to: 'account', cascade: 'RemoveLink' },
+  { lookup: 'qdb_customer_contact_id', label: 'Customer (Contact)', from: 'qdb_survey_response', to: 'contact', cascade: 'RemoveLink' },
   { lookup: 'qdb_survey_response_id', label: 'Survey Response', from: 'qdb_survey_answer', to: 'qdb_survey_response', cascade: 'Cascade', required: true },
   { lookup: 'qdb_customer_id', label: 'Customer', from: 'qdb_survey_suppression_log', to: 'account', cascade: 'RemoveLink' },
+  { lookup: 'qdb_customer_contact_id', label: 'Customer (Contact)', from: 'qdb_survey_suppression_log', to: 'contact', cascade: 'RemoveLink' },
   { lookup: 'qdb_survey_trigger_id', label: 'Survey Trigger', from: 'qdb_survey_suppression_log', to: 'qdb_survey_trigger', cascade: 'RemoveLink' },
   { lookup: 'qdb_survey_setup_id', label: 'Survey Setup', from: 'qdb_survey_suppression_log', to: 'qdb_survey_setup', cascade: 'RemoveLink' },
   // B7: the queue survey emails are sent from; empty = no email (FR-CSE-049).
@@ -268,6 +274,7 @@ export const ROLES = Object.freeze([
       { table: 'qdb_survey_trigger', rights: READ },
       { table: 'qdb_survey_source', rights: READ },
       { table: 'account', rights: ['Read'] },
+      { table: 'contact', rights: ['Read'] },
       // B8: FR-CSE-057 — analysts export filtered responses and answers to Excel.
       EXPORT_TO_EXCEL,
     ],
@@ -279,9 +286,11 @@ export const ROLES = Object.freeze([
       { table: 'qdb_survey_suppression_log', rights: ['Create', 'Read', 'Append'] },
       ...['qdb_survey_source', 'qdb_survey_setup', 'qdb_survey_trigger', 'qdb_survey_settings', 'qdb_survey_sms_config']
         .map((table) => ({ table, rights: READ })),
-      // Linking an invitation to its customer needs AppendTo on account; the published survey
-      // JSON and the form's type are read from the DFE tables.
+      // Linking an invitation to its customer needs AppendTo on the customer table (account or
+      // contact, per qdb_customer_table); the published survey JSON and the form's type are read
+      // from the DFE tables.
       { table: 'account', rights: ['Read', 'AppendTo'] },
+      { table: 'contact', rights: ['Read', 'AppendTo'] },
       { table: 'qdb_form_render_cache', rights: ['Read'] },
       { table: 'qdb_form_definition', rights: ['Read'] },
     ],
