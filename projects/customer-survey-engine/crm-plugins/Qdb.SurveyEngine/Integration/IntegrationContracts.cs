@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Qdb.SurveyEngine.Domain;
 using Qdb.SurveyEngine.Services;
 
@@ -99,6 +100,9 @@ namespace Qdb.SurveyEngine.Integration
         public string AnswersJson { get; set; }
         public DateTime SubmittedOn { get; set; }
         public IReadOnlyList<AnswerRow> Answers { get; set; }
+
+        /// <summary>Set for a weighted survey only; a normal survey stores no score (FR-CSE-061).</summary>
+        public ResponseScore Score { get; set; }
     }
 
     /// <summary>One answered question, normalised for views and charts (FR-CSE-056, 057).</summary>
@@ -109,6 +113,32 @@ namespace Qdb.SurveyEngine.Integration
         public string AnswerText { get; set; }
         public decimal? AnswerNumeric { get; set; }
         public int QuestionOrder { get; set; }
+
+        /// <summary>The answer's points on a weighted survey; null when the question is not scored.</summary>
+        public AnswerScore Score { get; set; }
+    }
+
+    /// <summary>A weighted survey's response score (Addendum A, FR-CSE-066).</summary>
+    public sealed class ResponseScore
+    {
+        public ResponseScore(decimal total, decimal maximum)
+        {
+            Total = total;
+            Maximum = maximum;
+        }
+
+        public decimal Total { get; }
+        public decimal Maximum { get; }
+
+        /// <summary>Total ÷ maximum × 100, two decimals; null when nothing scorable was answered.</summary>
+        public decimal? Percent => Maximum > 0 ? Math.Round(Total / Maximum * 100m, 2) : (decimal?)null;
+
+        /// <summary>The sum of the scored answers; skipped questions count towards neither total nor maximum (FR-CSE-068).</summary>
+        public static ResponseScore Of(IEnumerable<AnswerRow> answers)
+        {
+            var scored = answers.Where(a => a.Score != null).ToList();
+            return new ResponseScore(scored.Sum(a => a.Score.WeightedPoints), scored.Sum(a => a.Score.WeightedMaximum));
+        }
     }
 
     /// <summary>All collaborators of the integration services.</summary>

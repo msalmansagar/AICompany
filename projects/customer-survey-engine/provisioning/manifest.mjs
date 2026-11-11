@@ -142,6 +142,10 @@ export const TABLES = Object.freeze([
       string('qdb_language_code', 'Language Code', 10),
       memo('qdb_answers_json', 'Answers JSON', 1048576),
       dateTime('qdb_submitted_on', 'Submitted On'),
+      // Addendum A (FR-CSE-066): set only for a response to a weighted survey.
+      decimal('qdb_score_total', 'Score'),
+      decimal('qdb_score_max', 'Maximum Score'),
+      decimal('qdb_score_percent', 'Score %'),
     ],
   },
   {
@@ -153,6 +157,9 @@ export const TABLES = Object.freeze([
       memo('qdb_answer_text', 'Answer Text', 4000),
       decimal('qdb_answer_numeric', 'Answer Numeric'),
       integer('qdb_question_order', 'Question Order', { min: 0, max: 2147483647 }),
+      // Addendum A (FR-CSE-067): set only for a scored question of a weighted survey.
+      decimal('qdb_points', 'Points'),
+      decimal('qdb_weighted_points', 'Weighted Points'),
     ],
   },
   {

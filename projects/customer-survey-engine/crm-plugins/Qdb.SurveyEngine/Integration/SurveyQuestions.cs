@@ -14,20 +14,28 @@ namespace Qdb.SurveyEngine.Integration
     {
         private readonly Dictionary<string, SurveyQuestion> _byCode;
 
-        private SurveyQuestions(IReadOnlyList<SurveyQuestion> ordered)
+        private const string WeightedMode = "weighted";
+
+        private SurveyQuestions(IReadOnlyList<SurveyQuestion> ordered, bool isWeighted)
         {
             _byCode = ordered.GroupBy(q => q.Code, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+            IsWeighted = isWeighted;
         }
+
+        /// <summary>True when the published form has Scoring = Weighted (Addendum A, FR-CSE-061).</summary>
+        public bool IsWeighted { get; }
 
         /// <summary>Parses the runtime JSON; fields without a schema name (labels, info cards) are not questions.</summary>
         public static SurveyQuestions FromRuntimeJson(string runtimeJson)
         {
             var form = JsonText.Read<RuntimeForm>(runtimeJson, "The published survey");
+            var isWeighted = string.Equals(form.ScoringMode, WeightedMode, StringComparison.OrdinalIgnoreCase);
             var fields = (form.Tabs ?? new List<RuntimeTab>()).OrderBy(t => t.DisplayOrder)
                 .SelectMany(t => (t.Sections ?? new List<RuntimeSection>()).OrderBy(s => s.DisplayOrder))
                 .SelectMany(s => (s.Fields ?? new List<RuntimeField>()).OrderBy(f => f.DisplayOrder))
                 .Where(f => !string.IsNullOrWhiteSpace(f.SchemaName));
-            return new SurveyQuestions(fields.Select((field, index) => new SurveyQuestion(field, index + 1)).ToList());
+            var questions = fields.Select((field, index) => new SurveyQuestion(field, index + 1, isWeighted ? QuestionScoring.For(field) : null)).ToList();
+            return new SurveyQuestions(questions, isWeighted);
         }
 
         /// <summary>The question with this code, or null when the survey has none.</summary>
@@ -40,14 +48,16 @@ namespace Qdb.SurveyEngine.Integration
         private const char MultiValueSeparator = ',';
         private static readonly HashSet<string> NumericFieldTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "number", "decimal", "currency" };
         private readonly Dictionary<string, string> _optionLabels;
+        private readonly QuestionScoring _scoring;
 
-        internal SurveyQuestion(RuntimeField field, int order)
+        internal SurveyQuestion(RuntimeField field, int order, QuestionScoring scoring)
         {
             Code = field.SchemaName;
             Label = field.Label;
             Order = order;
-            // Only a star rating or a number question is a score; a choice's option code ("1" = Portal) is not.
-            IsScored = string.Equals(field.RadioRenderStyle, "rating", StringComparison.OrdinalIgnoreCase) || NumericFieldTypes.Contains(field.FieldType ?? string.Empty);
+            _scoring = scoring;
+            // Only a star rating or a number question has a numeric value; a choice's option code ("1" = Portal) does not.
+            IsNumeric = string.Equals(field.RadioRenderStyle, "rating", StringComparison.OrdinalIgnoreCase) || NumericFieldTypes.Contains(field.FieldType ?? string.Empty);
             _optionLabels = (field.Options ?? new List<RuntimeOption>()).Where(o => o.Value != null)
                 .GroupBy(o => o.Value, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First().Label, StringComparer.Ordinal);
         }
@@ -57,11 +67,12 @@ namespace Qdb.SurveyEngine.Integration
         public int Order { get; }
 
         /// <summary>True for a star rating or a number question, whose answer is also stored as a number for charts.</summary>
-        public bool IsScored { get; }
+        public bool IsNumeric { get; }
 
         /// <summary>
-        /// The answer row: option values become their labels (several are comma-separated), and a scored
-        /// question's value, such as a star rating, is also kept as a number so it can be charted.
+        /// The answer row: option values become their labels (several are comma-separated), a numeric
+        /// question's value is also kept as a number for charts, and on a weighted survey a scored
+        /// question carries its points (FR-CSE-067).
         /// </summary>
         public AnswerRow Answer(string value) => new AnswerRow
         {
@@ -69,7 +80,8 @@ namespace Qdb.SurveyEngine.Integration
             QuestionLabel = Label,
             QuestionOrder = Order,
             AnswerText = DisplayText(value),
-            AnswerNumeric = IsScored && decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var number) ? number : (decimal?)null,
+            AnswerNumeric = IsNumeric && decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var number) ? number : (decimal?)null,
+            Score = _scoring?.Score(value),
         };
 
         private string DisplayText(string value)
@@ -83,6 +95,7 @@ namespace Qdb.SurveyEngine.Integration
     [DataContract]
     internal sealed class RuntimeForm
     {
+        [DataMember(Name = "scoringMode")] public string ScoringMode { get; set; }
         [DataMember(Name = "tabs")] public List<RuntimeTab> Tabs { get; set; }
     }
 
@@ -108,6 +121,9 @@ namespace Qdb.SurveyEngine.Integration
         [DataMember(Name = "displayOrder")] public int DisplayOrder { get; set; }
         [DataMember(Name = "fieldType")] public string FieldType { get; set; }
         [DataMember(Name = "radioRenderStyle")] public string RadioRenderStyle { get; set; }
+        [DataMember(Name = "scoreWeight")] public decimal? ScoreWeight { get; set; }
+        [DataMember(Name = "scoreMin")] public decimal? ScoreMin { get; set; }
+        [DataMember(Name = "scoreMax")] public decimal? ScoreMax { get; set; }
         [DataMember(Name = "options")] public List<RuntimeOption> Options { get; set; }
     }
 
@@ -116,5 +132,6 @@ namespace Qdb.SurveyEngine.Integration
     {
         [DataMember(Name = "value")] public string Value { get; set; }
         [DataMember(Name = "label")] public string Label { get; set; }
+        [DataMember(Name = "scorePoints")] public decimal? ScorePoints { get; set; }
     }
 }

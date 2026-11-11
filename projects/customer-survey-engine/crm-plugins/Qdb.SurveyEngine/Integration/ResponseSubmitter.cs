@@ -30,7 +30,12 @@ namespace Qdb.SurveyEngine.Integration
             var answers = ReadAnswers(answersJson);
             var questions = LoadQuestions(invitation);
             var now = _deps.Clock.UtcNow;
-            var created = _deps.Responses.Create(new ResponseDraft { Invitation = invitation, AnswersJson = answersJson, SubmittedOn = now, Answers = ToRows(answers, questions) });
+            var rows = ToRows(answers, questions);
+            var created = _deps.Responses.Create(new ResponseDraft
+            {
+                Invitation = invitation, AnswersJson = answersJson, SubmittedOn = now, Answers = rows,
+                Score = questions.IsWeighted ? ResponseScore.Of(rows) : null,
+            });
             if (created.IsDuplicate) throw new SurveyApiException(SurveyApiException.AlreadySubmitted, "This survey has already been submitted.");
             Close(invitation, new InvitationClosure { Invitation = invitation, SubmittedOn = now, WasOpenedByToken = request.HasToken });
             return created.ResponseId;

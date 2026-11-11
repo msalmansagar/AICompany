@@ -52,18 +52,32 @@ namespace Qdb.SurveyEngine.Data
                 ["qdb_answers_json"] = draft.AnswersJson,
                 ["qdb_submitted_on"] = draft.SubmittedOn,
             };
+            // Only a weighted survey names the score columns, so a normal survey works on an org that never got them.
+            if (draft.Score != null)
+            {
+                response["qdb_score_total"] = draft.Score.Total;
+                response["qdb_score_max"] = draft.Score.Maximum;
+                response["qdb_score_percent"] = draft.Score.Percent;
+            }
             return response;
         }
 
-        private static Entity ToAnswer(Guid responseId, AnswerRow answer) => new Entity("qdb_survey_answer")
+        private static Entity ToAnswer(Guid responseId, AnswerRow answer)
         {
-            ["qdb_name"] = InvitationRepository.Truncate(answer.QuestionLabel ?? answer.QuestionCode, 200),
-            ["qdb_survey_response_id"] = new EntityReference("qdb_survey_response", responseId),
-            ["qdb_question_code"] = answer.QuestionCode,
-            ["qdb_question_label"] = InvitationRepository.Truncate(answer.QuestionLabel, 400),
-            ["qdb_answer_text"] = InvitationRepository.Truncate(answer.AnswerText, 4000),
-            ["qdb_answer_numeric"] = answer.AnswerNumeric,
-            ["qdb_question_order"] = answer.QuestionOrder,
-        };
+            var row = new Entity("qdb_survey_answer")
+            {
+                ["qdb_name"] = InvitationRepository.Truncate(answer.QuestionLabel ?? answer.QuestionCode, 200),
+                ["qdb_survey_response_id"] = new EntityReference("qdb_survey_response", responseId),
+                ["qdb_question_code"] = answer.QuestionCode,
+                ["qdb_question_label"] = InvitationRepository.Truncate(answer.QuestionLabel, 400),
+                ["qdb_answer_text"] = InvitationRepository.Truncate(answer.AnswerText, 4000),
+                ["qdb_answer_numeric"] = answer.AnswerNumeric,
+                ["qdb_question_order"] = answer.QuestionOrder,
+            };
+            if (answer.Score == null) return row;
+            row["qdb_points"] = answer.Score.Points;
+            row["qdb_weighted_points"] = answer.Score.WeightedPoints;
+            return row;
+        }
     }
 }

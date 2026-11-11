@@ -13,12 +13,13 @@ const PENDING = 100000000;
 export const VIEWS = Object.freeze([
   {
     table: 'qdb_survey_response', name: 'Survey Responses - All', description: 'Every submitted response, newest first (FR-CSE-057).', isDefault: true,
-    columns: [['qdb_name', 220], ['qdb_survey_setup_id', 180], ['qdb_customer_id', 200], ['qdb_submitted_on', 140], ['qdb_form_code', 170], ['qdb_language_code', 80], ['qdb_source_table', 170]],
+    columns: [['qdb_name', 220], ['qdb_survey_setup_id', 180], ['qdb_customer_id', 200], ['qdb_submitted_on', 140], ['qdb_score_percent', 90], ['qdb_score_total', 80], ['qdb_score_max', 90],
+      ['qdb_form_code', 170], ['qdb_language_code', 80], ['qdb_source_table', 170]],
     order: { attribute: 'qdb_submitted_on', descending: true },
   },
   {
     table: 'qdb_survey_answer', name: 'Survey Answers - All', description: 'One row per answered question, with its setup, customer and date (FR-CSE-057).', isDefault: true,
-    columns: [['qdb_survey_response_id', 200], ['qdb_question_order', 70], ['qdb_question_label', 280], ['qdb_answer_text', 240], ['qdb_answer_numeric', 90]],
+    columns: [['qdb_survey_response_id', 200], ['qdb_question_order', 70], ['qdb_question_label', 280], ['qdb_answer_text', 240], ['qdb_answer_numeric', 90], ['qdb_points', 70], ['qdb_weighted_points', 90]],
     links: [{ alias: 'response', table: 'qdb_survey_response', lookup: 'qdb_survey_response_id', columns: [['qdb_survey_setup_id', 170], ['qdb_customer_id', 180], ['qdb_submitted_on', 130]] }],
     order: { attribute: 'qdb_question_order', descending: false },
   },
@@ -54,6 +55,10 @@ export const CHARTS = Object.freeze([
   {
     table: 'qdb_survey_answer', name: 'Average Score by Question', description: 'Average rating or numeric answer per question (FR-CSE-057).', type: 'Bar',
     measure: { attribute: 'qdb_answer_numeric', aggregate: 'avg' }, groupBy: { attribute: 'qdb_question_label' }, filters: [['qdb_answer_numeric', 'not-null']],
+  },
+  {
+    table: 'qdb_survey_response', name: 'Average Score % by Setup', description: 'Average weighted score percentage per survey setup (Addendum A, FR-CSE-069).', type: 'Column',
+    measure: { attribute: 'qdb_score_percent', aggregate: 'avg' }, groupBy: { attribute: 'qdb_survey_setup_id' }, filters: [['qdb_score_percent', 'not-null']],
   },
   {
     table: 'qdb_survey_response', name: 'Responses by Setup', description: 'Number of responses per survey setup.', type: 'Column',
@@ -128,6 +133,7 @@ export const FORMS = Object.freeze([
     tabs: [
       { label: 'Response', sections: [
         { label: 'Response', fields: [{ name: 'qdb_name', readOnly: true }, { name: 'qdb_survey_setup_id', readOnly: true }, { name: 'qdb_customer_id', readOnly: true }, { name: 'qdb_survey_invitation_id', readOnly: true }, { name: 'qdb_submitted_on', readOnly: true }] },
+        { label: 'Score (weighted surveys)', fields: [{ name: 'qdb_score_percent', readOnly: true }, { name: 'qdb_score_total', readOnly: true }, { name: 'qdb_score_max', readOnly: true }] },
         { label: 'Survey', fields: [{ name: 'qdb_form_code', readOnly: true }, { name: 'qdb_pinned_version', readOnly: true }, { name: 'qdb_language_code', readOnly: true }, { name: 'qdb_source_table', readOnly: true }, { name: 'qdb_source_record_id', readOnly: true }] },
       ] },
       { label: 'Answers', sections: [{ label: 'Answers', subgrid: { table: 'qdb_survey_answer', lookup: 'qdb_survey_response_id', view: 'Survey Answers - All' } }] },
