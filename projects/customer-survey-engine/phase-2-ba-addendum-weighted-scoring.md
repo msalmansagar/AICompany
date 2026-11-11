@@ -19,7 +19,7 @@ Today a survey only collects answers. A rating answer is stored with its number,
 | Area | Change |
 |---|---|
 | Section 3.2 In scope | **Add:** weighted scoring of survey responses, switched on per survey. |
-| Section 8 Out of scope | **Replace** "Computed satisfaction scores (NPS, CSAT, CES aggregates)" with "Standard NPS, CSAT and CES formulas (see OQ-S4)". |
+| Section 8 Out of scope | **Replace** "Computed satisfaction scores (NPS, CSAT, CES aggregates)" with "Standard NPS, CSAT and CES formulas, and score bands (OQ-S3, OQ-S4)". |
 | Section 4 | **Add** Group L below: FR-CSE-061 to FR-CSE-070. |
 
 ## 3. How it works (summary)
@@ -64,14 +64,14 @@ Normal surveys and every standard Form Engine form behave exactly as they do tod
 |---|---|---|
 | NFR-CSE-010 | Compatibility | Weighted scoring adds columns only. Every existing survey and every standard Form Engine form keeps its current behaviour and published output; standard forms stay byte-identical (the Form Engine regression gate, FR-CSE-025, must pass). |
 
-## 6. Open questions for the CEO
+## 6. Questions for the CEO (all closed 2026-11-11)
 
 | ID | Question | BA recommendation |
 |---|---|---|
-| OQ-S1 | Where is the normal / weighted switch set: on the **survey form** in the designer, or on the **Survey Setup**? | **On the form.** The points and weights are entered on the form's questions, and they must be versioned and pinned with the form. One form is then always scored the same way, whichever setup sends it. |
-| OQ-S2 | When an optional question is skipped, should it be left out of the maximum (fairer) or count as zero points (stricter)? | **Leave it out** (FR-CSE-068 as written). |
-| OQ-S3 | Should a weighted survey also show a **score band**, for example ≥ 80% Satisfied, 50–79% Neutral, < 50% Dissatisfied, with the bands set per survey? | Useful for analysts and alerts. It adds one small configuration table, so include it only if wanted. |
-| OQ-S4 | Are the standard **NPS** (0–10, promoters minus detractors), **CSAT** or **CES** formulas needed, or is the weighted percentage enough for release 1? | The weighted percentage is enough for release 1; NPS can follow as its own addendum. |
+| OQ-S1 | Where is the normal / weighted switch set: on the **survey form** in the designer, or on the **Survey Setup**? | **CLOSED 2026-11-11 (CEO): on the form**, as FR-CSE-061 states. Points and weights are versioned and pinned with the form, so one form is always scored the same way whichever setup sends it. |
+| OQ-S2 | When an optional question is skipped, should it be left out of the maximum (fairer) or count as zero points (stricter)? | **CLOSED 2026-11-11 (CEO): left out**, as FR-CSE-068 states. |
+| OQ-S3 | Should a weighted survey also show a **score band**, for example ≥ 80% Satisfied, 50–79% Neutral, < 50% Dissatisfied, with the bands set per survey? | **CLOSED 2026-11-11 (CEO): no bands in release 1.** Analysts use the percentage. Bands can be added later without rework. |
+| OQ-S4 | Are the standard **NPS** (0–10, promoters minus detractors), **CSAT** or **CES** formulas needed, or is the weighted percentage enough for release 1? | **CLOSED 2026-11-11 (CEO): weighted percentage only.** NPS, CSAT and CES stay out of scope and can follow as their own addendum. |
 
 ## 7. Impact and estimate (for the CEO decision)
 
