@@ -2,20 +2,19 @@
  * B2 end-to-end test on a live (test) org: a disbursement entering "Payment Processed" must
  * produce exactly one invitation, and re-entering must log a Duplicate instead of a second one.
  *
- * Creates (once, reused on re-runs): survey form srv-test-disbursement, account "Survey E2E Test
- * Customer", setup + Event trigger "E2E - Disbursement payment processed". Creates a new test
- * disbursement every run. Temporarily activates the Disbursements source and enables its
+ * Creates (once, reused on re-runs): survey form srv-test-disbursement, setup + Event trigger
+ * "E2E - Disbursement payment processed". Creates a new account and test disbursement every run:
+ * a reused account would be inside the 30-day fatigue window of its previous run (B3). Temporarily activates the Disbursements source and enables its
  * Update step; both are ALWAYS restored in `finally`. Live writes: run only with a go-ahead.
  *
  *   node --env-file=<dfe>/scripts/.env b2-trigger-e2e.mjs
  */
 import {
-  openSession, pollFor, ensureRow, setDisbursementStep, createDisbursement, moveDisbursement, findDisbursementSource,
+  openSession, pollFor, setDisbursementStep, createDisbursement, moveDisbursement, findDisbursementSource,
   failedPluginJobsSince, runStamp, DISBURSEMENT_TABLE, PAYMENT_PROCESSED, SAVED, LETTER_OF_CREDIT,
 } from './e2e-helpers.mjs';
 import { ensureSurveyForm, ensureCompletionSetup, COMPLETION_FORM_CODE } from './e2e-fixtures.mjs';
 
-const ACCOUNT_NAME = 'Survey E2E Test Customer';
 
 async function runScenario(session, { accountId, setupId, triggerId }) {
   const name = `SURVEY-E2E-${runStamp()}`;
@@ -51,7 +50,7 @@ async function run() {
   console.log(`B2 E2E — ${session.client.orgUrl}`);
   const published = await ensureSurveyForm(session, COMPLETION_FORM_CODE);
   session.check('survey form published', published.length > 0, published.map((p) => `${p.qdb_language_code} v${p.qdb_published_version}`).join(', '));
-  const accountId = await ensureRow(session, { entitySet: 'accounts', idAttribute: 'accountid', filter: `name eq '${ACCOUNT_NAME}'` }, { name: ACCOUNT_NAME, description: 'Test customer for the Customer Survey Engine end-to-end test. Safe to delete.' });
+  const { entityId: accountId } = await session.write('POST', 'accounts', { name: `Survey E2E Test Customer ${runStamp()}`, description: 'Test customer for the Customer Survey Engine end-to-end test. Safe to delete.' });
   const source = await findDisbursementSource(session);
   const completion = await ensureCompletionSetup(session, source.qdb_survey_sourceid);
   try {

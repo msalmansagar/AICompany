@@ -1,8 +1,9 @@
 /**
  * B5 end-to-end test on a live (test) org (FR-CSE-031..033, 016, 042, 058, NFR-CSE-001):
- *   A  A quarterly "active in period" trigger run for RunDate 2022-04-01 invites exactly the
- *      customers with a disbursement created in 2022-Q1 (backdated test records; the org has none
- *      that old), with period key 2022-Q1 and expiry 2022-05-01; a customer surveyed recently gets a
+ *   A  A quarterly "active in period" trigger run for RunDate <Y>-04-01 invites exactly the
+ *      customers with a disbursement created in <Y>-Q1, where <Y> is the year before the org's oldest
+ *      disbursement (backdated test records, so each re-run moves one year earlier and never meets its
+ *      own leftovers), with period key <Y>-Q1 and expiry <Y>-05-01; a customer surveyed recently gets a
  *      Postponed invitation; a second run creates nothing.
  *   B  Postponed release: once that customer's earlier invitation is outside the fatigue window,
  *      the next run releases the Postponed one; an expired Postponed invitation is discarded and logged.
@@ -17,10 +18,6 @@
 import { openSession, findDisbursementSource, runStamp, findNonAdministrator, ensureRow, LETTER_OF_CREDIT, QDB_DIGITAL } from './e2e-helpers.mjs';
 import { ensureSurveyForm, COMPLETION_FORM_CODE } from './e2e-fixtures.mjs';
 
-const RUN_DATE = '2022-04-01';
-const QUIET_DATE = '2022-04-02';
-const PERIOD_KEY = '2022-Q1';
-const IN_PERIOD = '2022-02-15T10:00:00Z';
 const SETUP_NAME = 'E2E - Quarterly active in period';
 // Two different option sets that happen to share 100000004: invitation status and suppression reason.
 const STATUS = { pending: 100000000, postponed: 100000001, discarded: 100000004 };
@@ -72,31 +69,38 @@ async function createInvitation(session, { accountId, setupId, stamp, label, sta
   })).entityId;
 }
 
-async function scenarioScheduled(session, { setupId, customers, stamp }) {
-  console.log('A — quarterly active-in-period run for 2022-04-01');
+/** Q1 of the year before the oldest disbursement, so no real or leftover record falls inside it. */
+async function chooseReviewPeriod(session) {
+  const [oldest] = await session.rows('qdb_payment_authorization_tickets?$select=createdon&$orderby=createdon asc&$top=1');
+  const year = (oldest ? new Date(oldest.createdon).getUTCFullYear() : new Date().getUTCFullYear()) - 1;
+  return { runDate: `${year}-04-01`, quietDate: `${year}-04-02`, key: `${year}-Q1`, inPeriod: `${year}-02-15T10:00:00Z`, expiry: `${year}-05-01` };
+}
+
+async function scenarioScheduled(session, { setupId, customers, stamp, period }) {
+  console.log(`A — quarterly active-in-period run for ${period.runDate}`);
   const recentId = await createInvitation(session, { accountId: customers.fatigued, setupId, stamp, label: 'recent', status: STATUS.pending, generatedOn: new Date().toISOString(), expiresOn: null });
-  await runUntilComplete(session, RUN_DATE);
-  const scheduled = (await invitationsOf(session, setupId)).filter((i) => i.qdb_schedule_period_key === PERIOD_KEY);
+  await runUntilComplete(session, period.runDate);
+  const scheduled = (await invitationsOf(session, setupId)).filter((i) => i.qdb_schedule_period_key === period.key);
   const byCustomer = Object.fromEntries(scheduled.map((i) => [i._qdb_customer_id_value, i]));
   session.check('invites exactly the two customers with Q1 activity, not the Q4 one', scheduled.length === 2 && !byCustomer[customers.outside], `${scheduled.length} invitation(s)`);
   session.check('fresh customer is Pending, fatigued customer is Postponed', byCustomer[customers.fresh]?.qdb_status === STATUS.pending && byCustomer[customers.fatigued]?.qdb_status === STATUS.postponed);
-  session.check('quarterly expiry is 2022-05-01 and there is no source record', scheduled.every((i) => i.qdb_expires_on?.startsWith('2022-05-01') && !i.qdb_source_record_id));
-  const second = await runUntilComplete(session, RUN_DATE);
-  const afterSecond = (await invitationsOf(session, setupId)).filter((i) => i.qdb_schedule_period_key === PERIOD_KEY).length;
+  session.check(`quarterly expiry is ${period.expiry} and there is no source record`, scheduled.every((i) => i.qdb_expires_on?.startsWith(period.expiry) && !i.qdb_source_record_id));
+  const second = await runUntilComplete(session, period.runDate);
+  const afterSecond = (await invitationsOf(session, setupId)).filter((i) => i.qdb_schedule_period_key === period.key).length;
   session.check('a second run creates nothing', afterSecond === 2, `${afterSecond} invitation(s); summary: ${second.Summary}`);
   return recentId;
 }
 
-async function scenarioPostponed(session, { setupId, customers, stamp, recentId }) {
+async function scenarioPostponed(session, { setupId, customers, stamp, recentId, period }) {
   console.log('B — postponed release and expiry');
   const longAgo = new Date(Date.now() - 40 * 86400000).toISOString();
   await session.write('PATCH', `qdb_survey_invitations(${recentId})`, { qdb_generated_on: longAgo });
   const expiredId = await createInvitation(session, {
     accountId: customers.expired, setupId, stamp, label: 'expired', status: STATUS.postponed, generatedOn: longAgo, expiresOn: new Date(Date.now() - 86400000).toISOString(),
   });
-  // The scheduled Postponed invitation from A expired on 2022-05-01, so this run discards it too.
-  await runUntilComplete(session, QUIET_DATE);
-  const [scheduledPostponed] = (await invitationsOf(session, setupId)).filter((i) => i.qdb_schedule_period_key === PERIOD_KEY && i._qdb_customer_id_value === customers.fatigued);
+  // The scheduled Postponed invitation from A expired on <Y>-05-01, so this run discards it too.
+  await runUntilComplete(session, period.quietDate);
+  const [scheduledPostponed] = (await invitationsOf(session, setupId)).filter((i) => i.qdb_schedule_period_key === period.key && i._qdb_customer_id_value === customers.fatigued);
   session.check('the scheduled Postponed invitation past its quarterly expiry is Discarded', scheduledPostponed.qdb_status === STATUS.discarded);
   const [expired] = await session.rows(`qdb_survey_invitations?$select=qdb_status&$filter=qdb_survey_invitationid eq ${expiredId}`);
   session.check('expired Postponed invitation is Discarded', expired.qdb_status === STATUS.discarded);
@@ -105,7 +109,7 @@ async function scenarioPostponed(session, { setupId, customers, stamp, recentId 
   const releasableId = await createInvitation(session, {
     accountId: customers.fatigued, setupId, stamp, label: 'releasable', status: STATUS.postponed, generatedOn: longAgo, expiresOn: new Date(Date.now() + 7 * 86400000).toISOString(),
   });
-  await runUntilComplete(session, QUIET_DATE);
+  await runUntilComplete(session, period.quietDate);
   const [released] = await session.rows(`qdb_survey_invitations?$select=qdb_status,qdb_generated_on&$filter=qdb_survey_invitationid eq ${releasableId}`);
   session.check('Postponed invitation outside the fatigue window is released as Pending, generated now', released.qdb_status === STATUS.pending && Date.now() - Date.parse(released.qdb_generated_on) < 600000);
 }
@@ -121,19 +125,19 @@ async function createOldResponse(session, { accountId, setupId, label }) {
   return { responseId, answerId };
 }
 
-async function scenarioRetention(session, { setupId, customers, settingsId }) {
+async function scenarioRetention(session, { setupId, customers, settingsId, period }) {
   console.log('C — retention');
   const others = await session.rows(`qdb_survey_responses?$select=qdb_name&$filter=qdb_submitted_on lt ${new Date(Date.now() - 365 * 86400000).toISOString()} and not startswith(qdb_name,'E2E B5')`);
   if (others.length > 0) { session.check('no non-test responses older than a year (would be touched)', false, `${others.length} found; retention scenario skipped`); return; }
   const deletable = await createOldResponse(session, { accountId: customers.fresh, setupId, label: 'delete' });
   await session.write('PATCH', `qdb_survey_settingses(${settingsId})`, { qdb_retention_days: 365, qdb_retention_mode: RETENTION.delete });
-  await runUntilComplete(session, QUIET_DATE);
+  await runUntilComplete(session, period.quietDate);
   const answersLeft = await session.rows(`qdb_survey_answers?$select=qdb_survey_answerid&$filter=qdb_survey_answerid eq ${deletable.answerId}`);
   const responsesLeft = await session.rows(`qdb_survey_responses?$select=qdb_survey_responseid&$filter=qdb_survey_responseid eq ${deletable.responseId}`);
   session.check('Delete: old response and its answer are gone', responsesLeft.length === 0 && answersLeft.length === 0);
   const anonymisable = await createOldResponse(session, { accountId: customers.fresh, setupId, label: 'anonymise' });
   await session.write('PATCH', `qdb_survey_settingses(${settingsId})`, { qdb_retention_mode: RETENTION.anonymise });
-  await runUntilComplete(session, QUIET_DATE);
+  await runUntilComplete(session, period.quietDate);
   const [response] = await session.rows(`qdb_survey_responses?$select=_qdb_customer_id_value,qdb_answers_json,qdb_name&$filter=qdb_survey_responseid eq ${anonymisable.responseId}`);
   const [answer] = await session.rows(`qdb_survey_answers?$select=qdb_answer_text,qdb_answer_numeric&$filter=qdb_survey_answerid eq ${anonymisable.answerId}`);
   session.check('Anonymise: customer, JSON and answer text cleared', !response._qdb_customer_id_value && !response.qdb_answers_json && !answer.qdb_answer_text);
@@ -141,21 +145,21 @@ async function scenarioRetention(session, { setupId, customers, settingsId }) {
   await session.write('DELETE', `qdb_survey_responses(${anonymisable.responseId})`);
 }
 
-async function scenarioNonAdministrator(session) {
+async function scenarioNonAdministrator(session, period) {
   console.log('D — a non-administrator is refused');
   const user = await findNonAdministrator(session);
   if (!user) { session.check('a non-administrator user exists to test with', false); return; }
-  const outcome = await session.client.sendAsUser('POST', 'qdb_srv_RunDueSurveys', { RunDate: QUIET_DATE }, user.systemuserid).then(() => 'allowed', (error) => error.message);
+  const outcome = await session.client.sendAsUser('POST', 'qdb_srv_RunDueSurveys', { RunDate: period.quietDate }, user.systemuserid).then(() => 'allowed', (error) => error.message);
   session.check(`run by ${user.fullname} is refused`, outcome !== 'allowed' && outcome.includes('System Administrator'), outcome.slice(0, 160));
 }
 
-async function createCustomers(session, stamp) {
+async function createCustomers(session, stamp, period) {
   const customers = {
     fresh: await createAccount(session, 'Fresh', stamp), fatigued: await createAccount(session, 'Fatigued', stamp),
     outside: await createAccount(session, 'Q4 only', stamp), expired: await createAccount(session, 'Expired', stamp),
   };
-  await createBackdatedDisbursement(session, { accountId: customers.fresh, stamp, label: 'FRESH', createdOn: IN_PERIOD });
-  await createBackdatedDisbursement(session, { accountId: customers.fatigued, stamp, label: 'FATIGUED', createdOn: IN_PERIOD });
+  await createBackdatedDisbursement(session, { accountId: customers.fresh, stamp, label: 'FRESH', createdOn: period.inPeriod });
+  await createBackdatedDisbursement(session, { accountId: customers.fatigued, stamp, label: 'FATIGUED', createdOn: period.inPeriod });
   await createBackdatedDisbursement(session, { accountId: customers.outside, stamp, label: 'Q4' });
   return customers;
 }
@@ -163,19 +167,19 @@ async function createCustomers(session, stamp) {
 async function run() {
   const session = await openSession();
   console.log(`B5 E2E — ${session.client.orgUrl}`);
-  const earlier = await session.rows(`qdb_payment_authorization_tickets?$select=qdb_name&$filter=createdon lt 2022-04-01T00:00:00Z&$top=1`);
-  if (earlier.length > 0) throw new Error('The org already has disbursements created before 2022-04-01; pick another review period.');
+  const period = await chooseReviewPeriod(session);
+  console.log(`  review period ${period.key}`);
   const [settings] = await session.rows('qdb_survey_settingses?$select=qdb_survey_settingsid,qdb_retention_days,qdb_retention_mode');
   await ensureSurveyForm(session, COMPLETION_FORM_CODE);
   const source = await findDisbursementSource(session);
   const setupId = await ensureQuarterlySetup(session, source.qdb_survey_sourceid);
   const stamp = runStamp();
   try {
-    const customers = await createCustomers(session, stamp);
-    const recentId = await scenarioScheduled(session, { setupId, customers, stamp });
-    await scenarioPostponed(session, { setupId, customers, stamp, recentId });
-    await scenarioRetention(session, { setupId, customers, settingsId: settings.qdb_survey_settingsid });
-    await scenarioNonAdministrator(session);
+    const customers = await createCustomers(session, stamp, period);
+    const recentId = await scenarioScheduled(session, { setupId, customers, stamp, period });
+    await scenarioPostponed(session, { setupId, customers, stamp, recentId, period });
+    await scenarioRetention(session, { setupId, customers, settingsId: settings.qdb_survey_settingsid, period });
+    await scenarioNonAdministrator(session, period);
   } finally {
     await session.write('PATCH', `qdb_survey_settingses(${settings.qdb_survey_settingsid})`, { qdb_retention_days: settings.qdb_retention_days, qdb_retention_mode: settings.qdb_retention_mode });
     await session.write('PATCH', `qdb_survey_setups(${setupId})`, { qdb_is_active: false });
