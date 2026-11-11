@@ -5,7 +5,7 @@
 | Prepared by | MSS Technologies, Business Analyst |
 | Amends | `phase-2-ba.md` v1.1 (approved 2026-11-09) → becomes v1.2 when this addendum is approved |
 | Date | 2026-11-11 |
-| Status | **DRAFT — awaiting CEO approval.** Nothing in this addendum may be built before approval. |
+| Status | **APPROVED by the CEO (user), 2026-11-11.** BRD becomes v1.2. |
 | Trigger | CEO request, 2026-11-11: "It should be configurable: either I can create a normal Survey or a weighted score Survey based on configuration." |
 
 ## 1. Why this addendum exists
@@ -88,4 +88,4 @@ Normal surveys and every standard Form Engine form behave exactly as they do tod
 
 | Role | Name | Decision | Date |
 |---|---|---|---|
-| CEO | | Pending | |
+| CEO | The user | **APPROVED**: "Approved, start building weighted scoring" | 2026-11-11 |

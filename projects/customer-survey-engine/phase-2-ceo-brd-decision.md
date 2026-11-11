@@ -19,3 +19,12 @@ These are already requirements in v1.1. They are listed here so later phases can
 3. **NFR-CSE-009.** The secure-link channel stays disabled until its security review is signed off.
 4. **FR-CSE-024 and FR-CSE-025.** The Form Engine Save defect is fixed before survey work relies on it. The content regression gate runs before every Form Engine deploy that carries survey changes.
 5. **OQ-A3.** The client confirms the AC4 and AC2.2 readings at sign-off.
+
+## Addendum A — Weighted scoring (2026-11-11)
+
+| | |
+|---|---|
+| Decision | **APPROVED** by the user: "Approved, start building weighted scoring" |
+| Document | `phase-2-ba-addendum-weighted-scoring.md`: FR-CSE-061 to 070 + NFR-CSE-010; OQ-S1 to S4 closed (switch on the form, skipped questions left out of the maximum, no score bands, no NPS/CSAT/CES) |
+| BRD | v1.2 = v1.1 + Addendum A: 70 FR + 10 NFR = 80 requirements |
+| Carried gate | FR-CSE-025: the Form Engine regression gate must pass before the Form Engine deploy that carries scoring (NFR-CSE-010). |
