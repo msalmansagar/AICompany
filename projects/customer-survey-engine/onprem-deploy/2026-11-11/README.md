@@ -20,6 +20,7 @@ order it goes in.
 
 `package-manifest.json` (survey) and `form-engine/package-manifest.json` record every change, count and
 checksum; `source/` and `form-engine/source/` hold the unmodified cloud exports they were built from.
+`config/` holds each org's configuration rows and the questions QDB must answer first (B9 item 4).
 
 ## Import order
 
