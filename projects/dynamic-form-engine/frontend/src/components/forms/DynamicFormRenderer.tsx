@@ -204,11 +204,14 @@ function phaseReducer(state: PhaseState, action: PhaseAction): PhaseState {
 interface DynamicFormRendererProps {
   formCode: string;
   recordId?: string;
+  /** CSE-ENG-001: a survey invitation is answered once, so the confirmation offers no "Submit another". */
+  isSingleSubmission?: boolean;
 }
 
 export function DynamicFormRenderer({
   formCode,
   recordId,
+  isSingleSubmission = false,
 }: DynamicFormRendererProps) {
   // Read the active language from the LanguageProvider tree.
   // useLanguageContext will throw if LanguageProvider is absent — which is the
@@ -394,6 +397,7 @@ function FormRendererInner({
       <FormConfirmation
         confirmationMessage={formDefinition.confirmationMessage}
         referenceNumber={submissionReference}
+        isSingleSubmission={isSingleSubmission}
       />
     );
   }

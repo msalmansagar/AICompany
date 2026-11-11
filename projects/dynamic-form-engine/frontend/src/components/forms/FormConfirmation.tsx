@@ -66,11 +66,14 @@ const useStyles = makeStyles({
 interface FormConfirmationProps {
   confirmationMessage: string;
   referenceNumber: string | null;
+  /** True when the page answers one thing once (a survey invitation), so "Submit another" makes no sense. */
+  isSingleSubmission?: boolean;
 }
 
 export function FormConfirmation({
   confirmationMessage,
   referenceNumber,
+  isSingleSubmission = false,
 }: FormConfirmationProps) {
   const styles = useStyles();
 
@@ -100,11 +103,13 @@ export function FormConfirmation({
           </div>
         )}
 
-        <div className={styles.actions}>
-          <Button appearance="primary" onClick={handleStartNew}>
-            Submit another
-          </Button>
-        </div>
+        {!isSingleSubmission && (
+          <div className={styles.actions}>
+            <Button appearance="primary" onClick={handleStartNew}>
+              Submit another
+            </Button>
+          </div>
+        )}
       </Card>
     </div>
   );

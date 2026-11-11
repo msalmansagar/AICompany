@@ -7,7 +7,7 @@ import { Spinner } from '@fluentui/react-components';
 import { DynamicFormRenderer } from '../src/components/forms/DynamicFormRenderer';
 import { LanguageProvider } from '../src/i18n';
 import { webApi, cleanGuid } from './xrm/xrmClient';
-import { fetchSurvey, startSurvey } from './xrm/surveyApi';
+import { fetchSurvey, getActiveSurvey, startSurvey } from './xrm/surveyApi';
 import { parseSurveyContext } from '../src/engine/surveySubmission';
 import { AppearanceProvider } from '../src/theme/AppearanceProvider';
 import { exposeApiValidatorRegistration } from '../src/engine/apiValidators';
@@ -59,7 +59,7 @@ function FormHost() {
 
   if (error) return <div style={{ padding: 24, color: '#a4262c', fontFamily: 'Segoe UI, sans-serif' }}>{error}</div>;
   if (!formCode) return <div style={{ padding: 24 }}><Spinner label="Loading form…" /></div>;
-  return <DynamicFormRenderer formCode={formCode} />;
+  return <DynamicFormRenderer formCode={formCode} isSingleSubmission={getActiveSurvey() !== null} />;
 }
 
 // DFE-APIVAL-CAM-001: a script on the hosting CRM page registers API validation handlers
