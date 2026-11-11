@@ -1,0 +1,330 @@
+/*
+ * Survey Engine on-prem checks (B9 item 5). READ-ONLY: GET requests only, no customer data beyond
+ * counts and Form Engine configuration names.
+ *
+ * One file, two hosts: build-browser-checks.mjs wraps it into the console scripts QDB IT pastes into
+ * the browser (F12) on each on-prem org, as the Debt Collection kit did; run-checks.mjs runs the same
+ * functions from Node against the cloud org. `get(path)` is injected: it answers the parsed JSON of a
+ * Web API GET relative to /api/data/v9.x/, or throws an Error carrying `status`.
+ *
+ * No imports and no syntax newer than ES2018, so it pastes into any supported browser.
+ */
+const SurveyChecks = (() => {
+  const PASS = 'PASS';
+  const WARN = 'WARN';
+  const FAIL = 'FAIL';
+  const INFO = 'INFO';
+  const TO_CONFIRM = 'TO_CONFIRM';
+  const quoted = (value) => "'" + String(value).replace(/'/g, "''") + "'";
+  const result = (id, title, status, detail) => ({ id, title, status, detail });
+
+  async function tryGet(get, path) {
+    try {
+      return { ok: true, json: await get(path) };
+    } catch (error) {
+      return { ok: false, status: error.status, message: String(error.message).slice(0, 300) };
+    }
+  }
+
+  const exists = async (get, path) => (await tryGet(get, path)).ok;
+  const firstRow = async (get, path) => {
+    const response = await tryGet(get, path);
+    return response.ok ? (response.json.value || [])[0] : undefined;
+  };
+
+  // ── SHA-256 (FIPS 180-4) on bytes, for comparing web resources and assemblies with the kit ──
+  const K = [0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2];
+  const rotate = (value, bits) => (value >>> bits) | (value << (32 - bits));
+
+  function padded(bytes) {
+    const length = Math.ceil((bytes.length + 9) / 64) * 64;
+    const block = new Uint8Array(length);
+    block.set(bytes);
+    block[bytes.length] = 0x80;
+    const view = new DataView(block.buffer);
+    view.setUint32(length - 8, Math.floor(bytes.length / 0x20000000));
+    view.setUint32(length - 4, (bytes.length * 8) >>> 0);
+    return view;
+  }
+
+  function compress(state, view, offset, words) {
+    for (let i = 0; i < 16; i += 1) words[i] = view.getUint32(offset + i * 4);
+    for (let i = 16; i < 64; i += 1) {
+      const s0 = rotate(words[i - 15], 7) ^ rotate(words[i - 15], 18) ^ (words[i - 15] >>> 3);
+      const s1 = rotate(words[i - 2], 17) ^ rotate(words[i - 2], 19) ^ (words[i - 2] >>> 10);
+      words[i] = (words[i - 16] + s0 + words[i - 7] + s1) | 0;
+    }
+    let [a, b, c, d, e, f, g, h] = state;
+    for (let i = 0; i < 64; i += 1) {
+      const t1 = (h + (rotate(e, 6) ^ rotate(e, 11) ^ rotate(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + words[i]) | 0;
+      const t2 = ((rotate(a, 2) ^ rotate(a, 13) ^ rotate(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+      [h, g, f, e, d, c, b, a] = [g, f, e, (d + t1) | 0, c, b, a, (t1 + t2) | 0];
+    }
+    [a, b, c, d, e, f, g, h].forEach((value, i) => { state[i] = (state[i] + value) | 0; });
+  }
+
+  function sha256Hex(bytes) {
+    const state = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+    const view = padded(bytes);
+    const words = new Int32Array(64);
+    for (let offset = 0; offset < view.byteLength; offset += 64) compress(state, view, offset, words);
+    return state.map((value) => (value >>> 0).toString(16).padStart(8, '0')).join('');
+  }
+
+  function base64Bytes(text) {
+    if (typeof atob === 'function') return Uint8Array.from(atob(text), (character) => character.charCodeAt(0));
+    return new Uint8Array(Buffer.from(text, 'base64'));
+  }
+
+  const hashOfBase64 = (text) => (text ? sha256Hex(base64Bytes(text)) : null);
+
+  // ── Preflight: before any import ──
+
+  async function checkPlatform(get, kit) {
+    const version = (await tryGet(get, 'RetrieveVersion()')).json;
+    const major = version ? Number(String(version.Version).split('.')[0]) : 0;
+    const organization = await firstRow(get, 'organizations?$select=maxuploadfilesize');
+    const limit = organization ? organization.maxuploadfilesize : 0;
+    return [
+      result('P1', 'CRM version 9.x', major === 9 ? PASS : FAIL, version ? version.Version : 'RetrieveVersion failed'),
+      result('P2', 'Web resource upload limit fits the designer', limit >= kit.largestWebResourceBytes ? PASS : FAIL,
+        `${limit} bytes allowed; largest kit web resource is ${kit.largestWebResourceBytes} bytes (System Settings → Email → maximum file size)`),
+    ];
+  }
+
+  async function checkCustomApis(get) {
+    const response = await tryGet(get, 'customapis?$select=uniquename&$top=1');
+    const formEngineApi = await firstRow(get, `customapis?$select=uniquename&$filter=uniquename eq ${quoted('qdb_GetPublishedFormJson')}`);
+    return [
+      result('P3', 'Custom APIs are supported (readiness F2)', response.ok ? PASS : FAIL, response.ok ? 'customapi table answers' : `customapi table: ${response.message}. All seven survey APIs are Custom APIs; stop and raise this before importing.`),
+      result('P4', 'Form Engine Custom API qdb_GetPublishedFormJson exists', formEngineApi ? PASS : WARN, formEngineApi ? 'present' : 'absent: the Form Engine publish/runtime path may be older than expected'),
+    ];
+  }
+
+  async function checkFormEngine(get, kit) {
+    const missingTables = [];
+    for (const table of kit.formEngineTables) if (!(await exists(get, `EntityDefinitions(LogicalName=${quoted(table)})?$select=LogicalName`))) missingTables.push(table);
+    const missingIcons = [];
+    for (const icon of kit.formEngineIcons) if (!(await firstRow(get, `webresourceset?$select=name&$filter=name eq ${quoted(icon)}`))) missingIcons.push(icon);
+    const plugin = await firstRow(get, `pluginassemblies?$select=name,version,modifiedon,isolationmode&$filter=name eq ${quoted(kit.formEnginePluginAssembly)}`);
+    return [
+      result('P5', 'Form Engine tables exist', missingTables.length === 0 ? PASS : FAIL, missingTables.length ? `missing: ${missingTables.join(', ')}` : kit.formEngineTables.join(', ')),
+      result('P6', 'Form Engine table icons exist (the column patch depends on them)', missingIcons.length === 0 ? PASS : FAIL, missingIcons.length ? `missing: ${missingIcons.join(', ')}` : 'present'),
+      result('P7', 'Form Engine plugin is registered (.NET 4.7.1, sandbox)', plugin ? PASS : FAIL,
+        plugin ? `${plugin.name} ${plugin.version}, modified ${plugin.modifiedon}, isolation ${plugin.isolationmode === 2 ? 'Sandbox' : plugin.isolationmode}. Same target framework as Qdb.SurveyEngine, so readiness F5 is met.` : 'not found'),
+    ];
+  }
+
+  async function checkPublisher(get, kit) {
+    const publisher = await firstRow(get, `publishers?$select=uniquename,customizationprefix,customizationoptionvalueprefix&$filter=uniquename eq ${quoted(kit.publisher.uniqueName)}`);
+    if (!publisher) return [result('P8', `Publisher ${kit.publisher.uniqueName}`, WARN, 'absent: the import creates it from the package')];
+    const matches = publisher.customizationprefix === kit.publisher.prefix && publisher.customizationoptionvalueprefix === kit.publisher.optionValuePrefix;
+    return [result('P8', `Publisher ${kit.publisher.uniqueName}`, matches ? PASS : FAIL,
+      `prefix ${publisher.customizationprefix}, option value prefix ${publisher.customizationoptionvalueprefix}; the kit needs ${kit.publisher.prefix} / ${kit.publisher.optionValuePrefix}`)];
+  }
+
+  async function findCollisions(get, kit) {
+    const found = [];
+    const probe = async (label, path) => { if (await firstRow(get, path)) found.push(label); };
+    for (const table of kit.surveyTables) if (await exists(get, `EntityDefinitions(LogicalName=${quoted(table)})?$select=LogicalName`)) found.push(`table ${table}`);
+    for (const role of kit.roleNames) await probe(`role ${role}`, `roles?$select=name&$filter=name eq ${quoted(role)}`);
+    for (const api of kit.customApis) await probe(`Custom API ${api}`, `customapis?$select=uniquename&$filter=uniquename eq ${quoted(api)}`);
+    for (const icon of kit.surveyIcons) await probe(`web resource ${icon}`, `webresourceset?$select=name&$filter=name eq ${quoted(icon)}`);
+    await probe(`app ${kit.appModule}`, `appmodules?$select=uniquename&$filter=uniquename eq ${quoted(kit.appModule)}`);
+    await probe(`plugin assembly ${kit.surveyPluginAssembly}`, `pluginassemblies?$select=name&$filter=name eq ${quoted(kit.surveyPluginAssembly)}`);
+    await probe(`solution ${kit.solution}`, `solutions?$select=uniquename&$filter=uniquename eq ${quoted(kit.solution)}`);
+    for (const column of kit.formEngineColumns) {
+      const [table, name] = column.split('.');
+      if (await exists(get, `EntityDefinitions(LogicalName=${quoted(table)})/Attributes(LogicalName=${quoted(name)})?$select=LogicalName`)) found.push(`column ${column}`);
+    }
+    return found;
+  }
+
+  async function checkCollisions(get, kit) {
+    const found = await findCollisions(get, kit);
+    return [result('P9', 'Nothing in the kit already exists (an unmanaged import merges into same-named components)', found.length === 0 ? PASS : WARN,
+      found.length === 0 ? 'fresh install' : `already present: ${found.join('; ')}. Expected on a re-import; otherwise find out who created them before importing`)];
+  }
+
+  async function checkServices(get) {
+    const since = new Date(Date.now() - 86400000).toISOString();
+    const recent = await firstRow(get, `asyncoperations?$select=asyncoperationid&$filter=statecode eq 3 and statuscode eq 30 and completedon ge ${since}&$top=1`);
+    const sandboxed = await firstRow(get, 'pluginassemblies?$select=name&$filter=isolationmode eq 2&$top=1');
+    return [
+      result('P10', 'Asynchronous Processing Service ran in the last 24 hours (readiness F6)', recent ? PASS : WARN, recent ? 'a system job succeeded' : 'no system job succeeded in 24 hours: check the service on the CRM servers'),
+      result('P11', 'Sandbox Processing Service in use (readiness F6)', sandboxed ? PASS : WARN, sandboxed ? `sandboxed assembly found (${sandboxed.name})` : 'no sandboxed assembly: check the service'),
+    ];
+  }
+
+  /** The primary-name value of each row id, read with the table's own primary-name column. */
+  async function namesOf(get, table, ids) {
+    const definition = (await tryGet(get, `EntityDefinitions(LogicalName=${quoted(table)})?$select=PrimaryNameAttribute,EntitySetName`)).json;
+    const names = new Map();
+    for (const id of new Set(ids)) {
+      const row = definition && (await tryGet(get, `${definition.EntitySetName}(${id})?$select=${definition.PrimaryNameAttribute}`)).json;
+      names.set(id, row ? row[definition.PrimaryNameAttribute] : id);
+    }
+    return names;
+  }
+
+  async function gridColumnCensus(get) {
+    const response = await tryGet(get, 'qdb_grid_column_configs?$select=qdb_column_label,qdb_column_attribute,_qdb_form_field_id_value&$filter=qdb_is_editable eq false');
+    if (!response.ok) return [result('P12', 'Grid columns saved as not editable (gate for the Form Engine DLL, DEF-002)', WARN, `could not read: ${response.message}`)];
+    const rows = response.json.value || [];
+    const gridNames = await namesOf(get, 'qdb_form_field', rows.map((row) => row._qdb_form_field_id_value).filter(Boolean));
+    const list = rows.map((row) => `${gridNames.get(row._qdb_form_field_id_value) || 'no grid'} / ${row.qdb_column_label || row.qdb_column_attribute}`);
+    return [result('P12', 'Grid columns saved as not editable (gate for the Form Engine DLL, DEF-002)', rows.length === 0 ? PASS : WARN,
+      rows.length === 0 ? 'none: the DLL can ship' : `${rows.length} column(s) become read-only when the DLL ships; confirm each is meant to be: ${list.join('; ')}`)];
+  }
+
+  // ── Per-org configuration: every confirmed name in config/<org>.json exists ──
+
+  const confirmed = (value) => typeof value === 'string' && value !== '' && value !== TO_CONFIRM;
+  const customerTableOf = (config) => (config.settings.qdb_customer_table === 100000001 ? 'contact' : 'account');
+
+  async function attribute(get, table, column) {
+    const response = await tryGet(get, `EntityDefinitions(LogicalName=${quoted(table)})/Attributes(LogicalName=${quoted(column)})?$select=LogicalName,AttributeType`);
+    return response.ok ? response.json : null;
+  }
+
+  async function lookupTargets(get, table, column) {
+    const response = await tryGet(get, `EntityDefinitions(LogicalName=${quoted(table)})/Attributes(LogicalName=${quoted(column)})/Microsoft.Dynamics.CRM.LookupAttributeMetadata?$select=Targets`);
+    return response.ok ? response.json.Targets || [] : [];
+  }
+
+  async function checkSource(get, source, customerTable) {
+    const table = source.qdb_table_logical_name;
+    if (!confirmed(table)) return result('C-src', `Source ${source.qdb_name}`, INFO, 'table still TO_CONFIRM: not checked');
+    if (!(await exists(get, `EntityDefinitions(LogicalName=${quoted(table)})?$select=LogicalName`))) return result('C-src', `Source ${source.qdb_name}`, FAIL, `table ${table} does not exist`);
+    const problems = [];
+    for (const field of ['qdb_customer_lookup_field', 'qdb_type_field', 'qdb_status_field', 'qdb_origin_field']) {
+      if (confirmed(source[field]) && !(await attribute(get, table, source[field]))) problems.push(`${field} ${source[field]} missing`);
+    }
+    if (confirmed(source.qdb_customer_lookup_field) && !(await lookupTargets(get, table, source.qdb_customer_lookup_field)).includes(customerTable)) {
+      problems.push(`${source.qdb_customer_lookup_field} does not look up ${customerTable}`);
+    }
+    return result('C-src', `Source ${source.qdb_name} (${table})`, problems.length ? FAIL : PASS, problems.length ? problems.join('; ') : 'table and fields exist; customer lookup targets ' + customerTable);
+  }
+
+  async function checkSmsConfig(get, sms, customerTable) {
+    const table = sms.qdb_sms_table_logical_name;
+    const problems = [];
+    for (const field of ['qdb_recipient_field', 'qdb_message_field', 'qdb_customer_link_field']) {
+      if (confirmed(sms[field]) && !(await attribute(get, table, sms[field]))) problems.push(`${table}.${sms[field]} missing`);
+    }
+    if (confirmed(sms.qdb_customer_phone_field) && !(await attribute(get, customerTable, sms.qdb_customer_phone_field))) problems.push(`${customerTable}.${sms.qdb_customer_phone_field} missing`);
+    return result('C-sms', `SMS hand-off ${sms.qdb_name} (${table})`, problems.length ? FAIL : PASS, problems.length ? problems.join('; ') : 'columns exist (TO_CONFIRM values not checked)');
+  }
+
+  async function checkConfig(get, config) {
+    const customerTable = customerTableOf(config);
+    const results = [];
+    for (const source of config.sources) results.push(await checkSource(get, source, customerTable));
+    for (const sms of config.smsConfigs || []) results.push(await checkSmsConfig(get, sms, customerTable));
+    const languageField = config.settings.qdb_language_field;
+    if (confirmed(languageField)) results.push(result('C-lang', `Language field ${customerTable}.${languageField}`, (await attribute(get, customerTable, languageField)) ? PASS : FAIL, 'customer language'));
+    return results;
+  }
+
+  // ── Render cache snapshot: proves an import changed no published form ──
+
+  async function renderCacheSnapshot(get) {
+    const response = await tryGet(get, 'qdb_form_render_caches?$select=qdb_form_code,qdb_language_code,qdb_published_version,modifiedon,statecode');
+    if (!response.ok) return { error: response.message };
+    return (response.json.value || []).map((row) => ({ formCode: row.qdb_form_code, language: row.qdb_language_code, version: row.qdb_published_version, modifiedOn: row.modifiedon, state: row.statecode }))
+      .sort((left, right) => `${left.formCode}|${left.language}`.localeCompare(`${right.formCode}|${right.language}`));
+  }
+
+  async function preflight({ get, kit, config }) {
+    const checks = [
+      ...(await checkPlatform(get, kit)), ...(await checkCustomApis(get)), ...(await checkFormEngine(get, kit)),
+      ...(await checkPublisher(get, kit)), ...(await checkCollisions(get, kit)), ...(await checkServices(get)),
+      ...(await gridColumnCensus(get)), ...(await checkConfig(get, config)),
+    ];
+    return { kind: 'survey-preflight', checks, renderCache: await renderCacheSnapshot(get) };
+  }
+
+  /** What rollback needs: the current designer, runtime and Form Engine plugin, as stored. */
+  async function rollbackBackup({ get, kit }) {
+    const resource = (name) => firstRow(get, `webresourceset?$select=name,content,modifiedon&$filter=name eq ${quoted(name)}`);
+    const plugin = await firstRow(get, `pluginassemblies?$select=name,version,content,modifiedon&$filter=name eq ${quoted(kit.formEnginePluginAssembly)}`);
+    return { kind: 'survey-rollback-backup', designer: await resource(kit.designerResource), runtime: await resource(kit.runtimeResource), formEnginePlugin: plugin || null };
+  }
+
+  // ── Post-import: after the kit is in ──
+
+  async function checkSurveyComponents(get, kit) {
+    const solution = await firstRow(get, `solutions?$select=version&$filter=uniquename eq ${quoted(kit.solution)}`);
+    const missingTables = [];
+    for (const table of kit.surveyTables) if (!(await exists(get, `EntityDefinitions(LogicalName=${quoted(table)})?$select=LogicalName`))) missingTables.push(table);
+    const missingRoles = [];
+    for (const role of kit.roleNames) if (!(await firstRow(get, `roles?$select=name&$filter=name eq ${quoted(role)} and _parentroleid_value eq null`))) missingRoles.push(role);
+    const app = await firstRow(get, `appmodules?$select=uniquename&$filter=uniquename eq ${quoted(kit.appModule)}`);
+    return [
+      result('Q1', `Solution ${kit.solution}`, solution ? PASS : FAIL, solution ? `version ${solution.version}` : 'not found'),
+      result('Q2', 'Survey tables', missingTables.length ? FAIL : PASS, missingTables.length ? `missing: ${missingTables.join(', ')}` : `${kit.surveyTables.length} present`),
+      result('Q3', 'Survey roles', missingRoles.length ? FAIL : PASS, missingRoles.length ? `missing: ${missingRoles.join(', ')}` : kit.roleNames.join(', ')),
+      result('Q4', `App ${kit.appModule}`, app ? PASS : FAIL, app ? 'present' : 'not found (Publish All, then check again)'),
+    ];
+  }
+
+  async function checkCustomApiBindings(get, kit) {
+    const problems = [];
+    for (const api of kit.customApis) {
+      const row = await firstRow(get, `customapis?$select=uniquename&$filter=uniquename eq ${quoted(api)}&$expand=PluginTypeId($select=typename,assemblyname)`);
+      if (!row) problems.push(`${api} missing`);
+      else if (!row.PluginTypeId || row.PluginTypeId.assemblyname !== kit.surveyPluginAssembly) problems.push(`${api} not bound to ${kit.surveyPluginAssembly}`);
+    }
+    return [result('Q5', 'Custom APIs bound to the survey plugin', problems.length ? FAIL : PASS, problems.length ? problems.join('; ') : `${kit.customApis.length} bound`)];
+  }
+
+  async function checkSteps(get, kit) {
+    const response = await tryGet(get, `sdkmessageprocessingsteps?$select=name,statecode&$expand=plugintypeid($select=typename)&$filter=plugintypeid/assemblyname eq ${quoted(kit.surveyPluginAssembly)}`);
+    if (!response.ok) return [result('Q6', 'Survey plugin steps', WARN, `could not read: ${response.message}`)];
+    const steps = response.json.value || [];
+    const dispatch = steps.filter((step) => step.plugintypeid && step.plugintypeid.typename === kit.dispatchPluginType);
+    const triggers = steps.filter((step) => step.plugintypeid && step.plugintypeid.typename === kit.triggerPluginType);
+    const isRight = dispatch.length === 2 && dispatch.every((step) => step.statecode === 0) && triggers.length === 0;
+    return [result('Q6', 'Two dispatch steps enabled, no trigger steps before any source is activated', isRight ? PASS : WARN,
+      `${dispatch.length} dispatch (${dispatch.filter((step) => step.statecode === 0).length} enabled), ${triggers.length} trigger`)];
+  }
+
+  async function checkFormEngineUpdate(get, kit) {
+    const missingColumns = [];
+    for (const column of kit.formEngineColumns) {
+      const [table, name] = column.split('.');
+      if (!(await attribute(get, table, name))) missingColumns.push(column);
+    }
+    const hashOf = async (name) => { const row = await firstRow(get, `webresourceset?$select=content&$filter=name eq ${quoted(name)}`); return row ? hashOfBase64(row.content) : null; };
+    const plugin = await firstRow(get, `pluginassemblies?$select=content&$filter=name eq ${quoted(kit.formEnginePluginAssembly)}`);
+    const pluginHash = plugin ? hashOfBase64(plugin.content) : null;
+    return [
+      result('Q7', 'Form Engine survey columns', missingColumns.length ? FAIL : PASS, missingColumns.length ? `missing: ${missingColumns.join(', ')}` : `${kit.formEngineColumns.length} present`),
+      result('Q8', 'Designer is the kit build', (await hashOf(kit.designerResource)) === kit.hashes.designer ? PASS : FAIL, 'compare after Publish All'),
+      result('Q9', 'Runtime is the kit build', (await hashOf(kit.runtimeResource)) === kit.hashes.runtime ? PASS : FAIL, 'compare after Publish All'),
+      result('Q10', 'Form Engine plugin', INFO, pluginHash === kit.hashes.formEnginePlugin ? 'the kit DLL is installed' : 'the previous DLL is still installed (expected until the DEF-002 census is cleared)'),
+    ];
+  }
+
+  async function postImport({ get, kit }) {
+    const checks = [
+      ...(await checkSurveyComponents(get, kit)), ...(await checkCustomApiBindings(get, kit)),
+      ...(await checkSteps(get, kit)), ...(await checkFormEngineUpdate(get, kit)),
+    ];
+    return { kind: 'survey-post-import', checks, renderCache: await renderCacheSnapshot(get) };
+  }
+
+  /** Published forms whose cache row changed or vanished between two snapshots. */
+  function compareRenderCache(before, after) {
+    const key = (row) => `${row.formCode}|${row.language}`;
+    const afterByKey = new Map(after.map((row) => [key(row), row]));
+    return before.filter((row) => {
+      const later = afterByKey.get(key(row));
+      return !later || later.version !== row.version || later.modifiedOn !== row.modifiedOn;
+    }).map(key);
+  }
+
+  return { preflight, postImport, rollbackBackup, compareRenderCache, sha256Hex, PASS, WARN, FAIL, INFO };
+})();
+
+if (typeof module !== 'undefined') module.exports = SurveyChecks;

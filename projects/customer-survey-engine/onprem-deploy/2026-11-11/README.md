@@ -21,6 +21,8 @@ order it goes in.
 `package-manifest.json` (survey) and `form-engine/package-manifest.json` record every change, count and
 checksum; `source/` and `form-engine/source/` hold the unmodified cloud exports they were built from.
 `config/` holds each org's configuration rows and the questions QDB must answer first (B9 item 4).
+**`RUNBOOK.md`** is the step-by-step deployment, with the read-only console checks in `scripts/` and the daily
+scheduler in `scheduler/` (B9 item 5).
 
 ## Import order
 
