@@ -5,7 +5,7 @@
  *
  * @module survey-provisioning/ui-steps
  */
-import { buildViewPayload, buildChartPayload, buildFormXml, buildSiteMapXml, xml } from './ui-payloads.mjs';
+import { buildViewPayload, buildChartPayload, buildFormXml, buildSiteMapXml, appTableName, xml } from './ui-payloads.mjs';
 
 const MAIN_FORM_TYPE = 2;
 // The platform's default app icon web resource, present in every org.
@@ -120,16 +120,17 @@ export async function publishTables({ client, tables, isApply, report }) {
   await client.send('POST', 'PublishXml', { ParameterXml: `<importexportxml><entities>${entities}</entities></importexportxml>` });
 }
 
-/** Ensures the sitemap and app, adds the tables, gives the app to the survey roles and publishes it. */
+/** Ensures the sitemap and app, adds the tables and named views, gives the app to the survey roles and publishes it. */
 export async function ensureApp({ client, app, isApply, report }) {
   const sitemapId = await ensureSiteMap({ client, app, isApply, report });
   const existing = await findApp(client, app.uniqueName);
-  report(existing ? 'exists' : 'create', `app "${app.name}" (${app.uniqueName}) with ${app.groups.flatMap((g) => g.tables).length} tables`);
+  const tables = app.groups.flatMap((g) => g.tables).map(appTableName);
+  report(existing ? 'exists' : 'create', `app "${app.name}" (${app.uniqueName}) with ${tables.length} tables and ${(app.views ?? []).length} named view(s)`);
   if (!isApply) return;
   const appId = existing?.appmoduleid ?? (await client.send('POST', 'appmodules', {
     name: app.name, uniquename: app.uniqueName, description: app.description, webresourceid: DEFAULT_APP_ICON, clienttype: UNIFIED_INTERFACE,
   })).entityId;
-  await addComponents(client, { appId, sitemapId, tables: app.groups.flatMap((g) => g.tables) });
+  await addComponents(client, { appId, sitemapId, tables, views: app.views ?? [] });
   // A new app cannot be read (or linked to roles) until it is published.
   await client.send('POST', 'PublishXml', { ParameterXml: `<importexportxml><appmodules><appmodule>${appId}</appmodule></appmodules><sitemaps><sitemap>${sitemapId}</sitemap></sitemaps></importexportxml>` });
   await grantAppToRoles(client, { appId, roleNames: app.roles, report });
@@ -151,9 +152,17 @@ async function ensureSiteMap({ client, app, isApply, report }) {
   return (await client.send('POST', 'sitemaps', { sitemapname: app.name, sitemapnameunique: app.uniqueName, sitemapxml })).entityId;
 }
 
-async function addComponents(client, { appId, sitemapId, tables }) {
+// A table with no view in the app lists all of its views; one with views listed shows only those.
+async function addComponents(client, { appId, sitemapId, tables, views }) {
   const entities = await Promise.all(tables.map(async (table) => ({ '@odata.type': 'Microsoft.Dynamics.CRM.entity', entityid: (await tableMetadata(client, table)).MetadataId })));
-  await client.send('POST', 'AddAppComponents', { AppId: appId, Components: [{ '@odata.type': 'Microsoft.Dynamics.CRM.sitemap', sitemapid: sitemapId }, ...entities] });
+  const savedQueries = await Promise.all(views.map(async (view) => ({ '@odata.type': 'Microsoft.Dynamics.CRM.savedquery', savedqueryid: await requireViewId(client, view) })));
+  await client.send('POST', 'AddAppComponents', { AppId: appId, Components: [{ '@odata.type': 'Microsoft.Dynamics.CRM.sitemap', sitemapid: sitemapId }, ...entities, ...savedQueries] });
+}
+
+async function requireViewId(client, view) {
+  const found = await findView(client, view);
+  if (!found) throw new Error(`The app names view "${view.name}" on ${view.table}, which does not exist; run the Views step first`);
+  return found.savedqueryid;
 }
 
 async function grantAppToRoles(client, { appId, roleNames, report }) {

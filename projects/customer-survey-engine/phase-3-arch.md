@@ -735,3 +735,13 @@ These challenges must be addressed before Phase 4 begins.
 | Roles | Survey Integration gets Read + AppendTo on contact; Survey Analyst gets Read on contact | The same rights they already have on account. |
 | Views and forms | Show both customer columns; on any one org one of them stays empty | No per-org UI variants to maintain. |
 | Deploy order | **Schema before plugins**: the plugins query `qdb_customer_table`, so a plugin deployed first faults on every execution | Applies to the cloud org and to every on-prem kit. |
+
+### Implementation decisions (Survey health, 2026-11-13; resolution 6, checklist F1)
+
+| Topic | Decision | Why |
+|---|---|---|
+| Where failures are visible | Public view **Survey Jobs - Failed or Suspended** on System Job (`asyncoperation`): name like `Qdb.SurveyEngine.%` and (status Failed 31 or state Suspended 1), newest first, with the error message | The async trigger and dispatch plugins let unexpected errors through, so the platform records them as Failed system jobs. Every survey step name starts with the plugin type name (`StepRegistry.StepName`), including steps `ActivateSource` creates, and a job is named after its step. Filtering on the name needs no link to plugin metadata, so no extra read privileges. |
+| No chart | The health view has no failure chart | The platform does not allow charts on System Job (CanCreateCharts false, read on org5869857f). |
+| Synchronous failures | Not in the view. The four integration APIs return their errors to the caller; the daily run's failures show in the scheduled task's log and Last Run Result (runbook stage 8); the org's Plug-in Trace Log holds both when tracing is on | A synchronous plugin's own writes roll back with it, so it cannot leave a record; Plug-in Trace Log allows no solution views (CanCreateViews false), and most survey trace rows there are expected API refusals, not failures. |
+| App | New **Health** group: Suppressions (moved from Results) and Survey Jobs. The app lists only the survey view for System Job; the org's own System Jobs views and default are unchanged | Admins open failures directly instead of filtering every system job in the org. |
+| Who sees Survey Jobs | System Administrators only. No survey role gets System Job read | System Job read is org-wide (every product's jobs and messages). The people who can act on a plugin failure are System Administrators; the platform hides the item from users without read. |

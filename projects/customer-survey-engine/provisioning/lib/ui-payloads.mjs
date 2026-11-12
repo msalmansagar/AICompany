@@ -49,21 +49,28 @@ function conditionXml([attribute, operator, value]) {
     : `<condition attribute="${xml(attribute)}" operator="${xml(operator)}" value="${xml(value)}" />`;
 }
 
-/** The view's FetchXML: active rows, the view's filters, its order, and linked columns. */
+// Rows of our own tables are listed only while active; a platform table's rows are listed in every state.
+function viewConditionsXml(view) {
+  const conditions = [...(view.platformTable ? [] : [['statecode', 'eq', ACTIVE_STATE]]), ...(view.filters ?? [])].map(conditionXml).join('');
+  const anyOf = view.anyOf ? `<filter type="or">${view.anyOf.map(conditionXml).join('')}</filter>` : '';
+  return `<filter type="and">${conditions}${anyOf}</filter>`;
+}
+
+/** The view's FetchXML: its columns, its order, its filters (active rows only on our tables) and linked columns. */
 export function buildViewFetchXml(view) {
   const attributes = view.columns.map(([name]) => `<attribute name="${xml(name)}" />`).join('');
   const links = (view.links ?? []).map((link) => `<link-entity name="${xml(link.table)}" from="${xml(link.table)}id" to="${xml(link.lookup)}" link-type="outer" alias="${xml(link.alias)}">`
     + link.columns.map(([name]) => `<attribute name="${xml(name)}" />`).join('') + '</link-entity>').join('');
-  const filters = [['statecode', 'eq', ACTIVE_STATE], ...(view.filters ?? [])].map(conditionXml).join('');
   const order = view.order ? `<order attribute="${xml(view.order.attribute)}" descending="${view.order.descending}" />` : '';
-  return `<fetch version="1.0" mapping="logical"><entity name="${xml(view.table)}"><attribute name="${xml(view.table)}id" />${attributes}${order}<filter type="and">${filters}</filter>${links}</entity></fetch>`;
+  return `<fetch version="1.0" mapping="logical"><entity name="${xml(view.table)}"><attribute name="${xml(view.table)}id" />${attributes}${order}${viewConditionsXml(view)}${links}</entity></fetch>`;
 }
 
 /** The view's grid layout; linked columns are named alias.column. */
 export function buildViewLayoutXml(view, objectTypeCode) {
   const cells = [...view.columns.map(([name, width]) => [name, width]), ...(view.links ?? []).flatMap((link) => link.columns.map(([name, width]) => [`${link.alias}.${name}`, width]))]
     .map(([name, width]) => `<cell name="${xml(name)}" width="${width}" />`).join('');
-  return `<grid name="resultset" object="${objectTypeCode}" jump="qdb_name" select="1" icon="1" preview="1"><row name="result" id="${xml(view.table)}id">${cells}</row></grid>`;
+  const jump = view.platformTable ? 'name' : 'qdb_name';
+  return `<grid name="resultset" object="${objectTypeCode}" jump="${jump}" select="1" icon="1" preview="1"><row name="result" id="${xml(view.table)}id">${cells}</row></grid>`;
 }
 
 export function buildViewPayload(view, objectTypeCode) {
@@ -135,9 +142,18 @@ export function buildFormXml(form, viewIdFor) {
   return `<form><tabs>${tabs}</tabs></form>`;
 }
 
+/** A group entry's table name: the entry is a name, or { table, title }. */
+export const appTableName = (entry) => (typeof entry === 'string' ? entry : entry.table);
+
+function subAreaXml(entry) {
+  const table = appTableName(entry);
+  if (typeof entry === 'string') return `<SubArea Id="sub_${xml(table)}" Entity="${xml(table)}" />`;
+  return `<SubArea Id="sub_${xml(table)}" Entity="${xml(table)}"><Titles><Title LCID="${LANGUAGE_CODE}" Title="${xml(entry.title)}" /></Titles></SubArea>`;
+}
+
 /** The app's sitemap: one Surveys area with a group per manifest group. */
 export function buildSiteMapXml(app) {
   const groups = app.groups.map((group) => `<Group Id="${xml(group.id)}" IsProfile="false"><Titles><Title LCID="${LANGUAGE_CODE}" Title="${xml(group.title)}" /></Titles>`
-    + group.tables.map((table) => `<SubArea Id="sub_${xml(table)}" Entity="${xml(table)}" />`).join('') + '</Group>').join('');
+    + group.tables.map(subAreaXml).join('') + '</Group>').join('');
   return `<SiteMap IntroducedVersion="7.0.0.0"><Area Id="qdb_survey_area" ShowGroups="true" IntroducedVersion="7.0.0.0"><Titles><Title LCID="${LANGUAGE_CODE}" Title="Surveys" /></Titles>${groups}</Area></SiteMap>`;
 }

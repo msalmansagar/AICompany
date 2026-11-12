@@ -8,8 +8,17 @@
  */
 
 const PENDING = 100000000;
+const JOB_FAILED = 31;
+const JOB_SUSPENDED_STATE = 1;
+// The platform names an async plugin job after its step, and every survey step (shipped or
+// created by ActivateSource) starts with the plugin type name (StepRegistry.StepName).
+const SURVEY_JOB_NAME_PATTERN = 'Qdb.SurveyEngine.%';
 
-/** Public views. Columns are [logicalName, width]; `links` add columns from a related table. */
+/**
+ * Public views. Columns are [logicalName, width]; `links` add columns from a related table;
+ * `anyOf` filters are OR-ed together. A `platformTable` view is on a table this solution does not
+ * own: its columns are not in manifest.mjs, it lists rows in every state, and it jumps on `name`.
+ */
 export const VIEWS = Object.freeze([
   {
     table: 'qdb_survey_response', name: 'Survey Responses - All', description: 'Every submitted response, newest first (FR-CSE-057).', isDefault: true,
@@ -37,6 +46,16 @@ export const VIEWS = Object.freeze([
     table: 'qdb_survey_suppression_log', name: 'Survey Suppressions - Last 30 Days', description: 'Why triggers did not send, last 30 days (NFR-CSE-001).', isDefault: true,
     columns: [['qdb_logged_on', 140], ['qdb_reason', 140], ['qdb_customer_id', 200], ['qdb_customer_contact_id', 200], ['qdb_survey_setup_id', 180], ['qdb_detail', 400]],
     filters: [['qdb_logged_on', 'last-x-days', 30]], order: { attribute: 'qdb_logged_on', descending: true },
+  },
+  // Survey health (architecture approval, resolution 6): the async trigger and dispatch plugins
+  // let unexpected errors through, so the platform records them as Failed system jobs; a job
+  // that keeps hitting transient errors ends Suspended. Not the default system-job view: the app
+  // lists only this one, and the org's own System Jobs views stay as they are.
+  {
+    table: 'asyncoperation', platformTable: true, name: 'Survey Jobs - Failed or Suspended', description: 'Survey plugin jobs that failed or are suspended, newest first (CSE-ENG-001 survey health).',
+    columns: [['name', 320], ['statuscode', 110], ['regardingobjectid', 200], ['createdon', 140], ['completedon', 140], ['message', 400]],
+    filters: [['name', 'like', SURVEY_JOB_NAME_PATTERN]], anyOf: [['statuscode', 'eq', JOB_FAILED], ['statecode', 'eq', JOB_SUSPENDED_STATE]],
+    order: { attribute: 'createdon', descending: true },
   },
   // "Active" keeps the CRM meaning (not deactivated): every setup, switched on or off, so the main
   // list is never empty just because every setup is switched off (seen live, 2026-11-11).
@@ -148,7 +167,11 @@ export const FORMS = Object.freeze([
   },
 ]);
 
-/** The model-driven app: one area, a Configuration group and a Results group. */
+/**
+ * The model-driven app: one area with Configuration, Results and Health groups. A group entry is
+ * a table name, or { table, title } to label a platform table. `views` limits a table to the
+ * views named: the app then lists only those, instead of all of the table's views.
+ */
 export const APP = Object.freeze({
   uniqueName: 'qdb_SurveyEngine',
   name: 'Survey Engine',
@@ -156,6 +179,10 @@ export const APP = Object.freeze({
   roles: ['Survey Admin', 'Survey Analyst'],
   groups: [
     { id: 'qdb_survey_config', title: 'Configuration', tables: ['qdb_survey_setup', 'qdb_survey_trigger', 'qdb_survey_source', 'qdb_survey_settings', 'qdb_survey_sms_config'] },
-    { id: 'qdb_survey_results', title: 'Results', tables: ['qdb_survey_response', 'qdb_survey_answer', 'qdb_survey_invitation', 'qdb_survey_suppression_log'] },
+    { id: 'qdb_survey_results', title: 'Results', tables: ['qdb_survey_response', 'qdb_survey_answer', 'qdb_survey_invitation'] },
+    // Survey Jobs needs System Job read, which no survey role grants: the platform hides it from
+    // anyone but System Administrators, who are the people able to act on a plugin failure.
+    { id: 'qdb_survey_health', title: 'Health', tables: ['qdb_survey_suppression_log', { table: 'asyncoperation', title: 'Survey Jobs' }] },
   ],
+  views: [{ table: 'asyncoperation', name: 'Survey Jobs - Failed or Suspended' }],
 });

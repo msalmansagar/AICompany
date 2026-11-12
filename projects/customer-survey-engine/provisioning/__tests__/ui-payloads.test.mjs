@@ -18,7 +18,7 @@ test('describeField_everyFormField_existsInTheSchemaManifest', () => {
 });
 
 test('describeField_everyViewColumn_existsInTheSchemaManifest', () => {
-  const columns = VIEWS.flatMap((view) => [...view.columns.map(([name]) => [view.table, name]), ...(view.links ?? []).flatMap((link) => link.columns.map(([name]) => [link.table, name]))]);
+  const columns = VIEWS.filter((view) => !view.platformTable).flatMap((view) => [...view.columns.map(([name]) => [view.table, name]), ...(view.links ?? []).flatMap((link) => link.columns.map(([name]) => [link.table, name]))]);
 
   assert.doesNotThrow(() => columns.filter(([, name]) => name !== 'qdb_name').forEach(([table, name]) => describeField(table, name)));
 });
@@ -43,6 +43,23 @@ test('buildViewLayoutXml_answers_namesLinkedCellsAliasDotColumn', () => {
 
   assert.match(layout, /object="10123"/);
   assert.match(layout, /<cell name="response.qdb_customer_id" width="180" \/>/);
+});
+
+test('buildViewFetchXml_failedSurveyJobs_keepsOnlySurveyJobsThatFailedOrAreSuspended', () => {
+  const fetch = buildViewFetchXml(viewNamed('Survey Jobs - Failed or Suspended'));
+
+  assert.match(fetch, /<entity name="asyncoperation">/);
+  assert.match(fetch, /<condition attribute="name" operator="like" value="Qdb.SurveyEngine.%" \/>/);
+  assert.match(fetch, /<filter type="or"><condition attribute="statuscode" operator="eq" value="31" \/><condition attribute="statecode" operator="eq" value="1" \/><\/filter>/);
+});
+
+test('buildViewFetchXml_platformTable_hasNoActiveRowsFilter', () => {
+  // A failed system job is Completed (statecode 3), so "active rows only" would hide every one.
+  assert.doesNotMatch(buildViewFetchXml(viewNamed('Survey Jobs - Failed or Suspended')), /statecode" operator="eq" value="0"/);
+});
+
+test('buildViewLayoutXml_platformTable_jumpsOnItsOwnPrimaryName', () => {
+  assert.match(buildViewLayoutXml(viewNamed('Survey Jobs - Failed or Suspended'), 4700), /jump="name"/);
 });
 
 test('buildChartDataXml_responsesByMonth_groupsByMonth', () => {
@@ -100,4 +117,16 @@ test('buildSiteMapXml_app_hasConfigurationAndResultsGroups', () => {
 
   assert.match(sitemap, /<Group Id="qdb_survey_config" IsProfile="false">/);
   assert.match(sitemap, /<SubArea Id="sub_qdb_survey_response" Entity="qdb_survey_response" \/>/);
+});
+
+test('buildSiteMapXml_app_hasAHealthGroupWithSuppressionsAndTitledSurveyJobs', () => {
+  const sitemap = buildSiteMapXml(APP);
+
+  assert.match(sitemap, /<Group Id="qdb_survey_health" IsProfile="false"><Titles><Title LCID="1033" Title="Health" \/><\/Titles><SubArea Id="sub_qdb_survey_suppression_log" Entity="qdb_survey_suppression_log" \/>/);
+  assert.match(sitemap, /<SubArea Id="sub_asyncoperation" Entity="asyncoperation"><Titles><Title LCID="1033" Title="Survey Jobs" \/><\/Titles><\/SubArea>/);
+});
+
+test('APP_views_nameViewsThatExistInTheManifest', () => {
+  assert.ok(APP.views.length > 0);
+  for (const { table, name } of APP.views) assert.ok(VIEWS.some((view) => view.table === table && view.name === name), `${table} "${name}"`);
 });
