@@ -1,18 +1,18 @@
 {
-  "builtAt": "2026-11-11T18:03:39.759Z",
+  "builtAt": "2026-11-12T22:00:00.538Z",
   "package": "SurveyEngine_1_0_0_0_onprem_unmanaged.zip",
-  "sha256": "922a037e98d8987457e44c5d592e090937b6d149b596fe69c8b190f4de75c1ed",
-  "bytes": 156656,
+  "sha256": "85c91d50e704829a3342b5d703b9431e79e518910aae86394c8ed7721bcdc191",
+  "bytes": 157541,
   "source": {
     "file": "source/SurveyEngine_cloud_unmanaged.zip",
-    "sha256": "5e6c29dc2a3e793e1ab74a70e5c0c71f25b21c7b6a9a1243bfc913570579978c"
+    "sha256": "bef32c57d37ba4d33130fb3c5d727777218d0346a2342fb259a5638714c7193f"
   },
   "target": "Dynamics 365 CE 9.1 on-prem: HL CRM and BFD CRM / QDB1 (one package)",
   "manifest": {
     "rootBefore": "<ImportExportXml version=\"9.2.26102.136\" SolutionPackageVersion=\"9.2\" languagecode=\"1033\" generatedBy=\"CrmLive\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" OrganizationVersion=\"9.2.26102.136\" OrganizationSchemaType=\"Full\" CRMServerServiceabilityVersion=\"9.2.26102.00136\">",
     "rootAfter": "<ImportExportXml version=\"9.0.0.0\" SolutionPackageVersion=\"9.0\" languagecode=\"1033\" generatedBy=\"CrmLive\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">",
     "removedRootComponents": 9,
-    "removedDependencies": 20,
+    "removedDependencies": 21,
     "remainingDependencies": 0
   },
   "customizationTransforms": [
@@ -119,6 +119,11 @@
       ]
     },
     {
+      "name": "survey-view-table-shells",
+      "why": "the System Job shell carries the survey health view; the build stops if it brings anything else",
+      "removed": 0
+    },
+    {
       "name": "relationship-guard",
       "why": "Every relationship must be between survey tables or to an out-of-box table",
       "removed": 0
@@ -133,7 +138,7 @@
     "status": "not run: --schemas not given (Microsoft CRM SDK Schemas\\9.0.0.2090 not on this machine)"
   },
   "contents": {
-    "tables": 9,
+    "tables": 10,
     "roleNames": [
       "Survey Admin",
       "Survey Analyst",

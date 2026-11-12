@@ -75,7 +75,7 @@ Every row is one runbook stage (`onprem-deploy/2026-11-11/RUNBOOK.md`). Track HL
 
 | # | Item | Blocks | Status | Source |
 |---|---|---|---|---|
-| F1 | **"Survey health" view**: suppression reasons (30-day view, Suppressions by Reason chart) plus **Survey Jobs - Failed or Suspended** in a new Health group of the app (2026-11-13). Built, tested and **deployed to the cloud org 2026-11-13** (read back: view, app component, Health menu, org's default System Jobs view unchanged); **not yet in the on-prem kit** (needs a re-export and kit rebuild) | Release gate (approved scope) | Partial | architecture approval, "Scope addition"; `phase-3-arch.md` resolution 6 and "Survey health" decisions |
+| F1 | **"Survey health" view**: suppression reasons (30-day view, Suppressions by Reason chart) plus **Survey Jobs - Failed or Suspended** in a new Health group of the app (2026-11-13). Built, tested and **deployed to the cloud org 2026-11-13** (read back: view, app component, Health menu, org's default System Jobs view unchanged). **In the on-prem kit** (SurveyEngine package rebuilt 2026-11-13, `85c91d50…`), with preflight P13 and post-import Q11 checking it on each org (stage 1 and 5, section C) | Release gate (approved scope) | **Done** 2026-11-13 | architecture approval, "Scope addition"; `phase-3-arch.md` resolution 6 and "Survey health" decisions |
 | F2 | Cloud: two Custom API parameter descriptions still say "account id" (should say account or contact) | nothing | Open | B9 item 3 |
 | F3 | Cloud: the app still uses the platform icon (the on-prem kit already uses its own) | nothing | Open | readiness F10 |
 | F4 | XSD check of the kit against Microsoft's 9.0.0.2090 schema (advisory; schemas not on the build machine) | nothing | Open | kit README |
@@ -98,8 +98,8 @@ Kept for a later release that adds a Qatar-resident cloud org. None of these gat
 | A. Engagement | 8 | 6 | 1 | 1 |
 | B. Compliance and security | 3 (B1–B3) | 5 | 0 | 1 |
 | C. On-prem, per org | all, ×2 orgs | 9 × 2 | 0 | 0 |
-| F. Engine | 1 (F1) | 3 | 1 | 1 |
+| F. Engine | 1 (F1) | 3 | 0 | 2 |
 
-**Next for MSS:** F1 (the health view), then A7 (push and PR) and the QA phase (A1–A4).
+**Next for MSS:** the QA phase (A1–A4), then audit (A5); the PR (A7) is open as a draft.
 **Next for QDB:** the configuration answers (section D), Compliance (B1–B3), and running the runbook on the
 two test orgs (section C).

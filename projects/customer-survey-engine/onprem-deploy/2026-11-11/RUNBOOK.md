@@ -40,6 +40,7 @@ A **WARN** needs a named person's decision, written down, before going on.
 | P9 nothing in the kit already exists | PASS on a first install | WARN: find out who created the listed components before importing; the import would merge into them |
 | P10–P11 async and sandbox services | PASS | check both Windows services on the CRM servers, re-run |
 | **P12 grid columns saved as not editable** | PASS, or WARN with the list | the list decides stage 3; it does not stop stages 2 and 4 |
+| P13 System Job accepts the survey health view | PASS | stop: the SurveyEngine import would fail on the System Job view; raise it with MSS |
 | C-src / C-sms / C-lang configuration names | PASS or INFO | FAIL: the name in `config/<org>.json` is wrong for this org; correct it with MSS before stage 7 |
 
 **Gate 1:** MSS confirms the preflight report in writing.
@@ -88,6 +89,7 @@ The package carries no trigger steps (readiness F4); activating a source creates
 | Q7 six Form Engine columns | PASS |
 | Q8–Q9 designer and runtime are the kit builds | PASS |
 | Q10 Form Engine plugin | INFO: says whether stage 3 was done |
+| Q11 survey health view on System Job | PASS. A System Administrator then opens Survey Engine → **Health → Survey Jobs**: it opens on "Survey Jobs - Failed or Suspended" (empty after a clean install) |
 | **Render cache** | `compare-reports.mjs` reports **none changed by the import** |
 
 **Gate 2:** MSS confirms the comparison in writing.

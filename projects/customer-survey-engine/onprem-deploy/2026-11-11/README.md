@@ -1,6 +1,7 @@
 # Customer Survey Engine — on-prem kit, 2026-11-11
 
-**Status: built, not yet imported anywhere.** One kit for both on-prem orgs, **HL CRM** (customers are
+**Status: built, not yet imported anywhere.** The SurveyEngine package was rebuilt on 2026-11-13 to add the
+survey health view; the Form Engine files are unchanged. One kit for both on-prem orgs, **HL CRM** (customers are
 contacts) and **BFD CRM / QDB1** (customers are accounts). Configuration, not code, makes an org one or
 the other: Survey Settings → **Customer Table**.
 
@@ -16,7 +17,7 @@ order it goes in.
 | 1 | `form-engine/QdbFormEngineSurveyUpdate_1_0_0_0_onprem_unmanaged.zip` | The six Form Engine columns the surveys use: `qdb_form_type`, `qdb_scoring_mode` (Form Definition), `qdb_score_weight/min/max` (Form Field), `qdb_score_points` (Form Option Value) | Solutions → Import |
 | 2 | `form-engine/FormDesignerWebResource_1.5.0.zip` | Form designer and in-CRM runtime with Form Type, the survey branch, no "Submit another" on surveys, and the scoring boxes. Supersedes 1.4.1 (it includes the 2026-10-19 fixes) | Solutions → Import, then Publish All |
 | 3 | `form-engine/Qdb.FormEngine.Plugins.dll` | Form Engine plugin that publishes the scoring values (scoring mode, weights, min/max, option points) into the survey JSON | Plugin Registration Tool → Update assembly. **Gated, see below** |
-| 4 | `SurveyEngine_1_0_0_0_onprem_unmanaged.zip` | The survey solution: 9 tables, 3 roles (Survey Admin, Analyst, Integration), 7 Custom APIs, the `Qdb.SurveyEngine` plugin with its 2 dispatch steps, views, charts, forms, the Survey Engine app and 9 icons | Solutions → Import, then Publish All |
+| 4 | `SurveyEngine_1_0_0_0_onprem_unmanaged.zip` | The survey solution: 9 tables, 3 roles (Survey Admin, Analyst, Integration), 7 Custom APIs, the `Qdb.SurveyEngine` plugin with its 2 dispatch steps, views, charts, forms, the Survey Engine app and 9 icons, and the survey health view "Survey Jobs - Failed or Suspended" on System Job (the only change to an out-of-box table) | Solutions → Import, then Publish All |
 
 `package-manifest.json` (survey) and `form-engine/package-manifest.json` record every change, count and
 checksum; `source/` and `form-engine/source/` hold the unmodified cloud exports they were built from.
@@ -68,6 +69,7 @@ prerequisites.
 | Survey assembly in the package | byte-identical to the local Release build of commit `82629dd6`, which runs on the cloud org (sha256 `41f89a5a…`) |
 | Designer and runtime in 1.5.0 | byte-identical to the cloud org's web resources (designer `5695e5fd…`, runtime `afe8eb3f…`) |
 | Form Engine plugin | byte-identical to the cloud org's assembly (`137658ae…`) |
+| System Job shell | kept, carrying only the survey health view; the build stops if it brings columns, forms, charts, ribbon buttons or any other view. Its cloud-only self-dependency is removed, as for Account. Preflight P13 confirms the org accepts views on System Job |
 | Relationships | 44, all between survey tables or to Account, Contact, SystemUser, Organization, Queue; the build refuses any other |
 | Custom API ↔ plugin binding | carried by `plugintypeexportkey` to plugin types in the same package; still to be confirmed after import (runbook) |
 | XSD against Microsoft's 9.0.0.2090 schema | **not run**: the CRM SDK schemas are not on the build machine; the Debt Collection kit found that schema advisory only |
@@ -77,7 +79,7 @@ prerequisites.
 
 | File | SHA-256 | Bytes |
 |---|---|---|
-| `SurveyEngine_1_0_0_0_onprem_unmanaged.zip` | `922a037e98d8987457e44c5d592e090937b6d149b596fe69c8b190f4de75c1ed` | 156,656 |
+| `SurveyEngine_1_0_0_0_onprem_unmanaged.zip` | `85c91d50e704829a3342b5d703b9431e79e518910aae86394c8ed7721bcdc191` | 157,541 |
 | `form-engine/QdbFormEngineSurveyUpdate_1_0_0_0_onprem_unmanaged.zip` | `8f9593cde2348047d7cccf3e4aadb4fc7137576a2b36df3358dc5bfd4f5e20c3` | 3,426 |
 | `form-engine/FormDesignerWebResource_1.5.0.zip` | `ce4d2bbc914ec932200ab5fed88f070a9598b1cccb94138e065f8f2a4bb2cda0` | 1,384,478 |
 | `form-engine/Qdb.FormEngine.Plugins.dll` | `137658ae3a101eb97376aef8e22ea155155f74b2490900a81be7729f8529f083` | 903,680 |

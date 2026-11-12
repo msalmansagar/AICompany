@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-11-11T17:51:48.604Z",
+  "exportedAt": "2026-11-12T21:57:46.730Z",
   "sourceOrganisation": "https://org5869857f.crm4.dynamics.com",
   "sourceVersion": "9.2.26102.136",
   "solution": {
@@ -7,9 +7,9 @@
     "version": "1.0.0.0",
     "isManaged": false
   },
-  "total": 74,
+  "total": 76,
   "byType": {
-    "1 unknown": 12,
+    "1 unknown": 13,
     "20 unknown": 3,
     "91 unknown": 1,
     "10020 CustomAPI": 7,
@@ -17,6 +17,7 @@
     "10022 CustomAPIResponseProperty": 17,
     "92 unknown": 8,
     "61 unknown": 9,
+    "26 unknown": 1,
     "62 unknown": 1,
     "80 unknown": 1,
     "10034 AppSetting": 1
@@ -133,6 +134,20 @@
       "rootcomponentbehavior": 0,
       "objectid": "5ce92958-3add-f111-84e8-000d3abcf32d",
       "solutioncomponentid": "5de92958-3add-f111-84e8-000d3abcf32d"
+    },
+    {
+      "@odata.etag": "W/\"220490629\"",
+      "componenttype": 1,
+      "rootcomponentbehavior": 1,
+      "objectid": "13394a90-c97d-4a73-8f7e-cbce80f8102f",
+      "solutioncomponentid": "420f4b88-e2de-f111-84e8-000d3abcf32d"
+    },
+    {
+      "@odata.etag": "W/\"220490630\"",
+      "componenttype": 26,
+      "rootcomponentbehavior": 0,
+      "objectid": "370f4b88-e2de-f111-84e8-000d3abcf32d",
+      "solutioncomponentid": "430f4b88-e2de-f111-84e8-000d3abcf32d"
     },
     {
       "@odata.etag": "W/\"219389751\"",
