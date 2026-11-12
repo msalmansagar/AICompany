@@ -8,7 +8,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:f
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { ROLES, SOLUTION, TABLES } from '../../provisioning/manifest.mjs';
-import { APP } from '../../provisioning/ui-manifest.mjs';
+import { APP, VIEWS } from '../../provisioning/ui-manifest.mjs';
 import { ICONS, iconResourceName } from '../../provisioning/ui-icons.mjs';
 import { PATCH_COLUMNS } from './form-engine-patch.mjs';
 import { extract } from './package-tools.mjs';
@@ -38,6 +38,8 @@ export function readKitFacts(kitDir) {
     roleNames: ROLES.map((role) => role.name),
     customApis: survey.contents.customApis,
     surveyIcons: Object.keys(ICONS).map(iconResourceName),
+    // Views the survey adds to platform tables (the health view on System Job).
+    surveyViews: VIEWS.filter((view) => view.isPlatformTable).map(({ table, name }) => ({ table, name })),
     appModule: APP.uniqueName,
     surveyPluginAssembly: 'Qdb.SurveyEngine',
     dispatchPluginType: `${PLUGIN_TYPES}.InvitationDispatchPlugin`,

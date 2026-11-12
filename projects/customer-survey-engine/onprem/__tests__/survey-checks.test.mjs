@@ -34,15 +34,44 @@ test('compareRenderCache_rewrittenOrMissingRow_isListed', () => {
   assert.deepEqual(SurveyChecks.compareRenderCache(before, after), ['a|en', 'b|en']);
 });
 
+const HEALTH_VIEW = { table: 'asyncoperation', name: 'Survey Jobs - Failed or Suspended' };
+const kit = { largestWebResourceBytes: 1, formEngineTables: [], formEngineIcons: [], formEngineColumns: [], surveyTables: [], roleNames: [], customApis: [], surveyIcons: [], surveyViews: [HEALTH_VIEW], formEnginePluginAssembly: 'x', surveyPluginAssembly: 'y', appModule: 'z', solution: 's', publisher: { uniqueName: 'qdb', prefix: 'qdb', optionValuePrefix: 10000 }, hashes: {} };
+const config = { settings: {}, sources: [], smsConfigs: [] };
+const statusOf = (report, id) => report.checks.find((check) => check.id === id).status;
+// Answers RetrieveVersion, then the first answer whose path prefix matches, then an empty result.
+const fakeGet = (answers = {}) => async (path) => {
+  if (path === 'RetrieveVersion()') return { Version: '9.1.42.8' };
+  const prefix = Object.keys(answers).find((key) => path.startsWith(key));
+  if (prefix === undefined) return { value: [] };
+  if (answers[prefix] instanceof Error) throw answers[prefix];
+  return answers[prefix];
+};
+const notFound = () => Object.assign(new Error('404 Resource not found'), { status: 404 });
+
 test('preflight_customApiTableMissing_failsP3', async () => {
-  const get = async (path) => {
-    if (path.startsWith('customapis')) { const error = new Error('404 Resource not found'); error.status = 404; throw error; }
-    if (path === 'RetrieveVersion()') return { Version: '9.1.42.8' };
-    return { value: [] };
-  };
-  const kit = { largestWebResourceBytes: 1, formEngineTables: [], formEngineIcons: [], formEngineColumns: [], surveyTables: [], roleNames: [], customApis: [], surveyIcons: [], formEnginePluginAssembly: 'x', surveyPluginAssembly: 'y', appModule: 'z', solution: 's', publisher: { uniqueName: 'qdb', prefix: 'qdb', optionValuePrefix: 10000 } };
+  const report = await SurveyChecks.preflight({ get: fakeGet({ customapis: notFound() }), kit, config });
 
-  const report = await SurveyChecks.preflight({ get, kit, config: { settings: {}, sources: [], smsConfigs: [] } });
+  assert.equal(statusOf(report, 'P3'), SurveyChecks.FAIL);
+});
 
-  assert.equal(report.checks.find((check) => check.id === 'P3').status, SurveyChecks.FAIL);
+test('preflight_systemJobRefusesViews_failsP13', async () => {
+  const get = fakeGet({ "EntityDefinitions(LogicalName='asyncoperation')?$select=CanCreateViews": { CanCreateViews: { Value: false } } });
+
+  assert.equal(statusOf(await SurveyChecks.preflight({ get, kit, config }), 'P13'), SurveyChecks.FAIL);
+});
+
+test('preflight_systemJobAllowsViews_passesP13', async () => {
+  const get = fakeGet({ "EntityDefinitions(LogicalName='asyncoperation')?$select=CanCreateViews": { CanCreateViews: { Value: true } } });
+
+  assert.equal(statusOf(await SurveyChecks.preflight({ get, kit, config }), 'P13'), SurveyChecks.PASS);
+});
+
+test('postImport_healthViewPresent_passesQ11', async () => {
+  const get = fakeGet({ savedqueries: { value: [{ savedqueryid: 'v1', name: HEALTH_VIEW.name }] } });
+
+  assert.equal(statusOf(await SurveyChecks.postImport({ get, kit }), 'Q11'), SurveyChecks.PASS);
+});
+
+test('postImport_healthViewMissing_failsQ11', async () => {
+  assert.equal(statusOf(await SurveyChecks.postImport({ get: fakeGet(), kit }), 'Q11'), SurveyChecks.FAIL);
 });

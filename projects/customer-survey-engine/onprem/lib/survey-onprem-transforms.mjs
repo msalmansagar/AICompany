@@ -13,6 +13,7 @@
 import {
   CUSTOMIZATION_TRANSFORMS as SHARED_TRANSFORMS, UnsafeTransformError, transformSolutionManifest,
 } from '../../../debtcollection/crm/scripts/lib/onprem-transforms.mjs';
+import { VIEWS } from '../../provisioning/ui-manifest.mjs';
 
 export { UnsafeTransformError };
 
@@ -23,6 +24,11 @@ export const PLATFORM_APP_ICON_ID = '953b9fac-1e5e-e611-80d6-00155ded156f';
 export const APP_ICON_RESOURCE = 'qdb_icon_survey_setup';
 // Out-of-box tables every CRM has; the cloud records them as dependencies on cloud-only solutions.
 export const OUT_OF_BOX_TABLES = new Set(['account', 'contact', 'queue']);
+// Platform tables whose shell is kept because it carries a survey view (the survey health view on
+// System Job); the cloud records the same kind of self-dependency for them.
+const SURVEY_VIEWS_BY_TABLE = VIEWS.filter((view) => view.isPlatformTable)
+  .reduce((byTable, view) => byTable.set(view.table, [...(byTable.get(view.table) ?? []), view.name]), new Map());
+const isSelfDependentPlatformTable = (table) => OUT_OF_BOX_TABLES.has(table) || SURVEY_VIEWS_BY_TABLE.has(table);
 
 const isSurveyTable = (name) => /^qdb_survey_/i.test(name);
 const isPrefixedTable = (name) => /^[a-z0-9]+_/i.test(name);
@@ -82,6 +88,24 @@ export function removeOutOfBoxTableShells(text) {
   return { text: next, removed: dropped.length, dropped };
 }
 
+/**
+ * Keeps the shell of each platform table that carries a survey view, and stops the build if that
+ * shell brings anything else from the cloud org: columns, forms, charts, ribbon buttons, or a view
+ * the survey does not own.
+ */
+export function assertSurveyViewTableShells(text) {
+  for (const [, name, body] of text.matchAll(/<Entity>\s*<Name [^>]*>([^<]+)<\/Name>([\s\S]*?)<\/Entity>/g)) {
+    const surveyViews = SURVEY_VIEWS_BY_TABLE.get(name.toLowerCase());
+    if (!surveyViews) continue;
+    if (!/<attributes\s*\/>/.test(body) || /<(FormXml|Visualizations)>|<CustomAction /.test(body)) {
+      throw new UnsafeTransformError(`the ${name} shell carries columns, forms, charts or ribbon buttons; only survey views may ship on it`);
+    }
+    const foreignView = [...body.matchAll(/<LocalizedName description="([^"]*)" languagecode="1033"/g)].map((m) => m[1]).find((view) => !surveyViews.includes(view));
+    if (foreignView) throw new UnsafeTransformError(`the ${name} shell carries the view "${foreignView}", which is not a survey view`);
+  }
+  return { text, removed: 0 };
+}
+
 /** Stops the build on any relationship to another product's table; the target org would lack it. */
 export function assertOnlySurveyAndOutOfBoxRelationships(text) {
   for (const [, name, body] of text.matchAll(/<EntityRelationship Name="([^"]+)">([\s\S]*?)<\/EntityRelationship>/g)) {
@@ -100,7 +124,8 @@ export const CUSTOMIZATION_TRANSFORMS = [
   ['cloud-trigger-steps', 'F4: the six SurveyTriggerPlugin steps name the cloud org\'s request tables; qdb_srv_ActivateSource creates them on-prem', removeCloudTriggerSteps],
   ['own-app-icon', 'F10: the app used the platform default icon web resource, which a 9.1 org may not have', useOwnAppIcon],
   ['out-of-box-table-shells', 'account, contact and queue shells carried the cloud org\'s own customizations of those tables (the Report Engine ribbon on account); the survey needs none of them', removeOutOfBoxTableShells],
-  ['relationship-guard', 'Every relationship must be between survey tables or to an out-of-box table', assertOnlySurveyAndOutOfBoxRelationships],
+  ['survey-view-table-shells', 'the System Job shell carries the survey health view; the build stops if it brings anything else', assertSurveyViewTableShells],
+  ['relationship-guard','Every relationship must be between survey tables or to an out-of-box table', assertOnlySurveyAndOutOfBoxRelationships],
 ];
 
 /**
@@ -137,5 +162,5 @@ function isRemovableDependency(body, removedIds) {
   if (dependentId && removedIds.has(dependentId)) return true;
   if (attribute(dependent, 'type') === '80' && attribute(required, 'schemaName') === 'msdyn_/Images/AppModule_Default_Icon.png') return true;
   const table = attribute(required, 'schemaName');
-  return attribute(required, 'type') === '1' && attribute(dependent, 'type') === '1' && OUT_OF_BOX_TABLES.has(table) && attribute(dependent, 'schemaName') === table;
+  return attribute(required, 'type') === '1' && attribute(dependent, 'type') === '1' && isSelfDependentPlatformTable(table) && attribute(dependent, 'schemaName') === table;
 }

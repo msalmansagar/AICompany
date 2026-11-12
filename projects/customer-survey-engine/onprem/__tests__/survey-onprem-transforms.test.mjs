@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   CUSTOMIZATION_TRANSFORMS, PLATFORM_APP_ICON_ID, UnsafeTransformError, assertOnlySurveyAndOutOfBoxRelationships,
-  removeCloudTriggerSteps, removeOutOfBoxTableShells, transformSurveySolutionManifest, useOwnAppIcon,
+  assertSurveyViewTableShells, removeCloudTriggerSteps, removeOutOfBoxTableShells, transformSurveySolutionManifest, useOwnAppIcon,
 } from '../lib/survey-onprem-transforms.mjs';
 
 const TYPE_NAME = (plugin) => `Qdb.SurveyEngine.Plugins.${plugin}, Qdb.SurveyEngine, Version=1.0.0.0, Culture=neutral, PublicKeyToken=cf86d1ff95e88037`;
@@ -147,6 +147,43 @@ test('transformSurveySolutionManifest_outOfBoxShellRootComponents_areRemoved', (
   const result = transformSurveySolutionManifest(text, { removedStepIds: [] });
 
   assert.ok(!result.text.includes('schemaName="account"') && result.text.includes('schemaName="qdb_survey_setup"'));
+});
+
+const savedQuery = (name) => `<savedquery><LocalizedNames><LocalizedName description="${name}" languagecode="1033" /></LocalizedNames></savedquery>`;
+const systemJobShell = ({ views, ribbon = '', info = '<attributes />' }) => shell('AsyncOperation', info, ribbon)
+  .replace('</EntityInfo>', `</EntityInfo>\n      <SavedQueries><savedqueries>${views.map(savedQuery).join('')}</savedqueries></SavedQueries>`);
+const HEALTH_VIEW = 'Survey Jobs - Failed or Suspended';
+
+test('assertSurveyViewTableShells_systemJobShellWithOnlyTheSurveyView_isKeptUnchanged', () => {
+  const text = systemJobShell({ views: [HEALTH_VIEW] }) + surveyTable;
+
+  assert.equal(assertSurveyViewTableShells(text).text, text);
+});
+
+test('assertSurveyViewTableShells_systemJobShellWithAForeignView_stopsTheBuild', () => {
+  assert.throws(() => assertSurveyViewTableShells(systemJobShell({ views: [HEALTH_VIEW, 'Someone Else\'s Jobs'] })), UnsafeTransformError);
+});
+
+test('assertSurveyViewTableShells_systemJobShellWithARibbonButton_stopsTheBuild', () => {
+  assert.throws(() => assertSurveyViewTableShells(systemJobShell({ views: [HEALTH_VIEW], ribbon: '<CustomAction Id="x.asyncoperation.button" />' })), UnsafeTransformError);
+});
+
+test('assertSurveyViewTableShells_systemJobShellWithColumns_stopsTheBuild', () => {
+  assert.throws(() => assertSurveyViewTableShells(systemJobShell({ views: [HEALTH_VIEW], info: '<attributes><attribute PhysicalName="qdb_x" /></attributes>' })), UnsafeTransformError);
+});
+
+test('CUSTOMIZATION_TRANSFORMS_includeTheSurveyViewTableGuard', () => {
+  assert.ok(CUSTOMIZATION_TRANSFORMS.some(([name]) => name === 'survey-view-table-shells'));
+});
+
+test('transformSurveySolutionManifest_systemJobSelfDependency_isRemovedAndItsRootComponentKept', () => {
+  const text = manifest(dependency('type="1" schemaName="asyncoperation" displayName="AsyncOperation" parentSchemaName="" solution="DataEngineSPsAndIndexes (1.0.10.0)"', 'type="1" schemaName="asyncoperation" displayName="AsyncOperation"'))
+    .replace('<RootComponents>', '<RootComponents>\n    <RootComponent type="1" schemaName="asyncoperation" behavior="1" />');
+
+  const result = transformSurveySolutionManifest(text, { removedStepIds: [] });
+
+  assert.equal(result.remainingDependencies, 0);
+  assert.ok(result.text.includes('<RootComponent type="1" schemaName="asyncoperation" behavior="1" />'));
 });
 
 test('transformSurveySolutionManifest_root_isStampedForOnPrem', () => {

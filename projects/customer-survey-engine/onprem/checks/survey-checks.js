@@ -123,6 +123,19 @@ const SurveyChecks = (() => {
       `prefix ${publisher.customizationprefix}, option value prefix ${publisher.customizationoptionvalueprefix}; the kit needs ${kit.publisher.prefix} / ${kit.publisher.optionValuePrefix}`)];
   }
 
+  const surveyViewPath = (view) => `savedqueries?$select=savedqueryid,name&$filter=name eq ${quoted(view.name)} and returnedtypecode eq ${quoted(view.table)}`;
+
+  // The kit ships the survey health view on System Job; an org that refuses views there fails the import.
+  async function checkSurveyViewTables(get, kit) {
+    const refusing = [];
+    for (const table of new Set(kit.surveyViews.map((view) => view.table))) {
+      const definition = (await tryGet(get, `EntityDefinitions(LogicalName=${quoted(table)})?$select=CanCreateViews`)).json;
+      if (!definition || !definition.CanCreateViews || definition.CanCreateViews.Value !== true) refusing.push(table);
+    }
+    return [result('P13', 'System Job accepts the survey health view', refusing.length ? FAIL : PASS,
+      refusing.length ? `views not allowed (or unreadable) on: ${refusing.join(', ')}. The import would fail; raise this before importing` : 'views allowed')];
+  }
+
   async function findCollisions(get, kit) {
     const found = [];
     const probe = async (label, path) => { if (await firstRow(get, path)) found.push(label); };
@@ -130,7 +143,8 @@ const SurveyChecks = (() => {
     for (const role of kit.roleNames) await probe(`role ${role}`, `roles?$select=name&$filter=name eq ${quoted(role)}`);
     for (const api of kit.customApis) await probe(`Custom API ${api}`, `customapis?$select=uniquename&$filter=uniquename eq ${quoted(api)}`);
     for (const icon of kit.surveyIcons) await probe(`web resource ${icon}`, `webresourceset?$select=name&$filter=name eq ${quoted(icon)}`);
-    await probe(`app ${kit.appModule}`, `appmodules?$select=uniquename&$filter=uniquename eq ${quoted(kit.appModule)}`);
+    for (const view of kit.surveyViews) await probe(`view "${view.name}"`, surveyViewPath(view));
+    await probe(`app ${kit.appModule}`,`appmodules?$select=uniquename&$filter=uniquename eq ${quoted(kit.appModule)}`);
     await probe(`plugin assembly ${kit.surveyPluginAssembly}`, `pluginassemblies?$select=name&$filter=name eq ${quoted(kit.surveyPluginAssembly)}`);
     await probe(`solution ${kit.solution}`, `solutions?$select=uniquename&$filter=uniquename eq ${quoted(kit.solution)}`);
     for (const column of kit.formEngineColumns) {
@@ -239,7 +253,7 @@ const SurveyChecks = (() => {
     const checks = [
       ...(await checkPlatform(get, kit)), ...(await checkCustomApis(get)), ...(await checkFormEngine(get, kit)),
       ...(await checkPublisher(get, kit)), ...(await checkCollisions(get, kit)), ...(await checkServices(get)),
-      ...(await gridColumnCensus(get)), ...(await checkConfig(get, config)),
+      ...(await gridColumnCensus(get)), ...(await checkSurveyViewTables(get, kit)), ...(await checkConfig(get, config)),
     ];
     return { kind: 'survey-preflight', checks, renderCache: await renderCacheSnapshot(get) };
   }
@@ -306,10 +320,17 @@ const SurveyChecks = (() => {
     ];
   }
 
+  async function checkSurveyViews(get, kit) {
+    const missing = [];
+    for (const view of kit.surveyViews) if (!(await firstRow(get, surveyViewPath(view)))) missing.push(`"${view.name}" on ${view.table}`);
+    return [result('Q11', 'Survey health view on System Job', missing.length ? FAIL : PASS,
+      missing.length ? `missing: ${missing.join(', ')} (Publish All, then check again)` : 'present; Survey Engine app → Health → Survey Jobs (System Administrators)')];
+  }
+
   async function postImport({ get, kit }) {
     const checks = [
       ...(await checkSurveyComponents(get, kit)), ...(await checkCustomApiBindings(get, kit)),
-      ...(await checkSteps(get, kit)), ...(await checkFormEngineUpdate(get, kit)),
+      ...(await checkSteps(get, kit)), ...(await checkFormEngineUpdate(get, kit)), ...(await checkSurveyViews(get, kit)),
     ];
     return { kind: 'survey-post-import', checks, renderCache: await renderCacheSnapshot(get) };
   }
