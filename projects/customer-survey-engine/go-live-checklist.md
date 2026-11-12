@@ -21,7 +21,7 @@ back to the decision that created it.
 | A5 | **Audit phase** (`phase-6-audit.md`): governance, PDPPL alignment, audit trail | Release gate | Auditor (MSS) | Open | workflow |
 | A6 | **CEO final decision** (`phase-7-ceo.md`) | Release gate | CEO | Open | workflow |
 | A7 | Push `feat/survey-engine`, open the PR, code review of the B9 tooling, merge to main | Release gate | MSS + CEO (main merges need approval) | Open | branch not pushed |
-| A8 | The CEO acknowledges two departures from approved decisions: (a) on-prem ships **without** the pre-registered trigger steps (readiness F4; the approval said "steps for the 3 known sources ship pre-registered"), activation creates them instead; (b) **customer = account or contact per org** (F1) supersedes the B1 decision and BRD assumption A-01 | Release gate | CEO | Open | `phase-3-ceo-arch-decision.md`; `onprem-readiness-review.md` F1, F4; `phase-3-arch.md` decisions (B9) |
+| A8 | The CEO acknowledges two departures from approved decisions: (a) on-prem ships **without** the pre-registered trigger steps (readiness F4; the approval said "steps for the 3 known sources ship pre-registered"), activation creates them instead; (b) **customer = account or contact per org** (F1) supersedes the B1 decision and BRD assumption A-01 | Release gate | CEO | **Done** 2026-11-12: both accepted | `phase-3-ceo-arch-decision.md` Amendments |
 
 ## B. Compliance and security
 
@@ -79,7 +79,7 @@ Every row is one runbook stage (`onprem-deploy/2026-11-11/RUNBOOK.md`). Track HL
 | F2 | Cloud: two Custom API parameter descriptions still say "account id" (should say account or contact) | nothing | Open | B9 item 3 |
 | F3 | Cloud: the app still uses the platform icon (the on-prem kit already uses its own) | nothing | Open | readiness F10 |
 | F4 | XSD check of the kit against Microsoft's 9.0.0.2090 schema (advisory; schemas not on the build machine) | nothing | Open | kit README |
-| F5 | BRD text: assumption A-01 ("customers are accounts") and the B1 decision updated to the per-org customer table | nothing | Open | F1 fix, 2026-11-11 |
+| F5 | BRD text: assumption A-01 ("customers are accounts") and the B1 decision updated to the per-org customer table | nothing | **Done** 2026-11-12 | `phase-2-ba.md` A-01; `phase-3-arch.md` decisions (B9) |
 
 ## G. Cloud org (only if it goes live, see B6)
 
@@ -93,10 +93,10 @@ Every row is one runbook stage (`onprem-deploy/2026-11-11/RUNBOOK.md`). Track HL
 
 | | Release gates | Open | Partial | Done |
 |---|---|---|---|---|
-| A. Engagement | 8 | 7 | 1 | 0 |
+| A. Engagement | 8 | 6 | 1 | 1 |
 | B. Compliance and security | 3 (B1–B3) | 6 | 0 | 0 |
 | C. On-prem, per org | all, ×2 orgs | 9 × 2 | 0 | 0 |
-| F. Engine | 1 (F1) | 4 | 1 | 0 |
+| F. Engine | 1 (F1) | 3 | 1 | 1 |
 
 **Next for MSS:** F1 (the health view), then A7 (push and PR) and the QA phase (A1–A4).
 **Next for QDB:** the configuration answers (section D), Compliance (B1–B3), and running the runbook on the

@@ -297,7 +297,7 @@ Each row is traced to a source: **AC** = client acceptance criterion, **TD** = `
 
 | ID | Assumption |
 |---|---|
-| A-01 | Customers are identified CRM accounts. The secure link identifies one customer through its token. |
+| A-01 | Customers are identified CRM records: **accounts** on the cloud org and BFD CRM / QDB1, **contacts** on HL CRM, chosen per org by Survey Settings → Customer Table (amended 2026-11-12, CEO; was "accounts" only). The secure link identifies one customer through its token. |
 | A-02 | The Form Engine baseline `dfe-baseline-2026-11-08` (PR #172, `773f32be`) is deployed on all three orgs before the survey release. |
 | A-03 | The inherited designer Save defect (FR-CSE-024) is fixed in this engagement, before survey testing. |
 | A-04 | A Windows Scheduled Task can be set up on-prem to call the daily API. If it can't, an alternative scheduler is designed at architecture. |
