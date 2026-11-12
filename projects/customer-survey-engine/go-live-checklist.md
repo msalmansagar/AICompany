@@ -20,7 +20,7 @@ back to the decision that created it.
 | A4 | NFR-CSE-007: ≥ 80% branch coverage on survey code, from a coverage report | Release gate | QA | Partial: 221 C# and 37 + 59 JS tests pass; coverage never measured | — |
 | A5 | **Audit phase** (`phase-6-audit.md`): governance, PDPPL alignment, audit trail | Release gate | Auditor (MSS) | Open | workflow |
 | A6 | **CEO final decision** (`phase-7-ceo.md`) | Release gate | CEO | Open | workflow |
-| A7 | Push `feat/survey-engine`, open the PR, code review of the B9 tooling, merge to main | Release gate | MSS + CEO (main merges need approval) | Open | branch not pushed |
+| A7 | Push `feat/survey-engine`, open the PR, code review of the B9 tooling, merge to main | Release gate | MSS + CEO (main merges need approval) | Partial: pushed 2026-11-13, draft PR #173 open; review and merge outstanding | PR #173 |
 | A8 | The CEO acknowledges two departures from approved decisions: (a) on-prem ships **without** the pre-registered trigger steps (readiness F4; the approval said "steps for the 3 known sources ship pre-registered"), activation creates them instead; (b) **customer = account or contact per org** (F1) supersedes the B1 decision and BRD assumption A-01 | Release gate | CEO | **Done** 2026-11-12: both accepted | `phase-3-ceo-arch-decision.md` Amendments |
 
 ## B. Compliance and security
