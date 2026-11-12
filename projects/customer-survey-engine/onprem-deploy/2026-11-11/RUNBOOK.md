@@ -144,8 +144,23 @@ org (HL and QDB1 have different URLs).
 
 ## Stage 9 — Smoke test
 
-`smoke-test.ps1` (B9 item 6): reads only, then sends one test invitation and response through the APIs and
-cleans up. **Gate 3:** both test orgs pass before production.
+From any Windows machine that reaches CRM, in Windows PowerShell, signed in as a System Administrator:
+
+```powershell
+# 1. Read-only: settings row, the seven Custom APIs, and each portal API's plugin answering as designed.
+.\smoke-test.ps1 -OrgUrl https://<crm-server>/<org>
+
+# 2. Test orgs only: one survey end to end through the portal APIs, as the portal's service account.
+#    Creates a test customer, a switched-off setup and one Portal invitation; lists, opens and submits it;
+#    checks a second submit is refused; deletes everything it created.
+.\smoke-test.ps1 -OrgUrl https://<crm-server>/<org> -WriteTest -FormCode <a published survey form> -IntegrationCredential (Get-Credential <DOMAIN\svc-portal>)
+```
+
+Pass: every line PASS, exit code 0. It writes `survey-smoke-test-<date>.json` in the current folder; **send it
+to MSS**. Step 1 needs the Survey Settings row (7.1); step 2 also needs a survey form published with Form
+Type = Survey (7.4). On production, run step 1 only, unless the change owner approves step 2.
+
+**Gate 3:** both test orgs pass step 2 before production.
 
 ## Stage 10 — Rollback
 

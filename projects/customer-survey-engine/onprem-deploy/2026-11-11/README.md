@@ -22,7 +22,8 @@ order it goes in.
 checksum; `source/` and `form-engine/source/` hold the unmodified cloud exports they were built from.
 `config/` holds each org's configuration rows and the questions QDB must answer first (B9 item 4).
 **`RUNBOOK.md`** is the step-by-step deployment, with the read-only console checks in `scripts/` and the daily
-scheduler in `scheduler/` (B9 item 5).
+scheduler in `scheduler/` (B9 item 5). **`smoke-test.ps1`** proves the portal APIs on each org (B9 item 6,
+runbook stage 9).
 
 ## Import order
 
