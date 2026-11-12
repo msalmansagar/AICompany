@@ -75,7 +75,7 @@ Every row is one runbook stage (`onprem-deploy/2026-11-11/RUNBOOK.md`). Track HL
 
 | # | Item | Blocks | Status | Source |
 |---|---|---|---|---|
-| F1 | **"Survey health" view**: suppression reasons (30-day view, Suppressions by Reason chart) plus **Survey Jobs - Failed or Suspended** in a new Health group of the app (2026-11-13). Built and tested; **not yet deployed to the cloud org, and not yet in the on-prem kit** (needs a re-export and kit rebuild after the cloud deploy) | Release gate (approved scope) | Partial | architecture approval, "Scope addition"; `phase-3-arch.md` resolution 6 and "Survey health" decisions |
+| F1 | **"Survey health" view**: suppression reasons (30-day view, Suppressions by Reason chart) plus **Survey Jobs - Failed or Suspended** in a new Health group of the app (2026-11-13). Built, tested and **deployed to the cloud org 2026-11-13** (read back: view, app component, Health menu, org's default System Jobs view unchanged); **not yet in the on-prem kit** (needs a re-export and kit rebuild) | Release gate (approved scope) | Partial | architecture approval, "Scope addition"; `phase-3-arch.md` resolution 6 and "Survey health" decisions |
 | F2 | Cloud: two Custom API parameter descriptions still say "account id" (should say account or contact) | nothing | Open | B9 item 3 |
 | F3 | Cloud: the app still uses the platform icon (the on-prem kit already uses its own) | nothing | Open | readiness F10 |
 | F4 | XSD check of the kit against Microsoft's 9.0.0.2090 schema (advisory; schemas not on the build machine) | nothing | Open | kit README |

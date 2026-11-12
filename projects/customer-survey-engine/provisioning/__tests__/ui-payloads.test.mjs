@@ -18,7 +18,7 @@ test('describeField_everyFormField_existsInTheSchemaManifest', () => {
 });
 
 test('describeField_everyViewColumn_existsInTheSchemaManifest', () => {
-  const columns = VIEWS.filter((view) => !view.platformTable).flatMap((view) => [...view.columns.map(([name]) => [view.table, name]), ...(view.links ?? []).flatMap((link) => link.columns.map(([name]) => [link.table, name]))]);
+  const columns = VIEWS.filter((view) => !view.isPlatformTable).flatMap((view) => [...view.columns.map(([name]) => [view.table, name]), ...(view.links ?? []).flatMap((link) => link.columns.map(([name]) => [link.table, name]))]);
 
   assert.doesNotThrow(() => columns.filter(([, name]) => name !== 'qdb_name').forEach(([table, name]) => describeField(table, name)));
 });
@@ -42,6 +42,7 @@ test('buildViewLayoutXml_answers_namesLinkedCellsAliasDotColumn', () => {
   const layout = buildViewLayoutXml(viewNamed('Survey Answers - All'), 10123);
 
   assert.match(layout, /object="10123"/);
+  assert.match(layout, /jump="qdb_name"/);
   assert.match(layout, /<cell name="response.qdb_customer_id" width="180" \/>/);
 });
 

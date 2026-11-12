@@ -16,8 +16,9 @@ const SURVEY_JOB_NAME_PATTERN = 'Qdb.SurveyEngine.%';
 
 /**
  * Public views. Columns are [logicalName, width]; `links` add columns from a related table;
- * `anyOf` filters are OR-ed together. A `platformTable` view is on a table this solution does not
- * own: its columns are not in manifest.mjs, it lists rows in every state, and it jumps on `name`.
+ * `anyOf` filters are OR-ed together. An `isPlatformTable` view is on a table this solution does
+ * not own: its columns are not in manifest.mjs, it lists rows in every state, it jumps on `name`,
+ * and the provisioner does not publish that table (a saved query is live once created).
  */
 export const VIEWS = Object.freeze([
   {
@@ -52,7 +53,7 @@ export const VIEWS = Object.freeze([
   // that keeps hitting transient errors ends Suspended. Not the default system-job view: the app
   // lists only this one, and the org's own System Jobs views stay as they are.
   {
-    table: 'asyncoperation', platformTable: true, name: 'Survey Jobs - Failed or Suspended', description: 'Survey plugin jobs that failed or are suspended, newest first (CSE-ENG-001 survey health).',
+    table: 'asyncoperation', isPlatformTable: true, name: 'Survey Jobs - Failed or Suspended', description: 'Survey plugin jobs that failed or are suspended, newest first (CSE-ENG-001 survey health).',
     columns: [['name', 320], ['statuscode', 110], ['regardingobjectid', 200], ['createdon', 140], ['completedon', 140], ['message', 400]],
     filters: [['name', 'like', SURVEY_JOB_NAME_PATTERN]], anyOf: [['statuscode', 'eq', JOB_FAILED], ['statecode', 'eq', JOB_SUSPENDED_STATE]],
     order: { attribute: 'createdon', descending: true },

@@ -26,7 +26,9 @@ async function run() {
   console.log('[2] Charts'); await ensureCharts({ ...context, charts: CHARTS });
   console.log('[3] Forms'); await ensureForms({ ...context, forms: FORMS, viewIdFor: await readViewIds({ client, views: VIEWS }) });
   console.log('[4] Icons'); await ensureIcons({ ...context, icons: ICONS, resourceNameFor: iconResourceName });
-  console.log('[5] Publish'); await publishTables({ ...context, tables: [...new Set([...VIEWS, ...CHARTS, ...FORMS, ...Object.keys(ICONS).map((table) => ({ table }))].map((item) => item.table))] });
+  // Publishing a platform table would also ship anyone's unpublished changes to it.
+  const ownViews = VIEWS.filter((view) => !view.isPlatformTable);
+  console.log('[5] Publish'); await publishTables({ ...context, tables: [...new Set([...ownViews, ...CHARTS, ...FORMS, ...Object.keys(ICONS).map((table) => ({ table }))].map((item) => item.table))] });
   console.log('[6] App'); await ensureApp({ ...context, app: APP });
   console.log(`\nSummary: ${Object.entries(counts).map(([action, count]) => `${action} ${count}`).join(', ')}`);
 }

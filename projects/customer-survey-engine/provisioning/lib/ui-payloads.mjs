@@ -51,7 +51,7 @@ function conditionXml([attribute, operator, value]) {
 
 // Rows of our own tables are listed only while active; a platform table's rows are listed in every state.
 function viewConditionsXml(view) {
-  const conditions = [...(view.platformTable ? [] : [['statecode', 'eq', ACTIVE_STATE]]), ...(view.filters ?? [])].map(conditionXml).join('');
+  const conditions = [...(view.isPlatformTable ? [] : [['statecode', 'eq', ACTIVE_STATE]]), ...(view.filters ?? [])].map(conditionXml).join('');
   const anyOf = view.anyOf ? `<filter type="or">${view.anyOf.map(conditionXml).join('')}</filter>` : '';
   return `<filter type="and">${conditions}${anyOf}</filter>`;
 }
@@ -69,7 +69,7 @@ export function buildViewFetchXml(view) {
 export function buildViewLayoutXml(view, objectTypeCode) {
   const cells = [...view.columns.map(([name, width]) => [name, width]), ...(view.links ?? []).flatMap((link) => link.columns.map(([name, width]) => [`${link.alias}.${name}`, width]))]
     .map(([name, width]) => `<cell name="${xml(name)}" width="${width}" />`).join('');
-  const jump = view.platformTable ? 'name' : 'qdb_name';
+  const jump = view.isPlatformTable ? 'name' : 'qdb_name';
   return `<grid name="resultset" object="${objectTypeCode}" jump="${jump}" select="1" icon="1" preview="1"><row name="result" id="${xml(view.table)}id">${cells}</row></grid>`;
 }
 
