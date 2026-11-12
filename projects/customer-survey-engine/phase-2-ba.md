@@ -109,7 +109,7 @@ The Customer Survey Engine is a **general, configuration-driven survey engine** 
 
 | # | Constraint |
 |---|---|
-| C-1 | **Targets.** The solution must deploy to two on-prem CRM 9.1 orgs and one Dataverse cloud org. |
+| C-1 | **Targets.** The solution must deploy to two on-prem CRM 9.1 orgs and one Dataverse cloud org. **Amended 2026-11-12 (CEO): release 1 targets the two on-prem orgs only;** the cloud org stays the build-and-test org, and a Qatar-resident cloud org (C-4) may be added in a later release. |
 | C-2 | **No native recurrence on-prem.** The daily "Run Due Surveys" Custom API is called by a Windows Scheduled Task on-prem and by Power Automate on cloud. |
 | C-3 | **Identified customers only.** There is no anonymous access. The secure link carries a token that identifies one customer and one invitation; it is not anonymous. |
 | C-4 | **PDPPL is a hard release gate.** Response data stays in QDB's CRM. Residency means QDB's on-prem CRM, or a Qatar-resident cloud tenancy for the cloud org. |

@@ -4,7 +4,7 @@
 |---|---|
 | Date | 2026-11-12 |
 | Build | B0–B9 complete on `feat/survey-engine` (not yet pushed or merged). Live and verified end to end on the cloud org `org5869857f`; on-prem kit `onprem-deploy/2026-11-11/` built, not yet imported |
-| Targets | HL CRM and BFD CRM / QDB1 (on-prem 9.1), and the Dataverse cloud org (constraint C-1) |
+| Targets | **Release 1: HL CRM and BFD CRM / QDB1 (on-prem 9.1) only** (CEO, 2026-11-12). The cloud org `org5869857f` stays the build-and-test org |
 | Rule | A row marked **Release gate** must be **Done**, with the evidence named, before production on any org. Other rows gate only what their "Blocks" column says |
 
 Status: **Open** (nothing done yet), **Partial**, **Done**. Every row names its source, so it can be traced
@@ -32,7 +32,7 @@ back to the decision that created it.
 | B3 | An **anonymised** response keeps its link to the invitation, and the invitation names the customer, so it can be re-identified. Compliance decides: accept, or also clear the invitation's customer on anonymise (small plugin change) | Release gate (part of B2) | QDB Compliance | Open | found in B5; `phase-3-arch.md` decisions (B5) |
 | B4 | **Secure-link security review**: threat model of the token path (generation, entropy, expiry, single use, guessing rate) | Switching secure links on, any org | Security engineer + QDB IT security | Open | NFR-CSE-009 |
 | B5 | The portal team **rate-limits the token page** | Switching secure links on | QDB portal team | Open | architecture approval condition |
-| B6 | **Cloud residency.** `org5869857f` is in the EMEA region (`crm4.dynamics.com`). A cloud org that holds production responses must be Qatar-resident, or the cloud target leaves release 1 | Production on the cloud org | CEO + QDB Compliance | Open | C-1, C-4 |
+| B6 | **Cloud residency.** `org5869857f` is in the EMEA region (`crm4.dynamics.com`). A cloud org that holds production responses must be Qatar-resident, or the cloud target leaves release 1 | Production on the cloud org | CEO + QDB Compliance | **Done** 2026-11-12: release 1 is on-prem only; the cloud org holds no production responses | C-1 (amended), C-4 |
 
 ## C. On-prem deployment (each org: HL CRM, BFD CRM / QDB1; test first)
 
@@ -81,20 +81,22 @@ Every row is one runbook stage (`onprem-deploy/2026-11-11/RUNBOOK.md`). Track HL
 | F4 | XSD check of the kit against Microsoft's 9.0.0.2090 schema (advisory; schemas not on the build machine) | nothing | Open | kit README |
 | F5 | BRD text: assumption A-01 ("customers are accounts") and the B1 decision updated to the per-org customer table | nothing | **Done** 2026-11-12 | `phase-2-ba.md` A-01; `phase-3-arch.md` decisions (B9) |
 
-## G. Cloud org (only if it goes live, see B6)
+## G. Cloud org — not a release 1 target (CEO, 2026-11-12)
+
+Kept for a later release that adds a Qatar-resident cloud org. None of these gates release 1.
 
 | # | Gate | Blocks | Owner | Status | Source |
 |---|---|---|---|---|---|
-| G1 | **Power Automate recurrence** calling `qdb_srv_RunDueSurveys` (steps in `scheduler/README.md`; needs a connection, so a person builds it) | scheduled surveys, postponed release, retention on cloud | QDB / CEO | Open | C-2, B5 |
-| G2 | Remove the end-to-end test data left on the org (test accounts, disbursements, setups, forms `srv-test-*`) | production on the cloud org | MSS (with go-ahead) | Open | B2–B8 test runs |
-| G3 | Per-org configuration for the cloud org confirmed (it uses `provisioning/seed/org5869857f.json`) | activating cloud sources | Business owner | Partial: names read from metadata; trigger values per D2 | B1 |
+| G1 | **Power Automate recurrence** calling `qdb_srv_RunDueSurveys` (steps in `scheduler/README.md`; needs a connection, so a person builds it) | scheduled surveys, postponed release, retention on cloud | QDB / CEO | Not in release 1 | C-2, B5 |
+| G2 | Remove the end-to-end test data left on the org (test accounts, disbursements, setups, forms `srv-test-*`) | production on the cloud org | MSS (with go-ahead) | Not in release 1 (the org stays a test org) | B2–B8 test runs |
+| G3 | Per-org configuration for the cloud org confirmed (it uses `provisioning/seed/org5869857f.json`) | activating cloud sources | Business owner | Not in release 1 | B1 |
 
 ## Summary
 
 | | Release gates | Open | Partial | Done |
 |---|---|---|---|---|
 | A. Engagement | 8 | 6 | 1 | 1 |
-| B. Compliance and security | 3 (B1–B3) | 6 | 0 | 0 |
+| B. Compliance and security | 3 (B1–B3) | 5 | 0 | 1 |
 | C. On-prem, per org | all, ×2 orgs | 9 × 2 | 0 | 0 |
 | F. Engine | 1 (F1) | 3 | 1 | 1 |
 
