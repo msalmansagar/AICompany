@@ -22,6 +22,18 @@ Everything so far was built and proven on the cloud org. QDB runs two on-prem CR
 | 6 | **On-prem smoke test** QDB IT can run (PowerShell, Windows auth): reads only, then one test invitation and response through the APIs | `onprem-deploy/<date>/smoke-test.ps1` | Run by QDB IT |
 | 7 | **Go-live checklist**: the open gates (retention value, PDPPL sign-off, secure-link security review, "active customer" definition, per-org config) and who owns each | `go-live-checklist.md` | Owners' sign-off |
 
+## Status — all seven items done (2026-11-12)
+
+| # | Delivered |
+|---|---|
+| 1 | `docs/integration-guide.md` |
+| 2 | `onprem-readiness-review.md` (14 findings; F1 fixed with the per-org customer table) |
+| 3 | `onprem-deploy/2026-11-11/`: SurveyEngine package, Form Engine update (column patch, designer/runtime 1.5.0, DLL), README |
+| 4 | `onprem-deploy/2026-11-11/config/` HL.json, BFD.json, README |
+| 5 | `onprem-deploy/2026-11-11/RUNBOOK.md`, console checks in `scripts/`, scheduler in `scheduler/` |
+| 6 | `onprem-deploy/2026-11-11/smoke-test.ps1` (14/14 on the cloud org with `-WriteTest`) |
+| 7 | `go-live-checklist.md` |
+
 ## Already known for the on-prem kits
 
 - On-prem cannot use client-credentials auth; QDB IT imports the solution and runs the smoke test with Windows authentication.

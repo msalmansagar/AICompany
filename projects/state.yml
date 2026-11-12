@@ -296,10 +296,10 @@ projects:
 
   - name: customer-survey-engine
     type: crm
-    phase: build
+    phase: build-complete
     started: 2026-11-09
-    last_updated: 2026-11-09
-    last_agent: ceo
+    last_updated: 2026-11-12
+    last_agent: orchestrator
     ceo_approved_phases: [ba, architecture]
     output_dir: projects/customer-survey-engine/
     status: in_progress
@@ -313,6 +313,12 @@ projects:
       Open gates: OQ-A1 retention/PDPPL (Compliance, release gate), OQ-A2 per-org config values
       (gate activation, not code), OQ-A3 client sign-off, NFR-CSE-009 secure-link security review.
       Phase 4 build started 2026-11-09 with B0 (DFE prerequisites).
+      2026-11-12: B0-B9 complete. Live and verified on org5869857f (B2-B8 E2E, weighted scoring
+      Addendum A, smoke test 14/14). Per-org customer table (account/contact) added for HL (F1).
+      On-prem kit onprem-deploy/2026-11-11/ built (SurveyEngine + Form Engine update + runbook +
+      console checks + config templates + smoke test), not yet imported. Branch not pushed.
+      Go-live gates: go-live-checklist.md. Next: Survey health view (F1 in the checklist), PR,
+      then phase 5 QA.
 
 # Example entry:
 # projects:
