@@ -185,7 +185,8 @@ Needs one source activated (8.1), with an active setup and Event trigger on it (
 
 1. Prepare at least 10 (ideally 20) records in that source's table, named `SURVEY-SPEED-01`, `SURVEY-SPEED-02` and so
    on. Each must be for a **different test customer** who has not been surveyed recently and has **no real phone number
-   or e-mail**, in a status **just before** the trigger status, and of a type the trigger accepts.
+   or e-mail**, in a status **just before** the trigger status (leave them there until the script moves them), and of a
+   type the trigger accepts.
 2. As a System Administrator, from the kit folder:
 
    ```powershell

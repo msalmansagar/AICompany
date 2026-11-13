@@ -119,6 +119,9 @@ function Get-TriggerUnderTest {
     $names = ($live | ForEach-Object { $_.qdb_name }) -join ', '
     Add-Result 'T1' 'Exactly one active Event trigger on an active setup and source' ($live.Count -eq 1) $(if ($live.Count -eq 1) { $names } else { "found $($live.Count): $names (use -TriggerName)" })
     if ($live.Count -ne 1) { return $null }
+    $hasStatus = [bool](([string]$live[0].qdb_status_values).Trim())
+    Add-Result 'T2' 'The trigger names at least one status' $hasStatus $(if ($hasStatus) { "status $($live[0].qdb_status_values)" } else { 'its status values are empty: fix the trigger (runbook 7.4)' })
+    if (-not $hasStatus) { return $null }
     return $live[0]
 }
 
@@ -248,6 +251,8 @@ function Invoke-SpeedTest($Trigger) {
     }
 }
 
+function Get-FailedCount { return @($Results | Where-Object { $_.status -eq 'FAIL' }).Count }
+
 function Write-Report($Measurement) {
     if ($Measurement) {
         $isPass = ($Measurement.missing -eq 0) -and ($null -ne $Measurement.p95Seconds) -and ($Measurement.p95Seconds -le $TargetP95Seconds) -and ($Measurement.maxSeconds -le $TargetMaxSeconds)
@@ -255,19 +260,23 @@ function Write-Report($Measurement) {
     }
     [pscustomobject]@{ kind = 'survey-trigger-speed'; org = $OrgUrl; ranAt = (Get-Date).ToUniversalTime().ToString('o'); recordPrefix = $RecordPrefix; measurement = $Measurement; checks = $Results } |
         ConvertTo-Json -Depth 5 | Set-Content -Path $ReportPath -Encoding UTF8
-    $failed = @($Results | Where-Object { $_.status -eq 'FAIL' }).Count
-    Write-Host ("{0} of {1} checks passed. Report: {2}" -f ($Results.Count - $failed), $Results.Count, $ReportPath)
-    return $failed
+    Write-Host ("{0} of {1} checks passed. Report: {2}" -f ($Results.Count - (Get-FailedCount)), $Results.Count, $ReportPath)
 }
 
 Write-Host "Survey Engine trigger speed test on $OrgUrl"
 $measurement = $null
-if ($RestoreOnly) {
-    [void](Restore-Dispatch)
-} elseif (Test-Path $RestoreFile) {
-    Add-Result 'R0' 'No dispatch states left unrestored by an earlier run' $false "run again with -RestoreOnly first ($RestoreFile)"
-} else {
-    $trigger = Get-TriggerUnderTest
-    if ($trigger) { $measurement = Invoke-SpeedTest $trigger }
+try {
+    if ($RestoreOnly) {
+        [void](Restore-Dispatch)
+    } elseif (Test-Path $RestoreFile) {
+        Add-Result 'R0' 'No dispatch states left unrestored by an earlier run' $false "run again with -RestoreOnly first ($RestoreFile)"
+    } else {
+        $trigger = Get-TriggerUnderTest
+        if ($trigger) { $measurement = Invoke-SpeedTest $trigger }
+    }
+} catch {
+    # Whatever stopped the run, QDB IT still gets a report to send back.
+    Add-Result 'E1' 'The run finished without an error' $false $_.Exception.Message
 }
-if ((Write-Report $measurement) -gt 0) { exit 1 }
+Write-Report $measurement
+if ((Get-FailedCount) -gt 0) { exit 1 }
