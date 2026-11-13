@@ -30,7 +30,8 @@ import { useDesignerStore } from '@/state/designerStore';
 import { SUBMIT_CONFIRMATION_LABEL_MAX_LENGTH } from '@/constants/columnLimits';
 import { EntityCombobox } from '@/components/EntityCombobox';
 import { TranslationsPanel } from '@/designer/properties/panels/TranslationsPanel';
-import { findSurveyCodeError } from '@/validation/surveyFormCode';
+import { findSurveyCodeError, SURVEY_FORM_CODE_HINT } from '@/validation/surveyFormCode';
+import { FORM_CODE_HINT } from '@/utils/formCodeUtils';
 
 // DFE-FBE-001: display label for a summary mode value.
 function summaryModeLabel(mode: SummaryMode): string {
@@ -82,7 +83,8 @@ export function FormProperties(): React.ReactElement {
 
   const handleCodeChange = useCallback(
     (_: React.ChangeEvent<HTMLInputElement>, data: { value: string }) => {
-      const sanitized = data.value.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+      // Keep hyphens: existing codes use them, and PV-002 accepts both separators.
+      const sanitized = data.value.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
       updateForm({ code: sanitized });
     },
     [updateForm]
@@ -98,6 +100,7 @@ export function FormProperties(): React.ReactElement {
 
   const isSurvey = form.formType === 'Survey';
   const surveyCodeError = findSurveyCodeError(form);
+  const codeHint = isSurvey ? SURVEY_FORM_CODE_HINT : FORM_CODE_HINT;
 
   return (
     <div className={styles.form}>
@@ -164,14 +167,14 @@ export function FormProperties(): React.ReactElement {
       <Field
         label="Form Code"
         required
-        hint={surveyCodeError ? undefined : 'Unique identifier. Lowercase letters, numbers, underscores only.'}
+        hint={surveyCodeError ? undefined : codeHint}
         validationState={surveyCodeError ? 'error' : 'none'}
         validationMessage={surveyCodeError ?? undefined}
       >
         <Input
           value={form.code}
           onChange={handleCodeChange}
-          placeholder="e.g. loan_application"
+          placeholder="e.g. loan-application"
           style={{ fontFamily: 'monospace' }}
         />
       </Field>

@@ -2,7 +2,9 @@
  * Utility functions for Form Code derivation and sanitization.
  *
  * The Form Code identifies a form in the DFE runtime. It must be URL-safe
- * and consist of lowercase letters, digits, and hyphens only.
+ * and consist of lowercase letters, digits, hyphens and underscores (publish rule PV-002).
+ * Derived codes use hyphens, the org's convention; underscores stay valid because legacy
+ * codes and the survey prefix srv_ use them.
  *
  * Two operations are provided:
  *   - `slugifyFormCode`  — converts a human-readable Form Name to a valid code
@@ -13,6 +15,9 @@
  */
 
 const MAX_CODE_LENGTH = 50;
+
+/** The hint shown under every Form Code box; it states the PV-002 character rule. */
+export const FORM_CODE_HINT = 'Lowercase letters, numbers, hyphens and underscores.';
 
 /**
  * Derives a Form Code from a Form Name.
@@ -40,7 +45,7 @@ export function slugifyFormCode(name: string): string {
 /**
  * Sanitizes a Form Code string entered directly by the user.
  *
- * Replaces every character outside [a-z0-9-] with a hyphen so that the user
+ * Replaces every character outside [a-z0-9_-] with a hyphen so that the user
  * can see in real-time which characters are disallowed. Intentionally does NOT
  * collapse consecutive hyphens — the user retains full control over spacing
  * once they have taken manual ownership of the field.
@@ -48,5 +53,5 @@ export function slugifyFormCode(name: string): string {
 export function sanitizeFormCode(rawCode: string): string {
   return rawCode
     .toLowerCase()
-    .replace(/[^a-z0-9-]/g, '-');
+    .replace(/[^a-z0-9_-]/g, '-');
 }

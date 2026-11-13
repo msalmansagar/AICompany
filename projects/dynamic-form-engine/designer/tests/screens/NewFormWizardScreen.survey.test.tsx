@@ -127,6 +127,27 @@ describe('NewFormWizardScreen — survey mode (FR-CSE-071)', () => {
       expect(screen.getByRole('textbox', { name: /form code/i })).toHaveValue('srv_customer-feedback');
     });
 
+    // The box used to turn every underscore into a hyphen, so one keystroke changed srv_ to srv-.
+    it('editing_the_survey_code_by_hand_keeps_the_srv_underscore', async () => {
+      const user = userEvent.setup({ delay: null });
+      renderWizard();
+
+      await advanceToBasicsAsSurvey(user);
+      await user.type(screen.getByRole('textbox', { name: /form name/i }), 'Feedback');
+      await user.type(screen.getByRole('textbox', { name: /form code/i }), '-2');
+
+      expect(screen.getByRole('textbox', { name: /form code/i })).toHaveValue('srv_feedback-2');
+    });
+
+    it('code_hint_names_the_survey_prefix', async () => {
+      const user = userEvent.setup({ delay: null });
+      renderWizard();
+
+      await advanceToBasicsAsSurvey(user);
+
+      expect(screen.getByText(/survey codes start with srv_ or srv-/i)).toBeInTheDocument();
+    });
+
     it('switches_to_non_srv_code_when_switching_back_to_Normal', async () => {
       const user = userEvent.setup({ delay: null });
       renderWizard();

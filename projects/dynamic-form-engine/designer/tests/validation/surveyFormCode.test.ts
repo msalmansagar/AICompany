@@ -1,8 +1,8 @@
 /**
  * FR-CSE-023 — a survey form's code carries the reserved survey prefix. The render
  * cache is keyed by form code, so the prefix keeps survey and standard forms from
- * ever sharing a cache entry. Codes are lowercase (publish rule PV-002) and the
- * designer's Code box turns hyphens into underscores, so `srv-` and `srv_` both count.
+ * ever sharing a cache entry. Codes are lowercase and may use either separator (publish
+ * rule PV-002); the wizard derives `srv_` and earlier org surveys use `srv-`, so both count.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -50,6 +50,12 @@ describe('findSurveyCodeError', () => {
     const form = makeForm({ formType: 'Survey', code: 'cust_001' });
 
     expect(findSurveyCodeError(form)).toMatch(/srv_/);
+  });
+
+  it('findSurveyCodeError_surveyWithoutPrefix_namesBothAcceptedPrefixes', () => {
+    const form = makeForm({ formType: 'Survey', code: 'cust_001' });
+
+    expect(findSurveyCodeError(form)).toMatch(/srv_ or srv-/);
   });
 
   it('findSurveyCodeError_surveyWithPrefix_returnsNull', () => {

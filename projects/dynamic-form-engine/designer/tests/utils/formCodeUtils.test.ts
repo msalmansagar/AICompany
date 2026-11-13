@@ -74,9 +74,9 @@ describe('sanitizeFormCode — per-keystroke sanitization on manual Code input',
     expect(sanitizeFormCode('my-form-01')).toBe('my-form-01');
   });
 
-  it('removes_underscores_by_converting_to_hyphens', () => {
-    // Legacy codes used underscores; sanitize converts them to hyphens
-    expect(sanitizeFormCode('my_form')).toBe('my-form');
+  it('keeps_underscores', () => {
+    // Publish rule PV-002 accepts underscores, and survey codes start with srv_
+    expect(sanitizeFormCode('srv_my_form')).toBe('srv_my_form');
   });
 
   it('returns_empty_string_for_empty_input', () => {

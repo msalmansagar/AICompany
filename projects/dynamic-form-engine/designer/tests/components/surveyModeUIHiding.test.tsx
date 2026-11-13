@@ -299,6 +299,44 @@ describe('FormProperties — survey mode hides non-survey settings (F-1)', () =>
   });
 });
 
+// ── FormProperties — Form Code hint and separators (FR-CSE-023) ──────────────
+// The box used to turn every hyphen into an underscore, so one keystroke rewrote an
+// existing code such as three-changes-demo. PV-002 accepts both separators.
+
+describe('FormProperties — Form Code hint and separators', () => {
+  it('code_hint_lists_hyphens_and_underscores_for_normal_form', () => {
+    resetMockState(buildNormalForm());
+    render(wrap(<FormProperties />));
+
+    expect(screen.getByText('Lowercase letters, numbers, hyphens and underscores.')).toBeInTheDocument();
+  });
+
+  it('code_hint_names_the_survey_prefix_for_survey_form', () => {
+    resetMockState(buildSurveyForm());
+    render(wrap(<FormProperties />));
+
+    expect(screen.getByText(/survey codes start with srv_ or srv-/i)).toBeInTheDocument();
+  });
+
+  it('editing_the_code_keeps_existing_hyphens', () => {
+    resetMockState(buildNormalForm({ code: 'three-changes-demo' }));
+    render(wrap(<FormProperties />));
+
+    fireEvent.change(screen.getByRole('textbox', { name: /form code/i }), { target: { value: 'three-changes-demo2' } });
+
+    expect(mockDesignerState.updateForm).toHaveBeenCalledWith({ code: 'three-changes-demo2' });
+  });
+
+  it('editing_the_code_still_replaces_other_characters_with_underscores', () => {
+    resetMockState(buildNormalForm());
+    render(wrap(<FormProperties />));
+
+    fireEvent.change(screen.getByRole('textbox', { name: /form code/i }), { target: { value: 'My Form!' } });
+
+    expect(mockDesignerState.updateForm).toHaveBeenCalledWith({ code: 'my_form_' });
+  });
+});
+
 // ── F-1: DesignerCommandBar — Mapping command guard (FR-CSE-073) ──────────────
 
 describe('DesignerCommandBar — Mapping command hidden for surveys (F-1)', () => {

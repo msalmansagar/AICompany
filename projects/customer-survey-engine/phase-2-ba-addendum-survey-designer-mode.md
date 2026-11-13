@@ -59,3 +59,17 @@ Narrowing the question types changes what FR-CSE-020 promises, so it needs this 
 | Role | Name | Decision | Date |
 |---|---|---|---|
 | CEO | The user | **APPROVED**: "Approve the list" (hide the seven controls in Survey mode; amend FR-CSE-020) | 2026-11-13 |
+
+## 6. Change notes (enhancement workflow)
+
+**2026-11-13: Form Code hints and separators.** Found in the live test; the CEO asked for the hints to be fixed.
+- **What changes:** both Form Code boxes (New Form wizard, Form Properties) keep hyphens *and* underscores, the
+  characters publish rule PV-002 accepts, and show one hint: "Lowercase letters, numbers, hyphens and
+  underscores." A survey's hint and prefix error also say the code starts with `srv_` or `srv-` (FR-CSE-023).
+  Before, the wizard turned every underscore into a hyphen (one keystroke changed `srv_` to `srv-`), and Form
+  Properties turned every hyphen into an underscore (one keystroke rewrote `three-changes-demo` to
+  `three_changes_demo`). Other characters are still replaced as before.
+- **Must not regress:** code derivation from the name (FR-012(a), `srv_customer-feedback`), the survey prefix rule,
+  PV-002, and every Normal-form behaviour (C-6).
+- **Verified by:** 9 new or updated designer tests (red before, green after), full designer suite (903) and
+  `tsc --noEmit` in designer and frontend.

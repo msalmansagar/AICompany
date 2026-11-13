@@ -26,7 +26,8 @@ import type {
   DesignerSectionModel,
 } from '@/state/models/DesignerFormModel';
 import { DEFAULT_DESIGN_PAYLOAD } from '@/state/designerStore';
-import { slugifyFormCode, sanitizeFormCode } from '@/utils/formCodeUtils';
+import { slugifyFormCode, sanitizeFormCode, FORM_CODE_HINT } from '@/utils/formCodeUtils';
+import { SURVEY_FORM_CODE_HINT } from '@/validation/surveyFormCode';
 
 // Steps:
 //   1 = Form Type (new — FR-CSE-071)
@@ -363,6 +364,8 @@ interface StepFormBasicsProps {
    * Using a function instead of a boolean flag keeps this component strategy-agnostic.
    */
   deriveName: (name: string) => string;
+  /** The hint under the Code box — the survey hint also names the srv_ prefix. */
+  codeHint: string;
 }
 
 function StepFormBasics({
@@ -371,6 +374,7 @@ function StepFormBasics({
   isCodeLocked,
   onCodeManuallyEdited,
   deriveName,
+  codeHint,
 }: StepFormBasicsProps): React.ReactElement {
   const styles = useStyles();
 
@@ -397,7 +401,7 @@ function StepFormBasics({
           autoFocus
         />
       </Field>
-      <Field label="Form Code" required hint="Lowercase letters, numbers, and hyphens only.">
+      <Field label="Form Code" required hint={codeHint}>
         <Input
           value={state.code}
           onChange={handleCodeChange}
@@ -846,6 +850,7 @@ export function NewFormWizardScreen(): React.ReactElement {
             isCodeLocked={isFormCodeManuallyEdited}
             onCodeManuallyEdited={() => setIsFormCodeManuallyEdited(true)}
             deriveName={isSurvey ? deriveSurveyFormCode : slugifyFormCode}
+            codeHint={isSurvey ? SURVEY_FORM_CODE_HINT : FORM_CODE_HINT}
           />
         );
       case 3:

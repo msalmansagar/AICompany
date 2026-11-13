@@ -117,6 +117,26 @@ describe('NewFormWizardScreen — FR-012(a) Form Code auto-derive dirty flag', (
     expect(getCodeInput().value).toBe('my-form-');
   });
 
+  // PV-002 accepts both separators, and legacy codes use underscores — the box must keep them.
+  it('keeps_underscores_in_manual_code_input', async () => {
+    const user = userEvent.setup({ delay: null });
+    renderWizard();
+
+    await user.click(screen.getByRole('button', { name: /next/i }));
+    await user.type(getCodeInput(), 'legacy_code-2');
+
+    expect(getCodeInput().value).toBe('legacy_code-2');
+  });
+
+  it('code_hint_lists_hyphens_and_underscores', async () => {
+    const user = userEvent.setup({ delay: null });
+    renderWizard();
+
+    await user.click(screen.getByRole('button', { name: /next/i }));
+
+    expect(screen.getByText('Lowercase letters, numbers, hyphens and underscores.')).toBeInTheDocument();
+  });
+
   it('sanitizes_auto_derived_code_with_special_characters_in_name', async () => {
     const user = userEvent.setup({ delay: null });
     renderWizard();
