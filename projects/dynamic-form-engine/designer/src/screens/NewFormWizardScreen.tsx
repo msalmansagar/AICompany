@@ -278,50 +278,73 @@ function WizardStepIndicator({
 // Step 1 — Form Type (FR-CSE-071)
 // ---------------------------------------------------------------------------
 
+const SURVEY_UNAVAILABLE_REASON_ID = 'survey-unavailable-reason';
+
+/**
+ * Why Survey cannot be chosen yet, or null when it can. Without a CRM service (local preview)
+ * nothing is created, so nothing is gated.
+ */
+function findSurveyUnavailableReason(
+  hasCrmService: boolean,
+  isFormTypeColumnAvailable: boolean | null,
+  probeError: string | null,
+): string | null {
+  if (!hasCrmService || isFormTypeColumnAvailable === true) return null;
+  if (probeError) return `Could not check whether this org supports surveys: ${probeError}. Close New Form and try again.`;
+  if (isFormTypeColumnAvailable === false) {
+    return 'This org does not have the survey columns yet (Form Engine survey update). Ask your CRM administrator.';
+  }
+  return 'Checking whether this org supports surveys…';
+}
+
 interface StepFormTypeProps {
   value: 'Normal' | 'Survey';
   onChange: (formType: 'Normal' | 'Survey') => void;
-  /** True when qdb_form_type column is not provisioned on this org. */
-  isSurveyDisabled: boolean;
+  /** Shown under the cards, and Survey is disabled, while not null. */
+  surveyUnavailableReason: string | null;
 }
 
-function StepFormType({ value, onChange, isSurveyDisabled }: StepFormTypeProps): React.ReactElement {
+function StepFormType({ value, onChange, surveyUnavailableReason }: StepFormTypeProps): React.ReactElement {
   const styles = useStyles();
+  const isSurveyUnavailable = surveyUnavailableReason !== null;
 
   return (
-    <div role="radiogroup" aria-label="Form type" className={styles.typeGrid}>
-      <button
-        type="button"
-        role="radio"
-        aria-checked={value === 'Normal'}
-        onClick={() => onChange('Normal')}
-        className={`${styles.typeCard} ${value === 'Normal' ? styles.typeCardSelected : ''}`}
-      >
-        Normal Form
-        <span className={styles.typeCardDescription}>
-          Collects data into a CRM entity
-        </span>
-      </button>
+    <>
+      <div role="radiogroup" aria-label="Form type" className={styles.typeGrid}>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={value === 'Normal'}
+          onClick={() => onChange('Normal')}
+          className={`${styles.typeCard} ${value === 'Normal' ? styles.typeCardSelected : ''}`}
+        >
+          Normal Form
+          <span className={styles.typeCardDescription}>
+            Collects data into a CRM table
+          </span>
+        </button>
 
-      <button
-        type="button"
-        role="radio"
-        aria-checked={value === 'Survey'}
-        onClick={() => { if (!isSurveyDisabled) onChange('Survey'); }}
-        disabled={isSurveyDisabled}
-        className={`${styles.typeCard} ${value === 'Survey' ? styles.typeCardSelected : ''} ${isSurveyDisabled ? styles.typeCardDisabledStyle : ''}`}
-        title={
-          isSurveyDisabled
-            ? 'Survey mode requires the qdb_form_type column to be provisioned on this org. Contact your administrator.'
-            : undefined
-        }
-      >
-        Survey
-        <span className={styles.typeCardDescription}>
-          Collects open-ended responses
-        </span>
-      </button>
-    </div>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={value === 'Survey'}
+          aria-describedby={isSurveyUnavailable ? SURVEY_UNAVAILABLE_REASON_ID : undefined}
+          onClick={() => { if (!isSurveyUnavailable) onChange('Survey'); }}
+          disabled={isSurveyUnavailable}
+          className={`${styles.typeCard} ${value === 'Survey' ? styles.typeCardSelected : ''} ${isSurveyUnavailable ? styles.typeCardDisabledStyle : ''}`}
+        >
+          Survey
+          <span className={styles.typeCardDescription}>
+            Sent to customers by the Survey Engine; answers are saved as survey responses
+          </span>
+        </button>
+      </div>
+      {isSurveyUnavailable && (
+        <Text id={SURVEY_UNAVAILABLE_REASON_ID} size={200} role="status">
+          {surveyUnavailableReason}
+        </Text>
+      )}
+    </>
   );
 }
 
@@ -575,9 +598,10 @@ export function NewFormWizardScreen(): React.ReactElement {
   const [themes, setThemes] = useState<ThemeOption[]>([]);
   const [isLoadingThemes, setIsLoadingThemes] = useState(false);
 
-  // FR-CSE-071: null = probe not yet complete; true/false = result.
-  // When null or true, the Survey option is enabled (optimistic).
+  // FR-CSE-071: null = probe not yet complete; true/false = result. Survey is offered only once
+  // the probe says true: a survey created where the column is missing would save as a Normal form.
   const [isFormTypeColumnAvailable, setIsFormTypeColumnAvailable] = useState<boolean | null>(null);
+  const [formTypeProbeError, setFormTypeProbeError] = useState<string | null>(null);
 
   const isSurvey = wizardState.formType === 'Survey';
 
@@ -614,12 +638,9 @@ export function NewFormWizardScreen(): React.ReactElement {
     formService
       .probeFormTypeAvailability()
       .then(available => setIsFormTypeColumnAvailable(available))
-      .catch(() => {
-        // probeFormTypeAvailability() returns false for missing-column errors and re-throws
-        // everything else (e.g. 403, network timeout). Do NOT collapse a transient auth
-        // failure to isFormTypeColumnAvailable=false — that would silently disable Survey
-        // for all future attempts. Leave as null so the button stays enabled optimistically.
-      });
+      // A failure other than the missing column (403, network) is shown to the maker as the
+      // reason Survey is unavailable, rather than being mistaken for "this org has no surveys".
+      .catch((error: unknown) => setFormTypeProbeError(error instanceof Error ? error.message : String(error)));
   }, [crmService]);
 
   const handleChange = useCallback(
@@ -663,6 +684,9 @@ export function NewFormWizardScreen(): React.ReactElement {
     setCreateError(null);
 
     try {
+      if (isSurvey && isFormTypeColumnAvailable !== true) {
+        throw new Error('Survey forms need the Form Type column, which this org does not have yet. Nothing was created.');
+      }
       const webApi = crmService.getWebApi();
       const formService = new FormDefinitionService(webApi);
       const tabService = new TabService(webApi);
@@ -749,15 +773,15 @@ export function NewFormWizardScreen(): React.ReactElement {
       // still be in flight if the user clicked Create quickly, but getFormWithEtag
       // already reflects the real CRM state for this record.
       // We MUST re-fetch the etag afterwards because CRM invalidates it on every PATCH.
-      if (isSurvey && newForm.isFormTypeAvailable && etag) {
+      if (isSurvey) {
+        if (!newForm.isFormTypeAvailable || !etag) {
+          // Never carry Survey in memory only: the next save would store a Normal form.
+          throw new Error(`Form ${wizardState.code.trim()} was created, but its Form Type could not be set to Survey. Open it from the list and set Form Type = Survey in form properties.`);
+        }
         await formService.updateForm(newFormId, { formType: 'Survey' }, etag);
         const refreshed = await formService.getFormWithEtag(newFormId);
         newForm = refreshed.model;
         etag = refreshed.etag;
-      } else if (isSurvey) {
-        // Column not yet provisioned on this org — carry the type in the in-memory model only
-        // so the designer activates survey mode without a Dataverse write.
-        newForm.formType = 'Survey';
       }
 
       // entityLogicalName is not a Dataverse column — it lives in the store only, so the
@@ -813,7 +837,7 @@ export function NewFormWizardScreen(): React.ReactElement {
           <StepFormType
             value={wizardState.formType}
             onChange={formType => handleChange({ formType })}
-            isSurveyDisabled={isFormTypeColumnAvailable === false}
+            surveyUnavailableReason={findSurveyUnavailableReason(crmService !== null, isFormTypeColumnAvailable, formTypeProbeError)}
           />
         );
       case 2:

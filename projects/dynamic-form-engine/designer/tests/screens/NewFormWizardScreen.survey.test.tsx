@@ -2,7 +2,7 @@
 // RED until NewFormWizardScreen is updated with the Form Type step.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup, waitFor, act } from '@testing-library/react';
+import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
 import { CrmContext } from '@/app/App';
@@ -213,13 +213,30 @@ describe('NewFormWizardScreen — survey mode (FR-CSE-071)', () => {
       expect(screen.getByRole('radio', { name: /survey/i })).not.toBeDisabled();
     });
 
-    // F-06 — RED until the probe catch stops collapsing non-column errors to false.
-    // probeFormTypeAvailability() re-throws non-column errors (e.g. a 401); the wizard
-    // catch must leave isFormTypeColumnAvailable as null so Survey stays enabled.
-    it('survey_button_stays_enabled_when_probe_throws_non_column_error', async () => {
-      // The error message matches isClientError (contains "(4xx)") so withRetry breaks
-      // immediately without retrying; isMissingColumnError returns false so the probe
-      // re-throws. The wizard catch must NOT set isFormTypeColumnAvailable=false.
+    it('survey_reason_names_the_missing_columns_when_probe_returns_column_missing', async () => {
+      renderWizard(buildMockCrmService(false));
+
+      expect(await screen.findByRole('status')).toHaveTextContent(/does not have the survey columns/i);
+    });
+
+    it('survey_button_is_enabled_once_probe_confirms_the_column', async () => {
+      renderWizard(buildMockCrmService(true));
+
+      await waitFor(() => expect(screen.getByRole('radio', { name: /survey/i })).not.toBeDisabled());
+    });
+
+    it('survey_button_is_disabled_while_probe_is_pending', () => {
+      const pending = { getWebApi: () => ({ retrieveMultipleRecords: () => new Promise(() => undefined) }) } as unknown as CrmContextService;
+
+      renderWizard(pending);
+
+      expect(screen.getByRole('radio', { name: /survey/i })).toBeDisabled();
+    });
+
+    // A non-column failure (401, network) is shown as the reason, not mistaken for an org
+    // without surveys and not hidden behind an optimistically enabled Survey card.
+    it('survey_is_disabled_and_the_probe_error_shown_when_probe_throws_non_column_error', async () => {
+      // "(401)" matches isClientError so withRetry stops at once; isMissingColumnError is false.
       const mockWebApi = {
         createRecord: vi.fn(),
         updateRecord: vi.fn(),
@@ -238,17 +255,8 @@ describe('NewFormWizardScreen — survey mode (FR-CSE-071)', () => {
 
       renderWizard(service);
 
-      // Flush enough microtask ticks for the probe's async chain to settle
-      // (withRetry → probeFormTypeAvailability → wizard catch).
-      await act(async () => {
-        for (let i = 0; i < 8; i++) {
-          await Promise.resolve();
-        }
-      });
-
-      // After the non-column error, Survey must remain enabled — a transient auth
-      // failure must not silently disable the Survey option.
-      expect(screen.getByRole('radio', { name: /survey/i })).not.toBeDisabled();
+      expect(await screen.findByRole('status')).toHaveTextContent(/could not check.*\(401\) Unauthorized/i);
+      expect(screen.getByRole('radio', { name: /survey/i })).toBeDisabled();
     });
   });
 });
