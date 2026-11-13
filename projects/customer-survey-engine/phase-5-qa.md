@@ -390,6 +390,15 @@ test and QDB1 test, measured with the kit's `trigger-speed-test.ps1` (runbook 9.
 method as the cloud run, on records QDB IT prepares in the activated source's table. The cloud result above is
 information only.
 
+**Script proven on cloud, 2026-11-14** (CEO go-ahead; `e2e/a3-performance.mjs --apply --prove-onprem-script`). The
+kit's `trigger-speed-test.ps1` ran against org5869857f on 20 prepared records. The first attempt stopped at the record
+query: a PowerShell 5.1 runtime fault in the name filter, which the parse check could not catch. Nothing had moved,
+and the clean-up was complete. It was fixed in `4107c01b`, and every read path was then re-run read-only. The second
+attempt passed **9/9**: T1–T2, P1–P4, sending off and restored (R1), 20 of 20 caused invitations deleted (R2), and S1
+p95 10 s, max 12 s, none missing. Its harness then deleted the 20 test records and accounts, leaving 0 rows. An
+independent probe confirmed the org matched its pre-run state. The two cloud measurements (p95 14 s, then 10 s) differ
+between runs, which supports measuring on the target orgs.
+
 ---
 
 ## 7. Test Cases (Representative Set)

@@ -27,7 +27,9 @@ checksum; `source/` and `form-engine/source/` hold the unmodified cloud exports 
 scheduler in `scheduler/` (B9 item 5). **`smoke-test.ps1`** proves the portal APIs on each org (B9 item 6,
 runbook stage 9); proven on the cloud org 2026-11-12, 14/14 with `-WriteTest`, nothing left behind.
 **`trigger-speed-test.ps1`** measures the survey trigger's speed on each test org (runbook 9.3, go-live checklist A3,
-NFR-CSE-006).
+NFR-CSE-006). It was proven end to end on the cloud org on 2026-11-14 (9/9 checks, 20 prepared records): sending was
+switched off and restored, and the invitations it caused were deleted. The first proof run found a fault in the record
+filter, fixed in `4107c01b`.
 
 ## Import order
 
