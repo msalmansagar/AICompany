@@ -366,6 +366,25 @@ the tables), which does not exist today.
 
 **Risk to org5869857f:** Creating 450 accounts risks polluting the shared test org. Alternative: run Part B on a disposable org, using the same seed approach as Part C of A2.
 
+### Results — run on org5869857f, 2026-11-13 21:14 UTC (CEO go-ahead: "both, test data only")
+
+Script: `e2e/a3-performance.mjs --apply` (commits `299badb4`, `b2723064`; reviewed twice before the run). Guards held
+(no active setup, retention off, no Postponed invitation, empty review quarter 2020-Q1, no leftovers); invitation dispatch
+was off for the run. Afterwards every switch was back as before, and 470 invitations, 470 disbursements, 470 accounts and the
+test setup and trigger were deleted, with 0 rows left. An independent read-only probe confirmed the org matched its pre-run
+state (42 active accounts, the same step and source states). No failed plugin jobs.
+
+| Part | Target | Result | Verdict |
+|---|---|---|---|
+| A trigger latency, 20 status changes 1 s apart (server timestamps, 1 s resolution) | p95 ≤ 10 s, none > 60 s | **p95 14 s**; max 46 s; none missing; median 3 s; 16 of 20 within 10 s | **FAIL** (p95) |
+| B daily run, 450 customers active in 2020-Q1 | one call, 450 invitations, < 90 s | **one call, 450 invitations, 24.4 s** | **PASS** |
+
+Part A, in order of the status changes (s): 11, 6, 14, 12, 7, 46, 4, 3, 0, 4, 3, 0, 0, 3, 1, 1, 3, 1, 1, 0. All six slow values
+are the first six changes; the other fourteen took 0–4 s. That pattern fits the cloud's shared asynchronous service picking up
+a burst, not the plugin's own work. The platform gives no latency guarantee for asynchronous plugins. On-prem 9.1 timing depends
+on each org's Asynchronous Processing Service settings and load, so this cloud run does not settle NFR-CSE-006 for release 1
+(on-prem). **The decision on how to close it is the CEO's.**
+
 ---
 
 ## 7. Test Cases (Representative Set)
@@ -502,7 +521,7 @@ Before any feature is considered complete for release:
 - [x] NFR-CSE-007: branch coverage measured and recorded (80.05% assembly-wide on 2026-11-13, was 59.1%; section 2.6)
 - [x] A2 (NFR-CSE-004) Part B: solution-dependency query returned empty (2026-11-13)
 - [ ] A2 (NFR-CSE-004) Part D: Form Engine re-publish and render with no SurveyEngine present, on HL test and QDB1 test (between runbook stages 2 and 4). **CEO chose Part D, no removal rehearsal (2026-11-13).** Built into the kit: runbook steps 2.5–2.7 and Gate 1b, `survey-stage2-check.console.js` (S1 = SurveyEngine absent, Q7–Q10, render cache snapshot), `compare-reports.mjs --expect-changed`
-- [ ] A3 (NFR-CSE-006): trigger p95 and daily run measured against targets
+- [ ] A3 (NFR-CSE-006): trigger p95 and daily run measured against targets. **Measured on cloud 2026-11-13: daily run PASS (24.4 s, one call, 450); trigger p95 14 s FAIL vs 10 s** (section 6 Results); CEO decision pending
 - [ ] Security defects: none Critical/High open (sec-link channel disabled until NFR-CSE-009 signed)
 - [ ] PDPPL sign-off on file (B2 in go-live checklist)
 - [ ] Retention period set by QDB Compliance (B1 in go-live checklist)
