@@ -53,8 +53,17 @@ A **WARN** needs a named person's decision, written down, before going on.
 | 2.2 | **Import** → `form-engine/FormDesignerWebResource_1.6.0.zip`. |
 | 2.3 | **Publish All Customizations.** |
 | 2.4 | Open the Form Designer from its usual entry point (the app's site map, **not** the raw `/WebResources/` URL, which has no CRM context) and open any existing form. It loads, and the form properties panel shows **Form Type** (Standard / Survey). |
+| 2.5 | **Test orgs only: A2 evidence (NFR-CSE-004).** Paste **`scripts/survey-stage2-check.console.js`** as in stage 1. It downloads `survey-stage2-<date>.json`. **S1 must PASS** (no SurveyEngine on the org yet; if S1 fails, this run cannot be A2 evidence) and Q7–Q9 PASS. |
+| 2.6 | **Test orgs only.** In the Form Designer, **publish three existing forms again**: a plain form, a form with a grid, and one more. Pick forms with no unfinished draft edits (ask each form's owner): publishing also publishes any draft edits. Each publish must succeed. Then open each form the way its users do and confirm it renders with its fields. Write down the three form codes. |
+| 2.7 | **Test orgs only.** Paste `survey-stage2-check.console.js` again; the browser saves it as `survey-stage2-<date> (1).json`. **Send both stage-2 files and the three form codes to MSS.** |
 
 Neither import republishes any form: every published form keeps its current version until someone publishes it again.
+
+**Gate 1b (A2, test orgs only):** MSS runs `node onprem/compare-reports.mjs <preflight.json> <first stage-2.json>`
+(no published form changed by stage 2) and `node onprem/compare-reports.mjs <first stage-2.json> <second stage-2.json>
+--expect-changed=<the three form codes>` (only those three changed, each with a new version). Both must exit 0. With
+step 2.6, this is the evidence for go-live checklist A2: the Form Engine publishes and renders with no SurveyEngine on
+the org, the state a removal would leave. Production skips 2.5–2.7 and Gate 1b; the test orgs' evidence stands for it.
 
 ## Stage 3 — Form Engine plugin (gated)
 
@@ -79,7 +88,9 @@ The package carries no trigger steps (readiness F4); activating a source creates
 ## Stage 5 — Post-import verification (read-only)
 
 1. Paste **`scripts/survey-post-import.console.js`** in the console as in stage 1. It downloads `survey-post-import-<date>.json`. **Send it to MSS** with the preflight report.
-2. MSS runs `node onprem/compare-reports.mjs <preflight.json> <post-import.json>`.
+2. MSS runs `node onprem/compare-reports.mjs <before.json> <post-import.json>`. On the test orgs *before* is the second
+   stage-2 report (step 2.7), because the three forms republished in step 2.6 are not the import's doing; on production
+   it is the preflight report.
 
 | Check | Pass |
 |---|---|

@@ -3,6 +3,7 @@
  * System Administrator, into onprem-deploy/<date>/scripts/:
  *   survey-preflight-HL.console.js, survey-preflight-BFD.console.js   before any import
  *   survey-rollback-backup.console.js                                 before any import
+ *   survey-stage2-check.console.js                                    after stage 2, before SurveyEngine (A2 evidence)
  *   survey-post-import.console.js                                     after the imports and Publish All
  * Each one embeds onprem/checks/survey-checks.js, the kit facts and (preflight) the org's
  * configuration, runs read-only GETs, prints a table and downloads a JSON report to send back.
@@ -78,6 +79,8 @@ function run() {
   }
   write('survey-rollback-backup.console.js', script({ title: 'rollback backup of the Form Engine designer, runtime and plugin', kitDate: values.date, kit,
     run: "const RUN = { org: 'this org', label: 'rollback backup', file: 'rollback-backup', execute: (get) => SurveyChecks.rollbackBackup({ get, kit: KIT }) };" }));
+  write('survey-stage2-check.console.js', script({ title: 'Form Engine without SurveyEngine, after stage 2 (A2 evidence)', kitDate: values.date, kit,
+    run: "const RUN = { org: 'this org', label: 'stage 2 check', file: 'stage2', execute: (get) => SurveyChecks.formEngineOnly({ get, kit: KIT }) };" }));
   write('survey-post-import.console.js', script({ title: 'post-import verification', kitDate: values.date, kit,
     run: "const RUN = { org: 'this org', label: 'post-import check', file: 'post-import', execute: (get) => SurveyChecks.postImport({ get, kit: KIT }) };" }));
 }

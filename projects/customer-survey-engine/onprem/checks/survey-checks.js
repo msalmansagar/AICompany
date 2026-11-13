@@ -335,6 +335,22 @@ const SurveyChecks = (() => {
     return { kind: 'survey-post-import', checks, renderCache: await renderCacheSnapshot(get) };
   }
 
+  // ── After stage 2: the updated Form Engine with no SurveyEngine yet (A2 / NFR-CSE-004, Part D) ──
+
+  async function checkSurveyEngineAbsent(get, kit) {
+    const title = `No ${kit.solution} on the org yet`;
+    const response = await tryGet(get, `solutions?$select=version&$filter=uniquename eq ${quoted(kit.solution)}`);
+    if (!response.ok) return [result('S1', title, FAIL, `could not read solutions, so absence is not proven: ${response.message}`)];
+    const solution = (response.json.value || [])[0];
+    return [result('S1', title, solution ? FAIL : PASS,
+      solution ? `${kit.solution} ${solution.version} is already imported: this report cannot serve as A2 evidence` : 'the Form Engine runs alone, as it would after a removal')];
+  }
+
+  async function formEngineOnly({ get, kit }) {
+    const checks = [...(await checkSurveyEngineAbsent(get, kit)), ...(await checkFormEngineUpdate(get, kit))];
+    return { kind: 'survey-stage2', checks, renderCache: await renderCacheSnapshot(get) };
+  }
+
   /** Published forms whose cache row changed or vanished between two snapshots. */
   function compareRenderCache(before, after) {
     const key = (row) => `${row.formCode}|${row.language}`;
@@ -345,7 +361,21 @@ const SurveyChecks = (() => {
     }).map(key);
   }
 
-  return { preflight, postImport, rollbackBackup, compareRenderCache, sha256Hex, PASS, WARN, FAIL, INFO };
+  /**
+   * Between two snapshots where only `expectedFormCodes` were republished: changed rows of any other
+   * form (unexpected), and expected forms with no changed row (their republish did not land).
+   */
+  function renderCacheDifferences(before, after, expectedFormCodes) {
+    const formOf = (key) => key.split('|')[0];
+    const changed = compareRenderCache(before, after);
+    const changedForms = new Set(changed.map(formOf));
+    return {
+      unexpected: changed.filter((key) => !expectedFormCodes.includes(formOf(key))),
+      notChanged: expectedFormCodes.filter((formCode) => !changedForms.has(formCode)),
+    };
+  }
+
+  return { preflight, formEngineOnly, postImport, rollbackBackup, compareRenderCache, renderCacheDifferences, sha256Hex, PASS, WARN, FAIL, INFO };
 })();
 
 if (typeof module !== 'undefined') module.exports = SurveyChecks;

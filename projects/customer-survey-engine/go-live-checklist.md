@@ -15,7 +15,7 @@ back to the decision that created it.
 | # | Gate | Blocks | Owner | Status | Source / evidence |
 |---|---|---|---|---|---|
 | A1 | **QA phase** (`phase-5-qa.md`): test strategy over the delivered build, including the unverified NFRs in A2–A4 | Release gate | QA (MSS) | Open | `new-project.md` sequence: Build → Code review → **QA** → Audit → CEO |
-| A2 | NFR-CSE-004: SurveyEngine can be removed and every Form Engine form still publishes and renders | Release gate | QA | Open: never tested | `phase-2-ba.md` NFR table |
+| A2 | NFR-CSE-004: SurveyEngine can be removed and every Form Engine form still publishes and renders | Release gate | QA | Open: approach decided 2026-11-13 by the CEO (QA Part D, no removal). The kit is ready (runbook 2.5–2.7, Gate 1b, `survey-stage2-check.console.js`); closes when Gate 1b passes on HL test and QDB1 test | `phase-2-ba.md` NFR table; `phase-5-qa.md` §5 Part D |
 | A3 | NFR-CSE-006: async trigger p95 < 10 s; the daily run covers the whole customer base in one run | Release gate | QA | Open: not measured at volume (~450 customers, ~900 requests/month) | BRD section 9.2 |
 | A4 | NFR-CSE-007: ≥ 80% branch coverage on survey code, from a coverage report | Release gate | QA | **Done** 2026-11-13: C# branch 80.05% (411 tests; was 59.1%), on-prem checks 97.2% (101 tests), provisioning 93.1% | `phase-5-qa.md` 2.6 |
 | A5 | **Audit phase** (`phase-6-audit.md`): governance, PDPPL alignment, audit trail | Release gate | Auditor (MSS) | Open | workflow |

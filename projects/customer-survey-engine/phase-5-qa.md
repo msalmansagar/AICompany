@@ -501,7 +501,7 @@ Before any feature is considered complete for release:
 - [ ] Live-org smoke test passes on each on-prem test org (`smoke-test.ps1 -WriteTest`)
 - [x] NFR-CSE-007: branch coverage measured and recorded (80.05% assembly-wide on 2026-11-13, was 59.1%; section 2.6)
 - [x] A2 (NFR-CSE-004) Part B: solution-dependency query returned empty (2026-11-13)
-- [ ] A2 (NFR-CSE-004) Part D: Form Engine re-publish and render with no SurveyEngine present, on HL test and QDB1 test (between runbook stages 2 and 4), or a removal rehearsal if the CEO requires one
+- [ ] A2 (NFR-CSE-004) Part D: Form Engine re-publish and render with no SurveyEngine present, on HL test and QDB1 test (between runbook stages 2 and 4). **CEO chose Part D, no removal rehearsal (2026-11-13).** Built into the kit: runbook steps 2.5–2.7 and Gate 1b, `survey-stage2-check.console.js` (S1 = SurveyEngine absent, Q7–Q10, render cache snapshot), `compare-reports.mjs --expect-changed`
 - [ ] A3 (NFR-CSE-006): trigger p95 and daily run measured against targets
 - [ ] Security defects: none Critical/High open (sec-link channel disabled until NFR-CSE-009 signed)
 - [ ] PDPPL sign-off on file (B2 in go-live checklist)
