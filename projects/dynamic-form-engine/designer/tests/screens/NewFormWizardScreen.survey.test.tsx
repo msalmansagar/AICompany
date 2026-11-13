@@ -231,6 +231,7 @@ describe('NewFormWizardScreen — survey mode (FR-CSE-071)', () => {
       renderWizard(pending);
 
       expect(screen.getByRole('radio', { name: /survey/i })).toBeDisabled();
+      expect(screen.getByRole('status')).toHaveTextContent(/checking/i);
     });
 
     // A non-column failure (401, network) is shown as the reason, not mistaken for an org

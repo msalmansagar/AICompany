@@ -278,8 +278,6 @@ function WizardStepIndicator({
 // Step 1 — Form Type (FR-CSE-071)
 // ---------------------------------------------------------------------------
 
-const SURVEY_UNAVAILABLE_REASON_ID = 'survey-unavailable-reason';
-
 /**
  * Why Survey cannot be chosen yet, or null when it can. Without a CRM service (local preview)
  * nothing is created, so nothing is gated.
@@ -328,7 +326,6 @@ function StepFormType({ value, onChange, surveyUnavailableReason }: StepFormType
           type="button"
           role="radio"
           aria-checked={value === 'Survey'}
-          aria-describedby={isSurveyUnavailable ? SURVEY_UNAVAILABLE_REASON_ID : undefined}
           onClick={() => { if (!isSurveyUnavailable) onChange('Survey'); }}
           disabled={isSurveyUnavailable}
           className={`${styles.typeCard} ${value === 'Survey' ? styles.typeCardSelected : ''} ${isSurveyUnavailable ? styles.typeCardDisabledStyle : ''}`}
@@ -340,7 +337,8 @@ function StepFormType({ value, onChange, surveyUnavailableReason }: StepFormType
         </button>
       </div>
       {isSurveyUnavailable && (
-        <Text id={SURVEY_UNAVAILABLE_REASON_ID} size={200} role="status">
+        // A disabled button leaves the tab order, so the reason is a live status, not a description.
+        <Text size={200} role="status">
           {surveyUnavailableReason}
         </Text>
       )}
