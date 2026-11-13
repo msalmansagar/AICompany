@@ -49,20 +49,27 @@ test('formEngineOnly_doesNotCheckSurveyComponents', async () => {
 const cacheRow = (formCode, language, version) => ({ formCode, language, version, modifiedOn: `v${version}` });
 const BEFORE = [cacheRow('loan', 1033, 1), cacheRow('loan', 1025, 1), cacheRow('grid', 1033, 4), cacheRow('other', 1033, 2)];
 
-test('renderCacheDifferences_onlyTheExpectedFormsChanged_answersNothing', () => {
+test('findRenderCacheDifferences_onlyTheExpectedFormsChanged_answersNothing', () => {
   const after = [cacheRow('loan', 1033, 2), cacheRow('loan', 1025, 2), cacheRow('grid', 1033, 5), cacheRow('other', 1033, 2)];
 
-  assert.deepEqual(SurveyChecks.renderCacheDifferences(BEFORE, after, ['loan', 'grid']), { unexpected: [], notChanged: [] });
+  assert.deepEqual(SurveyChecks.findRenderCacheDifferences(BEFORE, after, ['loan', 'grid']), { unexpected: [], notChanged: [] });
 });
 
-test('renderCacheDifferences_anotherFormChanged_listsItAsUnexpected', () => {
+test('findRenderCacheDifferences_anotherFormChanged_listsItAsUnexpected', () => {
   const after = [cacheRow('loan', 1033, 2), cacheRow('loan', 1025, 2), cacheRow('grid', 1033, 4), cacheRow('other', 1033, 3)];
 
-  assert.deepEqual(SurveyChecks.renderCacheDifferences(BEFORE, after, ['loan']).unexpected, ['other|1033']);
+  assert.deepEqual(SurveyChecks.findRenderCacheDifferences(BEFORE, after, ['loan']).unexpected, ['other|1033']);
 });
 
-test('renderCacheDifferences_expectedFormDidNotChange_listsItAsNotChanged', () => {
-  assert.deepEqual(SurveyChecks.renderCacheDifferences(BEFORE, BEFORE, ['loan']).notChanged, ['loan']);
+test('findRenderCacheDifferences_expectedFormDidNotChange_listsItAsNotChanged', () => {
+  assert.deepEqual(SurveyChecks.findRenderCacheDifferences(BEFORE, BEFORE, ['loan']).notChanged, ['loan']);
+});
+
+// A form published for the first time has no row before; it must not slip through the gate.
+test('findRenderCacheDifferences_formPublishedForTheFirstTime_listsItAsUnexpected', () => {
+  const after = [...BEFORE, cacheRow('brand-new', 1033, 1)];
+
+  assert.deepEqual(SurveyChecks.findRenderCacheDifferences(BEFORE, after, []).unexpected, ['brand-new|1033']);
 });
 
 test('formEngineOnly_reportIsAStage2SnapshotOfTheRenderCache', async () => {

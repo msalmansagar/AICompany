@@ -34,6 +34,12 @@ test('compareRenderCache_rewrittenOrMissingRow_isListed', () => {
   assert.deepEqual(SurveyChecks.compareRenderCache(before, after), ['a|en', 'b|en']);
 });
 
+test('compareRenderCache_rowThatAppeared_isListed', () => {
+  const before = [row('a', 'en', 3, 't1')];
+
+  assert.deepEqual(SurveyChecks.compareRenderCache(before, [...before, row('c', 'en', 1, 't2')]), ['c|en']);
+});
+
 const HEALTH_VIEW = { table: 'asyncoperation', name: 'Survey Jobs - Failed or Suspended' };
 const kit = { largestWebResourceBytes: 1, formEngineTables: [], formEngineIcons: [], formEngineColumns: [], surveyTables: [], roleNames: [], customApis: [], surveyIcons: [], surveyViews: [HEALTH_VIEW], formEnginePluginAssembly: 'x', surveyPluginAssembly: 'y', appModule: 'z', solution: 's', publisher: { uniqueName: 'qdb', prefix: 'qdb', optionValuePrefix: 10000 }, hashes: {} };
 const config = { settings: {}, sources: [], smsConfigs: [] };

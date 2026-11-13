@@ -30,8 +30,15 @@ for (const report of [before, after]) {
   if (lines.length === 0) console.log('  all PASS');
   lines.forEach((check) => console.log(`  ${check.status} ${check.id} ${check.title}: ${check.detail}`));
 }
+// A report whose render cache read failed carries { error } instead of rows: no verdict is possible.
+for (const [label, report] of [['before', before], ['after', after]]) {
+  if (!Array.isArray(report.renderCache)) {
+    console.log(`render cache could not be read in the ${label} report: ${report.renderCache?.error ?? 'missing'}; re-run that script`);
+    process.exit(1);
+  }
+}
 const expectedFormCodes = values['expect-changed'].split(',').map((code) => code.trim()).filter(Boolean);
-const { unexpected, notChanged } = SurveyChecks.renderCacheDifferences(before.renderCache, after.renderCache, expectedFormCodes);
+const { unexpected, notChanged } = SurveyChecks.findRenderCacheDifferences(before.renderCache, after.renderCache, expectedFormCodes);
 if (unexpected.length === 0) {
   console.log(expectedFormCodes.length === 0
     ? `render cache: ${before.renderCache.length} published rows, none changed between the two reports`

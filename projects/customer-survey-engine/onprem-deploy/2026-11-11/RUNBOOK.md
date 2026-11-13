@@ -59,11 +59,17 @@ A **WARN** needs a named person's decision, written down, before going on.
 
 Neither import republishes any form: every published form keeps its current version until someone publishes it again.
 
-**Gate 1b (A2, test orgs only):** MSS runs `node onprem/compare-reports.mjs <preflight.json> <first stage-2.json>`
-(no published form changed by stage 2) and `node onprem/compare-reports.mjs <first stage-2.json> <second stage-2.json>
---expect-changed=<the three form codes>` (only those three changed, each with a new version). Both must exit 0. With
-step 2.6, this is the evidence for go-live checklist A2: the Form Engine publishes and renders with no SurveyEngine on
-the org, the state a removal would leave. Production skips 2.5–2.7 and Gate 1b; the test orgs' evidence stands for it.
+**Gate 1b (A2, test orgs only):** MSS runs both comparisons; both must exit 0.
+
+```
+node onprem/compare-reports.mjs <preflight.json> <first stage-2.json>
+node onprem/compare-reports.mjs <first stage-2.json> <second stage-2.json> --expect-changed=<code1>,<code2>,<code3>
+```
+
+The first shows stage 2 changed no published form; the second shows only the three forms republished in step 2.6
+changed, each with a new version, and no other form was published. With step 2.6, this is the evidence for go-live
+checklist A2: the Form Engine publishes and renders with no SurveyEngine on the org, the state a removal would leave.
+Production skips 2.5–2.7 and Gate 1b; the test orgs' evidence stands for it.
 
 ## Stage 3 — Form Engine plugin (gated)
 

@@ -351,21 +351,24 @@ const SurveyChecks = (() => {
     return { kind: 'survey-stage2', checks, renderCache: await renderCacheSnapshot(get) };
   }
 
-  /** Published forms whose cache row changed or vanished between two snapshots. */
+  /** Cache rows (form|language) that changed, vanished or appeared between two snapshots. */
   function compareRenderCache(before, after) {
     const key = (row) => `${row.formCode}|${row.language}`;
     const afterByKey = new Map(after.map((row) => [key(row), row]));
-    return before.filter((row) => {
+    const beforeKeys = new Set(before.map(key));
+    const changedOrVanished = before.filter((row) => {
       const later = afterByKey.get(key(row));
       return !later || later.version !== row.version || later.modifiedOn !== row.modifiedOn;
     }).map(key);
+    // A form published for the first time has no earlier row; it is a change all the same.
+    return [...changedOrVanished, ...after.map(key).filter((rowKey) => !beforeKeys.has(rowKey))];
   }
 
   /**
    * Between two snapshots where only `expectedFormCodes` were republished: changed rows of any other
    * form (unexpected), and expected forms with no changed row (their republish did not land).
    */
-  function renderCacheDifferences(before, after, expectedFormCodes) {
+  function findRenderCacheDifferences(before, after, expectedFormCodes) {
     const formOf = (key) => key.split('|')[0];
     const changed = compareRenderCache(before, after);
     const changedForms = new Set(changed.map(formOf));
@@ -375,7 +378,7 @@ const SurveyChecks = (() => {
     };
   }
 
-  return { preflight, formEngineOnly, postImport, rollbackBackup, compareRenderCache, renderCacheDifferences, sha256Hex, PASS, WARN, FAIL, INFO };
+  return { preflight, formEngineOnly, postImport, rollbackBackup, compareRenderCache, findRenderCacheDifferences, sha256Hex, PASS, WARN, FAIL, INFO };
 })();
 
 if (typeof module !== 'undefined') module.exports = SurveyChecks;
