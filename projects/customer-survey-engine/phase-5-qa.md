@@ -173,9 +173,11 @@ The XRM bridge (`surveyApi.ts`, `formApi.ts`) is not covered by any unit test. I
 
 Edge cases ranked by risk. These are gaps in the current test suite with ≥ 80% confidence.
 
-### RISK-01 — ResponseRetentionStore: retention anonymise path is entirely untested
+### RISK-01 — ResponseRetentionStore: no unit coverage; contact path never run
 **Confidence: 95%**
-`ResponseRetentionStore.cs` has 0% coverage. The anonymise mode clears `qdb_customer_id`, `qdb_answers_json`, and Answer text columns — PII fields. If this path fails silently, a go-live retention run would leave PII in place while the log reports success. The only protection is the daily run returning an error that the scheduler would need to surface.
+`ResponseRetentionStore.cs` has 0% **unit** coverage. The anonymise mode clears the org's customer lookup (`qdb_customer_id` or `qdb_customer_contact_id`, per Survey Settings), `qdb_answers_json` and Answer text: PII fields.
+
+Correction (QA lead, 2026-11-13): the path is **not** untested at every level. `e2e/b5-run-due-surveys-e2e.mjs` scenario C runs Delete and Anonymise live on org5869857f and checks that customer, JSON and answer text are cleared and the numeric answer kept. That run used **account** customers only. The **contact** case (HL CRM) has never run anywhere: no unit test, and no live org with Customer Table = Contact.
 
 The domain service (`RetentionPass`) has 86% branch coverage, but it delegates all data operations to the store. The store's FetchXml queries for responses older than the period, and the update/delete batching, have never been exercised.
 
