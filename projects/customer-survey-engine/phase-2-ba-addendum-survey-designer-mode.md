@@ -68,8 +68,9 @@ Narrowing the question types changes what FR-CSE-020 promises, so it needs this 
   underscores." A survey's hint and prefix error also say the code starts with `srv_` or `srv-` (FR-CSE-023).
   Before, the wizard turned every underscore into a hyphen (one keystroke changed `srv_` to `srv-`), and Form
   Properties turned every hyphen into an underscore (one keystroke rewrote `three-changes-demo` to
-  `three_changes_demo`). Other characters are still replaced as before.
+  `three_changes_demo`). Other characters are still replaced as before. Cloning a survey whose code starts with
+  `srv-` now keeps that prefix; it used to add `srv_` in front (`srv_srv-weighted-demo_copy_…`).
 - **Must not regress:** code derivation from the name (FR-012(a), `srv_customer-feedback`), the survey prefix rule,
   PV-002, and every Normal-form behaviour (C-6).
-- **Verified by:** 9 new or updated designer tests (red before, green after), full designer suite (903) and
-  `tsc --noEmit` in designer and frontend.
+- **Verified by:** 11 new or updated designer tests (10 red before the fix; the 11th guards unchanged behaviour),
+  full designer suite and `tsc --noEmit` in designer and frontend.

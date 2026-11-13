@@ -6,6 +6,7 @@ import { FieldService } from './FieldService';
 import { OptionValueService } from './OptionValueService';
 import { LookupConfigService } from './LookupConfigService';
 import { ValidationRuleService } from './ValidationRuleService';
+import { hasSurveyCodePrefix } from '@/validation/surveyFormCode';
 
 const OPTION_FIELD_TYPES = new Set(['dropdown', 'multi_select', 'radio']);
 const LOOKUP_FIELD_TYPES = new Set(['lookup', 'child_entity_grid']);
@@ -33,9 +34,9 @@ export class FormCloneService {
     const source = await this.formService.getForm(sourceFormId);
     const isSurveySource = source.formType === 'Survey';
 
-    // FR-CSE-075: ensure the clone code retains the srv_ prefix even when the maker
-    // manually edited it away on the source (the prefix is required for publish validation).
-    const rawBase = isSurveySource && !source.code.startsWith('srv_')
+    // FR-CSE-075: ensure the clone code keeps a survey prefix (srv_ or srv-) even when the
+    // maker manually edited it away on the source (the prefix is required for publish validation).
+    const rawBase = isSurveySource && !hasSurveyCodePrefix(source.code)
       ? `srv_${source.code}`
       : source.code;
     // Keep the clone code within the Dataverse 100-char column limit.

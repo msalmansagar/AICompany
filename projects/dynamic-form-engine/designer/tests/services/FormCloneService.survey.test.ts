@@ -175,6 +175,23 @@ describe('FormCloneService — survey clone (FR-CSE-075)', () => {
     expect(String(createPayload[FORM_DEFINITION_ATTRS.CODE])).toMatch(/^srv_/);
   });
 
+  // The org's earlier surveys use srv- (FR-CSE-023 accepts both separators); the clone must
+  // keep that prefix instead of adding srv_ in front of it.
+  it('cloned_survey_code_keeps_an_srv_hyphen_prefix_without_adding_srv_underscore', async () => {
+    const sourceWithHyphenPrefix = {
+      ...buildSurveyFormRecord(SOURCE_FORM_ID, '"source-etag"'),
+      [FORM_DEFINITION_ATTRS.CODE]: 'srv-weighted-demo',
+    };
+    vi.mocked(webApi.retrieveRecord)
+      .mockResolvedValueOnce(sourceWithHyphenPrefix)
+      .mockResolvedValueOnce(buildSurveyFormRecord(NEW_FORM_ID, '"new-etag"'));
+
+    await service.cloneForm(SOURCE_FORM_ID);
+
+    const [, createPayload] = vi.mocked(webApi.createRecord).mock.calls[0];
+    expect(String(createPayload[FORM_DEFINITION_ATTRS.CODE])).toMatch(/^srv-weighted-demo_copy_\d+$/);
+  });
+
   // F-01 (edge) — RED until FormCloneService truncates the clone code base so the
   // full clone code (_copy_ + 13-digit timestamp) stays within 100 chars.
   it('cloned_survey_code_stays_within_100_chars_when_source_code_is_long', async () => {
