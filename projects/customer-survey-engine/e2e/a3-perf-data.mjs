@@ -5,14 +5,13 @@
  *
  * @module survey-e2e/a3-perf-data
  */
-import { LETTER_OF_CREDIT, QDB_DIGITAL } from './e2e-helpers.mjs';
+import { LETTER_OF_CREDIT, QDB_DIGITAL, sleep, anyOf } from './e2e-helpers.mjs';
 
 export const PREFIX = 'PERF-TEST-A3';
 export const DAILY_SETUP_NAME = `${PREFIX} daily run`;
 const DESCRIPTION = 'Customer Survey Engine A3 performance test record. Safe to delete.';
 const POOL_SIZE = 6;
 const ID_CHUNK = 25;
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Retries a request the service throttled (429), backing off; any other error is thrown. */
 async function withRetry(call) {
@@ -68,7 +67,6 @@ export async function createDailySetup(session, { sourceId, formCode }) {
 }
 
 const chunksOf = (values) => Array.from({ length: Math.ceil(values.length / ID_CHUNK) }, (_, index) => values.slice(index * ID_CHUNK, (index + 1) * ID_CHUNK));
-const anyOf = (column, ids) => encodeURIComponent(ids.map((id) => `${column} eq ${id}`).join(' or '));
 
 /** Rows of `entitySet` whose customer is one of the accounts, read in chunks to keep URLs short. */
 async function rowsForCustomers(session, { entitySet, idAttribute, accountIds }) {

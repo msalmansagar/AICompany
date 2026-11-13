@@ -12,18 +12,21 @@
  *   node --env-file=<dfe>/scripts/.env e2e/a3-performance.mjs --apply     live writes (CEO go-ahead 2026-11-13)
  *   node --env-file=<dfe>/scripts/.env e2e/a3-performance.mjs --cleanup   delete leftovers of an interrupted run
  */
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { parseArgs } from 'node:util';
-import { openSession, findDisbursementSource, moveDisbursement, failedPluginJobsSince, DISBURSEMENT_TABLE, PAYMENT_PROCESSED } from './e2e-helpers.mjs';
-import { ensureSurveyForm, ensureCompletionSetup, COMPLETION_FORM_CODE } from './e2e-fixtures.mjs';
+import { openSession, findDisbursementSource, moveDisbursement, failedPluginJobsSince, sleep, anyOf, DISBURSEMENT_TABLE, PAYMENT_PROCESSED } from './e2e-helpers.mjs';
+import { ensureSurveyForm, ensureCompletionSetup, COMPLETION_FORM_CODE, COMPLETION_SETUP_NAME } from './e2e-fixtures.mjs';
 import { stepName } from '../provisioning/lib/plugin-payloads.mjs';
-import { PREFIX, createCustomers, createDailySetup, deleteTestData, countLeftovers } from './a3-perf-data.mjs';
+import { PREFIX, DAILY_SETUP_NAME, createCustomers, createDailySetup, deleteTestData, countLeftovers } from './a3-perf-data.mjs';
 
 const TARGET = { triggerP95Ms: 10000, triggerMaxMs: 60000, dailyRunMs: 90000 };
 const SIZE = { trigger: 20, dailyRun: 450 };
 const POLL_MS = 3000;
 const POLL_LIMIT_MS = 150000;
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const anyOf = (column, values) => encodeURIComponent(values.map((value) => `${column} eq ${value}`).join(' or '));
+// The switch states to put back, kept on disk until every one is restored, so --cleanup can finish the job.
+const RESTORE_FILE = join(tmpdir(), 'survey-a3-performance-restore.json');
 
 // ── Org state and guards ──
 
@@ -61,6 +64,7 @@ function guardsFor(state) {
     { label: `no disbursement dated in ${state.period.key} (only test customers are in the population)`, ok: state.inPeriod.length === 0, detail: `${state.inPeriod.length}` },
     { label: `no ${PREFIX} leftovers from an earlier run`, ok: state.leftovers === 0, detail: `${state.leftovers}` },
     { label: 'the disbursement Update step and both dispatch steps are found', ok: Boolean(state.steps.trigger) && state.steps.dispatch.length === 2 },
+    { label: 'no switch left unrestored by an earlier run (else run --cleanup)', ok: !existsSync(RESTORE_FILE), detail: existsSync(RESTORE_FILE) ? RESTORE_FILE : '' },
   ];
 }
 
@@ -72,19 +76,46 @@ function printPlan(state, guards) {
   console.log('  then put every switch back, delete every record and verify nothing is left.');
 }
 
-// ── Switches, always put back ──
+// ── Switches: saved before the run, always put back ──
 
-const setStep = (session, step, isEnabled) =>
-  session.write('PATCH', `sdkmessageprocessingsteps(${step.sdkmessageprocessingstepid})`, isEnabled ? { statecode: 0, statuscode: 1 } : { statecode: 1, statuscode: 2 });
+const setStep = (session, stepId, isEnabled) =>
+  session.write('PATCH', `sdkmessageprocessingsteps(${stepId})`, isEnabled ? { statecode: 0, statuscode: 1 } : { statecode: 1, statuscode: 2 });
 
-/** The guards required every setup inactive at the start, so every active setup now is this test's. */
-async function restoreSwitches(session, state) {
-  for (const step of state.steps.dispatch) await setStep(session, step, step.statecode === 0);
-  await setStep(session, state.steps.trigger, state.steps.trigger.statecode === 0);
-  await session.write('PATCH', `qdb_survey_sources(${state.source.qdb_survey_sourceid})`, { qdb_is_active: state.source.qdb_is_active });
-  const activeSetups = await session.rows('qdb_survey_setups?$select=qdb_survey_setupid&$filter=qdb_is_active eq true');
-  for (const setup of activeSetups) await session.write('PATCH', `qdb_survey_setups(${setup.qdb_survey_setupid})`, { qdb_is_active: false });
-  console.log(`  restored: dispatch steps, disbursement Update step and source as they were; ${activeSetups.length} setup(s) deactivated`);
+function saveSwitches(state) {
+  const saved = {
+    steps: [...state.steps.dispatch, state.steps.trigger].map((step) => ({ id: step.sdkmessageprocessingstepid, name: step.name, isEnabled: step.statecode === 0 })),
+    source: { id: state.source.qdb_survey_sourceid, isActive: state.source.qdb_is_active },
+  };
+  writeFileSync(RESTORE_FILE, JSON.stringify(saved, null, 2));
+  return saved;
+}
+
+/** Runs one restore action; a failure is logged and counted so the remaining actions still run. */
+async function attempt(label, action, failures) {
+  try {
+    await action();
+  } catch (error) {
+    failures.push(label);
+    console.error(`  RESTORE FAILED: ${label}: ${error.message}`);
+  }
+}
+
+/** Deactivates this test's setups only; any other active setup belongs to someone else and is left alone. */
+async function deactivateTestSetups(session) {
+  const active = await session.rows('qdb_survey_setups?$select=qdb_survey_setupid,qdb_name&$filter=qdb_is_active eq true');
+  const isOurs = (setup) => setup.qdb_name === DAILY_SETUP_NAME || setup.qdb_name === COMPLETION_SETUP_NAME;
+  for (const setup of active.filter(isOurs)) await session.write('PATCH', `qdb_survey_setups(${setup.qdb_survey_setupid})`, { qdb_is_active: false });
+  active.filter((setup) => !isOurs(setup)).forEach((setup) => console.warn(`  WARN left active, not this test's: ${setup.qdb_name}`));
+}
+
+async function restoreSwitches(session, saved) {
+  const failures = [];
+  for (const step of saved.steps) await attempt(`step ${step.name}`, () => setStep(session, step.id, step.isEnabled), failures);
+  await attempt('Disbursements source', () => session.write('PATCH', `qdb_survey_sources(${saved.source.id})`, { qdb_is_active: saved.source.isActive }), failures);
+  await attempt('test setups', () => deactivateTestSetups(session), failures);
+  if (failures.length === 0) rmSync(RESTORE_FILE, { force: true });
+  console.log(failures.length === 0 ? '  restored: plugin steps, source and test setups as they were' : `  ${failures.length} restore action(s) FAILED: run --cleanup (states kept in ${RESTORE_FILE})`);
+  return failures;
 }
 
 // ── A: trigger latency ──
@@ -125,7 +156,7 @@ async function runPartA(session, state) {
   const customers = await createCustomers(session, { label: 'A', count: SIZE.trigger });
   await ensureCompletionSetup(session, state.source.qdb_survey_sourceid);
   await session.write('PATCH', `qdb_survey_sources(${state.source.qdb_survey_sourceid})`, { qdb_is_active: true });
-  await setStep(session, state.steps.trigger, true);
+  await setStep(session, state.steps.trigger.sdkmessageprocessingstepid, true);
   return measureTriggerLatency(session, customers);
 }
 
@@ -163,24 +194,39 @@ async function cleanUp(session) {
 async function apply(session, state) {
   const startedOn = new Date().toISOString();
   await ensureSurveyForm(session, COMPLETION_FORM_CODE);
+  const saved = saveSwitches(state);
   const results = [];
   try {
-    for (const step of state.steps.dispatch) await setStep(session, step, false);
+    for (const step of state.steps.dispatch) await setStep(session, step.sdkmessageprocessingstepid, false);
     results.push(await runPartA(session, state));
     results.push(await runPartB(session, state));
   } finally {
-    await restoreSwitches(session, state);
-    results.push({ name: 'clean-up', ...(await cleanUp(session)) });
+    const restoreFailures = await restoreSwitches(session, saved);
+    results.push({ name: 'clean-up', restoreFailures, ...(await cleanUp(session)) });
   }
   const failedJobs = await failedPluginJobsSince(session, startedOn);
   return { org: session.client.orgUrl, startedOn, period: state.period.key, results, failedPluginJobs: failedJobs.length };
 }
 
+/** After an interrupted run: put back any switch still saved on disk, then delete the test data. */
+async function recoverInterruptedRun(session) {
+  const hasSaved = existsSync(RESTORE_FILE);
+  if (!hasSaved) console.log('  no saved switch states: the last run restored its switches');
+  const failures = hasSaved ? await restoreSwitches(session, JSON.parse(readFileSync(RESTORE_FILE, 'utf8'))) : [];
+  const { leftovers } = await cleanUp(session);
+  return failures.length === 0 && leftovers === 0;
+}
+
+const isCleanRun = (report) => {
+  const cleanUpResult = report.results.at(-1);
+  return report.results.every((result) => result.isPass !== false) && cleanUpResult.leftovers === 0 && cleanUpResult.restoreFailures.length === 0;
+};
+
 async function run() {
   const { values } = parseArgs({ options: { apply: { type: 'boolean' }, cleanup: { type: 'boolean' } } });
   const session = await openSession();
   console.log(`A3 performance — ${session.client.orgUrl}`);
-  if (values.cleanup) { const { leftovers } = await cleanUp(session); process.exit(leftovers === 0 ? 0 : 1); }
+  if (values.cleanup) process.exit((await recoverInterruptedRun(session)) ? 0 : 1);
   const state = await readOrgState(session);
   const guards = guardsFor(state);
   printPlan(state, guards);
@@ -188,8 +234,7 @@ async function run() {
   if (!guards.every((guard) => guard.ok)) { console.error('\n✗ a guard failed: nothing was written'); process.exit(1); }
   const report = await apply(session, state);
   console.log(`\n${JSON.stringify(report, (key, value) => (value === Infinity ? 'missing' : value), 2)}`);
-  const isPass = report.results.every((result) => result.isPass !== false) && report.results.at(-1).leftovers === 0;
-  process.exit(isPass ? 0 : 1);
+  process.exit(isCleanRun(report) ? 0 : 1);
 }
 
-run().catch((error) => { console.error(`✗ ${error.message}`); process.exit(1); });
+run().catch((error) => { console.error(`✗ ${error.message} — if the run had started, run --cleanup`); process.exit(1); });

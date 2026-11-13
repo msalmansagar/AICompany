@@ -111,3 +111,8 @@ export async function findNonAdministrator(session) {
 export function runStamp() {
   return new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
 }
+
+export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** An encoded OData filter matching any of the values: `column eq v1 or column eq v2 …`. */
+export const anyOf = (column, values) => encodeURIComponent(values.map((value) => `${column} eq ${value}`).join(' or '));

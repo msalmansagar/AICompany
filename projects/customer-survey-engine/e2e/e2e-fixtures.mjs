@@ -8,7 +8,7 @@ import { pollFor, ensureRow, PAYMENT_PROCESSED, LETTER_OF_CREDIT, REMITTANCE } f
 
 export const COMPLETION_FORM_CODE = 'srv-test-disbursement';
 export const MILESTONE_FORM_CODE = 'srv-test-milestone';
-const COMPLETION_SETUP_NAME = 'E2E - Disbursement payment processed';
+export const COMPLETION_SETUP_NAME = 'E2E - Disbursement payment processed';
 const MILESTONE_SETUP_NAME = 'E2E - Every 2nd disbursement';
 const FORM = { typeSurvey: 100000001, statusActive: 100000001, fieldText: 100000001, oneColumn: 100000001, spanOne: 100000001 };
 const DELIVERY = { portal: 100000000, none: 100000002 };
