@@ -17,7 +17,7 @@ back to the decision that created it.
 | A1 | **QA phase** (`phase-5-qa.md`): test strategy over the delivered build, including the unverified NFRs in A2–A4 | Release gate | QA (MSS) | Open | `new-project.md` sequence: Build → Code review → **QA** → Audit → CEO |
 | A2 | NFR-CSE-004: SurveyEngine can be removed and every Form Engine form still publishes and renders | Release gate | QA | Open: never tested | `phase-2-ba.md` NFR table |
 | A3 | NFR-CSE-006: async trigger p95 < 10 s; the daily run covers the whole customer base in one run | Release gate | QA | Open: not measured at volume (~450 customers, ~900 requests/month) | BRD section 9.2 |
-| A4 | NFR-CSE-007: ≥ 80% branch coverage on survey code, from a coverage report | Release gate | QA | Partial: 221 C# and 37 + 59 JS tests pass; coverage never measured | — |
+| A4 | NFR-CSE-007: ≥ 80% branch coverage on survey code, from a coverage report | Release gate | QA | **Done** 2026-11-13: C# branch 80.05% (411 tests; was 59.1%), on-prem checks 97.2% (101 tests), provisioning 93.1% | `phase-5-qa.md` 2.6 |
 | A5 | **Audit phase** (`phase-6-audit.md`): governance, PDPPL alignment, audit trail | Release gate | Auditor (MSS) | Open | workflow |
 | A6 | **CEO final decision** (`phase-7-ceo.md`) | Release gate | CEO | Open | workflow |
 | A7 | Push `feat/survey-engine`, open the PR, code review of the B9 tooling, merge to main | Release gate | MSS + CEO (main merges need approval) | Partial: pushed 2026-11-13, draft PR #173 open; review and merge outstanding | PR #173 |
@@ -95,7 +95,7 @@ Kept for a later release that adds a Qatar-resident cloud org. None of these gat
 
 | | Release gates | Open | Partial | Done |
 |---|---|---|---|---|
-| A. Engagement | 8 | 6 | 1 | 1 |
+| A. Engagement | 8 | 5 | 1 | 2 |
 | B. Compliance and security | 3 (B1–B3) | 5 | 0 | 1 |
 | C. On-prem, per org | all, ×2 orgs | 9 × 2 | 0 | 0 |
 | F. Engine | 1 (F1) | 3 | 0 | 2 |

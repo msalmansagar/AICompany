@@ -114,7 +114,23 @@ The XRM bridge (`surveyApi.ts`, `formApi.ts`) is not covered by any unit test. I
 
 ### 2.5 NFR-CSE-007 verdict
 
-**FAIL.** Assembly-level branch coverage is 59.1% against the 80% target. The domain and service layers pass. The gap is structural (adapter and plugin wiring layers require live-org integration). The CEO gate should record this as a named condition, not a blocker on build quality.
+**FAIL** (first measurement). Assembly-level branch coverage is 59.1% against the 80% target. The domain and service layers pass. The gap is structural (adapter and plugin wiring layers require live-org integration). The CEO gate should record this as a named condition, not a blocker on build quality.
+
+### 2.6 Re-measurement after the coverage tests (2026-11-13): **PASS**
+
+The CEO chose to close the gap with tests rather than a condition. The claim in 2.1 that the adapter layers could
+not be unit-tested was wrong: they take `IOrganizationService`, which Moq fakes. Tests only; no production code changed.
+
+| Suite | Before | After | Tests | Commits |
+|---|---|---|---|---|
+| C# `Qdb.SurveyEngine` assembly, branch (dotnet-coverage, same tool as 2.1) | 59.1% | **80.05%** | 221 → 411, all pass | `f1ff9d0a`, `b3df1621` |
+| On-prem `survey-checks.js`, branch | 48% | **97.2%** | 47 → 101, all pass | `1de422de` |
+| On-prem `survey-onprem-transforms.mjs` / `form-engine-patch.mjs`, branch | — | 94.2% / 81.8% | (same run) | — |
+
+- Both C# numbers were measured by MSS from the real reports, the baseline at `ad474a04` in a separate checkout. 80.05% clears the target by a thin margin: a future change that adds untested branches will drop below it.
+- New tests cover the risks in section 5: RISK-01 (anonymise for account **and** contact, paging), the duplicate-submit retry paths, the fatigue-day and token-expiry boundaries (exact equality), the milestone source with no type field, and the suppression-log write failure.
+- Code review (`code-reviewer`, 2026-11-13) found four duplicate tests, one fatigue test that would also pass on a silent no-op, a hand-rolled clock sequence and real-clock dates. All were fixed in `b3df1621`, and the 3,105-line test file was split into 13 per-subject files (≤ 402 lines). The strengthened fatigue test passes, so no defect was found.
+- Still true: the anonymise **contact** path is now unit-tested but has never run against an org (HL). It stays a test-org check in runbook stage 9.
 
 ---
 
@@ -163,7 +179,7 @@ The XRM bridge (`surveyApi.ts`, `formApi.ts`) is not covered by any unit test. I
 | NFR-CSE-004 | Removability | Code analysis (see A2) | Not run on live org | Needs disposable org test |
 | NFR-CSE-005 | New source = config only | Yes (activation unit tests) | Yes (B4) | None |
 | NFR-CSE-006 | p95 < 10 s, daily run fits one exec | Not measured | Not measured | A3 design below |
-| NFR-CSE-007 | 80% branch | Measured at 59.1% assembly-wide | — | FAIL (see section 2) |
+| NFR-CSE-007 | 80% branch | 80.05% assembly-wide (was 59.1%) | — | PASS (see 2.6) |
 | NFR-CSE-008 | PDPPL + residency | Compliance gate (open) | Not applicable yet | B1–B3 in go-live checklist |
 | NFR-CSE-009 | Secure-link security review | Channel disabled by default | Security engineer gate | B4 in go-live checklist |
 
@@ -483,7 +499,7 @@ Before any feature is considered complete for release:
 - [ ] FR-CSE-025 regression gate passes (no diff on existing forms after a DFE deploy)
 - [ ] Live-org smoke test passes on the cloud org (B2–B8 scripts)
 - [ ] Live-org smoke test passes on each on-prem test org (`smoke-test.ps1 -WriteTest`)
-- [ ] NFR-CSE-007: branch coverage measured and recorded (current result: 59.1% assembly-wide; named condition if gap remains at release)
+- [x] NFR-CSE-007: branch coverage measured and recorded (80.05% assembly-wide on 2026-11-13, was 59.1%; section 2.6)
 - [x] A2 (NFR-CSE-004) Part B: solution-dependency query returned empty (2026-11-13)
 - [ ] A2 (NFR-CSE-004) Part D: Form Engine re-publish and render with no SurveyEngine present, on HL test and QDB1 test (between runbook stages 2 and 4), or a removal rehearsal if the CEO requires one
 - [ ] A3 (NFR-CSE-006): trigger p95 and daily run measured against targets
@@ -514,10 +530,10 @@ Before any feature is considered complete for release:
 
 | ID | Description | Severity | FR / NFR | Status |
 |---|---|---|---|---|
-| DEF-QA-001 | `survey-checks.js` branch coverage 48%: most preflight checks (P4–P12) and the configuration-name checks are uncovered by unit tests (they ran against the cloud org, not in the suite). An uncovered branch could print a false PASS on an on-prem org. | Medium | NFR-CSE-007 | Open |
-| DEF-QA-002 | `ResponseRetentionStore` has 0% unit coverage. Anonymise is live-verified for account customers (B5 e2e scenario C); the contact case (HL) has never run anywhere. | High | FR-CSE-058, NFR-CSE-007 | Open |
+| DEF-QA-001 | `survey-checks.js` branch coverage 48%: most preflight checks (P4–P12) and the configuration-name checks are uncovered by unit tests (they ran against the cloud org, not in the suite). An uncovered branch could print a false PASS on an on-prem org. | Medium | NFR-CSE-007 | **Closed** 2026-11-13: 97.2% branch, `1de422de` |
+| DEF-QA-002 | `ResponseRetentionStore` has 0% unit coverage. Anonymise is live-verified for account customers (B5 e2e scenario C); the contact case (HL) has never run anywhere. | High | FR-CSE-058, NFR-CSE-007 | **Partly closed** 2026-11-13: unit-tested for account and contact; contact still never run on an org (runbook stage 9 on HL test) |
 | DEF-QA-003 | `surveyApi.ts` (XRM bridge: `fetchSurvey`, `submitSurvey`) has no unit test. The survey submit branch is exercised only by the B6 e2e script. Any regression in the XRM bridge would be caught only at e2e stage. | Medium | FR-CSE-053 | Open |
-| DEF-QA-004 | Assembly-level branch coverage 59.1% fails NFR-CSE-007. The gap is structural (data/plugin adapter layers); closing it requires either live-org integration tests in CI or a scope clarification on the NFR. | High | NFR-CSE-007 | Open (approve with condition) |
+| DEF-QA-004 | Assembly-level branch coverage 59.1% fails NFR-CSE-007. The gap is structural (data/plugin adapter layers); closing it requires either live-org integration tests in CI or a scope clarification on the NFR. | High | NFR-CSE-007 | **Closed** 2026-11-13: 80.05% with Moq-based adapter tests (section 2.6) |
 
 ---
 
