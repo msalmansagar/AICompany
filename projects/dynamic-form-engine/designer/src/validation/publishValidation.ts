@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import type { DesignerState } from '@/state/designerStore';
-import { FIELD_TYPE } from '@/constants/fieldTypes';
+import { FIELD_TYPE, SURVEY_ALLOWED_FIELD_TYPES } from '@/constants/fieldTypes';
 import type { ScopedButtonRecord } from '@/services/ScopedButtonDesignService';
 import { findSurveyCodeError } from './surveyFormCode';
 
@@ -125,6 +125,10 @@ function validateFields(state: DesignerState, issues: ValidationIssue[]): void {
 }
 
 function validateSubmissionMapping(state: DesignerState, issues: ValidationIssue[]): void {
+  // FR-CSE-074: surveys write to survey response tables, not a CRM entity.
+  // PV-011 and PV-012 do not apply to survey forms.
+  if (state.form?.formType === 'Survey') return;
+
   // Warn if no entity is configured — submission mapping requires it
   if (!state.form?.entityLogicalName) {
     issues.push({
@@ -146,6 +150,27 @@ function validateSubmissionMapping(state: DesignerState, issues: ValidationIssue
 }
 
 /**
+ * FR-CSE-074 — refuse to publish a survey that contains a control the survey path
+ * cannot store. Each disallowed field produces one PV-019 naming its label.
+ * Skipped for non-survey forms — Normal form palette is unchanged (C-6).
+ */
+function validateSurveyFieldTypes(state: DesignerState, issues: ValidationIssue[]): void {
+  if (state.form?.formType !== 'Survey') return;
+
+  for (const field of Object.values(state.fields)) {
+    if (!SURVEY_ALLOWED_FIELD_TYPES.has(field.fieldType)) {
+      issues.push({
+        code: 'PV-019',
+        message:
+          `Survey contains non-survey control "${field.label || field.code}" `
+          + `(type: ${field.fieldType}). Remove it or switch the form to Normal.`,
+        severity: 'error',
+      });
+    }
+  }
+}
+
+/**
  * Runs all publish validation checks against the current designer state.
  * Returns a result containing all issues found.
  * isValid is true only when there are zero error-severity issues.
@@ -162,6 +187,7 @@ export function validateForPublish(
   validateSubmissionMapping(state, issues);
   validateSectionReveal(state, sectionButtons, issues);
   validateWeightedScoring(state, issues);
+  validateSurveyFieldTypes(state, issues);
 
   const isValid = issues.every(issue => issue.severity !== 'error');
   return { isValid, issues };

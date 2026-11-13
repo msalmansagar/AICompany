@@ -31,6 +31,7 @@ export class FormCloneService {
 
   async cloneForm(sourceFormId: string): Promise<string> {
     const source = await this.formService.getForm(sourceFormId);
+    const isSurveySource = source.formType === 'Survey';
 
     const newFormId = await this.formService.createForm({
       name: `${source.name} — Copy`,
@@ -38,7 +39,19 @@ export class FormCloneService {
       description: source.description,
       entityLogicalName: source.entityLogicalName,
       themeId: source.themeId,
+      // FR-CSE-075: a survey clone is itself a survey.
+      isSurvey: isSurveySource,
     });
+
+    // FR-CSE-075: stamp the Survey form-type picklist on the new record when the
+    // column is available. We must fetch a fresh etag first because the CREATE
+    // response body is empty (no etag from CRM on POST).
+    if (isSurveySource && source.isFormTypeAvailable) {
+      const { etag } = await this.formService.getFormWithEtag(newFormId);
+      if (etag) {
+        await this.formService.updateForm(newFormId, { formType: 'Survey' }, etag);
+      }
+    }
 
     const tabs = await this.tabService.listTabsForForm(sourceFormId);
     for (const tab of tabs) {

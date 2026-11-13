@@ -28,6 +28,8 @@ export function NumberFieldPanel({ field }: Props): React.ReactElement {
   const styles = useStyles();
   const updateField = useDesignerStore(state => state.updateField);
   const allFields = useDesignerStore(state => state.fields);
+  // FR-CSE-073: surveys do not use the number bar display style.
+  const isSurvey = useDesignerStore(s => s.form?.formType === 'Survey');
 
   const isBar = field.numberDisplayStyle === 'bar';
   const isWeighted = useDesignerStore(s => s.form?.scoringMode === 'Weighted');
@@ -40,52 +42,58 @@ export function NumberFieldPanel({ field }: Props): React.ReactElement {
 
   return (
     <div className={styles.root}>
-      <Field label="Display style" hint="A text box, or a read-only utilization bar (value vs a maximum field)">
-        <Dropdown
-          selectedOptions={[isBar ? 'bar' : 'textbox']}
-          value={isBar ? 'Bar (utilization gauge)' : 'Text box'}
-          onOptionSelect={(_, data) => {
-            if (data.optionValue === 'bar') {
-              updateField(field.id, { numberDisplayStyle: 'bar' });
-            } else {
-              updateField(field.id, { numberDisplayStyle: 'textbox', barMaxFieldSchemaName: null, barValueFieldSchemaName: null });
-            }
-          }}
-        >
-          <Option value="textbox">Text box</Option>
-          <Option value="bar">Bar (utilization gauge)</Option>
-        </Dropdown>
-      </Field>
+      {/* FR-CSE-073: surveys use a plain text box for numbers — the utilization bar
+          is a CRM-specific display mode that has no equivalent in a survey response. */}
+      {!isSurvey && (
+        <>
+          <Field label="Display style" hint="A text box, or a read-only utilization bar (value vs a maximum field)">
+            <Dropdown
+              selectedOptions={[isBar ? 'bar' : 'textbox']}
+              value={isBar ? 'Bar (utilization gauge)' : 'Text box'}
+              onOptionSelect={(_, data) => {
+                if (data.optionValue === 'bar') {
+                  updateField(field.id, { numberDisplayStyle: 'bar' });
+                } else {
+                  updateField(field.id, { numberDisplayStyle: 'textbox', barMaxFieldSchemaName: null, barValueFieldSchemaName: null });
+                }
+              }}
+            >
+              <Option value="textbox">Text box</Option>
+              <Option value="bar">Bar (utilization gauge)</Option>
+            </Dropdown>
+          </Field>
 
-      {isBar && (
-        <Field label="Value from field" hint="The bar's fill value. Leave empty to use this field's own value.">
-          <Dropdown
-            selectedOptions={field.barValueFieldSchemaName ? [field.barValueFieldSchemaName] : []}
-            value={currentValue ? (currentValue.label || currentValue.code) : (field.barValueFieldSchemaName ?? '')}
-            placeholder="This field's own value"
-            onOptionSelect={(_, data) => updateField(field.id, { barValueFieldSchemaName: data.optionValue || null })}
-          >
-            <Option value="">This field's own value</Option>
-            {maxOptions.map(f => (
-              <Option key={f.id} value={f.code}>{f.label || f.code}</Option>
-            ))}
-          </Dropdown>
-        </Field>
-      )}
+          {isBar && (
+            <Field label="Value from field" hint="The bar's fill value. Leave empty to use this field's own value.">
+              <Dropdown
+                selectedOptions={field.barValueFieldSchemaName ? [field.barValueFieldSchemaName] : []}
+                value={currentValue ? (currentValue.label || currentValue.code) : (field.barValueFieldSchemaName ?? '')}
+                placeholder="This field's own value"
+                onOptionSelect={(_, data) => updateField(field.id, { barValueFieldSchemaName: data.optionValue || null })}
+              >
+                <Option value="">This field's own value</Option>
+                {maxOptions.map(f => (
+                  <Option key={f.id} value={f.code}>{f.label || f.code}</Option>
+                ))}
+              </Dropdown>
+            </Field>
+          )}
 
-      {isBar && (
-        <Field label="Maximum from field" hint="The bar fills to the value ÷ the selected field's value">
-          <Dropdown
-            selectedOptions={field.barMaxFieldSchemaName ? [field.barMaxFieldSchemaName] : []}
-            value={currentMax ? (currentMax.label || currentMax.code) : (field.barMaxFieldSchemaName ?? '')}
-            placeholder="Select the total / max field"
-            onOptionSelect={(_, data) => updateField(field.id, { barMaxFieldSchemaName: data.optionValue })}
-          >
-            {maxOptions.map(f => (
-              <Option key={f.id} value={f.code}>{f.label || f.code}</Option>
-            ))}
-          </Dropdown>
-        </Field>
+          {isBar && (
+            <Field label="Maximum from field" hint="The bar fills to the value ÷ the selected field's value">
+              <Dropdown
+                selectedOptions={field.barMaxFieldSchemaName ? [field.barMaxFieldSchemaName] : []}
+                value={currentMax ? (currentMax.label || currentMax.code) : (field.barMaxFieldSchemaName ?? '')}
+                placeholder="Select the total / max field"
+                onOptionSelect={(_, data) => updateField(field.id, { barMaxFieldSchemaName: data.optionValue })}
+              >
+                {maxOptions.map(f => (
+                  <Option key={f.id} value={f.code}>{f.label || f.code}</Option>
+                ))}
+              </Dropdown>
+            </Field>
+          )}
+        </>
       )}
 
       {/* FR-CSE-063: Weight — shown only on weighted surveys. */}

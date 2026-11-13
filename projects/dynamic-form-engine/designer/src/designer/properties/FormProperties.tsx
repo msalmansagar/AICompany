@@ -1,10 +1,17 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   Accordion,
   AccordionHeader,
   AccordionItem,
   AccordionPanel,
+  Button,
   Checkbox,
+  Dialog,
+  DialogActions,
+  DialogBody,
+  DialogContent,
+  DialogSurface,
+  DialogTitle,
   Divider,
   Dropdown,
   Field,
@@ -70,6 +77,9 @@ export function FormProperties(): React.ReactElement {
   const form = useDesignerStore(state => state.form);
   const updateForm = useDesignerStore(state => state.updateForm);
 
+  // FR-CSE-075: controlled warning shown when switching a PUBLISHED survey to Normal.
+  const [showNormalWarning, setShowNormalWarning] = useState(false);
+
   const handleCodeChange = useCallback(
     (_: React.ChangeEvent<HTMLInputElement>, data: { value: string }) => {
       const sanitized = data.value.toLowerCase().replace(/[^a-z0-9_]/g, '_');
@@ -86,6 +96,7 @@ export function FormProperties(): React.ReactElement {
 
   if (!form) return <></>;
 
+  const isSurvey = form.formType === 'Survey';
   const surveyCodeError = findSurveyCodeError(form);
 
   return (
@@ -112,7 +123,15 @@ export function FormProperties(): React.ReactElement {
           disabled={form.isFormTypeAvailable !== true}
           selectedOptions={[form.formType ?? 'Standard']}
           value={form.formType ?? 'Standard'}
-          onOptionSelect={(_, data) => updateForm({ formType: data.optionValue as FormType })}
+          onOptionSelect={(_, data) => {
+            const nextType = data.optionValue as FormType;
+            // FR-CSE-075: warn before downgrading a PUBLISHED survey to Normal.
+            if (isSurvey && nextType !== 'Survey' && form.status === 'published') {
+              setShowNormalWarning(true);
+            } else {
+              updateForm({ formType: nextType });
+            }
+          }}
         >
           <Option value="Standard">Standard</Option>
           <Option value="Survey">Survey</Option>
@@ -161,14 +180,17 @@ export function FormProperties(): React.ReactElement {
         />
       </Field>
 
-      <Field label="Target CRM Entity" hint="Search Dataverse tables by name (e.g. contact, account)">
-        <EntityCombobox
-          value={form.entityLogicalName}
-          onChange={logicalName => updateForm({ entityLogicalName: logicalName })}
-          preferredEntity={form.entityLogicalName}
-          placeholder="e.g. contact, account, qdb_application"
-        />
-      </Field>
+      {/* FR-CSE-073: surveys do not write to a CRM entity — hide the entity picker. */}
+      {!isSurvey && (
+        <Field label="Target CRM Entity" hint="Search Dataverse tables by name (e.g. contact, account)">
+          <EntityCombobox
+            value={form.entityLogicalName}
+            onChange={logicalName => updateForm({ entityLogicalName: logicalName })}
+            preferredEntity={form.entityLogicalName}
+            placeholder="e.g. contact, account, qdb_application"
+          />
+        </Field>
+      )}
 
       <Divider />
       <SectionHeading label="Submission" />
@@ -207,33 +229,41 @@ export function FormProperties(): React.ReactElement {
         onChange={(_, data) => updateForm({ showProgressBar: data.checked === true })}
       />
 
-      <Checkbox
-        label="Allow Save as Draft"
-        checked={form.allowSaveDraft}
-        onChange={(_, data) => updateForm({ allowSaveDraft: data.checked === true })}
-      />
+      {/* FR-CSE-073: surveys never save partial drafts. */}
+      {!isSurvey && (
+        <>
+          <Checkbox
+            label="Allow Save as Draft"
+            checked={form.allowSaveDraft}
+            onChange={(_, data) => updateForm({ allowSaveDraft: data.checked === true })}
+          />
 
-      {form.allowSaveDraft && (
-        <Field label="Draft Expiry (days)" hint="Leave blank for no expiry">
+          {form.allowSaveDraft && (
+            <Field label="Draft Expiry (days)" hint="Leave blank for no expiry">
+              <Input
+                type="number"
+                value={form.draftExpiryDays != null ? String(form.draftExpiryDays) : ''}
+                onChange={(_, data) =>
+                  updateForm({ draftExpiryDays: data.value ? parseInt(data.value, 10) : null })
+                }
+                placeholder="e.g. 90"
+              />
+            </Field>
+          )}
+        </>
+      )}
+
+      {/* FR-CSE-073: surveys do not trigger Power Automate submission flows. */}
+      {!isSurvey && (
+        <Field label="Power Automate Flow ID" hint="GUID of the flow triggered on submission">
           <Input
-            type="number"
-            value={form.draftExpiryDays != null ? String(form.draftExpiryDays) : ''}
-            onChange={(_, data) =>
-              updateForm({ draftExpiryDays: data.value ? parseInt(data.value, 10) : null })
-            }
-            placeholder="e.g. 90"
+            value={form.powerAutomateFlowId ?? ''}
+            onChange={(_, data) => updateForm({ powerAutomateFlowId: data.value || null })}
+            placeholder="e.g. 00000000-0000-0000-0000-000000000000"
+            style={{ fontFamily: 'monospace' }}
           />
         </Field>
       )}
-
-      <Field label="Power Automate Flow ID" hint="GUID of the flow triggered on submission">
-        <Input
-          value={form.powerAutomateFlowId ?? ''}
-          onChange={(_, data) => updateForm({ powerAutomateFlowId: data.value || null })}
-          placeholder="e.g. 00000000-0000-0000-0000-000000000000"
-          style={{ fontFamily: 'monospace' }}
-        />
-      </Field>
 
       <Divider />
       <SectionHeading label="Form Mark" />
@@ -334,19 +364,22 @@ export function FormProperties(): React.ReactElement {
         />
       </Field>
 
-      <Field
-        label="Reference Number Attribute"
-        hint="CRM attribute whose value shows as the reference number"
-      >
-        <Input
-          value={form.confirmationRecordRefAttribute ?? ''}
-          onChange={(_, data) =>
-            updateForm({ confirmationRecordRefAttribute: data.value || null })
-          }
-          placeholder="e.g. qdb_ref_number"
-          style={{ fontFamily: 'monospace' }}
-        />
-      </Field>
+      {/* FR-CSE-073: surveys have no CRM record to read a reference from. */}
+      {!isSurvey && (
+        <Field
+          label="Reference Number Attribute"
+          hint="CRM attribute whose value shows as the reference number"
+        >
+          <Input
+            value={form.confirmationRecordRefAttribute ?? ''}
+            onChange={(_, data) =>
+              updateForm({ confirmationRecordRefAttribute: data.value || null })
+            }
+            placeholder="e.g. qdb_ref_number"
+            style={{ fontFamily: 'monospace' }}
+          />
+        </Field>
+      )}
 
       <Divider />
       <SectionHeading label="Submit Confirmation" />
@@ -376,14 +409,17 @@ export function FormProperties(): React.ReactElement {
       <Divider />
       <SectionHeading label="Access Control" />
 
-      <Field label="Access Group ID" hint="Azure AD group Object ID. Leave blank for any authenticated user.">
-        <Input
-          value={form.accessGroupId ?? ''}
-          onChange={(_, data) => updateForm({ accessGroupId: data.value || null })}
-          placeholder="e.g. 00000000-0000-0000-0000-000000000000"
-          style={{ fontFamily: 'monospace' }}
-        />
-      </Field>
+      {/* FR-CSE-073: access control via group membership does not apply to surveys. */}
+      {!isSurvey && (
+        <Field label="Access Group ID" hint="Azure AD group Object ID. Leave blank for any authenticated user.">
+          <Input
+            value={form.accessGroupId ?? ''}
+            onChange={(_, data) => updateForm({ accessGroupId: data.value || null })}
+            placeholder="e.g. 00000000-0000-0000-0000-000000000000"
+            style={{ fontFamily: 'monospace' }}
+          />
+        </Field>
+      )}
 
       <Divider />
       <Accordion collapsible>
@@ -399,6 +435,37 @@ export function FormProperties(): React.ReactElement {
           </AccordionPanel>
         </AccordionItem>
       </Accordion>
+
+      {/* FR-CSE-075: warn before downgrading a published survey to Normal. */}
+      <Dialog
+        open={showNormalWarning}
+        onOpenChange={(_, data) => { if (!data.open) setShowNormalWarning(false); }}
+      >
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Switch to Normal Form?</DialogTitle>
+            <DialogContent>
+              This survey is currently published. Switching to Normal will disable survey
+              mode and may expose submission settings that do not apply to surveys.
+              Are you sure you want to continue?
+            </DialogContent>
+            <DialogActions>
+              <Button appearance="secondary" onClick={() => setShowNormalWarning(false)}>
+                Cancel
+              </Button>
+              <Button
+                appearance="primary"
+                onClick={() => {
+                  updateForm({ formType: 'Standard' });
+                  setShowNormalWarning(false);
+                }}
+              >
+                Switch to Normal
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
     </div>
   );
 }

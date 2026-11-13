@@ -28,7 +28,24 @@ import type {
 import { DEFAULT_DESIGN_PAYLOAD } from '@/state/designerStore';
 import { slugifyFormCode, sanitizeFormCode } from '@/utils/formCodeUtils';
 
-const TOTAL_STEPS = 5;
+// Steps:
+//   1 = Form Type (new — FR-CSE-071)
+//   2 = Form Basics
+//   3 = Initial Structure
+//   4 = Target Entity  (normal forms only; surveys skip this step)
+//   5 = Theme
+//   6 = Review
+const TOTAL_STEPS = 6;
+
+/** Derive a form code from a display name, applying the survey prefix when appropriate. */
+function deriveCode(name: string, isSurvey: boolean): string {
+  const base = slugifyFormCode(name);
+  return isSurvey ? `srv_${base}` : base;
+}
+
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
 
 const useStyles = makeStyles({
   root: {
@@ -139,7 +156,45 @@ const useStyles = makeStyles({
     fontSize: '13px',
     marginTop: '8px',
   },
+  typeGrid: {
+    display: 'flex',
+    gap: '16px',
+  },
+  typeCard: {
+    flex: 1,
+    padding: '20px 16px',
+    border: `2px solid ${tokens.colorNeutralStroke1}`,
+    borderRadius: '8px',
+    cursor: 'pointer',
+    textAlign: 'center' as const,
+    backgroundColor: tokens.colorNeutralBackground1,
+    fontSize: '14px',
+    fontWeight: 600,
+    transition: 'border-color 0.15s, background-color 0.15s',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  typeCardSelected: {
+    ...shorthands.borderColor(tokens.colorBrandStroke1),
+    backgroundColor: tokens.colorBrandBackground2,
+    color: tokens.colorBrandForeground1,
+  },
+  typeCardDisabledStyle: {
+    opacity: 0.5,
+    cursor: 'not-allowed',
+  },
+  typeCardDescription: {
+    fontSize: '12px',
+    fontWeight: 400,
+    color: tokens.colorNeutralForeground3,
+  },
 });
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface ThemeOption {
   id: string;
@@ -147,6 +202,7 @@ interface ThemeOption {
 }
 
 interface WizardState {
+  formType: 'Normal' | 'Survey';
   name: string;
   code: string;
   description: string;
@@ -157,6 +213,7 @@ interface WizardState {
 }
 
 const INITIAL_STATE: WizardState = {
+  formType: 'Normal',
   name: '',
   code: '',
   description: '',
@@ -170,24 +227,42 @@ const INITIAL_STATE: WizardState = {
 // Step indicator
 // ---------------------------------------------------------------------------
 
-function WizardStepIndicator({ currentStep }: { currentStep: number }): React.ReactElement {
+function WizardStepIndicator({
+  currentVisualStep,
+  totalSteps,
+}: {
+  currentVisualStep: number;
+  totalSteps: number;
+}): React.ReactElement {
   const styles = useStyles();
 
   return (
-    <div className={styles.stepIndicator} role="progressbar" aria-valuenow={currentStep} aria-valuemin={1} aria-valuemax={TOTAL_STEPS}>
-      {Array.from({ length: TOTAL_STEPS }, (_, i) => {
+    <div
+      className={styles.stepIndicator}
+      role="progressbar"
+      aria-valuenow={currentVisualStep}
+      aria-valuemin={1}
+      aria-valuemax={totalSteps}
+    >
+      {Array.from({ length: totalSteps }, (_, i) => {
         const stepNumber = i + 1;
-        const isCompleted = stepNumber < currentStep;
-        const isActive = stepNumber === currentStep;
+        const isCompleted = stepNumber < currentVisualStep;
+        const isActive = stepNumber === currentVisualStep;
 
         return (
           <React.Fragment key={stepNumber}>
             {i > 0 && (
-              <div className={`${styles.stepConnector} ${isCompleted ? styles.stepConnectorCompleted : ''}`} />
+              <div
+                className={`${styles.stepConnector} ${isCompleted ? styles.stepConnectorCompleted : ''}`}
+              />
             )}
             <div
               className={`${styles.stepDot} ${
-                isActive ? styles.stepDotActive : isCompleted ? styles.stepDotCompleted : styles.stepDotInactive
+                isActive
+                  ? styles.stepDotActive
+                  : isCompleted
+                  ? styles.stepDotCompleted
+                  : styles.stepDotInactive
               }`}
               aria-label={`Step ${stepNumber}${isCompleted ? ' (completed)' : isActive ? ' (current)' : ''}`}
             >
@@ -201,7 +276,58 @@ function WizardStepIndicator({ currentStep }: { currentStep: number }): React.Re
 }
 
 // ---------------------------------------------------------------------------
-// Step 1 — Form Basics
+// Step 1 — Form Type (FR-CSE-071)
+// ---------------------------------------------------------------------------
+
+interface StepFormTypeProps {
+  value: 'Normal' | 'Survey';
+  onChange: (formType: 'Normal' | 'Survey') => void;
+  /** True when qdb_form_type column is not provisioned on this org. */
+  isSurveyDisabled: boolean;
+}
+
+function StepFormType({ value, onChange, isSurveyDisabled }: StepFormTypeProps): React.ReactElement {
+  const styles = useStyles();
+
+  return (
+    <div role="radiogroup" aria-label="Form type" className={styles.typeGrid}>
+      <button
+        type="button"
+        role="radio"
+        aria-checked={value === 'Normal'}
+        onClick={() => onChange('Normal')}
+        className={`${styles.typeCard} ${value === 'Normal' ? styles.typeCardSelected : ''}`}
+      >
+        Normal Form
+        <span className={styles.typeCardDescription}>
+          Collects data into a CRM entity
+        </span>
+      </button>
+
+      <button
+        type="button"
+        role="radio"
+        aria-checked={value === 'Survey'}
+        onClick={() => { if (!isSurveyDisabled) onChange('Survey'); }}
+        disabled={isSurveyDisabled}
+        className={`${styles.typeCard} ${value === 'Survey' ? styles.typeCardSelected : ''} ${isSurveyDisabled ? styles.typeCardDisabledStyle : ''}`}
+        title={
+          isSurveyDisabled
+            ? 'Survey mode requires the qdb_form_type column to be provisioned on this org. Contact your administrator.'
+            : undefined
+        }
+      >
+        Survey
+        <span className={styles.typeCardDescription}>
+          Collects open-ended responses
+        </span>
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 2 — Form Basics
 // ---------------------------------------------------------------------------
 
 interface StepFormBasicsProps {
@@ -211,16 +337,24 @@ interface StepFormBasicsProps {
   isCodeLocked: boolean;
   /** Called the first time the user edits the Code field directly. Sets isCodeLocked permanently. */
   onCodeManuallyEdited: () => void;
+  /** When true the auto-derived code receives the srv_ survey prefix. */
+  isSurvey: boolean;
 }
 
-function StepFormBasics({ state, onChange, isCodeLocked, onCodeManuallyEdited }: StepFormBasicsProps): React.ReactElement {
+function StepFormBasics({
+  state,
+  onChange,
+  isCodeLocked,
+  onCodeManuallyEdited,
+  isSurvey,
+}: StepFormBasicsProps): React.ReactElement {
   const styles = useStyles();
 
   function handleNameChange(_: React.ChangeEvent<HTMLInputElement>, data: { value: string }): void {
     if (isCodeLocked) {
       onChange({ name: data.value });
     } else {
-      onChange({ name: data.value, code: slugifyFormCode(data.value) });
+      onChange({ name: data.value, code: deriveCode(data.value, isSurvey) });
     }
   }
 
@@ -232,10 +366,20 @@ function StepFormBasics({ state, onChange, isCodeLocked, onCodeManuallyEdited }:
   return (
     <div className={styles.form}>
       <Field label="Form Name" required>
-        <Input value={state.name} onChange={handleNameChange} placeholder="e.g. Loan Application Form" autoFocus />
+        <Input
+          value={state.name}
+          onChange={handleNameChange}
+          placeholder="e.g. Loan Application Form"
+          autoFocus
+        />
       </Field>
       <Field label="Form Code" required hint="Lowercase letters, numbers, and hyphens only.">
-        <Input value={state.code} onChange={handleCodeChange} placeholder="e.g. loan-application" style={{ fontFamily: 'monospace' }} />
+        <Input
+          value={state.code}
+          onChange={handleCodeChange}
+          placeholder="e.g. loan-application"
+          style={{ fontFamily: 'monospace' }}
+        />
       </Field>
       <Field label="Description">
         <Textarea
@@ -250,10 +394,16 @@ function StepFormBasics({ state, onChange, isCodeLocked, onCodeManuallyEdited }:
 }
 
 // ---------------------------------------------------------------------------
-// Step 2 — Initial Structure
+// Step 3 — Initial Structure
 // ---------------------------------------------------------------------------
 
-function StepInitialStructure({ state, onChange }: { state: WizardState; onChange: (p: Partial<WizardState>) => void }): React.ReactElement {
+function StepInitialStructure({
+  state,
+  onChange,
+}: {
+  state: WizardState;
+  onChange: (p: Partial<WizardState>) => void;
+}): React.ReactElement {
   const styles = useStyles();
 
   return (
@@ -264,7 +414,9 @@ function StepInitialStructure({ state, onChange }: { state: WizardState; onChang
           onChange={(_, data) => onChange({ tabCount: parseInt(data.value, 10) })}
         >
           {[1, 2, 3, 4, 5].map(n => (
-            <option key={n} value={String(n)}>{n} Tab{n > 1 ? 's' : ''}</option>
+            <option key={n} value={String(n)}>
+              {n} Tab{n > 1 ? 's' : ''}
+            </option>
           ))}
         </Select>
       </Field>
@@ -288,7 +440,7 @@ function StepInitialStructure({ state, onChange }: { state: WizardState; onChang
 }
 
 // ---------------------------------------------------------------------------
-// Step 3 — Target Entity (searchable dropdown from Dataverse metadata)
+// Step 4 — Target Entity (normal forms only; FR-CSE-073 hides for surveys)
 // ---------------------------------------------------------------------------
 
 function StepTargetEntity({
@@ -318,7 +470,7 @@ function StepTargetEntity({
 }
 
 // ---------------------------------------------------------------------------
-// Step 4 — Theme Selection (loaded from qdb_theme)
+// Step 5 — Theme Selection
 // ---------------------------------------------------------------------------
 
 function StepThemeSelection({
@@ -342,11 +494,15 @@ function StepThemeSelection({
         ) : (
           <Select
             value={state.themeId ?? 'none'}
-            onChange={(_, data) => onChange({ themeId: data.value === 'none' ? null : data.value })}
+            onChange={(_, data) =>
+              onChange({ themeId: data.value === 'none' ? null : data.value })
+            }
           >
             <option value="none">No Theme (Default)</option>
             {themes.map(t => (
-              <option key={t.id} value={t.id}>{t.name}</option>
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
             ))}
           </Select>
         )}
@@ -356,20 +512,31 @@ function StepThemeSelection({
 }
 
 // ---------------------------------------------------------------------------
-// Step 5 — Review
+// Step 6 — Review
 // ---------------------------------------------------------------------------
 
-function StepReview({ state, themes }: { state: WizardState; themes: ThemeOption[] }): React.ReactElement {
+function StepReview({
+  state,
+  themes,
+  isSurvey,
+}: {
+  state: WizardState;
+  themes: ThemeOption[];
+  isSurvey: boolean;
+}): React.ReactElement {
   const styles = useStyles();
-  const themeName = state.themeId ? (themes.find(t => t.id === state.themeId)?.name ?? state.themeId) : 'Default';
+  const themeName = state.themeId
+    ? (themes.find(t => t.id === state.themeId)?.name ?? state.themeId)
+    : 'Default';
 
   const rows: Array<{ label: string; value: string }> = [
+    { label: 'Form Type', value: state.formType },
     { label: 'Form Name', value: state.name },
     { label: 'Form Code', value: state.code || '(not set)' },
     { label: 'Description', value: state.description || '(none)' },
     { label: 'Initial Tabs', value: String(state.tabCount) },
     { label: 'Column Layout', value: `${state.columnLayout} Column${state.columnLayout > 1 ? 's' : ''}` },
-    { label: 'Target Entity', value: state.entityLogicalName || '(not set)' },
+    ...(isSurvey ? [] : [{ label: 'Target Entity', value: state.entityLogicalName || '(not set)' }]),
     { label: 'Theme', value: themeName },
   ];
 
@@ -405,6 +572,12 @@ export function NewFormWizardScreen(): React.ReactElement {
   const [themes, setThemes] = useState<ThemeOption[]>([]);
   const [isLoadingThemes, setIsLoadingThemes] = useState(false);
 
+  // FR-CSE-071: null = probe not yet complete; true/false = result.
+  // When null or true, the Survey option is enabled (optimistic).
+  const [isFormTypeColumnAvailable, setIsFormTypeColumnAvailable] = useState<boolean | null>(null);
+
+  const isSurvey = wizardState.formType === 'Survey';
+
   // Load themes from CRM
   useEffect(() => {
     if (!crmService) return;
@@ -413,14 +586,14 @@ export function NewFormWizardScreen(): React.ReactElement {
     webApi
       .retrieveMultipleRecords(
         ENTITY_NAMES.THEME,
-        `?$select=${THEME_ATTRS.ID},${THEME_ATTRS.NAME}&$orderby=${THEME_ATTRS.NAME} asc`
+        `?$select=${THEME_ATTRS.ID},${THEME_ATTRS.NAME}&$orderby=${THEME_ATTRS.NAME} asc`,
       )
       .then(result => {
         setThemes(
           result.entities.map(r => ({
             id: String(r[THEME_ATTRS.ID] ?? ''),
             name: String(r[THEME_ATTRS.NAME] ?? '(Unnamed)'),
-          }))
+          })),
         );
       })
       .catch(() => {
@@ -429,18 +602,52 @@ export function NewFormWizardScreen(): React.ReactElement {
       .finally(() => setIsLoadingThemes(false));
   }, [crmService]);
 
-  const handleChange = useCallback((patch: Partial<WizardState>) => {
-    setWizardState(prev => ({ ...prev, ...patch }));
-  }, []);
+  // FR-CSE-071: probe whether qdb_form_type is available on this org.
+  // Only runs once when the CRM service is present.
+  useEffect(() => {
+    if (!crmService) return;
+    const webApi = crmService.getWebApi();
+    const formService = new FormDefinitionService(webApi);
+    formService
+      .probeFormTypeAvailability()
+      .then(available => setIsFormTypeColumnAvailable(available))
+      .catch(() => setIsFormTypeColumnAvailable(false));
+  }, [crmService]);
+
+  const handleChange = useCallback(
+    (patch: Partial<WizardState>) => {
+      setWizardState(prev => {
+        // FR-CSE-071: switching form type re-derives the code (unless the user locked it).
+        if ('formType' in patch && !isFormCodeManuallyEdited && prev.name) {
+          const newIsSurvey = patch.formType === 'Survey';
+          return { ...prev, ...patch, code: deriveCode(prev.name, newIsSurvey) };
+        }
+        return { ...prev, ...patch };
+      });
+    },
+    [isFormCodeManuallyEdited],
+  );
 
   const handleBack = useCallback(() => {
-    if (currentStep === 1) navigateTo('form-list');
-    else setCurrentStep(prev => prev - 1);
-  }, [currentStep, navigateTo]);
+    if (currentStep === 1) {
+      navigateTo('form-list');
+    } else if (isSurvey && currentStep === 5) {
+      // FR-CSE-071: surveys skip step 4 (Target Entity) in both directions.
+      setCurrentStep(3);
+    } else {
+      setCurrentStep(prev => prev - 1);
+    }
+  }, [currentStep, isSurvey, navigateTo]);
 
   const handleNext = useCallback(() => {
-    if (currentStep < TOTAL_STEPS) setCurrentStep(prev => prev + 1);
-  }, [currentStep]);
+    if (currentStep >= TOTAL_STEPS) return;
+    if (isSurvey && currentStep === 3) {
+      // FR-CSE-071: skip step 4 (Target Entity) for surveys.
+      setCurrentStep(5);
+    } else {
+      setCurrentStep(prev => prev + 1);
+    }
+  }, [currentStep, isSurvey]);
 
   const handleCreate = useCallback(async () => {
     if (!crmService) return;
@@ -452,13 +659,15 @@ export function NewFormWizardScreen(): React.ReactElement {
       const formService = new FormDefinitionService(webApi);
       const tabService = new TabService(webApi);
       const sectionService = new SectionService(webApi);
-      // Step 1: Create form definition
+
+      // Step 1: Create form definition (isSurvey sets allowSaveDraft=false, omits entity).
       const newFormId = await formService.createForm({
         name: wizardState.name.trim(),
         code: wizardState.code.trim(),
         description: wizardState.description.trim(),
         entityLogicalName: wizardState.entityLogicalName.trim(),
         themeId: wizardState.themeId,
+        isSurvey,
       });
 
       // Step 2: Create tabs + one section per tab
@@ -524,14 +733,36 @@ export function NewFormWizardScreen(): React.ReactElement {
       //
       // Reading back also means the model matches what Dataverse actually stored (defaults,
       // timestamps, the real created-by) instead of what the wizard guessed.
-      const { model: newForm, etag } = await formService.getFormWithEtag(newFormId);
+      let { model: newForm, etag } = await formService.getFormWithEtag(newFormId);
+
+      // FR-CSE-071: stamp the Survey form-type picklist on the new record when the
+      // column is provisioned. We MUST re-fetch the etag afterwards because CRM invalidates
+      // the etag on every PATCH — the etag from the create read-back is stale after updateForm.
+      if (isSurvey && isFormTypeColumnAvailable === true && etag) {
+        await formService.updateForm(newFormId, { formType: 'Survey' }, etag);
+        const refreshed = await formService.getFormWithEtag(newFormId);
+        newForm = refreshed.model;
+        etag = refreshed.etag;
+      } else if (isSurvey) {
+        // Column not yet provisioned on this org — carry the type in the in-memory model only
+        // so the designer activates survey mode without a Dataverse write.
+        newForm.formType = 'Survey';
+      }
 
       // entityLogicalName is not a Dataverse column — it lives in the store only, so the
       // wizard's value has to be carried across the read-back.
       newForm.entityLogicalName = wizardState.entityLogicalName.trim();
       newForm.themeId = wizardState.themeId;
 
-      loadForm({ form: newForm, tabs: createdTabs, sections: createdSections, fields: [], validationRules: [], businessRules: [], designPayload: DEFAULT_DESIGN_PAYLOAD });
+      loadForm({
+        form: newForm,
+        tabs: createdTabs,
+        sections: createdSections,
+        fields: [],
+        validationRules: [],
+        businessRules: [],
+        designPayload: DEFAULT_DESIGN_PAYLOAD,
+      });
 
       // After loadForm, which resets the concurrency store — the same ordering the form list
       // relies on. Keyed on form.id so it matches the lookup in DesignerScreen.
@@ -544,65 +775,95 @@ export function NewFormWizardScreen(): React.ReactElement {
       setCreateError(err instanceof Error ? err.message : 'Failed to create form. Please try again.');
       setIsCreating(false);
     }
-  }, [crmService, wizardState, loadForm, navigateTo]);
+  }, [crmService, wizardState, isSurvey, isFormTypeColumnAvailable, loadForm, navigateTo]);
 
   function isStepValid(step: number): boolean {
-    if (step === 1) return wizardState.name.trim().length > 0 && wizardState.code.trim().length > 0;
+    // Step 2 (Basics) requires name + code
+    if (step === 2) return wizardState.name.trim().length > 0 && wizardState.code.trim().length > 0;
     return true;
   }
 
   function renderStepTitle(): { title: string; subtitle: string } {
     switch (currentStep) {
-      case 1: return { title: 'Form Basics', subtitle: 'Set the name and code for your new form.' };
-      case 2: return { title: 'Initial Structure', subtitle: 'Choose the starting layout for your form.' };
-      case 3: return { title: 'Target Entity', subtitle: 'Map submissions to a CRM table.' };
-      case 4: return { title: 'Theme', subtitle: 'Apply a visual style to your form.' };
-      case 5: return { title: 'Review', subtitle: 'Confirm your settings before creating.' };
+      case 1: return { title: 'Form Type', subtitle: 'Choose what kind of form you are creating.' };
+      case 2: return { title: 'Form Basics', subtitle: 'Set the name and code for your new form.' };
+      case 3: return { title: 'Initial Structure', subtitle: 'Choose the starting layout for your form.' };
+      case 4: return { title: 'Target Entity', subtitle: 'Map submissions to a CRM table.' };
+      case 5: return { title: 'Theme', subtitle: 'Apply a visual style to your form.' };
+      case 6: return { title: 'Review', subtitle: 'Confirm your settings before creating.' };
       default: return { title: '', subtitle: '' };
     }
   }
 
   function renderStepContent(): React.ReactElement {
     switch (currentStep) {
-      case 1: return (
-        <StepFormBasics
-          state={wizardState}
-          onChange={handleChange}
-          isCodeLocked={isFormCodeManuallyEdited}
-          onCodeManuallyEdited={() => setIsFormCodeManuallyEdited(true)}
-        />
-      );
-      case 2: return <StepInitialStructure state={wizardState} onChange={handleChange} />;
-      case 3: return <StepTargetEntity state={wizardState} onChange={handleChange} />;
-      case 4: return (
-        <StepThemeSelection
-          state={wizardState}
-          onChange={handleChange}
-          themes={themes}
-          isLoadingThemes={isLoadingThemes}
-        />
-      );
-      case 5: return <StepReview state={wizardState} themes={themes} />;
-      default: return <></>;
+      case 1:
+        return (
+          <StepFormType
+            value={wizardState.formType}
+            onChange={formType => handleChange({ formType })}
+            isSurveyDisabled={isFormTypeColumnAvailable === false}
+          />
+        );
+      case 2:
+        return (
+          <StepFormBasics
+            state={wizardState}
+            onChange={handleChange}
+            isCodeLocked={isFormCodeManuallyEdited}
+            onCodeManuallyEdited={() => setIsFormCodeManuallyEdited(true)}
+            isSurvey={isSurvey}
+          />
+        );
+      case 3:
+        return <StepInitialStructure state={wizardState} onChange={handleChange} />;
+      case 4:
+        return <StepTargetEntity state={wizardState} onChange={handleChange} />;
+      case 5:
+        return (
+          <StepThemeSelection
+            state={wizardState}
+            onChange={handleChange}
+            themes={themes}
+            isLoadingThemes={isLoadingThemes}
+          />
+        );
+      case 6:
+        return <StepReview state={wizardState} themes={themes} isSurvey={isSurvey} />;
+      default:
+        return <></>;
     }
   }
+
+  // Visual step numbers: surveys show 5 dots instead of 6 (Target Entity is hidden).
+  const totalVisualSteps = isSurvey ? TOTAL_STEPS - 1 : TOTAL_STEPS;
+  const currentVisualStep = isSurvey && currentStep >= 5 ? currentStep - 1 : currentStep;
 
   const { title, subtitle } = renderStepTitle();
 
   return (
     <div className={styles.root}>
       <div className={styles.card}>
-        <WizardStepIndicator currentStep={currentStep} />
+        <WizardStepIndicator
+          currentVisualStep={currentVisualStep}
+          totalSteps={totalVisualSteps}
+        />
 
         <div className={styles.stepTitle}>
-          <Text as="h2" size={500} weight="semibold" block>{title}</Text>
-          <Text size={300} style={{ color: tokens.colorNeutralForeground3 }}>{subtitle}</Text>
+          <Text as="h2" size={500} weight="semibold" block>
+            {title}
+          </Text>
+          <Text size={300} style={{ color: tokens.colorNeutralForeground3 }}>
+            {subtitle}
+          </Text>
         </div>
 
         {renderStepContent()}
 
         {createError && (
-          <div className={styles.errorText} role="alert">{createError}</div>
+          <div className={styles.errorText} role="alert">
+            {createError}
+          </div>
         )}
 
         <div className={styles.actions}>
@@ -611,7 +872,11 @@ export function NewFormWizardScreen(): React.ReactElement {
           </Button>
 
           {currentStep < TOTAL_STEPS ? (
-            <Button appearance="primary" onClick={handleNext} disabled={!isStepValid(currentStep)}>
+            <Button
+              appearance="primary"
+              onClick={handleNext}
+              disabled={!isStepValid(currentStep)}
+            >
               Next
             </Button>
           ) : (

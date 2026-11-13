@@ -69,6 +69,8 @@ export interface CreateFormDto {
   description: string;
   entityLogicalName: string;
   themeId: string | null;
+  /** FR-CSE-071: when true, creates as Survey type with allowSaveDraft=false and no entity. */
+  isSurvey?: boolean;
 }
 
 export interface UpdateFormDto {
@@ -137,20 +139,51 @@ export class FormDefinitionService {
   constructor(private readonly webApi: IWebApiAdapter) {}
 
   async createForm(dto: CreateFormDto): Promise<string> {
+    // FR-CSE-071: surveys write to survey response tables, not a CRM entity.
+    // allowSaveDraft is always false for surveys; entityLogicalName is omitted.
+    const payload: Record<string, unknown> = {
+      [FORM_DEFINITION_ATTRS.NAME]: dto.name,
+      [FORM_DEFINITION_ATTRS.CODE]: dto.code,
+      [FORM_DEFINITION_ATTRS.DESCRIPTION]: dto.description,
+      [FORM_DEFINITION_ATTRS.STATUS]: STATUS_TO_PICKLIST['draft'],
+      [FORM_DEFINITION_ATTRS.CURRENT_VERSION]: 1,
+      [FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT]: dto.isSurvey ? false : true,
+    };
+
+    if (!dto.isSurvey) {
+      payload[FORM_DEFINITION_ATTRS.ENTITY_LOGICAL_NAME] = dto.entityLogicalName ?? null;
+    }
+
     const result = await withRetry(
-      () =>
-        this.webApi.createRecord(ENTITY_NAMES.FORM_DEFINITION, {
-          [FORM_DEFINITION_ATTRS.NAME]: dto.name,
-          [FORM_DEFINITION_ATTRS.CODE]: dto.code,
-          [FORM_DEFINITION_ATTRS.DESCRIPTION]: dto.description,
-          [FORM_DEFINITION_ATTRS.STATUS]: STATUS_TO_PICKLIST['draft'],
-          [FORM_DEFINITION_ATTRS.CURRENT_VERSION]: 1,
-          [FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT]: true,
-          [FORM_DEFINITION_ATTRS.ENTITY_LOGICAL_NAME]: dto.entityLogicalName ?? null,
-        }),
+      () => this.webApi.createRecord(ENTITY_NAMES.FORM_DEFINITION, payload),
       'createForm'
     );
     return result.id;
+  }
+
+  /**
+   * FR-CSE-071 — probe whether the qdb_form_type column exists on this org.
+   *
+   * Uses a lightweight $top=1 query that selects only qdb_form_type. A
+   * missing-column error means the column has not been provisioned yet, which
+   * the wizard uses to disable the Survey option with an explanation.
+   * All other errors propagate unchanged.
+   */
+  async probeFormTypeAvailability(): Promise<boolean> {
+    try {
+      await withRetry(
+        () =>
+          this.webApi.retrieveMultipleRecords(
+            ENTITY_NAMES.FORM_DEFINITION,
+            `?$select=${FORM_DEFINITION_ATTRS.FORM_TYPE}&$top=1`,
+          ),
+        'probeFormTypeAvailability',
+      );
+      return true;
+    } catch (error) {
+      if (isMissingColumnError(error)) return false;
+      throw error;
+    }
   }
 
   async updateForm(id: string, dto: UpdateFormDto, etag?: string): Promise<void> {

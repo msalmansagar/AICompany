@@ -27,6 +27,7 @@ import {
 import { Spinner } from '@fluentui/react-components';
 import { useDesignerStore, selectCanUndo, selectCanRedo } from '@/state/designerStore';
 import type { FormStatus } from '@/state/models/DesignerFormModel';
+import type { FormType } from '@qdb/shared';
 
 /** Command-bar icons sit at 16px; the 24px variants overwhelm a 34px command. */
 const ICON_SIZE = 16;
@@ -69,6 +70,8 @@ function Command({
 interface DesignerCommandBarProps {
   formName: string;
   formStatus: FormStatus;
+  /** FR-CSE-073: when Survey, the Mapping command is hidden. */
+  formType?: FormType;
   isDirty: boolean;
   isSaving: boolean;
   onSaveDraft: () => void;
@@ -87,6 +90,7 @@ interface DesignerCommandBarProps {
 export function DesignerCommandBar({
   formName,
   formStatus,
+  formType,
   isDirty,
   isSaving,
   onSaveDraft,
@@ -101,6 +105,7 @@ export function DesignerCommandBar({
   onTranslations,
   onBack,
 }: DesignerCommandBarProps): React.ReactElement {
+  const isSurvey = formType === 'Survey';
   const canUndo = useDesignerStore(selectCanUndo);
   const canRedo = useDesignerStore(selectCanRedo);
   const undo = useDesignerStore(state => state.undo);
@@ -158,12 +163,15 @@ export function DesignerCommandBar({
         onClick={onFormProperties}
       />
       <Command label="Rules" title="Business rules" icon={<BranchRegular fontSize={ICON_SIZE} />} onClick={onBusinessRules} />
-      <Command
-        label="Mapping"
-        title="Submission mapping"
-        icon={<TableRegular fontSize={ICON_SIZE} />}
-        onClick={onSubmissionMapping}
-      />
+      {/* FR-CSE-073: surveys do not map fields to a CRM entity — hide the Mapping command. */}
+      {!isSurvey && (
+        <Command
+          label="Mapping"
+          title="Submission mapping"
+          icon={<TableRegular fontSize={ICON_SIZE} />}
+          onClick={onSubmissionMapping}
+        />
+      )}
       <Command label="Theme" title="Theme editor" icon={<PaintBrushRegular fontSize={ICON_SIZE} />} onClick={onThemeEditor} />
       <Command
         label="Translations"
