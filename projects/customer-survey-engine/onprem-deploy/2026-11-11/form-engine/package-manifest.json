@@ -1,9 +1,9 @@
 {
-  "builtAt": "2026-11-11T18:05:30.797Z",
+  "builtAt": "2026-11-13T20:20:57.522Z",
   "target": "Dynamics 365 CE 9.1 on-prem: HL CRM and BFD CRM / QDB1",
   "patch": {
     "file": "QdbFormEngineSurveyUpdate_1_0_0_0_onprem_unmanaged.zip",
-    "sha256": "8f9593cde2348047d7cccf3e4aadb4fc7137576a2b36df3358dc5bfd4f5e20c3",
+    "sha256": "c692a980c9e25250640fac54b8d1077b4369c3d84d4cb3e0649c45448cef0d97",
     "bytes": 3426,
     "source": {
       "file": "source/QdbFormEngineSurveyUpdate_cloud_unmanaged.zip",
@@ -94,10 +94,10 @@
     ]
   },
   "webResources": {
-    "file": "FormDesignerWebResource_1.5.0.zip",
-    "sha256": "ce4d2bbc914ec932200ab5fed88f070a9598b1cccb94138e065f8f2a4bb2cda0",
-    "bytes": 1384478,
-    "designerSha256": "5695e5fd4cda19050ed6abedb450a5cfea0b5b1c797387a9e2b5107e24c99c4f",
+    "file": "FormDesignerWebResource_1.6.0.zip",
+    "sha256": "69a3e14c1dab11bb0f69ea358f2d6297d6cc2ee55c44a28cbbd1d71af87a9063",
+    "bytes": 1386144,
+    "designerSha256": "b63e0bfda1f050f38db49794bde42a330e558bc7f4c034fa2bb7c1d84428f7a0",
     "runtimeSha256": "afe8eb3f1671c196e4d44490a7b8457baf71e23180f17cfae8c04566c8cffce6"
   },
   "plugin": {

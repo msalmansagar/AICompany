@@ -1,7 +1,8 @@
 # Customer Survey Engine — on-prem kit, 2026-11-11
 
-**Status: built, not yet imported anywhere.** The SurveyEngine package was rebuilt on 2026-11-13 to add the
-survey health view; the Form Engine files are unchanged. One kit for both on-prem orgs, **HL CRM** (customers are
+**Status: built, not yet imported anywhere.** On 2026-11-13 the SurveyEngine package was rebuilt to add the
+survey health view, and the Form Engine designer was rebuilt as 1.6.0 to add survey mode (BRD addendum
+FR-CSE-071..075); the runtime, column patch contents and plugin are unchanged. One kit for both on-prem orgs, **HL CRM** (customers are
 contacts) and **BFD CRM / QDB1** (customers are accounts). Configuration, not code, makes an org one or
 the other: Survey Settings → **Customer Table**.
 
@@ -15,7 +16,7 @@ order it goes in.
 | # | File | What it is | How it goes in |
 |---|---|---|---|
 | 1 | `form-engine/QdbFormEngineSurveyUpdate_1_0_0_0_onprem_unmanaged.zip` | The six Form Engine columns the surveys use: `qdb_form_type`, `qdb_scoring_mode` (Form Definition), `qdb_score_weight/min/max` (Form Field), `qdb_score_points` (Form Option Value) | Solutions → Import |
-| 2 | `form-engine/FormDesignerWebResource_1.5.0.zip` | Form designer and in-CRM runtime with Form Type, the survey branch, no "Submit another" on surveys, and the scoring boxes. Supersedes 1.4.1 (it includes the 2026-10-19 fixes) | Solutions → Import, then Publish All |
+| 2 | `form-engine/FormDesignerWebResource_1.6.0.zip` | Form designer and in-CRM runtime with Form Type, the survey branch, no "Submit another" on surveys, and the scoring boxes. The designer adds survey mode: New Form asks Normal Form or Survey, and a survey shows only survey controls and settings. Supersedes 1.5.0 and 1.4.1 (it includes the 2026-10-19 fixes) | Solutions → Import, then Publish All |
 | 3 | `form-engine/Qdb.FormEngine.Plugins.dll` | Form Engine plugin that publishes the scoring values (scoring mode, weights, min/max, option points) into the survey JSON | Plugin Registration Tool → Update assembly. **Gated, see below** |
 | 4 | `SurveyEngine_1_0_0_0_onprem_unmanaged.zip` | The survey solution: 9 tables, 3 roles (Survey Admin, Analyst, Integration), 7 Custom APIs, the `Qdb.SurveyEngine` plugin with its 2 dispatch steps, views, charts, forms, the Survey Engine app and 9 icons, and the survey health view "Survey Jobs - Failed or Suspended" on System Job (the only change to an out-of-box table) | Solutions → Import, then Publish All |
 
@@ -67,7 +68,7 @@ prerequisites.
 | Check | Result |
 |---|---|
 | Survey assembly in the package | byte-identical to the local Release build of commit `82629dd6`, which runs on the cloud org (sha256 `41f89a5a…`) |
-| Designer and runtime in 1.5.0 | byte-identical to the cloud org's web resources (designer `5695e5fd…`, runtime `afe8eb3f…`) |
+| Designer and runtime in 1.6.0 | byte-identical to the cloud org's web resources (designer `b63e0bfd…`, deployed and read back 2026-11-13; runtime `afe8eb3f…`, taken unchanged from 1.5.0) |
 | Form Engine plugin | byte-identical to the cloud org's assembly (`137658ae…`) |
 | System Job shell | kept, carrying only the survey health view; the build stops if it brings columns, forms, charts, ribbon buttons or any other view. Its cloud-only self-dependency is removed, as for Account. Preflight P13 confirms the org accepts views on System Job |
 | Relationships | 44, all between survey tables or to Account, Contact, SystemUser, Organization, Queue; the build refuses any other |
@@ -80,9 +81,12 @@ prerequisites.
 | File | SHA-256 | Bytes |
 |---|---|---|
 | `SurveyEngine_1_0_0_0_onprem_unmanaged.zip` | `85c91d50e704829a3342b5d703b9431e79e518910aae86394c8ed7721bcdc191` | 157,541 |
-| `form-engine/QdbFormEngineSurveyUpdate_1_0_0_0_onprem_unmanaged.zip` | `8f9593cde2348047d7cccf3e4aadb4fc7137576a2b36df3358dc5bfd4f5e20c3` | 3,426 |
-| `form-engine/FormDesignerWebResource_1.5.0.zip` | `ce4d2bbc914ec932200ab5fed88f070a9598b1cccb94138e065f8f2a4bb2cda0` | 1,384,478 |
+| `form-engine/QdbFormEngineSurveyUpdate_1_0_0_0_onprem_unmanaged.zip` | `c692a980c9e25250640fac54b8d1077b4369c3d84d4cb3e0649c45448cef0d97` | 3,426 |
+| `form-engine/FormDesignerWebResource_1.6.0.zip` | `69a3e14c1dab11bb0f69ea358f2d6297d6cc2ee55c44a28cbbd1d71af87a9063` | 1,386,144 |
 | `form-engine/Qdb.FormEngine.Plugins.dll` | `137658ae3a101eb97376aef8e22ea155155f74b2490900a81be7729f8529f083` | 903,680 |
+
+The column patch was repacked by the 1.6.0 rebuild: its three files are byte-identical to the previous build
+(`8f9593cd…`); only the zip's timestamps, and so its checksum, changed.
 
 ## Rebuild
 
@@ -90,6 +94,12 @@ prerequisites.
 node --env-file=<dfe>/scripts/.env onprem/export-survey-solution.mjs --date=2026-11-11        (read-only)
 node --env-file=<dfe>/scripts/.env onprem/export-form-engine-patch.mjs --date=2026-11-11 --apply  (temporary solution, deleted after export)
 node onprem/build-onprem-kit.mjs --date=2026-11-11
-node <dfe>/designer/scripts/packageSolution.js --version 1.5.0 --runtime <dfe>/frontend/dist-webresource/index.html
+npm --prefix <dfe>/designer run build:singlefile
+node <dfe>/designer/scripts/packageSolution.js --version 1.6.0 --runtime <runtime index.html>
 node onprem/build-form-engine-update.mjs --date=2026-11-11 --webresources=<zip> --designer=<index.html> --runtime=<index.html> --dll=<dll>
+node onprem/build-browser-checks.mjs --date=2026-11-11
 ```
+
+For 1.6.0 the runtime was taken from the 1.5.0 zip (`webresources/qdb_form_runtime.html`, unchanged) and the DLL
+from a copy of the kit's own; `build-browser-checks.mjs` re-embeds the new designer hash and upload threshold
+in the console checks.

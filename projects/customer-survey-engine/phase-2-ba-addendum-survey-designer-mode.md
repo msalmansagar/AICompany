@@ -51,7 +51,8 @@ Narrowing the question types changes what FR-CSE-020 promises, so it needs this 
   setting, and their saved and published output is unchanged (FR-CSE-025 regression gate). The only visible change
   for a Normal form is the extra first choice in New Form.
 - **No schema change.** Designer only; the survey runtime and the C# publisher are untouched.
-- **On-prem:** a new designer build replaces 1.5.0 in the on-prem kit `onprem-deploy/2026-11-11/` (not yet imported
+- **On-prem:** a new designer build replaces 1.5.0 in the on-prem kit `onprem-deploy/2026-11-11/` (done 2026-11-13 as
+  1.6.0, byte-identical to the cloud org's designer; not yet imported
   on either org, so nothing is re-imported).
 
 ## 5. Approval
