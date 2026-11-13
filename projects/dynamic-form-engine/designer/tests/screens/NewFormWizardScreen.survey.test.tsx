@@ -2,7 +2,7 @@
 // RED until NewFormWizardScreen is updated with the Form Type step.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
 import { CrmContext } from '@/app/App';
@@ -210,6 +210,44 @@ describe('NewFormWizardScreen — survey mode (FR-CSE-071)', () => {
       renderWizard(null);
 
       // No probe fires when crmService is null — Survey should be enabled (optimistic)
+      expect(screen.getByRole('radio', { name: /survey/i })).not.toBeDisabled();
+    });
+
+    // F-06 — RED until the probe catch stops collapsing non-column errors to false.
+    // probeFormTypeAvailability() re-throws non-column errors (e.g. a 401); the wizard
+    // catch must leave isFormTypeColumnAvailable as null so Survey stays enabled.
+    it('survey_button_stays_enabled_when_probe_throws_non_column_error', async () => {
+      // The error message matches isClientError (contains "(4xx)") so withRetry breaks
+      // immediately without retrying; isMissingColumnError returns false so the probe
+      // re-throws. The wizard catch must NOT set isFormTypeColumnAvailable=false.
+      const mockWebApi = {
+        createRecord: vi.fn(),
+        updateRecord: vi.fn(),
+        deleteRecord: vi.fn(),
+        retrieveRecord: vi.fn(),
+        retrieveMultipleRecords: vi.fn().mockImplementation((_entity: string, query?: string) => {
+          if (query?.includes('qdb_form_type')) {
+            return Promise.reject(new Error('(401) Unauthorized'));
+          }
+          return Promise.resolve({ entities: [] });
+        }),
+        updateRecordConditional: vi.fn(),
+        executeAction: vi.fn(),
+      };
+      const service = { getWebApi: () => mockWebApi } as unknown as CrmContextService;
+
+      renderWizard(service);
+
+      // Flush enough microtask ticks for the probe's async chain to settle
+      // (withRetry → probeFormTypeAvailability → wizard catch).
+      await act(async () => {
+        for (let i = 0; i < 8; i++) {
+          await Promise.resolve();
+        }
+      });
+
+      // After the non-column error, Survey must remain enabled — a transient auth
+      // failure must not silently disable the Survey option.
       expect(screen.getByRole('radio', { name: /survey/i })).not.toBeDisabled();
     });
   });

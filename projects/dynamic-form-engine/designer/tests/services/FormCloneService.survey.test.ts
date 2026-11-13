@@ -157,4 +157,41 @@ describe('FormCloneService — survey clone (FR-CSE-075)', () => {
     const [, createPayload] = vi.mocked(webApi.createRecord).mock.calls[0];
     expect(createPayload[FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT]).toBe(true);
   });
+
+  // F-3 — RED until FormCloneService restores the srv_ prefix when the source survey
+  // has a manually-edited code that no longer starts with srv_.
+  it('cloned_survey_code_starts_with_srv_even_when_source_code_lacks_the_prefix', async () => {
+    const sourceWithManualCode = {
+      ...buildSurveyFormRecord(SOURCE_FORM_ID, '"source-etag"'),
+      [FORM_DEFINITION_ATTRS.CODE]: 'customer_feedback', // manually stripped srv_
+    };
+    vi.mocked(webApi.retrieveRecord)
+      .mockResolvedValueOnce(sourceWithManualCode)
+      .mockResolvedValueOnce(buildSurveyFormRecord(NEW_FORM_ID, '"new-etag"'));
+
+    await service.cloneForm(SOURCE_FORM_ID);
+
+    const [, createPayload] = vi.mocked(webApi.createRecord).mock.calls[0];
+    expect(String(createPayload[FORM_DEFINITION_ATTRS.CODE])).toMatch(/^srv_/);
+  });
+
+  // F-01 (edge) — RED until FormCloneService truncates the clone code base so the
+  // full clone code (_copy_ + 13-digit timestamp) stays within 100 chars.
+  it('cloned_survey_code_stays_within_100_chars_when_source_code_is_long', async () => {
+    // 82-char source code: 'srv_' (4) + 78 chars of name = 82 chars.
+    // Without truncation: 82 + 6 ('_copy_') + 13 (epoch) = 101 chars.
+    const longCode = 'srv_' + 'a'.repeat(78);
+    const sourceWithLongCode = {
+      ...buildSurveyFormRecord(SOURCE_FORM_ID, '"source-etag"'),
+      [FORM_DEFINITION_ATTRS.CODE]: longCode,
+    };
+    vi.mocked(webApi.retrieveRecord)
+      .mockResolvedValueOnce(sourceWithLongCode)
+      .mockResolvedValueOnce(buildSurveyFormRecord(NEW_FORM_ID, '"new-etag"'));
+
+    await service.cloneForm(SOURCE_FORM_ID);
+
+    const [, createPayload] = vi.mocked(webApi.createRecord).mock.calls[0];
+    expect(String(createPayload[FORM_DEFINITION_ATTRS.CODE]).length).toBeLessThanOrEqual(100);
+  });
 });

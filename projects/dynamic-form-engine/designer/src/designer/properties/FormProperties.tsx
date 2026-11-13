@@ -124,12 +124,17 @@ export function FormProperties(): React.ReactElement {
           selectedOptions={[form.formType ?? 'Standard']}
           value={form.formType ?? 'Standard'}
           onOptionSelect={(_, data) => {
-            const nextType = data.optionValue as FormType;
+            const nextType = data.optionValue;
+            // Guard: skip if the value is not one of the two rendered FormType options.
+            // This handles undefined and any unexpected string from Fluent's event.
+            if (nextType !== 'Standard' && nextType !== 'Survey') return;
             // FR-CSE-075: warn before downgrading a PUBLISHED survey to Normal.
             if (isSurvey && nextType !== 'Survey' && form.status === 'published') {
               setShowNormalWarning(true);
             } else {
-              updateForm({ formType: nextType });
+              // nextType is 'Standard' | 'Survey' at runtime; TypeScript cannot narrow
+              // string | undefined to this union via literal equality alone.
+              updateForm({ formType: nextType as FormType });
             }
           }}
         >

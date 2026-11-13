@@ -37,10 +37,9 @@ import { slugifyFormCode, sanitizeFormCode } from '@/utils/formCodeUtils';
 //   6 = Review
 const TOTAL_STEPS = 6;
 
-/** Derive a form code from a display name, applying the survey prefix when appropriate. */
-function deriveCode(name: string, isSurvey: boolean): string {
-  const base = slugifyFormCode(name);
-  return isSurvey ? `srv_${base}` : base;
+/** Derives a form code for a Survey form by applying the srv_ prefix. */
+function deriveSurveyFormCode(name: string): string {
+  return `srv_${slugifyFormCode(name)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -337,8 +336,12 @@ interface StepFormBasicsProps {
   isCodeLocked: boolean;
   /** Called the first time the user edits the Code field directly. Sets isCodeLocked permanently. */
   onCodeManuallyEdited: () => void;
-  /** When true the auto-derived code receives the srv_ survey prefix. */
-  isSurvey: boolean;
+  /**
+   * Derives a form code from the display name.
+   * Pass `deriveSurveyFormCode` for survey forms and `slugifyFormCode` for normal forms.
+   * Using a function instead of a boolean flag keeps this component strategy-agnostic.
+   */
+  deriveName: (name: string) => string;
 }
 
 function StepFormBasics({
@@ -346,7 +349,7 @@ function StepFormBasics({
   onChange,
   isCodeLocked,
   onCodeManuallyEdited,
-  isSurvey,
+  deriveName,
 }: StepFormBasicsProps): React.ReactElement {
   const styles = useStyles();
 
@@ -354,7 +357,7 @@ function StepFormBasics({
     if (isCodeLocked) {
       onChange({ name: data.value });
     } else {
-      onChange({ name: data.value, code: deriveCode(data.value, isSurvey) });
+      onChange({ name: data.value, code: deriveName(data.value) });
     }
   }
 
@@ -518,13 +521,13 @@ function StepThemeSelection({
 function StepReview({
   state,
   themes,
-  isSurvey,
 }: {
   state: WizardState;
   themes: ThemeOption[];
-  isSurvey: boolean;
 }): React.ReactElement {
   const styles = useStyles();
+  // Derive from the state directly to stay consistent with what will be created.
+  const isSurvey = state.formType === 'Survey';
   const themeName = state.themeId
     ? (themes.find(t => t.id === state.themeId)?.name ?? state.themeId)
     : 'Default';
@@ -611,7 +614,12 @@ export function NewFormWizardScreen(): React.ReactElement {
     formService
       .probeFormTypeAvailability()
       .then(available => setIsFormTypeColumnAvailable(available))
-      .catch(() => setIsFormTypeColumnAvailable(false));
+      .catch(() => {
+        // probeFormTypeAvailability() returns false for missing-column errors and re-throws
+        // everything else (e.g. 403, network timeout). Do NOT collapse a transient auth
+        // failure to isFormTypeColumnAvailable=false — that would silently disable Survey
+        // for all future attempts. Leave as null so the button stays enabled optimistically.
+      });
   }, [crmService]);
 
   const handleChange = useCallback(
@@ -619,8 +627,8 @@ export function NewFormWizardScreen(): React.ReactElement {
       setWizardState(prev => {
         // FR-CSE-071: switching form type re-derives the code (unless the user locked it).
         if ('formType' in patch && !isFormCodeManuallyEdited && prev.name) {
-          const newIsSurvey = patch.formType === 'Survey';
-          return { ...prev, ...patch, code: deriveCode(prev.name, newIsSurvey) };
+          const codeDeriver = patch.formType === 'Survey' ? deriveSurveyFormCode : slugifyFormCode;
+          return { ...prev, ...patch, code: codeDeriver(prev.name) };
         }
         return { ...prev, ...patch };
       });
@@ -736,9 +744,12 @@ export function NewFormWizardScreen(): React.ReactElement {
       let { model: newForm, etag } = await formService.getFormWithEtag(newFormId);
 
       // FR-CSE-071: stamp the Survey form-type picklist on the new record when the
-      // column is provisioned. We MUST re-fetch the etag afterwards because CRM invalidates
-      // the etag on every PATCH — the etag from the create read-back is stale after updateForm.
-      if (isSurvey && isFormTypeColumnAvailable === true && etag) {
+      // column is provisioned. Use the model's isFormTypeAvailable flag from the
+      // post-create read-back rather than the React probe state: the probe XHR may
+      // still be in flight if the user clicked Create quickly, but getFormWithEtag
+      // already reflects the real CRM state for this record.
+      // We MUST re-fetch the etag afterwards because CRM invalidates it on every PATCH.
+      if (isSurvey && newForm.isFormTypeAvailable && etag) {
         await formService.updateForm(newFormId, { formType: 'Survey' }, etag);
         const refreshed = await formService.getFormWithEtag(newFormId);
         newForm = refreshed.model;
@@ -812,7 +823,7 @@ export function NewFormWizardScreen(): React.ReactElement {
             onChange={handleChange}
             isCodeLocked={isFormCodeManuallyEdited}
             onCodeManuallyEdited={() => setIsFormCodeManuallyEdited(true)}
-            isSurvey={isSurvey}
+            deriveName={isSurvey ? deriveSurveyFormCode : slugifyFormCode}
           />
         );
       case 3:
@@ -829,7 +840,7 @@ export function NewFormWizardScreen(): React.ReactElement {
           />
         );
       case 6:
-        return <StepReview state={wizardState} themes={themes} isSurvey={isSurvey} />;
+        return <StepReview state={wizardState} themes={themes} />;
       default:
         return <></>;
     }
