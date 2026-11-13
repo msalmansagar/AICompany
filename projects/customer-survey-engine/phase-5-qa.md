@@ -96,7 +96,7 @@ One uncovered branch: `dataverse-client.mjs` (31% line, 100% branch on covered l
 | **survey-checks.js** | **87%** | **48%** | **FAIL** |
 | **Suite total** | **92%** | **67%** | **FAIL** |
 
-`survey-checks.js` fails at 48% branch. The uncovered paths are: preflight assertions P10–P12 (health-view shell checks, the system-jobs check, the XML transform guard), all of which require a real on-prem org XML payload. These are tested implicitly by the runbook smoke test, not by the unit suite.
+`survey-checks.js` fails at 48% branch. The uncovered paths are mostly the preflight checks that read live services and Form Engine state (P4–P12: Form Engine presence, publisher, collisions, the async/sandbox service checks, the grid-column census) and the configuration-name checks; they need richer fake Web API answers, not an on-prem org. These are tested implicitly by the runbook smoke test, not by the unit suite.
 
 ### 2.4 DFE additions (Vitest)
 
@@ -247,19 +247,24 @@ Additionally, the case where the second `TryClose` also fails (truly concurrent 
 
 **What this proves:** Code-level removability (compile-time and runtime-activation). **What it does not prove:** That the solution uninstall itself succeeds, that no solution dependency blocks it, or that existing SurveyEngine configuration data is handled cleanly.
 
-### Part B — Solution dependency query (read-only, requires org access, not yet run)
+### Part B — Solution dependency query (read-only, RUN 2026-11-13)
 
-**Tool:** Dataverse Web API `RetrieveDependenciesForUninstall`:
-```
-POST /api/data/v9.2/RetrieveDependenciesForUninstall
-{ "SolutionUniqueName": "SurveyEngine" }
-```
+**Tool:** `GET RetrieveDependenciesForUninstall(SolutionUniqueName='SurveyEngine')` on org5869857f (read-only; run by the
+lead engineer after this phase's first draft, which had held it back).
 
-**What it proves:** Whether any other solution (e.g., DFE, Default Solution components) depends on SurveyEngine tables, APIs, or plugin assemblies. If the response is empty, the solution can be removed without cascade effects. If it lists DFE components, the uninstall would fail — which is a defect.
+**Result: 0 dependencies.** No component outside SurveyEngine (Form Engine or any other solution on the org) depends on a
+SurveyEngine component.
 
-**Risk to org:** Read-only. Can be run on org5869857f with go-ahead.
+**Caveat (QA lead, 2026-11-13):** SurveyEngine is an **unmanaged** solution on the cloud org and in the on-prem kit. Deleting
+an unmanaged solution removes only the solution record; its tables, plugin, Custom APIs, roles, app and views all stay
+(runbook stage 10 says so: the real rollback is the database backup). So "remove SurveyEngine" is not a one-step
+uninstall, and an empty dependency list proves the *direction* of dependency (nothing needs SurveyEngine), not that a
+removal procedure works.
 
-### Part C — Full removal rehearsal (disposable org, requires CEO go-ahead)
+### Part C — Original removal rehearsal (superseded, see Part D)
+
+Kept for the record. Step 4 assumes a solution uninstall removes the components, which is not true for an unmanaged
+solution (Part B caveat).
 
 **When:** Before any on-prem go-live, on a disposable cloud org or a snapshot of org5869857f.
 
@@ -277,6 +282,25 @@ POST /api/data/v9.2/RetrieveDependenciesForUninstall
 **Cleanup:** Delete the disposable org, or restore the snapshot. No production data at risk.
 
 **Risk to org5869857f:** High if run there (solution removal is destructive). Do not run Part C on org5869857f without CEO approval and a full data backup.
+
+### Part D — Recommended: prove "Form Engine works without SurveyEngine" without removing anything
+
+NFR-CSE-004's acceptance criterion is "after removal, all Form Engine forms still publish and render". Parts A and B show
+nothing in the Form Engine depends on SurveyEngine, so the state that matters is **Form Engine (with the survey column
+patch and designer/runtime 1.5.0) and no SurveyEngine**. Every on-prem org passes through exactly that state during the
+runbook, between stage 2 (Form Engine update) and stage 4 (SurveyEngine import).
+
+1. Add a render-cache snapshot and a re-publish check after stage 2 (the console scripts already take render-cache
+   snapshots; `compare-reports.mjs` already compares them), on each test org.
+2. Pass: every published form's render cache is unchanged by stage 2, and a re-publish of three sample forms (standard,
+   one with a grid, one with scoring columns unset) succeeds and renders in the runtime.
+3. Run it on HL test and QDB1 test as part of their runbook windows: no extra org, no destructive step, no change to
+   org5869857f.
+
+**What it proves:** the Form Engine publishes and renders with no SurveyEngine present, on the real 9.1 target.
+**What it does not prove:** a component-by-component removal procedure. If the CEO wants removal itself proven, it needs
+a disposable org and a written removal script (Custom APIs and steps, then the assembly, the app and view, roles, then
+the tables), which does not exist today.
 
 ---
 
@@ -458,7 +482,8 @@ Before any feature is considered complete for release:
 - [ ] Live-org smoke test passes on the cloud org (B2–B8 scripts)
 - [ ] Live-org smoke test passes on each on-prem test org (`smoke-test.ps1 -WriteTest`)
 - [ ] NFR-CSE-007: branch coverage measured and recorded (current result: 59.1% assembly-wide; named condition if gap remains at release)
-- [ ] A2 (NFR-CSE-004): Part B solution-dependency query returned empty; Part C rehearsal completed on a disposable org
+- [x] A2 (NFR-CSE-004) Part B: solution-dependency query returned empty (2026-11-13)
+- [ ] A2 (NFR-CSE-004) Part D: Form Engine re-publish and render with no SurveyEngine present, on HL test and QDB1 test (between runbook stages 2 and 4), or a removal rehearsal if the CEO requires one
 - [ ] A3 (NFR-CSE-006): trigger p95 and daily run measured against targets
 - [ ] Security defects: none Critical/High open (sec-link channel disabled until NFR-CSE-009 signed)
 - [ ] PDPPL sign-off on file (B2 in go-live checklist)
@@ -487,8 +512,8 @@ Before any feature is considered complete for release:
 
 | ID | Description | Severity | FR / NFR | Status |
 |---|---|---|---|---|
-| DEF-QA-001 | `survey-checks.js` branch coverage 48%: preflight assertion paths P10–P12 (health-view, system-jobs shell) are uncovered. Uncovered code means the runbook could print a false pass on an on-prem org missing the health view tables. | Medium | NFR-CSE-007 | Open |
-| DEF-QA-002 | `ResponseRetentionStore` has 0% coverage. The anonymise path that clears PII is entirely untested at any level. | High | FR-CSE-058, NFR-CSE-007 | Open |
+| DEF-QA-001 | `survey-checks.js` branch coverage 48%: most preflight checks (P4–P12) and the configuration-name checks are uncovered by unit tests (they ran against the cloud org, not in the suite). An uncovered branch could print a false PASS on an on-prem org. | Medium | NFR-CSE-007 | Open |
+| DEF-QA-002 | `ResponseRetentionStore` has 0% unit coverage. Anonymise is live-verified for account customers (B5 e2e scenario C); the contact case (HL) has never run anywhere. | High | FR-CSE-058, NFR-CSE-007 | Open |
 | DEF-QA-003 | `surveyApi.ts` (XRM bridge: `fetchSurvey`, `submitSurvey`) has no unit test. The survey submit branch is exercised only by the B6 e2e script. Any regression in the XRM bridge would be caught only at e2e stage. | Medium | FR-CSE-053 | Open |
 | DEF-QA-004 | Assembly-level branch coverage 59.1% fails NFR-CSE-007. The gap is structural (data/plugin adapter layers); closing it requires either live-org integration tests in CI or a scope clarification on the NFR. | High | NFR-CSE-007 | Open (approve with condition) |
 
