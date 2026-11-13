@@ -143,7 +143,9 @@ function Get-StatusBody([string]$Table, [string]$Field, [int]$Value) {
 function Get-TestRecords($Info, $Source) {
     $customer = '_{0}_value' -f $Source.qdb_customer_lookup_field
     $columns = @($Info.PrimaryIdAttribute, $Info.PrimaryNameAttribute, $Source.qdb_status_field, $customer) + @($Source.qdb_type_field | Where-Object { $_ })
-    $filter = [uri]::EscapeDataString("startswith({0},'{1}')" -f $Info.PrimaryNameAttribute, $RecordPrefix.Replace("'", "''"))
+    # Built first: inside a .NET method call's parentheses a comma separates the METHOD's arguments, so -f would get one value.
+    $condition = "startswith({0},'{1}')" -f $Info.PrimaryNameAttribute, $RecordPrefix.Replace("'", "''")
+    $filter = [uri]::EscapeDataString($condition)
     $rows = @((Invoke-CrmOrThrow GET ('{0}?$select={1}&$filter={2}' -f $Info.EntitySetName, ($columns -join ','), $filter)).value)
     return $rows | ForEach-Object { [pscustomobject]@{ Id = $_.($Info.PrimaryIdAttribute); Status = $_.($Source.qdb_status_field); Type = $(if ($Source.qdb_type_field) { $_.($Source.qdb_type_field) } else { $null }); Customer = $_.$customer } }
 }
