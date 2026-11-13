@@ -385,6 +385,11 @@ a burst, not the plugin's own work. The platform gives no latency guarantee for 
 on each org's Asynchronous Processing Service settings and load, so this cloud run does not settle NFR-CSE-006 for release 1
 (on-prem). **The decision on how to close it is the CEO's.**
 
+**CEO decision, 2026-11-13: measure on-prem.** The 10 s target stays. A3 closes when the trigger speed passes on HL
+test and QDB1 test, measured with the kit's `trigger-speed-test.ps1` (runbook 9.3, part of Gate 3). It uses the same
+method as the cloud run, on records QDB IT prepares in the activated source's table. The cloud result above is
+information only.
+
 ---
 
 ## 7. Test Cases (Representative Set)
@@ -521,7 +526,7 @@ Before any feature is considered complete for release:
 - [x] NFR-CSE-007: branch coverage measured and recorded (80.05% assembly-wide on 2026-11-13, was 59.1%; section 2.6)
 - [x] A2 (NFR-CSE-004) Part B: solution-dependency query returned empty (2026-11-13)
 - [ ] A2 (NFR-CSE-004) Part D: Form Engine re-publish and render with no SurveyEngine present, on HL test and QDB1 test (between runbook stages 2 and 4). **CEO chose Part D, no removal rehearsal (2026-11-13).** Built into the kit: runbook steps 2.5–2.7 and Gate 1b, `survey-stage2-check.console.js` (S1 = SurveyEngine absent, Q7–Q10, render cache snapshot), `compare-reports.mjs --expect-changed`
-- [ ] A3 (NFR-CSE-006): trigger p95 and daily run measured against targets. **Measured on cloud 2026-11-13: daily run PASS (24.4 s, one call, 450); trigger p95 14 s FAIL vs 10 s** (section 6 Results); CEO decision pending
+- [ ] A3 (NFR-CSE-006): trigger p95 and daily run measured against targets. **Measured on cloud 2026-11-13: daily run PASS (24.4 s, one call, 450); trigger p95 14 s FAIL vs 10 s** (section 6 Results); **CEO 2026-11-13: measure on-prem**, runbook 9.3 `trigger-speed-test.ps1` on HL test and QDB1 test
 - [ ] Security defects: none Critical/High open (sec-link channel disabled until NFR-CSE-009 signed)
 - [ ] PDPPL sign-off on file (B2 in go-live checklist)
 - [ ] Retention period set by QDB Compliance (B1 in go-live checklist)

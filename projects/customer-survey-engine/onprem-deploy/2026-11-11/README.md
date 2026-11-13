@@ -26,6 +26,8 @@ checksum; `source/` and `form-engine/source/` hold the unmodified cloud exports 
 **`RUNBOOK.md`** is the step-by-step deployment, with the read-only console checks in `scripts/` and the daily
 scheduler in `scheduler/` (B9 item 5). **`smoke-test.ps1`** proves the portal APIs on each org (B9 item 6,
 runbook stage 9); proven on the cloud org 2026-11-12, 14/14 with `-WriteTest`, nothing left behind.
+**`trigger-speed-test.ps1`** measures the survey trigger's speed on each test org (runbook 9.3, go-live checklist A3,
+NFR-CSE-006).
 
 ## Import order
 

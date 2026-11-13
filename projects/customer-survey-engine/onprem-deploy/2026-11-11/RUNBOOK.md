@@ -179,7 +179,28 @@ Pass: every line PASS, exit code 0. It writes `survey-smoke-test-<date>.json` in
 to MSS**. Step 1 needs the Survey Settings row (7.1); step 2 also needs a survey form published with Form
 Type = Survey (7.4). On production, run step 1 only, unless the change owner approves step 2.
 
-**Gate 3:** both test orgs pass step 2 before production.
+### 9.3 Test orgs only: trigger speed (go-live checklist A3)
+
+Needs one source activated (8.1), with an active setup and Event trigger on it (7.4).
+
+1. Prepare at least 10 (ideally 20) records in that source's table, named `SURVEY-SPEED-01`, `SURVEY-SPEED-02` and so
+   on. Each must be for a **different test customer** who has not been surveyed recently and has **no real phone number
+   or e-mail**, in a status **just before** the trigger status, and of a type the trigger accepts.
+2. As a System Administrator, from the kit folder:
+
+   ```powershell
+   .\trigger-speed-test.ps1 -OrgUrl https://<crm-server>/<org>
+   ```
+
+   It switches invitation sending off for the run, moves each record into the trigger status one second apart, times
+   each invitation, then switches sending back on and deletes the invitations it caused. The prepared records stay in
+   the trigger status; remove them as your test process requires. If it stops early, run it again with `-RestoreOnly`.
+3. **Send `survey-trigger-speed-<date>.json` to MSS.**
+
+Pass: **S1**, 95% of invitations within 10 s and none over 60 s. Both test orgs passing closes checklist A3; the cloud
+measurement of 2026-11-13 is information only.
+
+**Gate 3:** both test orgs pass step 2 and 9.3 before production.
 
 ## Stage 10 — Rollback
 
