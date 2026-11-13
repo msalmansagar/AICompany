@@ -20,7 +20,8 @@ const requireEnv = (name) => {
   return value;
 };
 
-async function fetchToken(orgUrl) {
+/** A service-principal access token for the org (DV_* environment variables). Never log it. */
+export async function fetchToken(orgUrl) {
   const response = await fetch(`https://login.microsoftonline.com/${requireEnv('DV_TENANT_ID')}/oauth2/v2.0/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

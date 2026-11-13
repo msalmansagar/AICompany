@@ -11,14 +11,20 @@
  *   node --env-file=<dfe>/scripts/.env e2e/a3-performance.mjs             plan only, read-only
  *   node --env-file=<dfe>/scripts/.env e2e/a3-performance.mjs --apply     live writes (CEO go-ahead 2026-11-13)
  *   node --env-file=<dfe>/scripts/.env e2e/a3-performance.mjs --cleanup   delete leftovers of an interrupted run
+ *   node --env-file=<dfe>/scripts/.env e2e/a3-performance.mjs --apply --prove-onprem-script
+ *       instead of A and B: 20 prepared records, then the on-prem kit's trigger-speed-test.ps1 run against this org
+ *       (CEO go-ahead 2026-11-14), proving its write path before QDB IT runs it
  */
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { openSession, findDisbursementSource, moveDisbursement, failedPluginJobsSince, sleep, anyOf, DISBURSEMENT_TABLE, PAYMENT_PROCESSED } from './e2e-helpers.mjs';
 import { ensureSurveyForm, ensureCompletionSetup, COMPLETION_FORM_CODE, COMPLETION_SETUP_NAME } from './e2e-fixtures.mjs';
 import { stepName } from '../provisioning/lib/plugin-payloads.mjs';
+import { fetchToken } from '../provisioning/lib/dataverse-client.mjs';
 import { PREFIX, DAILY_SETUP_NAME, createCustomers, createDailySetup, deleteTestData, countLeftovers } from './a3-perf-data.mjs';
 
 const TARGET = { triggerP95Ms: 10000, triggerMaxMs: 60000, dailyRunMs: 90000 };
@@ -27,6 +33,8 @@ const POLL_MS = 3000;
 const POLL_LIMIT_MS = 150000;
 // The switch states to put back, kept on disk until every one is restored, so --cleanup can finish the job.
 const RESTORE_FILE = join(tmpdir(), 'survey-a3-performance-restore.json');
+const SPEED_SCRIPT = fileURLToPath(new URL('../onprem-deploy/2026-11-11/trigger-speed-test.ps1', import.meta.url));
+const PROOF_REPORT = join(tmpdir(), 'survey-a3-speed-proof.json');
 
 // ── Org state and guards ──
 
@@ -152,12 +160,46 @@ async function measureTriggerLatency(session, customers) {
   return { name: 'A trigger latency', isPass, p95Ms: p95, maxMs: Math.max(...latencies), latenciesMs: latencies, missing: latencies.filter((latency) => latency === Infinity).length };
 }
 
-async function runPartA(session, state) {
-  const customers = await createCustomers(session, { label: 'A', count: SIZE.trigger });
+/** The E2E completion setup, the Disbursements source and its Update step on: status changes now trigger. */
+async function switchOnTrigger(session, state) {
   await ensureCompletionSetup(session, state.source.qdb_survey_sourceid);
   await session.write('PATCH', `qdb_survey_sources(${state.source.qdb_survey_sourceid})`, { qdb_is_active: true });
   await setStep(session, state.steps.trigger.sdkmessageprocessingstepid, true);
+}
+
+async function runPartA(session, state) {
+  const customers = await createCustomers(session, { label: 'A', count: SIZE.trigger });
+  await switchOnTrigger(session, state);
   return measureTriggerLatency(session, customers);
+}
+
+// ── Proof of the on-prem kit's trigger-speed-test.ps1 ──
+
+/** Runs the kit script against this org with a token in its environment (never printed); answers its JSON report. */
+async function runSpeedScript(session) {
+  rmSync(PROOF_REPORT, { force: true });
+  const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', SPEED_SCRIPT, '-OrgUrl', session.client.orgUrl, '-UseEnvironmentToken', '-RecordPrefix', `${PREFIX}-P-`, '-ReportPath', PROOF_REPORT];
+  const result = spawnSync('powershell.exe', args, { stdio: 'inherit', env: { ...process.env, SURVEY_SMOKE_TOKEN: await fetchToken(session.client.orgUrl) } });
+  if (!existsSync(PROOF_REPORT)) throw new Error(`the speed script wrote no report (exit ${result.status})`);
+  // Windows PowerShell 5.1 writes UTF-8 with a byte-order mark.
+  return JSON.parse(readFileSync(PROOF_REPORT, 'utf8').replace(/^﻿/, ''));
+}
+
+/** The script works end to end when every check but the speed target passes and no invitation is missing. */
+function judgeSpeedScript(report) {
+  const faults = report.checks.filter((check) => check.id !== 'S1' && check.status !== 'PASS');
+  const speed = report.checks.find((check) => check.id === 'S1');
+  return {
+    name: 'on-prem script proof', isPass: faults.length === 0 && report.measurement?.missing === 0,
+    faults: faults.map((check) => `${check.id} ${check.check}: ${check.detail}`), speedTarget: speed?.status ?? 'not reached', measurement: report.measurement,
+  };
+}
+
+async function runScriptProof(session, state) {
+  console.log('Proof — the on-prem kit\'s trigger-speed-test.ps1 against this org');
+  await createCustomers(session, { label: 'P', count: SIZE.trigger });
+  await switchOnTrigger(session, state);
+  return judgeSpeedScript(await runSpeedScript(session));
 }
 
 // ── B: daily run ──
@@ -191,15 +233,14 @@ async function cleanUp(session) {
   return { deleted, leftovers };
 }
 
-async function apply(session, state) {
+async function apply(session, state, parts) {
   const startedOn = new Date().toISOString();
   await ensureSurveyForm(session, COMPLETION_FORM_CODE);
   const saved = saveSwitches(state);
   const results = [];
   try {
     for (const step of state.steps.dispatch) await setStep(session, step.sdkmessageprocessingstepid, false);
-    results.push(await runPartA(session, state));
-    results.push(await runPartB(session, state));
+    for (const part of parts) results.push(await part(session, state));
   } finally {
     const restoreFailures = await restoreSwitches(session, saved);
     results.push({ name: 'clean-up', restoreFailures, ...(await cleanUp(session)) });
@@ -223,16 +264,18 @@ const isCleanRun = (report) => {
 };
 
 async function run() {
-  const { values } = parseArgs({ options: { apply: { type: 'boolean' }, cleanup: { type: 'boolean' } } });
+  const { values } = parseArgs({ options: { apply: { type: 'boolean' }, cleanup: { type: 'boolean' }, 'prove-onprem-script': { type: 'boolean' } } });
   const session = await openSession();
   console.log(`A3 performance — ${session.client.orgUrl}`);
   if (values.cleanup) process.exit((await recoverInterruptedRun(session)) ? 0 : 1);
   const state = await readOrgState(session);
   const guards = guardsFor(state);
   printPlan(state, guards);
+  const parts = values['prove-onprem-script'] ? [runScriptProof] : [runPartA, runPartB];
+  if (values['prove-onprem-script']) console.log(`  Proof mode: instead, ${SIZE.trigger} ${PREFIX}-P-nnn records and ${SPEED_SCRIPT} with -RecordPrefix ${PREFIX}-P-.`);
   if (!values.apply) return;
   if (!guards.every((guard) => guard.ok)) { console.error('\n✗ a guard failed: nothing was written'); process.exit(1); }
-  const report = await apply(session, state);
+  const report = await apply(session, state, parts);
   console.log(`\n${JSON.stringify(report, (key, value) => (value === Infinity ? 'missing' : value), 2)}`);
   process.exit(isCleanRun(report) ? 0 : 1);
 }
