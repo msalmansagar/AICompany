@@ -189,6 +189,7 @@ namespace Qdb.SurveyEngine.Tests
 
             Assert.Equal(ChangeMessage.Update, change.Message);
             Assert.Equal(id, change.RecordId);
+            Assert.Equal("qdb_cheque_clearing", change.TableLogicalName);
         }
 
         [Fact]
