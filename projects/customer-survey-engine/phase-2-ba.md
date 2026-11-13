@@ -14,6 +14,8 @@
 |---|---|---|
 | 1.0 | 2026-11-09 | First draft from the client ACs and the trigger decisions. 63 requirements, 14 open questions. |
 | 1.1 | 2026-11-09 | Applied all user answers (`brd-answers.md`). See the list below. |
+| 1.2 | 2026-11-11 | Addendum A, weighted scoring (`phase-2-ba-addendum-weighted-scoring.md`): FR-CSE-061 to 070, NFR-CSE-010. |
+| 1.3 | 2026-11-13 | Addendum B, Survey mode in the designer (`phase-2-ba-addendum-survey-designer-mode.md`): FR-CSE-020 amended, FR-CSE-071 to 075. |
 
 **What changed in 1.1:**
 - **General survey model.** Themes are removed; questions are built in pages and sections in the Form Engine designer.
@@ -168,7 +170,7 @@ Each row is traced to a source: **AC** = client acceptance criterion, **TD** = `
 | ID | Requirement | Testable criteria | Source |
 |---|---|---|---|
 | FR-CSE-019 | The Form Engine shall support Form Type = Survey. Survey behaviour (the survey submit path, invitation context) shall apply only to forms of that type. | An existing non-survey form behaves identically before and after the survey release (see FR-CSE-025). | AD |
-| FR-CSE-020 | Survey questions shall be built in the Form Engine designer, organised in pages (wizard steps) and sections, using any question type the designer supports. There are no themes and no separate question bank. | A survey with 3 pages, several sections, and choice, text and rating questions can be built and published. | UA OQ-14, AC2 superseded |
+| FR-CSE-020 | Survey questions shall be built in the Form Engine designer, organised in pages (wizard steps) and sections, using the survey question types (FR-CSE-072; amended 2026-11-13 by Addendum B, was "any question type the designer supports"). There are no themes and no separate question bank. | A survey with 3 pages, several sections, and choice, text and rating questions can be built and published. | UA OQ-14, AC2 superseded |
 | FR-CSE-021 | Questions shall be shown in the order defined in the designer (page → section → field order). | Reordering two questions in the designer and republishing changes their order for new invitations. | AC3 |
 | FR-CSE-022 | Survey content shall support Arabic and English, including right-to-left layout. The customer shall see their preferred language. | A customer whose preference is Arabic sees Arabic text, right to left. | UA (Arabic) |
 | FR-CSE-023 | Survey form codes shall start with the reserved prefix `SRV-`. Saving a survey form without it shall be refused. | Code "CUST-001" with Form Type = Survey is refused. "SRV-001" is saved. | AD |
