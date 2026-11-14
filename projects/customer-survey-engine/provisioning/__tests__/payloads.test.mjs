@@ -21,6 +21,18 @@ test('buildEntityPayload_surveyTable_isOrganizationOwnedWithAPrimaryName', () =>
   assert.equal(payload.Attributes[0].IsPrimaryName, true);
 });
 
+test('buildEntityPayload_auditedTable_isCreatedWithAuditingOn', () => {
+  const payload = buildEntityPayload({ name: 'qdb_survey_setup', label: 'S', pluralLabel: 'Ss', description: 'd', columns: [], isAuditEnabled: true }, LANGUAGE_CODE);
+
+  assert.equal(payload.IsAuditEnabled.Value, true);
+});
+
+test('buildEntityPayload_unauditedTable_isCreatedWithAuditingOff', () => {
+  const payload = buildEntityPayload({ name: 'qdb_survey_answer', label: 'A', pluralLabel: 'As', description: 'd', columns: [] }, LANGUAGE_CODE);
+
+  assert.equal(payload.IsAuditEnabled.Value, false);
+});
+
 test('buildEntityPayload_tableWithColumns_createsThemInTheSameCall', () => {
   // A column created right after its new table can 404 while metadata propagates (GOT-013).
   const columns = [{ name: 'qdb_form_code', type: 'string', label: 'Form Code', maxLength: 100 }, { name: 'qdb_is_active', type: 'boolean', label: 'Is Active', defaultValue: false }];

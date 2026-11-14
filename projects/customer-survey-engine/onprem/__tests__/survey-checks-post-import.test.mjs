@@ -96,6 +96,30 @@ test('postImport_rolesUnreadable_warnsQ12', async () => {
   assert.equal(checkOf(await postImport({ roles: notFound() }, SCHEDULER_KIT), 'Q12').status, WARN);
 });
 
+// ── Q13 change history on the audited survey tables (audit AUD-01, checklist B9) ──
+
+const AUDIT_KIT = emptyKit({ auditedTables: ['qdb_survey_setup', 'qdb_survey_invitation'] });
+const audited = (isOn) => ({ IsAuditEnabled: { Value: isOn } });
+const orgAuditing = (isOn) => ({ organizations: rows({ isauditenabled: isOn }) });
+
+test('postImport_auditedTablesAndOrgAuditingOn_passesQ13', async () => {
+  const answers = { ...orgAuditing(true), "EntityDefinitions(LogicalName='qdb_survey_setup')": audited(true), "EntityDefinitions(LogicalName='qdb_survey_invitation')": audited(true) };
+
+  assert.equal(checkOf(await postImport(answers, AUDIT_KIT), 'Q13').status, PASS);
+});
+
+test('postImport_aTableNotAudited_failsQ13AndNamesIt', async () => {
+  const answers = { ...orgAuditing(true), "EntityDefinitions(LogicalName='qdb_survey_setup')": audited(true), "EntityDefinitions(LogicalName='qdb_survey_invitation')": audited(false) };
+
+  assert.match(checkOf(await postImport(answers, AUDIT_KIT), 'Q13').detail, /qdb_survey_invitation/);
+});
+
+test('postImport_tablesAuditedButOrgAuditingOff_warnsQ13', async () => {
+  const answers = { ...orgAuditing(false), "EntityDefinitions(LogicalName='qdb_survey_setup')": audited(true), "EntityDefinitions(LogicalName='qdb_survey_invitation')": audited(true) };
+
+  assert.equal(checkOf(await postImport(answers, AUDIT_KIT), 'Q13').status, WARN);
+});
+
 // ── Q7–Q10 Form Engine update ──
 
 const HASH_KIT = emptyKit({ hashes: { designer: sha256Of('designer'), runtime: sha256Of('runtime'), formEnginePlugin: sha256Of('dll') } });

@@ -118,3 +118,17 @@ test('preflight_systemJobMetadataUnreadable_failsP13', async () => {
 
   assert.equal(checkOf(await preflight({ "EntityDefinitions(LogicalName='asyncoperation')": notFound() }, kit), 'P13').status, FAIL);
 });
+
+// ── P14 org auditing (audit AUD-01): table history records nothing while the org switch is off ──
+
+test('preflight_orgAuditingOn_passesP14', async () => {
+  assert.equal(checkOf(await preflight({ organizations: rows({ isauditenabled: true }) }), 'P14').status, PASS);
+});
+
+test('preflight_orgAuditingOff_warnsP14', async () => {
+  assert.equal(checkOf(await preflight({ organizations: rows({ isauditenabled: false }) }), 'P14').status, WARN);
+});
+
+test('preflight_orgSettingsUnreadable_warnsP14', async () => {
+  assert.equal(checkOf(await preflight({ organizations: notFound() }), 'P14').status, WARN);
+});

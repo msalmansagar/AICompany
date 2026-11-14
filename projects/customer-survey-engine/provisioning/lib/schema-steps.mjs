@@ -126,6 +126,36 @@ async function ensureRelationship(context, relationship) {
  *
  * @param {{ client: object, tableNames: string[], isApply: boolean, report: Function }} context
  */
+/**
+ * Turns change history on for each manifest table that asks for it (CEO 2026-11-14, audit AUD-01), publishes
+ * and reads it back. Tables without isAuditEnabled are left exactly as they are.
+ *
+ * @param {{ client: object, tables: object[], isApply: boolean, report: Function }} context
+ */
+export async function ensureTableAuditing(context) {
+  const off = [];
+  for (const table of context.tables.filter((t) => t.isAuditEnabled === true)) {
+    const isOn = await isAuditOn(context.client, table.name);
+    context.report(isOn ? 'exists' : 'enable', `auditing on table ${table.name}`);
+    if (!isOn) off.push(table.name);
+  }
+  if (!context.isApply || off.length === 0) return;
+  for (const name of off) await turnAuditingOn(context.client, name);
+  await publishTables({ ...context, tableNames: off });
+  for (const name of off) {
+    if (!(await isAuditOn(context.client, name))) throw new Error(`Table ${name}: auditing still off after publishing`);
+    context.report('verified', `auditing on table ${name}`);
+  }
+}
+
+const isAuditOn = async (client, table) => (await client.send('GET', `${entityPath(table)}?$select=IsAuditEnabled`)).json.IsAuditEnabled.Value === true;
+
+// Table metadata changes by writing the whole definition back (MergeLabels keeps other languages' labels).
+async function turnAuditingOn(client, table) {
+  const { '@odata.context': _context, ...definition } = (await client.send('GET', entityPath(table))).json;
+  await client.putMetadata(entityPath(table), { ...definition, IsAuditEnabled: { ...definition.IsAuditEnabled, Value: true } });
+}
+
 export async function publishTables({ client, tableNames, isApply, report }) {
   report('publish', `${tableNames.length} tables`);
   if (!isApply) return;

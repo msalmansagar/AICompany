@@ -13,7 +13,7 @@ import { parseArgs } from 'node:util';
 import { SOLUTION, TABLES, RELATIONSHIPS, ALTERNATE_KEYS, ROLES } from './manifest.mjs';
 import { findManifestProblems } from './lib/validate-manifest.mjs';
 import { createDataverseClient } from './lib/dataverse-client.mjs';
-import { ensureSolution, ensureTables, ensureRelationships, publishTables, ensureAlternateKeys } from './lib/schema-steps.mjs';
+import { ensureSolution, ensureTables, ensureRelationships, publishTables, ensureTableAuditing, ensureAlternateKeys } from './lib/schema-steps.mjs';
 import { ensureRoles } from './lib/role-steps.mjs';
 import { ensureSeedRows } from './lib/seed-steps.mjs';
 
@@ -49,6 +49,7 @@ async function runSteps(context, seed) {
   console.log('[2] Tables and columns'); await ensureTables({ ...context, tables: TABLES });
   console.log('[3] Relationships'); await ensureRelationships({ ...context, relationships: RELATIONSHIPS });
   console.log('[4] Publish'); await publishTables({ ...context, tableNames: TABLES.map((t) => t.name) });
+  console.log('[4b] Table auditing'); await ensureTableAuditing({ ...context, tables: TABLES });
   console.log('[5] Alternate keys'); await ensureAlternateKeys({ ...context, alternateKeys: ALTERNATE_KEYS });
   console.log('[6] Roles'); await ensureRoles({ ...context, roles: ROLES, solutionUniqueName: SOLUTION.uniqueName });
   console.log('[7] Seed rows'); await ensureSeedRows({ ...context, seed });

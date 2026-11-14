@@ -59,12 +59,14 @@ const sourceRecordColumns = () => [
 
 /**
  * @typedef {{ name: string, type: string, label: string, [setting: string]: unknown }} ColumnSpec
- * @typedef {{ name: string, label: string, pluralLabel: string, description: string, hasActivities?: boolean, columns: ColumnSpec[] }} TableSpec
+ * @typedef {{ name: string, label: string, pluralLabel: string, description: string, hasActivities?: boolean, isAuditEnabled?: boolean, columns: ColumnSpec[] }} TableSpec
+ * isAuditEnabled (CEO 2026-11-14, audit AUD-01): change history on the rule tables, invitations and the
+ * suppression log. Never on responses or answers: their history would keep anonymised answers (PDPPL).
  * @type {ReadonlyArray<TableSpec>}
  */
 export const TABLES = Object.freeze([
   {
-    name: 'qdb_survey_source', label: 'Survey Source', pluralLabel: 'Survey Sources',
+    name: 'qdb_survey_source', label: 'Survey Source', pluralLabel: 'Survey Sources', isAuditEnabled: true,
     description: 'A CRM request table that can trigger surveys (FR-CSE-001..006).',
     columns: [
       string('qdb_table_logical_name', 'Table Logical Name', 128, { required: true }),
@@ -79,7 +81,7 @@ export const TABLES = Object.freeze([
     ],
   },
   {
-    name: 'qdb_survey_setup', label: 'Survey Setup', pluralLabel: 'Survey Setups',
+    name: 'qdb_survey_setup', label: 'Survey Setup', pluralLabel: 'Survey Setups', isAuditEnabled: true,
     description: 'A survey definition: form, wording, delivery and window (FR-CSE-007..018).',
     columns: [
       string('qdb_form_code', 'Form Code', 100, { required: true }),
@@ -96,7 +98,7 @@ export const TABLES = Object.freeze([
     ],
   },
   {
-    name: 'qdb_survey_trigger', label: 'Survey Trigger', pluralLabel: 'Survey Triggers',
+    name: 'qdb_survey_trigger', label: 'Survey Trigger', pluralLabel: 'Survey Triggers', isAuditEnabled: true,
     description: 'When a setup sends invitations (FR-CSE-026..044).',
     columns: [
       choice('qdb_trigger_kind', 'Trigger Kind', TRIGGER_KIND_OPTIONS),
@@ -115,7 +117,7 @@ export const TABLES = Object.freeze([
     ],
   },
   {
-    name: 'qdb_survey_invitation', label: 'Survey Invitation', pluralLabel: 'Survey Invitations',
+    name: 'qdb_survey_invitation', label: 'Survey Invitation', pluralLabel: 'Survey Invitations', isAuditEnabled: true,
     description: 'One survey sent to one customer (FR-CSE-045..050).',
     hasActivities: true,
     columns: [
@@ -165,7 +167,7 @@ export const TABLES = Object.freeze([
     ],
   },
   {
-    name: 'qdb_survey_suppression_log', label: 'Survey Suppression Log', pluralLabel: 'Survey Suppression Logs',
+    name: 'qdb_survey_suppression_log', label: 'Survey Suppression Log', pluralLabel: 'Survey Suppression Logs', isAuditEnabled: true,
     description: 'Append-only record of every trigger that did not send (NFR-CSE-001).',
     columns: [
       ...sourceRecordColumns(),
@@ -175,7 +177,7 @@ export const TABLES = Object.freeze([
     ],
   },
   {
-    name: 'qdb_survey_settings', label: 'Survey Settings', pluralLabel: 'Survey Settings',
+    name: 'qdb_survey_settings', label: 'Survey Settings', pluralLabel: 'Survey Settings', isAuditEnabled: true,
     description: 'Org-wide survey settings; one row per org (FR-CSE-040, 058).',
     columns: [
       integer('qdb_fatigue_min_days', 'Fatigue Minimum Days', { min: 0, max: 3650 }),
@@ -189,7 +191,7 @@ export const TABLES = Object.freeze([
     ],
   },
   {
-    name: 'qdb_survey_sms_config', label: 'Survey SMS Config', pluralLabel: 'Survey SMS Configs',
+    name: 'qdb_survey_sms_config', label: 'Survey SMS Config', pluralLabel: 'Survey SMS Configs', isAuditEnabled: true,
     description: 'Which table and columns hand an SMS to this org\'s SMS service (FR-CSE-048).',
     columns: [
       string('qdb_sms_table_logical_name', 'SMS Table Logical Name', 128, { required: true }),

@@ -40,6 +40,7 @@ export function buildEntityPayload(table, languageCode) {
     IsActivity: false,
     HasNotes: false,
     HasActivities: table.hasActivities === true,
+    IsAuditEnabled: { Value: table.isAuditEnabled === true, CanBeChanged: true },
     Attributes: [{
       '@odata.type': 'Microsoft.Dynamics.CRM.StringAttributeMetadata',
       SchemaName: 'qdb_name',

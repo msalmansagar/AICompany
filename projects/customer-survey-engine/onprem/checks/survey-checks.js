@@ -136,6 +136,35 @@ const SurveyChecks = (() => {
       refusing.length ? `views not allowed (or unreadable) on: ${refusing.join(', ')}. The import would fail; raise this before importing` : 'views allowed')];
   }
 
+  // ── Change history (audit AUD-01, checklist B9): table auditing records nothing while the org switch is off ──
+
+  async function readOrgAuditing(get) {
+    const response = await tryGet(get, 'organizations?$select=isauditenabled');
+    if (!response.ok) return { isKnown: false, isOn: false, message: response.message };
+    return { isKnown: true, isOn: ((response.json.value || [])[0] || {}).isauditenabled === true };
+  }
+
+  async function checkOrgAuditing(get) {
+    const auditing = await readOrgAuditing(get);
+    const title = 'Org auditing is on (survey change history needs it)';
+    if (!auditing.isKnown) return [result('P14', title, WARN, `could not read: ${auditing.message}`)];
+    return [result('P14', title, auditing.isOn ? PASS : WARN,
+      auditing.isOn ? 'on' : 'off: turn on System Settings → Auditing → Start Auditing before go-live (checklist B9); it does not block the import')];
+  }
+
+  async function checkTableAuditing(get, kit) {
+    const notAudited = [];
+    for (const table of kit.auditedTables) {
+      const definition = (await tryGet(get, `EntityDefinitions(LogicalName=${quoted(table)})?$select=IsAuditEnabled`)).json;
+      if (!definition || !definition.IsAuditEnabled || definition.IsAuditEnabled.Value !== true) notAudited.push(table);
+    }
+    const title = `Change history on the ${kit.auditedTables.length} audited survey tables`;
+    if (notAudited.length) return [result('Q13', title, FAIL, `off (or unreadable) on: ${notAudited.join(', ')}. Publish All, then check again`)];
+    const auditing = await readOrgAuditing(get);
+    return [result('Q13', title, auditing.isOn ? PASS : WARN,
+      auditing.isOn ? 'on, and org auditing is on' : 'on for the tables, but org auditing is off or unreadable: nothing is recorded until it is on (P14)')];
+  }
+
   async function findCollisions(get, kit) {
     const found = [];
     const probe = async (label, path) => { if (await firstRow(get, path)) found.push(label); };
@@ -253,7 +282,8 @@ const SurveyChecks = (() => {
     const checks = [
       ...(await checkPlatform(get, kit)), ...(await checkCustomApis(get)), ...(await checkFormEngine(get, kit)),
       ...(await checkPublisher(get, kit)), ...(await checkCollisions(get, kit)), ...(await checkServices(get)),
-      ...(await gridColumnCensus(get)), ...(await checkSurveyViewTables(get, kit)), ...(await checkConfig(get, config)),
+      ...(await gridColumnCensus(get)), ...(await checkSurveyViewTables(get, kit)), ...(await checkOrgAuditing(get)),
+      ...(await checkConfig(get, config)),
     ];
     return { kind: 'survey-preflight', checks, renderCache: await renderCacheSnapshot(get) };
   }
@@ -343,7 +373,7 @@ const SurveyChecks = (() => {
     const checks = [
       ...(await checkSurveyComponents(get, kit)), ...(await checkCustomApiBindings(get, kit)),
       ...(await checkSteps(get, kit)), ...(await checkFormEngineUpdate(get, kit)), ...(await checkSurveyViews(get, kit)),
-      ...(await checkSchedulerRole(get, kit)),
+      ...(await checkSchedulerRole(get, kit)), ...(await checkTableAuditing(get, kit)),
     ];
     return { kind: 'survey-post-import', checks, renderCache: await renderCacheSnapshot(get) };
   }

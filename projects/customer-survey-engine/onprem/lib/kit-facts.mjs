@@ -35,6 +35,7 @@ export function readKitFacts(kitDir) {
     solution: SOLUTION.uniqueName,
     publisher: { uniqueName: SOLUTION.publisherUniqueName, prefix: 'qdb', optionValuePrefix: 10000 },
     surveyTables: TABLES.map((table) => table.name),
+    auditedTables: TABLES.filter((table) => table.isAuditEnabled === true).map((table) => table.name),
     roleNames: ROLES.map((role) => role.name),
     schedulerRoleName: SCHEDULER_ROLE_NAME,
     customApis: survey.contents.customApis,

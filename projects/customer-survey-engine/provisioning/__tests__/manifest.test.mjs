@@ -59,6 +59,14 @@ test('roles_surveyScheduler_nameMatchesThePluginCheck', () => {
   assert.ok(ROLES.some((role) => role.name === pluginName), pluginName);
 });
 
+// CEO 2026-11-14 (audit AUD-01, checklist B9): change history on the rule tables, invitations and the
+// suppression log, but not on responses or answers, whose history would keep anonymised answers (PDPPL).
+test('tables_auditHistory_isOnForRulesAndInvitationsOnly', () => {
+  const audited = TABLES.filter((table) => table.isAuditEnabled === true).map((table) => table.name).sort();
+
+  assert.deepEqual(audited, ['qdb_survey_invitation', 'qdb_survey_settings', 'qdb_survey_setup', 'qdb_survey_sms_config', 'qdb_survey_source', 'qdb_survey_suppression_log', 'qdb_survey_trigger']);
+});
+
 test('roles_suppressionLog_isNeverWritableOrDeletable', () => {
   const logPrivileges = ROLES.flatMap((role) => role.privileges.filter((p) => p.table === 'qdb_survey_suppression_log'));
   for (const privilege of logPrivileges) {

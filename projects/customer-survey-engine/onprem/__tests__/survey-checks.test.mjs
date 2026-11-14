@@ -41,7 +41,7 @@ test('compareRenderCache_rowThatAppeared_isListed', () => {
 });
 
 const HEALTH_VIEW = { table: 'asyncoperation', name: 'Survey Jobs - Failed or Suspended' };
-const kit = { largestWebResourceBytes: 1, formEngineTables: [], formEngineIcons: [], formEngineColumns: [], surveyTables: [], roleNames: [], customApis: [], surveyIcons: [], surveyViews: [HEALTH_VIEW], formEnginePluginAssembly: 'x', surveyPluginAssembly: 'y', appModule: 'z', solution: 's', publisher: { uniqueName: 'qdb', prefix: 'qdb', optionValuePrefix: 10000 }, hashes: {} };
+const kit = { largestWebResourceBytes: 1, formEngineTables: [], formEngineIcons: [], formEngineColumns: [], surveyTables: [], auditedTables: [], roleNames: [], schedulerRoleName: 'Survey Scheduler', customApis: [], surveyIcons: [], surveyViews: [HEALTH_VIEW], formEnginePluginAssembly: 'x', surveyPluginAssembly: 'y', appModule: 'z', solution: 's', publisher: { uniqueName: 'qdb', prefix: 'qdb', optionValuePrefix: 10000 }, hashes: {} };
 const config = { settings: {}, sources: [], smsConfigs: [] };
 const statusOf = (report, id) => report.checks.find((check) => check.id === id).status;
 // Answers RetrieveVersion, then the first answer whose path prefix matches, then an empty result.
