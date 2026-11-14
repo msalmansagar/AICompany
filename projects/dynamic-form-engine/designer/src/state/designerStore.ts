@@ -13,6 +13,13 @@ import type {
 } from '@qdb/shared';
 import { useConcurrencyStore } from './concurrencyStore';
 import { usePresenceStore } from './presenceStore';
+import {
+  auditSnapshotOfSave,
+  findChangesMadeDuringSave,
+  NO_PENDING_CHANGES,
+  resolvePendingIds,
+} from './saveCompletion';
+import type { PendingChanges, SavedSnapshot } from './saveCompletion';
 import type { RuleCreationTarget } from '@/screens/ruleDefaults';
 
 // Enable immer patch tracking once at module init so produceWithPatches() is
@@ -202,7 +209,8 @@ export interface DesignerState {
 
   // Save state
   markSaving: () => void;
-  markSaved: (resolvedIds?: Record<string, string>, resolvedThemeId?: string | null) => void;
+  /** Settles a finished save. Pass the snapshot it saved so edits made while it ran stay pending. */
+  markSaved: (resolvedIds?: Record<string, string>, resolvedThemeId?: string | null, saved?: SavedSnapshot) => void;
   markResolved: (resolvedIds: Record<string, string>) => void;
   markPublishing: () => void;
   markPublished: () => void;
@@ -310,6 +318,22 @@ function captureSnapshot(state: DesignerState): DesignerStateSnapshot {
   };
 }
 
+/** After a save, leaves only the changes it did not write (DFE-AUTOSAVE-001). */
+function keepPendingChanges(
+  state: DesignerState,
+  pending: PendingChanges,
+  resolvedIds: Record<string, string>,
+): void {
+  state.newIds = [...pending.newIds];
+  state.dirtyIds = resolvePendingIds(pending.dirtyIds, resolvedIds);
+  state.deletedIds = [...pending.deletedIds];
+  state.deletedEntityTypes = Object.fromEntries(
+    pending.deletedIds.filter(id => id in state.deletedEntityTypes).map(id => [id, state.deletedEntityTypes[id]] as const),
+  );
+  state.isDirty = pending.newIds.length > 0 || pending.dirtyIds.length > 0
+    || pending.deletedIds.length > 0 || pending.hasUnsavedFormOrDesign;
+}
+
 /** Captures the auditable subset of state for E4 change-delta computation. */
 function captureAuditSnapshot(state: DesignerState): FormAuditableSnapshot {
   return {
@@ -345,7 +369,7 @@ function buildInitialOrdering(
   return { tabOrder, sectionOrder, fieldOrder };
 }
 
-export const useDesignerStore = create<DesignerState>((set, _get) => ({
+export const useDesignerStore = create<DesignerState>((set, get) => ({
   currentScreen: 'form-list',
   form: null,
   tabs: {},
@@ -871,24 +895,22 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
       })
     ),
 
-  markSaved: (resolvedIds, resolvedThemeId) =>
+  markSaved: (resolvedIds = {}, resolvedThemeId, saved) => {
+    const pending = saved ? findChangesMadeDuringSave(get(), saved) : NO_PENDING_CHANGES;
     set(
       produce((state: DesignerState) => {
-        if (resolvedIds) applyResolvedIds(state, resolvedIds);
+        applyResolvedIds(state, resolvedIds);
         if (resolvedThemeId !== undefined && resolvedThemeId !== null) {
           state.designPayload.theme.id = resolvedThemeId;
         }
         state.isSaving = false;
-        state.isDirty = false;
-        state.dirtyIds = [];
-        state.newIds = [];
-        state.deletedIds = [];
-        state.deletedEntityTypes = {};
+        keepPendingChanges(state, pending, resolvedIds);
         state.lastSavedAt = new Date();
-        // Advance the E4 audit baseline to reflect the now-saved state.
-        state.lastSavedAuditSnapshot = captureAuditSnapshot(state);
+        // Advance the E4 audit baseline to what was saved, not to edits made while it ran.
+        state.lastSavedAuditSnapshot = saved ? auditSnapshotOfSave(saved, resolvedIds) : captureAuditSnapshot(state);
       })
-    ),
+    );
+  },
 
   markPublishing: () => set({ isPublishing: true }),
 

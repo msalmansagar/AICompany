@@ -199,7 +199,7 @@ export function DesignerScreen(): React.ReactElement {
     const saveService = new FormSaveService(webApi, userContext);
 
     const { resolvedIds, resolvedThemeId } = await saveService.save(snapshot);
-    markSaved(resolvedIds, resolvedThemeId);
+    markSaved(resolvedIds, resolvedThemeId, snapshot);
 
     // Refresh the etag after a successful PATCH — Dataverse invalidates the
     // prior etag on every write (next save without a refresh would get a false 412).
