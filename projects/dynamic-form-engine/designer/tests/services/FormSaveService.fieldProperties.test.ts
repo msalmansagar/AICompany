@@ -288,3 +288,47 @@ describe('FormSaveService — clearing a component key (defect DFE-CKEY-001)', (
     expect(fieldPayloadSentBy(webApi.updateRecord)[FORM_FIELD_ATTRS.COMPONENT_KEY]).toBe('rating-stars');
   });
 });
+
+describe('FormSaveService — clearing other field properties (defect DFE-CLEAR-001)', () => {
+  const CLEARABLE_PROPERTIES: Array<[keyof DesignerFieldModel, unknown, string]> = [
+    ['scoreWeight', 2, FORM_FIELD_ATTRS.SCORE_WEIGHT],
+    ['scoreMin', 1, FORM_FIELD_ATTRS.SCORE_MIN],
+    ['scoreMax', 5, FORM_FIELD_ATTRS.SCORE_MAX],
+    ['staticContent', 'Static label text', FORM_FIELD_ATTRS.STATIC_CONTENT],
+    ['sourceFieldSchemaName', 'qdb_source', FORM_FIELD_ATTRS.SOURCE_FIELD_SCHEMA_NAME],
+    ['fileDownloadLabel', 'Download template', FORM_FIELD_ATTRS.FILE_DOWNLOAD_LABEL],
+    ['fileDownloadIcon', 'DocumentArrowDown', FORM_FIELD_ATTRS.FILE_DOWNLOAD_ICON],
+    ['uploadDocumentSetting', 'setting-upload', FORM_FIELD_ATTRS.UPLOAD_DOCUMENT_SETTING],
+    ['downloadDocumentSetting', 'setting-download', FORM_FIELD_ATTRS.DOWNLOAD_DOCUMENT_SETTING],
+    ['infoCardListType', 'numbered-roman', FORM_FIELD_ATTRS.INFO_CARD_LIST_TYPE],
+    ['infoCardListMarker', 'circle', FORM_FIELD_ATTRS.INFO_CARD_LIST_MARKER],
+    ['infoCardDownloadIcon', 'ArrowDownload', FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_ICON],
+    ['barMaxFieldSchemaName', 'qdb_limit', FORM_FIELD_ATTRS.BAR_MAX_FIELD_SCHEMA],
+    ['barValueFieldSchemaName', 'qdb_used', FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA],
+  ];
+
+  it.each(CLEARABLE_PROPERTIES)('updateField_%s_clearedAfterSavedWithValue_writesNull', async (property, savedValue, attribute) => {
+    const webApi = makeWebApi();
+    const field = makeField(EXISTING_FIELD_ID, { [property]: null });
+    const savedField = makeField(EXISTING_FIELD_ID, { [property]: savedValue });
+
+    await makeSaveService(webApi).save(makeState(field, {
+      dirtyIds: [field.id],
+      savedFields: { [field.id]: savedField },
+    }));
+
+    expect(fieldPayloadSentBy(webApi.updateRecord)[attribute]).toBeNull();
+  });
+
+  it.each(CLEARABLE_PROPERTIES)('updateField_%s_neverSet_sendsNoAttribute', async (property, _savedValue, attribute) => {
+    const webApi = makeWebApi();
+    const field = makeField(EXISTING_FIELD_ID, { [property]: null });
+
+    await makeSaveService(webApi).save(makeState(field, {
+      dirtyIds: [field.id],
+      savedFields: { [field.id]: makeField(EXISTING_FIELD_ID, { [property]: null }) },
+    }));
+
+    expect(fieldPayloadSentBy(webApi.updateRecord)).not.toHaveProperty(attribute);
+  });
+});
