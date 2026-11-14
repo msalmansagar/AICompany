@@ -33,7 +33,7 @@ A **WARN** needs a named person's decision, written down, before going on.
 | Check | Pass | If not |
 |---|---|---|
 | P1 version 9.x | PASS | stop |
-| P2 upload limit ≥ 2,296,208 bytes (the 1.6.0 designer) | PASS | raise **System Settings → Email → Maximum file size** to 5,120 KB, re-run |
+| P2 upload limit ≥ 2,297,873 bytes (the 1.6.1 designer) | PASS | raise **System Settings → Email → Maximum file size** to 5,120 KB, re-run |
 | **P3 Custom APIs supported** (readiness F2) | PASS | **stop**: all seven survey APIs are Custom APIs; the design needs a different binding before this org can take the kit |
 | P4–P7 Form Engine present (tables, icons, plugin, Custom API) | PASS | stop: install or update the Form Engine first |
 | P8 publisher `qdb` with prefix `qdb` / `10000` | PASS | stop: a different publisher owns the prefix |
@@ -51,7 +51,7 @@ A **WARN** needs a named person's decision, written down, before going on.
 | # | Step |
 |---|---|
 | 2.1 | **Settings → Solutions → Import** → `form-engine/QdbFormEngineSurveyUpdate_1_0_0_0_onprem_unmanaged.zip`. Its only dependencies are the Form Engine tables and icons; CRM refuses it on an org without them. |
-| 2.2 | **Import** → `form-engine/FormDesignerWebResource_1.6.0.zip`. |
+| 2.2 | **Import** → `form-engine/FormDesignerWebResource_1.6.1.zip`. |
 | 2.3 | **Publish All Customizations.** |
 | 2.4 | Open the Form Designer from its usual entry point (the app's site map, **not** the raw `/WebResources/` URL, which has no CRM context) and open any existing form. It loads, and the form properties panel shows **Form Type** (Standard / Survey). |
 | 2.5 | **Test orgs only: A2 evidence (NFR-CSE-004).** Paste **`scripts/survey-stage2-check.console.js`** as in stage 1. It downloads `survey-stage2-<date>.json`. **S1 must PASS** (no SurveyEngine on the org yet; if S1 fails, this run cannot be A2 evidence) and Q7–Q9 PASS. |

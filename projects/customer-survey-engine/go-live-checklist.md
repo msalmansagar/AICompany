@@ -45,7 +45,7 @@ Every row is one runbook stage (`onprem-deploy/2026-11-11/RUNBOOK.md`). Track HL
 |---|---|---|---|---|---|
 | C1 | Database backup before the window | the import | QDB DBA | Open | Open |
 | C2 | Preflight report confirmed by MSS (gate 1); **P3 Custom APIs on 9.1** is the deciding check (readiness F2) | the import | QDB IT → MSS | Open | Open |
-| C3 | Form Engine column patch + designer/runtime 1.6.0 imported (survey mode; supersedes 1.5.0 and the 1.4.1 kit still awaiting import) | SurveyEngine import | QDB IT | Open | Open |
+| C3 | Form Engine column patch + designer/runtime 1.6.1 imported (survey mode and the 2026-11-14 Save fixes; supersedes 1.6.0, 1.5.0 and the 1.4.1 kit still awaiting import) | SurveyEngine import | QDB IT | Open | Open |
 | C4 | **Grid-column census** (preflight P12) cleared, then the Form Engine DLL installed | weighted scoring on that org | Form owners + QDB IT | Open | Open |
 | C5 | SurveyEngine imported; post-import report and render-cache comparison confirmed by MSS (gate 2) | configuration | QDB IT → MSS | Open | Open |
 | C6 | Roles given: Survey Admin, Survey Analyst, Survey Integration (portal service account) | use | QDB IT | Open | Open |
