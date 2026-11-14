@@ -305,6 +305,91 @@ describe('useDesignerStore', () => {
   });
 });
 
+// ── markSaved vs edits made while the save was running (defect DFE-AUTOSAVE-001) ──
+
+describe('markSaved with the saved snapshot', () => {
+  function takeSavedSnapshot() {
+    const { form, tabs, sections, fields, validationRules, businessRules, designPayload, newIds, dirtyIds, deletedIds } =
+      useDesignerStore.getState();
+    return { form, tabs, sections, fields, validationRules, businessRules, designPayload, newIds, dirtyIds, deletedIds };
+  }
+
+  beforeEach(() => {
+    useDesignerStore.getState().resetDesigner();
+    loadMinimalForm();
+  });
+
+  it('markSaved_fieldAddedDuringSave_staysNewAndDirty', () => {
+    // An autosave was in flight when the field was added; it must still be created by the next save.
+    const saved = takeSavedSnapshot();
+    useDesignerStore.getState().addField(makeField({ id: 'tmp_field_late' }));
+
+    useDesignerStore.getState().markSaved({}, null, saved);
+
+    const state = useDesignerStore.getState();
+    expect(state.newIds).toContain('tmp_field_late');
+    expect(state.dirtyIds).toContain('tmp_field_late');
+    expect(state.isDirty).toBe(true);
+  });
+
+  it('markSaved_fieldEditedDuringSave_staysDirty', () => {
+    useDesignerStore.getState().updateField('field-1', { label: 'Saved label' });
+    const saved = takeSavedSnapshot();
+    useDesignerStore.getState().updateField('field-1', { label: 'Edited during save' });
+
+    useDesignerStore.getState().markSaved({}, null, saved);
+
+    const state = useDesignerStore.getState();
+    expect(state.dirtyIds).toContain('field-1');
+    expect(state.isDirty).toBe(true);
+  });
+
+  it('markSaved_fieldEditedDuringSave_baselineHoldsTheSavedValue', () => {
+    useDesignerStore.getState().updateField('field-1', { scoreWeight: 3 });
+    const saved = takeSavedSnapshot();
+    useDesignerStore.getState().updateField('field-1', { scoreWeight: null });
+
+    useDesignerStore.getState().markSaved({}, null, saved);
+
+    expect(useDesignerStore.getState().lastSavedAuditSnapshot?.fields['field-1']?.scoreWeight).toBe(3);
+  });
+
+  it('markSaved_newFieldEditedWhileBeingCreated_staysDirtyUnderItsRealId', () => {
+    useDesignerStore.getState().addField(makeField({ id: 'tmp_field_new' }));
+    const saved = takeSavedSnapshot();
+    useDesignerStore.getState().updateField('tmp_field_new', { label: 'Edited during save' });
+
+    useDesignerStore.getState().markSaved({ tmp_field_new: 'real-field-new' }, null, saved);
+
+    const state = useDesignerStore.getState();
+    expect(state.dirtyIds).toEqual(['real-field-new']);
+    expect(state.newIds).toEqual([]);
+  });
+
+  it('markSaved_formEditedDuringSave_staysDirty', () => {
+    const saved = takeSavedSnapshot();
+    useDesignerStore.getState().updateFormDesign({ formDefinitionId: 'form-edited-during-save' });
+
+    useDesignerStore.getState().markSaved({}, null, saved);
+
+    expect(useDesignerStore.getState().isDirty).toBe(true);
+  });
+
+  it('markSaved_nothingChangedDuringSave_clearsEverything', () => {
+    useDesignerStore.getState().addField(makeField({ id: 'tmp_field_saved' }));
+    useDesignerStore.getState().updateField('field-1', { label: 'Saved label' });
+    const saved = takeSavedSnapshot();
+
+    useDesignerStore.getState().markSaved({ tmp_field_saved: 'real-field-saved' }, null, saved);
+
+    const state = useDesignerStore.getState();
+    expect(state.isDirty).toBe(false);
+    expect(state.dirtyIds).toEqual([]);
+    expect(state.newIds).toEqual([]);
+    expect(state.lastSavedAuditSnapshot?.fields['real-field-saved']?.id).toBe('real-field-saved');
+  });
+});
+
 // ── loadForm vs the concurrency store ────────────────────────────────────────
 
 describe('loadForm and the record etag', () => {
