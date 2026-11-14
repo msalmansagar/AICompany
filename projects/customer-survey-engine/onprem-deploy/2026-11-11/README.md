@@ -1,7 +1,8 @@
 # Customer Survey Engine — on-prem kit, 2026-11-11
 
-**Status: built, not yet imported anywhere.** On 2026-11-14 the SurveyEngine package was rebuilt again to add
-the Survey Scheduler role and the plugin that admits it (Phase 6 audit SEC-01). On 2026-11-13 it was rebuilt to add the
+**Status: built, not yet imported anywhere.** On 2026-11-14 the SurveyEngine package was rebuilt twice: to add
+the Survey Scheduler role and the plugin that admits it (Phase 6 audit SEC-01), then to switch on change history
+for the rule tables, invitations and the suppression log (audit AUD-01). On 2026-11-13 it was rebuilt to add the
 survey health view, and the Form Engine designer was rebuilt as 1.6.0 to add survey mode (BRD addendum
 FR-CSE-071..075); the runtime, column patch contents and plugin are unchanged. One kit for both on-prem orgs, **HL CRM** (customers are
 contacts) and **BFD CRM / QDB1** (customers are accounts). Configuration, not code, makes an org one or
@@ -73,6 +74,7 @@ prerequisites.
 | Check | Result |
 |---|---|
 | Survey assembly in the package | byte-identical to the local Release build of commit `e98ba33f` (Survey Scheduler role), which runs on the cloud org (sha256 `8efa470e…`, deployed and read back 2026-11-14) |
+| Change history | `IsAuditEnabled=1` on the package's source, setup, trigger, invitation, suppression log, settings and SMS config tables, and `0` on response and answer (read from `customizations.xml`). Post-import Q13 checks it on each org; preflight P14 checks the org switch. P14 and Q13 PASS on the cloud org |
 | Survey Scheduler role | in the package with the four survey roles. Its grant is Read of the organization row; the platform adds nine default privileges to every new role (plugin/SDK metadata, SharePoint document data), as on the other three roles. Post-import Q3 and Q12 PASS on the cloud org |
 | Designer and runtime in 1.6.0 | byte-identical to the cloud org's web resources (designer `b63e0bfd…`, deployed and read back 2026-11-13; runtime `afe8eb3f…`, taken unchanged from 1.5.0) |
 | Form Engine plugin | byte-identical to the cloud org's assembly (`137658ae…`) |
@@ -86,7 +88,7 @@ prerequisites.
 
 | File | SHA-256 | Bytes |
 |---|---|---|
-| `SurveyEngine_1_0_0_0_onprem_unmanaged.zip` | `8d76e88fa0b2600698a750e945473d45b70d14d5467b2110eb8b73f758f79c76` | 157,877 |
+| `SurveyEngine_1_0_0_0_onprem_unmanaged.zip` | `39c03f77b5b60bb319273356cbea4179c4f236e247a93e5371e122cb8a04448e` | 157,892 |
 | `form-engine/QdbFormEngineSurveyUpdate_1_0_0_0_onprem_unmanaged.zip` | `c692a980c9e25250640fac54b8d1077b4369c3d84d4cb3e0649c45448cef0d97` | 3,426 |
 | `form-engine/FormDesignerWebResource_1.6.0.zip` | `69a3e14c1dab11bb0f69ea358f2d6297d6cc2ee55c44a28cbbd1d71af87a9063` | 1,386,144 |
 | `form-engine/Qdb.FormEngine.Plugins.dll` | `137658ae3a101eb97376aef8e22ea155155f74b2490900a81be7729f8529f083` | 903,680 |
