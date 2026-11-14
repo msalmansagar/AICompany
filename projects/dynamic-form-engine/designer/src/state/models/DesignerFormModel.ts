@@ -1,7 +1,8 @@
 // Domain model for a form definition as held in the designer local state.
 // Temp IDs are prefixed with 'tmp_' until the record is persisted to CRM.
 
-import type { SummaryMode, GridValidationFormat } from '@qdb/shared';
+import type { SummaryMode, GridValidationFormat, FormType, ScoringMode } from '@qdb/shared';
+export type { ScoringMode };
 
 export type { GridValidationFormat };
 
@@ -28,6 +29,17 @@ export interface DesignerFormModel {
   footerImageUrl?: string | null;
   status: FormStatus;
   currentVersion: string;
+  // FR-CSE-019: undefined until a maker chooses a type; undefined behaves as Standard and is
+  // never written, because qdb_form_type is not provisioned on every org.
+  formType?: FormType;
+  // True only when the form was loaded from an org that has qdb_form_type. A new, never-loaded
+  // form is unknown, so the type is neither offered nor written until the form is reopened.
+  isFormTypeAvailable?: boolean;
+  // FR-CSE-061: None = normal survey (default), Weighted = answers carry points and weights.
+  // Undefined until a maker chooses a mode; undefined behaves as None and is never written.
+  scoringMode?: ScoringMode;
+  // True only when the form was loaded from an org that has qdb_scoring_mode.
+  isScoringAvailable?: boolean;
   themeId: string | null;
   allowSaveDraft: boolean;
   draftExpiryDays: number | null;
@@ -98,6 +110,8 @@ export interface DesignerOptionValue {
   sortOrder: number;
   isDefault: boolean;
   notes: string | null;
+  // FR-CSE-062: points this option contributes in a weighted survey. Null means unset.
+  scorePoints?: number | null;
 }
 
 export interface DesignerLookupConfig {
@@ -180,6 +194,12 @@ export interface DesignerFieldModel {
   radioRenderStyle?: 'list' | 'cards' | 'rating' | null;
   // File fields: 'camera' opens a phone's rear camera; desktop keeps the file picker.
   fileCaptureMode?: 'any' | 'camera' | null;
+  // FR-CSE-063: multiplier for this field's points in a weighted survey. Null = use default of 1.
+  scoreWeight?: number | null;
+  // FR-CSE-064: for number/decimal/currency fields: maps the field's value onto [0..weight*points]
+  // using linear interpolation. Both must be set or neither is used.
+  scoreMin?: number | null;
+  scoreMax?: number | null;
   barMaxFieldSchemaName?: string | null;
   barValueFieldSchemaName?: string | null;
   maxRows: number | null;

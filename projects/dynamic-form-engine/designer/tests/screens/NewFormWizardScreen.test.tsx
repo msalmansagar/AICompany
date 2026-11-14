@@ -60,6 +60,9 @@ describe('NewFormWizardScreen — FR-012(a) Form Code auto-derive dirty flag', (
     const user = userEvent.setup({ delay: null });
     renderWizard();
 
+    // Step 1 is now Form Type; Normal Form is pre-selected — advance past it.
+    await user.click(screen.getByRole('button', { name: /next/i }));
+
     await user.type(getNameInput(), 'Loan Application Form');
 
     expect(getCodeInput().value).toBe('loan-application-form');
@@ -68,6 +71,8 @@ describe('NewFormWizardScreen — FR-012(a) Form Code auto-derive dirty flag', (
   it('continues_updating_code_as_name_grows_while_unedited', async () => {
     const user = userEvent.setup({ delay: null });
     renderWizard();
+
+    await user.click(screen.getByRole('button', { name: /next/i }));
 
     const nameInput = getNameInput();
     await user.type(nameInput, 'Lo');
@@ -80,6 +85,8 @@ describe('NewFormWizardScreen — FR-012(a) Form Code auto-derive dirty flag', (
   it('stops_auto_deriving_after_user_manually_edits_code', async () => {
     const user = userEvent.setup({ delay: null });
     renderWizard();
+
+    await user.click(screen.getByRole('button', { name: /next/i }));
 
     // Auto-derive fires as user types the name
     await user.type(getNameInput(), 'Loan');
@@ -101,6 +108,8 @@ describe('NewFormWizardScreen — FR-012(a) Form Code auto-derive dirty flag', (
     const user = userEvent.setup({ delay: null });
     renderWizard();
 
+    await user.click(screen.getByRole('button', { name: /next/i }));
+
     const codeInput = getCodeInput();
     await user.type(codeInput, 'MY FORM!');
 
@@ -108,9 +117,31 @@ describe('NewFormWizardScreen — FR-012(a) Form Code auto-derive dirty flag', (
     expect(getCodeInput().value).toBe('my-form-');
   });
 
+  // PV-002 accepts both separators, and legacy codes use underscores — the box must keep them.
+  it('keeps_underscores_in_manual_code_input', async () => {
+    const user = userEvent.setup({ delay: null });
+    renderWizard();
+
+    await user.click(screen.getByRole('button', { name: /next/i }));
+    await user.type(getCodeInput(), 'legacy_code-2');
+
+    expect(getCodeInput().value).toBe('legacy_code-2');
+  });
+
+  it('code_hint_lists_hyphens_and_underscores', async () => {
+    const user = userEvent.setup({ delay: null });
+    renderWizard();
+
+    await user.click(screen.getByRole('button', { name: /next/i }));
+
+    expect(screen.getByText('Lowercase letters, numbers, hyphens and underscores.')).toBeInTheDocument();
+  });
+
   it('sanitizes_auto_derived_code_with_special_characters_in_name', async () => {
     const user = userEvent.setup({ delay: null });
     renderWizard();
+
+    await user.click(screen.getByRole('button', { name: /next/i }));
 
     await user.type(getNameInput(), 'Loan (2026) Form');
 
@@ -120,16 +151,19 @@ describe('NewFormWizardScreen — FR-012(a) Form Code auto-derive dirty flag', (
   it('NewFormWizardScreen_givenBackNavAfterAutoDerive_manualCodeEditSurvivesAndBlocksAutoDerive', async () => {
     // This test validates the core architectural choice: isFormCodeManuallyEdited lives in the
     // parent NewFormWizardScreen (not in a useRef inside StepFormBasics), so that navigating
-    // Back from step 2 to step 1 — which unmounts and remounts StepFormBasics — does not
+    // Back from step 3 to step 2 — which unmounts and remounts StepFormBasics — does not
     // reset the dirty flag.
     const user = userEvent.setup({ delay: null });
     renderWizard();
 
-    // Step 1: type a name → code auto-derives; Next becomes enabled
+    // Step 1 is now Form Type; advance to Form Basics (step 2)
+    await user.click(screen.getByRole('button', { name: /next/i }));
+
+    // Step 2: type a name → code auto-derives; Next becomes enabled
     await user.type(getNameInput(), 'AB');
     expect(getCodeInput().value).toBe('ab');
 
-    // Navigate to step 2 then back to step 1 (StepFormBasics unmounts and remounts)
+    // Navigate to step 3 (Initial Structure) then back to step 2 (Basics remounts)
     await user.click(screen.getByRole('button', { name: /next/i }));
     await user.click(screen.getByRole('button', { name: /back/i }));
 

@@ -135,3 +135,45 @@ export function isGridFieldType(fieldType: string): boolean {
 export const BASIC_FIELD_TYPES = Object.values(FIELD_TYPE_DEFINITIONS).filter(d => d.category === 'basic');
 export const LAYOUT_FIELD_TYPES = Object.values(FIELD_TYPE_DEFINITIONS).filter(d => d.category === 'layout');
 export const ADVANCED_FIELD_TYPES = Object.values(FIELD_TYPE_DEFINITIONS).filter(d => d.category === 'advanced');
+
+/**
+ * FR-CSE-072 — survey palette allow-list.
+ *
+ * Survey forms may only contain these field types. Any type absent from this set
+ * triggers PV-019 at publish time and is not offered in the survey-mode toolbox.
+ * All layout containers are included; grids, lookups, file upload, rich text and
+ * custom components are excluded because survey submissions cannot store their
+ * answers in a form an analyst can read.
+ *
+ * This is the single source of truth — toolbox filtering and PV-019 both read it.
+ */
+export const SURVEY_ALLOWED_FIELD_TYPES: ReadonlySet<string> = new Set<string>([
+  // Basic question types (FR-CSE-072 explicit list)
+  FIELD_TYPE.TEXT,
+  FIELD_TYPE.TEXTAREA,
+  FIELD_TYPE.NUMBER,
+  FIELD_TYPE.DECIMAL,
+  FIELD_TYPE.CURRENCY,
+  FIELD_TYPE.DATE,
+  FIELD_TYPE.DATETIME,
+  FIELD_TYPE.EMAIL,
+  FIELD_TYPE.PHONE,
+  FIELD_TYPE.DROPDOWN,
+  FIELD_TYPE.MULTI_SELECT,
+  FIELD_TYPE.CHECKBOX,
+  FIELD_TYPE.RADIO,
+  FIELD_TYPE.BOOLEAN,
+  FIELD_TYPE.INFO_CARD,
+  FIELD_TYPE.LABEL,
+  // All layout containers are allowed
+  FIELD_TYPE.TAB,
+  FIELD_TYPE.SECTION_1COL,
+  FIELD_TYPE.SECTION_2COL,
+  FIELD_TYPE.SECTION_3COL,
+  FIELD_TYPE.SECTION_CARD,
+  FIELD_TYPE.SECTION_ACCORDION,
+  FIELD_TYPE.SPACER,
+  FIELD_TYPE.DIVIDER,
+  FIELD_TYPE.INFO_TEXT,
+  FIELD_TYPE.HEADER_TEXT,
+]);

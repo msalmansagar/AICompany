@@ -18,7 +18,11 @@ import {
   DeleteRegular,
 } from '@fluentui/react-icons';
 import { useDesignerStore } from '@/state/designerStore';
-import type { DesignerOptionValue } from '@/state/models/DesignerFormModel';
+import type { DesignerFieldModel, DesignerOptionValue } from '@/state/models/DesignerFormModel';
+
+// When scoring is active the grid gains a Points column between Default and the delete button.
+const GRID_COLUMNS_BASE = '32px 1fr 1fr 120px 48px';
+const GRID_COLUMNS_WEIGHTED = '32px 1fr 1fr 100px 120px 48px';
 
 const useStyles = makeStyles({
   root: {
@@ -43,13 +47,12 @@ const useStyles = makeStyles({
     display: 'flex',
     flexDirection: 'column',
     gap: '16px',
-    maxWidth: '760px',
+    maxWidth: '860px',
     margin: '0 auto',
     width: '100%',
   },
   tableHeader: {
     display: 'grid',
-    gridTemplateColumns: '32px 1fr 1fr 120px 48px',
     gap: '8px',
     padding: '8px 12px',
     backgroundColor: tokens.colorNeutralBackground2,
@@ -68,7 +71,6 @@ const useStyles = makeStyles({
   },
   rowMain: {
     display: 'grid',
-    gridTemplateColumns: '32px 1fr 1fr 120px 48px',
     gap: '8px',
     alignItems: 'center',
   },
@@ -114,13 +116,18 @@ interface OptionRowProps {
   option: DesignerOptionValue;
   isFirst: boolean;
   isLast: boolean;
+  // FR-CSE-062: show a Points column when the survey is Weighted.
+  isWeighted: boolean;
+  // FR-CSE-062: rating-style questions default to the option's numeric value as points.
+  isRating: boolean;
+  gridColumns: string;
   onChange: (patch: Partial<DesignerOptionValue>) => void;
   onDelete: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
 }
 
-function OptionRow({ option, isFirst, isLast, onChange, onDelete, onMoveUp, onMoveDown }: OptionRowProps): React.ReactElement {
+function OptionRow({ option, isFirst, isLast, isWeighted, isRating, gridColumns, onChange, onDelete, onMoveUp, onMoveDown }: OptionRowProps): React.ReactElement {
   const styles = useStyles();
 
   function handleLabelChange(_: React.ChangeEvent<HTMLInputElement>, data: { value: string }): void {
@@ -130,7 +137,7 @@ function OptionRow({ option, isFirst, isLast, onChange, onDelete, onMoveUp, onMo
 
   return (
     <div className={styles.tableRow} role="row">
-      <div className={styles.rowMain}>
+      <div className={styles.rowMain} style={{ gridTemplateColumns: gridColumns }}>
         <div className={styles.orderButtons}>
           <Button
             size="small"
@@ -175,6 +182,20 @@ function OptionRow({ option, isFirst, isLast, onChange, onDelete, onMoveUp, onMo
             aria-label="Set as default"
           />
         </div>
+        {/* FR-CSE-062: Points input — rating fields show placeholder "use option's numeric value" */}
+        {isWeighted && (
+          <Field>
+            <Input
+              type="number"
+              value={option.scorePoints != null ? String(option.scorePoints) : ''}
+              onChange={(_, data) =>
+                onChange({ scorePoints: data.value !== '' ? Number(data.value) : null })
+              }
+              placeholder={isRating ? 'option value' : '0'}
+              aria-label="Points"
+            />
+          </Field>
+        )}
         <Button
           size="small"
           appearance="subtle"
@@ -199,6 +220,10 @@ function OptionRow({ option, isFirst, isLast, onChange, onDelete, onMoveUp, onMo
   );
 }
 
+function isRatingField(field: DesignerFieldModel | null): boolean {
+  return field?.radioRenderStyle === 'rating';
+}
+
 export function OptionSetEditorScreen(): React.ReactElement {
   const styles = useStyles();
 
@@ -206,6 +231,9 @@ export function OptionSetEditorScreen(): React.ReactElement {
   const selectedId = useDesignerStore(s => s.selectedId);
   const field = useDesignerStore(s => (selectedId ? s.fields[selectedId] : null));
   const updateField = useDesignerStore(s => s.updateField);
+  const isWeighted = useDesignerStore(s => s.form?.scoringMode === 'Weighted');
+  const isRating = isRatingField(field);
+  const gridColumns = isWeighted ? GRID_COLUMNS_WEIGHTED : GRID_COLUMNS_BASE;
 
   const [options, setOptions] = useState<DesignerOptionValue[]>(
     () => (field?.options ?? []).slice().sort((a, b) => a.sortOrder - b.sortOrder)
@@ -304,11 +332,18 @@ export function OptionSetEditorScreen(): React.ReactElement {
           </div>
         ) : (
           <div role="table" aria-label="Option values">
-            <div className={styles.tableHeader} role="row">
+            <div
+              className={styles.tableHeader}
+              role="row"
+              style={{ gridTemplateColumns: gridColumns }}
+            >
               <span className={styles.columnLabel}>Order</span>
               <span className={styles.columnLabel}>Label</span>
               <span className={styles.columnLabel}>Value</span>
               <span className={styles.columnLabel} style={{ textAlign: 'center' }}>Default</span>
+              {isWeighted && (
+                <span className={styles.columnLabel}>Points</span>
+              )}
               <span />
             </div>
 
@@ -318,6 +353,9 @@ export function OptionSetEditorScreen(): React.ReactElement {
                 option={option}
                 isFirst={index === 0}
                 isLast={index === options.length - 1}
+                isWeighted={isWeighted}
+                isRating={isRating}
+                gridColumns={gridColumns}
                 onChange={patch => handleChange(option.id, patch)}
                 onDelete={() => handleDelete(option.id)}
                 onMoveUp={() => handleMoveUp(index)}

@@ -251,7 +251,8 @@ export class GridColumnConfigService {
       columnFieldType: String(record[GRID_COLUMN_CONFIG_ATTRS.COLUMN_TYPE] ?? 'text'),
       displayOrder: Number(record[GRID_COLUMN_CONFIG_ATTRS.DISPLAY_ORDER] ?? 0),
       isVisible: record[GRID_COLUMN_CONFIG_ATTRS.IS_VISIBLE] !== false,
-      isEditable: Boolean(record[GRID_COLUMN_CONFIG_ATTRS.IS_EDITABLE]),
+      // Empty means editable, as in the publisher; loading it as false made every Save turn the column read-only.
+      isEditable: record[GRID_COLUMN_CONFIG_ATTRS.IS_EDITABLE] !== false,
       isRequired: record[GRID_COLUMN_CONFIG_ATTRS.IS_REQUIRED] === true,
       maxLength: record[GRID_COLUMN_CONFIG_ATTRS.MAX_LENGTH] != null
         ? Number(record[GRID_COLUMN_CONFIG_ATTRS.MAX_LENGTH])

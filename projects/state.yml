@@ -294,6 +294,35 @@ projects:
       strategy did, cannot avoid re-materialising an action, and cannot be audited. It is a schema
       change and needs QDB approval BEFORE Phase 8 design.
 
+  - name: customer-survey-engine
+    type: crm
+    phase: ceo-approved-with-conditions
+    started: 2026-11-09
+    last_updated: 2026-11-14
+    last_agent: auditor
+    ceo_approved_phases: [ba, architecture]
+    output_dir: projects/customer-survey-engine/
+    status: in_progress
+    notes: >
+      CSE-ENG-001 — Customer Survey Engine. Branch feat/survey-engine (worktree
+      .claude/worktrees/survey-engine).
+      BRD v1.1 APPROVED (phase-2-ba.md): 60 FR + 9 NFR. Hybrid on DFE core + separate removable
+      SurveyEngine solution (qdb_survey_* tables, prefix qdb_ + survey segment, ADR-002).
+      Architecture APPROVED by the CEO (user) 2026-11-09 with the 8 Skeptic resolutions
+      (phase-3-arch.md, adr/ADR-001..007, phase-3-ceo-arch-decision.md). Estimate 46-61 dev-days.
+      Open gates: OQ-A1 retention/PDPPL (Compliance, release gate), OQ-A2 per-org config values
+      (gate activation, not code), OQ-A3 client sign-off, NFR-CSE-009 secure-link security review.
+      Phase 4 build started 2026-11-09 with B0 (DFE prerequisites).
+      2026-11-12: B0-B9 complete. Live and verified on org5869857f (B2-B8 E2E, weighted scoring
+      Addendum A, smoke test 14/14). Per-org customer table (account/contact) added for HL (F1).
+      On-prem kit onprem-deploy/2026-11-11/ built (SurveyEngine + Form Engine update + runbook +
+      console checks + config templates + smoke test), not yet imported. Branch not pushed.
+      Go-live gates: go-live-checklist.md.
+      2026-11-13: health view, PR #173 (draft), phase 5 QA, A4 coverage 80.05%, designer survey mode
+      (deployed + live-tested), A2/A3 kit steps; A3 cloud run (daily run PASS, trigger p95 14 s).
+      2026-11-14: phase 6 audit (phase-6-audit.md) CLEARED WITH CONDITIONS: 25 findings, 5
+      release-blocking (B1-B3, B7-B9). Next: CEO decisions on B7-B9, then CEO final (A6).
+
 # Example entry:
 # projects:
 #   - name: insurance-calc-engine

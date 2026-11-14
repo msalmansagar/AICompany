@@ -58,6 +58,8 @@ namespace Qdb.FormEngine.Core.Generation
                 Title = Resolve(rawData, "qdb_form_definition", formId, "qdb_title", form.GetAttributeValue<string>("qdb_title")),
                 Description = Resolve(rawData, "qdb_form_definition", formId, "qdb_description", form.GetAttributeValue<string>("qdb_description")),
                 Status = PicklistMapper.ToFormStatus(EntityHelper.GetOptionSetValue(form, "qdb_status")),
+                // FR-CSE-061: omitted unless Weighted, so every other form publishes byte-identical JSON (NFR-CSE-010).
+                ScoringMode = PicklistMapper.ToScoringMode(EntityHelper.GetOptionSetValue(form, "qdb_scoring_mode")),
                 Version = form.GetAttributeValue<int>("qdb_version"),
                 IconName = NullIfBlank(form.GetAttributeValue<string>("qdb_icon_name")),
                 ImageUrl = RenderableImageUrl(form.GetAttributeValue<string>("qdb_image_url")),

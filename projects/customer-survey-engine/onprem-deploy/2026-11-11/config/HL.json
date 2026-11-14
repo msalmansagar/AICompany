@@ -1,0 +1,133 @@
+{
+  "org": "HL CRM (mcdynccatdev01/HousingLoan, test) — production URL TO_CONFIRM",
+  "notes": "Per-org survey configuration for HL CRM (individual customers = contacts). Same shape as provisioning/seed/*.json. Every value marked TO_CONFIRM has an entry in `questions`; a row carrying TO_CONFIRM must not be entered until it is answered. Enter the rows in the Survey Engine app (Configuration area) after the kit is imported. Sources are created INACTIVE; a System Administrator activates each one with qdb_srv_ActivateSource once its trigger values are known.",
+  "sources": [
+    {
+      "qdb_name": "Applications",
+      "qdb_table_logical_name": "TO_CONFIRM",
+      "qdb_customer_lookup_field": "TO_CONFIRM",
+      "qdb_type_field": "TO_CONFIRM",
+      "qdb_status_field": "statuscode",
+      "qdb_origin_field": "TO_CONFIRM",
+      "qdb_origin_digital_values": "TO_CONFIRM",
+      "qdb_counts_toward_milestones": false,
+      "qdb_is_active": false
+    },
+    {
+      "qdb_name": "Disbursements",
+      "qdb_table_logical_name": "TO_CONFIRM",
+      "qdb_customer_lookup_field": "TO_CONFIRM",
+      "qdb_type_field": "TO_CONFIRM",
+      "qdb_status_field": "statuscode",
+      "qdb_origin_field": "TO_CONFIRM",
+      "qdb_origin_digital_values": "TO_CONFIRM",
+      "qdb_counts_toward_milestones": true,
+      "qdb_is_active": false
+    },
+    {
+      "qdb_name": "Fund Transfer",
+      "qdb_table_logical_name": "TO_CONFIRM",
+      "qdb_customer_lookup_field": "TO_CONFIRM",
+      "qdb_type_field": "TO_CONFIRM",
+      "qdb_status_field": "statuscode",
+      "qdb_origin_field": "TO_CONFIRM",
+      "qdb_origin_digital_values": "TO_CONFIRM",
+      "qdb_counts_toward_milestones": false,
+      "qdb_is_active": false
+    }
+  ],
+  "settings": {
+    "qdb_name": "Survey Settings",
+    "qdb_customer_table": 100000001,
+    "qdb_fatigue_min_days": 30,
+    "qdb_default_language": "TO_CONFIRM",
+    "qdb_language_field": "TO_CONFIRM",
+    "qdb_securelink_enabled": false
+  },
+  "smsConfigs": [
+    {
+      "qdb_name": "HL SMS via Letter",
+      "qdb_sms_table_logical_name": "letter",
+      "qdb_recipient_field": "vrp_address",
+      "qdb_message_field": "vrp_description",
+      "qdb_customer_link_field": "regardingobjectid",
+      "qdb_customer_phone_field": "TO_CONFIRM",
+      "qdb_static_columns_json": "TO_CONFIRM",
+      "qdb_is_active": true
+    }
+  ],
+  "questions": [
+    {
+      "id": "HL-01", "path": "sources[*].qdb_table_logical_name, qdb_customer_lookup_field, qdb_type_field",
+      "question": "Which HL CRM tables are the survey sources, and which field on each holds the customer (a lookup to contact)? HL is the housing-loan CRM; it may have no Fund Transfer table, in which case delete that row.",
+      "proposed": null, "evidence": "The cloud sandbox mirrors BFD, not HL (Debt Collection, 2026-10-05); no HL request table is known.",
+      "owner": "QDB HL CRM administrator", "blocks": "entering the source rows"
+    },
+    {
+      "id": "HL-02", "path": "sources[*].qdb_origin_field, qdb_origin_digital_values",
+      "question": "On each HL source, which field tells a Digital (portal) request from a Legacy (customer-service) one, and which value(s) mean Digital?",
+      "proposed": null, "evidence": "OQ-A2(d). On the cloud org the Disbursements and Fund Transfer origin field is qdb_source_location, 751090002 = QDB Digital.",
+      "owner": "QDB HL CRM administrator", "blocks": "entering the source rows"
+    },
+    {
+      "id": "HL-03", "path": "triggers (not in this file)",
+      "question": "For each survey to send, which statuscode value(s) fire it, and for which request types? These go on the trigger rows the survey administrator creates; the activation API checks them against the table's metadata.",
+      "proposed": null, "evidence": "OQ-A2(b). Status values are per org.",
+      "owner": "QDB business owner + HL CRM administrator", "blocks": "activating each source"
+    },
+    {
+      "id": "HL-04", "path": "settings.qdb_default_language",
+      "question": "Default survey language for HL customers: en or ar?",
+      "proposed": null, "evidence": "Cloud uses en. Used when the customer has no language value.",
+      "owner": "QDB business owner", "blocks": "entering the settings row"
+    },
+    {
+      "id": "HL-05", "path": "settings.qdb_language_field",
+      "question": "Which contact field holds the customer's preferred language (text en/ar or a choice)? Empty is a valid answer: everyone then gets the default language.",
+      "proposed": "", "evidence": "OQ-A2(c). Debt Collection found no existing preferred-language field on contact; it proposed qdb_collectionlanguage, which is not built.",
+      "owner": "QDB HL CRM administrator", "blocks": "entering the settings row"
+    },
+    {
+      "id": "HL-06", "path": "smsConfigs[0].qdb_customer_phone_field",
+      "question": "Which contact field holds the customer's mobile number for SMS?",
+      "proposed": "mobilephone", "evidence": "Debt Collection Customer 360 map: HL mobile = contact.mobilephone, 'or QDB field — TBD'. HL cases copy qdb_customer_mobile_number from the customer (Case Management findings).",
+      "owner": "QDB HL CRM administrator", "blocks": "entering the SMS row"
+    },
+    {
+      "id": "HL-07", "path": "smsConfigs[0].qdb_static_columns_json",
+      "question": "HL sends SMS and WhatsApp through Letter, told apart by vrp_type. Which vrp_type value means SMS? Are any other columns required for the SMS service to pick a row up (subject, owner, status)?",
+      "proposed": "{\"subject\": \"Customer survey\", \"vrp_type\": \"<SMS value>\"}", "evidence": "Debt Collection configuration guide 2a: vrp_type is the channel marker on HL Letter; its values are not in the schema evidence.",
+      "owner": "QDB HL CRM administrator / SMS service owner", "blocks": "entering the SMS row"
+    },
+    {
+      "id": "HL-08", "path": "smsConfigs[0].qdb_customer_link_field",
+      "question": "Does the SMS service need the customer on the Letter's To party? The engine links the customer through Regarding (regardingobjectid → contact) and puts the number in vrp_address; it cannot fill the To party without a code change.",
+      "proposed": "regardingobjectid", "evidence": "Debt Collection links the customer through the To party. Whether the SMS service reads To is unknown.",
+      "owner": "SMS service owner", "blocks": "secure-link SMS on HL"
+    },
+    {
+      "id": "HL-09", "path": "smsConfigs[0].qdb_message_field",
+      "question": "Confirm the Letter text column is vrp_description (logical name) on HL.",
+      "proposed": "vrp_description", "evidence": "Confirmed on HL 2026-10-06 (schema name vrp_Description, Debt Collection configuration guide); the cloud sandbox spells it vrp_descriptions.",
+      "owner": "QDB HL CRM administrator", "blocks": "nothing; preflight re-checks it"
+    },
+    {
+      "id": "HL-10", "path": "settings.qdb_email_sender_queue_id (lookup, set in the form)",
+      "question": "Which queue sends survey emails on HL? It needs an approved, enabled mailbox (Email Router or server-side sync).",
+      "proposed": null, "evidence": "Readiness F9; on cloud a queue without an address failed every send.",
+      "owner": "QDB IT (Exchange / CRM)", "blocks": "secure-link email on HL"
+    },
+    {
+      "id": "HL-11", "path": "settings.qdb_securelink_base_url",
+      "question": "The customer-portal URL of the survey link page for HL customers (the token is appended as ?token=…).",
+      "proposed": null, "evidence": "OQ-A2(f); integration guide, secure-link flow. Secure links stay off until the security review (NFR-CSE-009).",
+      "owner": "QDB portal team", "blocks": "switching secure links on"
+    },
+    {
+      "id": "HL-12", "path": "settings.qdb_retention_days, qdb_retention_mode",
+      "question": "How long survey responses are kept, and whether they are then deleted or anonymised.",
+      "proposed": null, "evidence": "OQ-A1, QDB Compliance. Empty = no retention pass runs.",
+      "owner": "QDB Compliance", "blocks": "go-live"
+    }
+  ]
+}

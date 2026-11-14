@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { withRetry, CrmApiError } from '@/services/crmRetry';
+import { withRetry, CrmApiError, isMissingColumnError } from '@/services/crmRetry';
 
 vi.useFakeTimers();
 
@@ -45,6 +45,27 @@ describe('withRetry', () => {
 
     // MAX_RETRIES is 3, so total calls = initial + 3 retries = 4
     expect(operation).toHaveBeenCalledTimes(4);
+  });
+
+  it('withRetry_missingColumnError_doesNotRetry', async () => {
+    const operation = vi.fn().mockRejectedValue(new Error("Could not find a property named 'qdb_form_type'"));
+
+    const resultPromise = withRetry(operation, 'testOp');
+    const rejectCheck = expect(resultPromise).rejects.toBeInstanceOf(CrmApiError);
+    await vi.runAllTimersAsync();
+    await rejectCheck;
+
+    expect(operation).toHaveBeenCalledTimes(1);
+  });
+
+  it('isMissingColumnError_wrappedMissingColumnError_returnsTrue', () => {
+    const wrapped = new CrmApiError("Operation 'getForm' failed", 'getForm', new Error("Could not find a property named 'qdb_form_type'"));
+
+    expect(isMissingColumnError(wrapped)).toBe(true);
+  });
+
+  it('isMissingColumnError_networkFailure_returnsFalse', () => {
+    expect(isMissingColumnError(new CrmApiError("Operation 'getForm' failed", 'getForm', new Error('network error')))).toBe(false);
   });
 
   it('withRetry_CrmApiError_containsOperationName', async () => {

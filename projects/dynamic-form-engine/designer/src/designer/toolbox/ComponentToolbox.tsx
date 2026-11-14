@@ -10,8 +10,14 @@ import {
   Spinner,
 } from '@fluentui/react-components';
 import { AppsRegular, LayoutCellFourRegular, PuzzlePieceRegular } from './fieldTypeIcons';
-import { BASIC_FIELD_TYPES, LAYOUT_FIELD_TYPES, ADVANCED_FIELD_TYPES } from '@/constants/fieldTypes';
+import {
+  BASIC_FIELD_TYPES,
+  LAYOUT_FIELD_TYPES,
+  ADVANCED_FIELD_TYPES,
+  SURVEY_ALLOWED_FIELD_TYPES,
+} from '@/constants/fieldTypes';
 import { DraggableToolboxItem } from './DraggableToolboxItem';
+import { useDesignerStore } from '@/state/designerStore';
 
 const AdvancedComponentsPanel = lazy(() =>
   import('./AdvancedComponentsPanel').then(m => ({ default: m.AdvancedComponentsPanel }))
@@ -53,6 +59,17 @@ export function ComponentToolbox(): React.ReactElement {
   const styles = useStyles();
   const [advancedExpanded, setAdvancedExpanded] = useState(false);
 
+  // FR-CSE-072: surveys show only the allowed question and layout types.
+  const isSurvey = useDesignerStore(s => s.form?.formType === 'Survey');
+
+  const visibleBasicTypes = isSurvey
+    ? BASIC_FIELD_TYPES.filter(d => SURVEY_ALLOWED_FIELD_TYPES.has(d.type))
+    : BASIC_FIELD_TYPES;
+
+  const visibleAdvancedTypes = isSurvey
+    ? ADVANCED_FIELD_TYPES.filter(d => SURVEY_ALLOWED_FIELD_TYPES.has(d.type))
+    : ADVANCED_FIELD_TYPES;
+
   return (
     <div className={styles.toolbox} role="region" aria-label="Component Toolbox">
       <div className={styles.header}>
@@ -69,7 +86,7 @@ export function ComponentToolbox(): React.ReactElement {
           </AccordionHeader>
           <AccordionPanel>
             <div className={styles.categoryGrid}>
-              {BASIC_FIELD_TYPES.map(fieldDef => (
+              {visibleBasicTypes.map(fieldDef => (
                 <DraggableToolboxItem key={fieldDef.type} fieldDef={fieldDef} />
               ))}
             </div>
@@ -92,24 +109,27 @@ export function ComponentToolbox(): React.ReactElement {
           </AccordionPanel>
         </AccordionItem>
 
-        <AccordionItem
-          value="advanced"
-          onClick={() => setAdvancedExpanded(true)}
-        >
-          <AccordionHeader>
-            <span className={styles.accordionHeaderContent}>
-              <span className={styles.accordionIconWrapper}><PuzzlePieceRegular /></span>
-              Advanced
-            </span>
-          </AccordionHeader>
-          <AccordionPanel>
-            {advancedExpanded ? (
-              <Suspense fallback={<Spinner size="tiny" label="Loading..." />}>
-                <AdvancedComponentsPanel fieldTypes={ADVANCED_FIELD_TYPES} />
-              </Suspense>
-            ) : null}
-          </AccordionPanel>
-        </AccordionItem>
+        {/* FR-CSE-072: Advanced accordion is hidden entirely for surveys (all types excluded). */}
+        {!isSurvey || visibleAdvancedTypes.length > 0 ? (
+          <AccordionItem
+            value="advanced"
+            onClick={() => setAdvancedExpanded(true)}
+          >
+            <AccordionHeader>
+              <span className={styles.accordionHeaderContent}>
+                <span className={styles.accordionIconWrapper}><PuzzlePieceRegular /></span>
+                Advanced
+              </span>
+            </AccordionHeader>
+            <AccordionPanel>
+              {advancedExpanded ? (
+                <Suspense fallback={<Spinner size="tiny" label="Loading..." />}>
+                  <AdvancedComponentsPanel fieldTypes={visibleAdvancedTypes} />
+                </Suspense>
+              ) : null}
+            </AccordionPanel>
+          </AccordionItem>
+        ) : null}
       </Accordion>
     </div>
   );

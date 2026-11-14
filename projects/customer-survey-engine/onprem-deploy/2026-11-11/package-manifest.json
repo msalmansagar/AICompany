@@ -1,0 +1,219 @@
+{
+  "builtAt": "2026-11-14T11:15:05.321Z",
+  "package": "SurveyEngine_1_0_0_0_onprem_unmanaged.zip",
+  "sha256": "39c03f77b5b60bb319273356cbea4179c4f236e247a93e5371e122cb8a04448e",
+  "bytes": 157892,
+  "source": {
+    "file": "source/SurveyEngine_cloud_unmanaged.zip",
+    "sha256": "6dddffbce2c720a445acb6728d1196aa7c40686918f8c6ed9a3d21607941e07d"
+  },
+  "target": "Dynamics 365 CE 9.1 on-prem: HL CRM and BFD CRM / QDB1 (one package)",
+  "manifest": {
+    "rootBefore": "<ImportExportXml version=\"9.2.26102.136\" SolutionPackageVersion=\"9.2\" languagecode=\"1033\" generatedBy=\"CrmLive\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" OrganizationVersion=\"9.2.26102.136\" OrganizationSchemaType=\"Full\" CRMServerServiceabilityVersion=\"9.2.26102.00136\">",
+    "rootAfter": "<ImportExportXml version=\"9.0.0.0\" SolutionPackageVersion=\"9.0\" languagecode=\"1033\" generatedBy=\"CrmLive\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">",
+    "removedRootComponents": 9,
+    "removedDependencies": 21,
+    "remainingDependencies": 0
+  },
+  "customizationTransforms": [
+    {
+      "name": "root-organisation-attributes",
+      "why": "OrganizationVersion / OrganizationSchemaType / CRMServerServiceabilityVersion are 9.2 export stamps",
+      "removed": 3
+    },
+    {
+      "name": "empty-autonumber-format",
+      "why": "AutoNumberFormat is empty on every column (no column is auto-numbered)",
+      "removed": 236
+    },
+    {
+      "name": "retrieve-audit-flag",
+      "why": "IsRetrieveAuditEnabled is 0 (off) on every table",
+      "removed": 9
+    },
+    {
+      "name": "teams-integration-flag",
+      "why": "IsMSTeamsIntegrationEnabled is 0 on every table; Teams integration is a Dataverse online feature",
+      "removed": 9
+    },
+    {
+      "name": "role-auto-assigned-flag",
+      "why": "Role IsAutoAssigned is 0 on every role",
+      "removed": 4
+    },
+    {
+      "name": "cascade-archive",
+      "why": "Long-term data retention (archive) does not exist on 9.1; there is nothing to cascade",
+      "removed": 44
+    },
+    {
+      "name": "form-header-density",
+      "why": "headerdensity is a Unified Interface header layout hint; 9.1 renders its default header",
+      "removed": 0
+    },
+    {
+      "name": "option-is-hidden",
+      "why": "IsHidden=\"0\" on options, states and statuses — no option is hidden",
+      "removed": 88
+    },
+    {
+      "name": "retrieve-multiple-audit-flag",
+      "why": "IsRetrieveMultipleAuditEnabled is 0 (off) on every table",
+      "removed": 9
+    },
+    {
+      "name": "sitemap-collapsible-groups",
+      "why": "EnableCollapsibleGroups is False",
+      "removed": 1
+    },
+    {
+      "name": "app-optimized-for",
+      "why": "AppModule OptimizedFor is empty",
+      "removed": 1
+    },
+    {
+      "name": "app-settings",
+      "why": "App settings (AppChannel) require the cloud-only msdyn_AppFrameworkInfraExtensions package",
+      "removed": 1
+    },
+    {
+      "name": "site-map-name",
+      "why": "A 9.1 server refuses an AppModuleSiteMap without <SiteMapName> (\"The SiteMapName in the AppModuleSiteMap is null or empty\", 0x80050109 — HL CRM test import, 2026-10-04); the cloud export keeps the name only in LocalizedNames",
+      "removed": 0,
+      "added": 1
+    },
+    {
+      "name": "cloud-trigger-steps",
+      "why": "F4: the six SurveyTriggerPlugin steps name the cloud org's request tables; qdb_srv_ActivateSource creates them on-prem",
+      "removed": 9
+    },
+    {
+      "name": "own-app-icon",
+      "why": "F10: the app used the platform default icon web resource, which a 9.1 org may not have",
+      "removed": 1
+    },
+    {
+      "name": "out-of-box-table-shells",
+      "why": "account, contact and queue shells carried the cloud org's own customizations of those tables (the Report Engine ribbon on account); the survey needs none of them",
+      "removed": 3,
+      "dropped": [
+        {
+          "table": "account",
+          "ribbonCustomActions": [
+            "qdb.account.Form.ReportsFlyout.CustomAction",
+            "qdb.account.Form.ReportsProbe.CustomAction",
+            "qdb.account.HomeGrid.ReportsFlyout.CustomAction",
+            "qdb.account.HomeGrid.ReportsProbe.CustomAction",
+            "qdb.account.SubGrid.ReportsFlyout.CustomAction",
+            "qdb.account.SubGrid.ReportsProbe.CustomAction"
+          ]
+        },
+        {
+          "table": "contact",
+          "ribbonCustomActions": []
+        },
+        {
+          "table": "queue",
+          "ribbonCustomActions": []
+        }
+      ]
+    },
+    {
+      "name": "survey-view-table-shells",
+      "why": "the System Job shell carries the survey health view; the build stops if it brings anything else",
+      "removed": 0
+    },
+    {
+      "name": "relationship-guard",
+      "why": "Every relationship must be between survey tables or to an out-of-box table",
+      "removed": 0
+    }
+  ],
+  "assembly": {
+    "embeddedSha256": "8efa470ea08d8e6b11672abbe8ece3ebb80b8011b4bdb60cca0e14ed08d4082a",
+    "localBuildSha256": "8efa470ea08d8e6b11672abbe8ece3ebb80b8011b4bdb60cca0e14ed08d4082a",
+    "isLocalBuild": true
+  },
+  "xsd": {
+    "status": "not run: --schemas not given (Microsoft CRM SDK Schemas\\9.0.0.2090 not on this machine)"
+  },
+  "contents": {
+    "tables": 10,
+    "roleNames": [
+      "Survey Admin",
+      "Survey Analyst",
+      "Survey Integration",
+      "Survey Scheduler"
+    ],
+    "relationships": 44,
+    "pluginSteps": [
+      "Qdb.SurveyEngine.Plugins.InvitationDispatchPlugin: Async Create of qdb_survey_invitation",
+      "Qdb.SurveyEngine.Plugins.InvitationDispatchPlugin: Async Update of qdb_survey_invitation"
+    ],
+    "customApis": [
+      "qdb_srv_ActivateSource",
+      "qdb_srv_DeactivateSource",
+      "qdb_srv_GetSurvey",
+      "qdb_srv_ListPendingSurveys",
+      "qdb_srv_RunDueSurveys",
+      "qdb_srv_SubmitResponse",
+      "qdb_srv_ValidateLinkToken"
+    ],
+    "webResources": 9,
+    "appModules": 1,
+    "siteMaps": 1
+  },
+  "entries": [
+    "[Content_Types].xml",
+    "customizations.xml",
+    "solution.xml",
+    "PluginAssemblies/QdbSurveyEngine-BEC4129F-E8DC-F111-84E8-000D3ABCF32D/QdbSurveyEngine.dll",
+    "WebResources/qdb_icon_survey_answerBF326D37-3ADD-F111-84E8-7C1E525145CB",
+    "WebResources/qdb_icon_survey_invitation7F4A4E13-3ADD-F111-84E8-000D3ABCF32D",
+    "WebResources/qdb_icon_survey_response022A0225-3ADD-F111-84EA-000D3ABD8313",
+    "WebResources/qdb_icon_survey_settings5CE92958-3ADD-F111-84E8-000D3ABCF32D",
+    "WebResources/qdb_icon_survey_setupA16D17F7-39DD-F111-84EA-000D3ABD8313",
+    "WebResources/qdb_icon_survey_sms_config62FE9668-3ADD-F111-84E8-7C1E525145CB",
+    "WebResources/qdb_icon_survey_sourceA440E4EE-39DD-F111-84E8-7C1E5283AD83",
+    "WebResources/qdb_icon_survey_suppression_logB2C6D34A-3ADD-F111-84E8-70A8A55BC6A5",
+    "WebResources/qdb_icon_survey_triggerE16BD904-3ADD-F111-84EA-000D3ABD8313",
+    "customapis/qdb_srv_ActivateSource/customapi.xml",
+    "customapis/qdb_srv_ActivateSource/customapirequestparameters/SourceId/customapirequestparameter.xml",
+    "customapis/qdb_srv_ActivateSource/customapiresponseproperties/Message/customapiresponseproperty.xml",
+    "customapis/qdb_srv_DeactivateSource/customapi.xml",
+    "customapis/qdb_srv_DeactivateSource/customapirequestparameters/SourceId/customapirequestparameter.xml",
+    "customapis/qdb_srv_DeactivateSource/customapiresponseproperties/Message/customapiresponseproperty.xml",
+    "customapis/qdb_srv_GetSurvey/customapi.xml",
+    "customapis/qdb_srv_GetSurvey/customapirequestparameters/CallerCustomerId/customapirequestparameter.xml",
+    "customapis/qdb_srv_GetSurvey/customapirequestparameters/InvitationId/customapirequestparameter.xml",
+    "customapis/qdb_srv_GetSurvey/customapirequestparameters/Language/customapirequestparameter.xml",
+    "customapis/qdb_srv_GetSurvey/customapirequestparameters/Token/customapirequestparameter.xml",
+    "customapis/qdb_srv_GetSurvey/customapiresponseproperties/FormCode/customapiresponseproperty.xml",
+    "customapis/qdb_srv_GetSurvey/customapiresponseproperties/RenderedLanguage/customapiresponseproperty.xml",
+    "customapis/qdb_srv_GetSurvey/customapiresponseproperties/RuntimeJson/customapiresponseproperty.xml",
+    "customapis/qdb_srv_GetSurvey/customapiresponseproperties/Version/customapiresponseproperty.xml",
+    "customapis/qdb_srv_ListPendingSurveys/customapi.xml",
+    "customapis/qdb_srv_ListPendingSurveys/customapirequestparameters/CustomerId/customapirequestparameter.xml",
+    "customapis/qdb_srv_ListPendingSurveys/customapirequestparameters/Language/customapirequestparameter.xml",
+    "customapis/qdb_srv_ListPendingSurveys/customapiresponseproperties/SurveysJson/customapiresponseproperty.xml",
+    "customapis/qdb_srv_RunDueSurveys/customapi.xml",
+    "customapis/qdb_srv_RunDueSurveys/customapirequestparameters/RunDate/customapirequestparameter.xml",
+    "customapis/qdb_srv_RunDueSurveys/customapiresponseproperties/IsComplete/customapiresponseproperty.xml",
+    "customapis/qdb_srv_RunDueSurveys/customapiresponseproperties/Summary/customapiresponseproperty.xml",
+    "customapis/qdb_srv_SubmitResponse/customapi.xml",
+    "customapis/qdb_srv_SubmitResponse/customapirequestparameters/AnswersJson/customapirequestparameter.xml",
+    "customapis/qdb_srv_SubmitResponse/customapirequestparameters/CallerCustomerId/customapirequestparameter.xml",
+    "customapis/qdb_srv_SubmitResponse/customapirequestparameters/InvitationId/customapirequestparameter.xml",
+    "customapis/qdb_srv_SubmitResponse/customapirequestparameters/Token/customapirequestparameter.xml",
+    "customapis/qdb_srv_SubmitResponse/customapiresponseproperties/ResponseId/customapiresponseproperty.xml",
+    "customapis/qdb_srv_SubmitResponse/customapiresponseproperties/Status/customapiresponseproperty.xml",
+    "customapis/qdb_srv_ValidateLinkToken/customapi.xml",
+    "customapis/qdb_srv_ValidateLinkToken/customapirequestparameters/Token/customapirequestparameter.xml",
+    "customapis/qdb_srv_ValidateLinkToken/customapiresponseproperties/FormCode/customapiresponseproperty.xml",
+    "customapis/qdb_srv_ValidateLinkToken/customapiresponseproperties/InvitationId/customapiresponseproperty.xml",
+    "customapis/qdb_srv_ValidateLinkToken/customapiresponseproperties/Language/customapiresponseproperty.xml",
+    "customapis/qdb_srv_ValidateLinkToken/customapiresponseproperties/Reason/customapiresponseproperty.xml",
+    "customapis/qdb_srv_ValidateLinkToken/customapiresponseproperties/SetupId/customapiresponseproperty.xml",
+    "customapis/qdb_srv_ValidateLinkToken/customapiresponseproperties/Valid/customapiresponseproperty.xml"
+  ]
+}

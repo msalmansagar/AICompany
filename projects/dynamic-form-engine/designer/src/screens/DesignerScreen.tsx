@@ -534,6 +534,7 @@ export function DesignerScreen(): React.ReactElement {
         <DesignerCommandBar
           formName={form.name}
           formStatus={form.status}
+          formType={form.formType}
           isDirty={isDirty}
           isSaving={isSaving}
           onSaveDraft={() => void handleSaveDraft()}

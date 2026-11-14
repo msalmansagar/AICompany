@@ -1,0 +1,119 @@
+{
+  "org": "BFD CRM / QDB1 (mcdynccatdev01/QDB1, test) — production URL TO_CONFIRM",
+  "notes": "Per-org survey configuration for BFD CRM / QDB1 (corporate and SME customers = accounts). Same shape as provisioning/seed/*.json. The source rows are the cloud org's (org5869857f), which mirrors BFD: the names are expected to match but are verified by the runbook preflight before entry. Every value marked TO_CONFIRM has an entry in `questions`; a row carrying TO_CONFIRM must not be entered until it is answered. Sources are created INACTIVE; a System Administrator activates each one with qdb_srv_ActivateSource.",
+  "sources": [
+    {
+      "qdb_name": "Applications",
+      "qdb_table_logical_name": "qdb_loan_application",
+      "qdb_customer_lookup_field": "qdb_cif_no",
+      "qdb_type_field": "qdb_loanappl_type",
+      "qdb_status_field": "statuscode",
+      "qdb_counts_toward_milestones": false,
+      "qdb_is_active": false
+    },
+    {
+      "qdb_name": "Disbursements",
+      "qdb_table_logical_name": "qdb_payment_authorization_ticket",
+      "qdb_customer_lookup_field": "qdb_customer_name",
+      "qdb_type_field": "qdb_disbursement_type_1",
+      "qdb_status_field": "statuscode",
+      "qdb_origin_field": "qdb_source_location",
+      "qdb_origin_digital_values": "751090002",
+      "qdb_counts_toward_milestones": true,
+      "qdb_is_active": false
+    },
+    {
+      "qdb_name": "Fund Transfer",
+      "qdb_table_logical_name": "qdb_cheque_clearing",
+      "qdb_customer_lookup_field": "qdb_cif_no",
+      "qdb_type_field": "qdb_type",
+      "qdb_status_field": "statuscode",
+      "qdb_origin_field": "qdb_source_location",
+      "qdb_origin_digital_values": "751090002",
+      "qdb_counts_toward_milestones": false,
+      "qdb_is_active": false
+    }
+  ],
+  "settings": {
+    "qdb_name": "Survey Settings",
+    "qdb_customer_table": 100000000,
+    "qdb_fatigue_min_days": 30,
+    "qdb_default_language": "TO_CONFIRM",
+    "qdb_language_field": "TO_CONFIRM",
+    "qdb_securelink_enabled": false
+  },
+  "smsConfigs": [
+    {
+      "qdb_name": "BFD SMS via Fax",
+      "qdb_sms_table_logical_name": "fax",
+      "qdb_recipient_field": "faxnumber",
+      "qdb_message_field": "qdb_message_body",
+      "qdb_customer_link_field": "regardingobjectid",
+      "qdb_customer_phone_field": "TO_CONFIRM",
+      "qdb_static_columns_json": "{\"subject\": \"Customer survey\"}",
+      "qdb_is_active": true
+    }
+  ],
+  "questions": [
+    {
+      "id": "BFD-01", "path": "sources[*] (all names)",
+      "question": "Confirm the three source tables and their customer and type fields exist on QDB1 with these logical names, and that the customer fields look up account.",
+      "proposed": "as in the rows", "evidence": "Read from org5869857f metadata 2026-11-10 (Applications customer = qdb_cif_no, confirmed by the user). The cloud sandbox mirrors BFD (Debt Collection). The runbook preflight reads each name from QDB1 before entry.",
+      "owner": "QDB1 CRM administrator", "blocks": "nothing if the preflight passes"
+    },
+    {
+      "id": "BFD-02", "path": "sources[0].qdb_origin_field, qdb_origin_digital_values",
+      "question": "Which Applications field tells a Digital (portal) application from a Legacy one, and which value(s) mean Digital? Unknown on the cloud org too (candidates there: qdb_digitalfinancing, qdb_applicationlandedfromnumuportal, both yes/no).",
+      "proposed": null, "evidence": "OQ-A2(d); provisioning/seed/org5869857f.json leaves it empty.",
+      "owner": "QDB business owner + QDB1 CRM administrator", "blocks": "activating the Applications source"
+    },
+    {
+      "id": "BFD-03", "path": "triggers (not in this file)",
+      "question": "For each survey to send, which statuscode value(s) fire it, and for which request types? On the cloud org, Disbursement 'Payment Processed' = 751090050, type Letter of Credit = 751090000, Remittance = 751090001; QDB1 values may differ even where names match.",
+      "proposed": null, "evidence": "OQ-A2(b). The activation API checks the codes against QDB1's metadata.",
+      "owner": "QDB business owner + QDB1 CRM administrator", "blocks": "activating each source"
+    },
+    {
+      "id": "BFD-04", "path": "settings.qdb_default_language",
+      "question": "Default survey language for BFD customers: en or ar?",
+      "proposed": null, "evidence": "Cloud uses en. Used when the customer has no language value.",
+      "owner": "QDB business owner", "blocks": "entering the settings row"
+    },
+    {
+      "id": "BFD-05", "path": "settings.qdb_language_field",
+      "question": "Which account field holds the customer's preferred language (text en/ar or a choice)? Empty is a valid answer: everyone then gets the default language.",
+      "proposed": "", "evidence": "OQ-A2(c). No such field is known on account; Debt Collection proposed qdb_collectionlanguage, which is not built.",
+      "owner": "QDB1 CRM administrator", "blocks": "entering the settings row"
+    },
+    {
+      "id": "BFD-06", "path": "smsConfigs[0].qdb_customer_phone_field",
+      "question": "Which account field holds the customer's mobile number for SMS: telephone1, or qdb_mobile_number?",
+      "proposed": "qdb_mobile_number", "evidence": "account.qdb_mobile_number exists on the cloud sandbox (Debt Collection schema assessment); the Debt Collection map says account.telephone1 'or QDB field — TBD'.",
+      "owner": "QDB1 CRM administrator", "blocks": "entering the SMS row"
+    },
+    {
+      "id": "BFD-07", "path": "smsConfigs[0]",
+      "question": "Does the SMS service pick up a Fax row from faxnumber + qdb_message_body alone, or does it also need qdb_sender, qdb_language or the To party? Fax also carries WhatsApp (rows with qdb_whatsapptemplate); a survey row leaves it empty, so it reads as SMS.",
+      "proposed": "as in the row", "evidence": "Proven on cloud (B7): the engine creates the Fax row with faxnumber, qdb_message_body, regardingobjectid → account and subject. Debt Collection's Fax contract lists qdb_sender and qdb_language as optional.",
+      "owner": "SMS service owner", "blocks": "secure-link SMS on BFD"
+    },
+    {
+      "id": "BFD-08", "path": "settings.qdb_email_sender_queue_id (lookup, set in the form)",
+      "question": "Which queue sends survey emails on QDB1? It needs an approved, enabled mailbox (Email Router or server-side sync).",
+      "proposed": null, "evidence": "Readiness F9; on cloud a queue without an address failed every send.",
+      "owner": "QDB IT (Exchange / CRM)", "blocks": "secure-link email on BFD"
+    },
+    {
+      "id": "BFD-09", "path": "settings.qdb_securelink_base_url",
+      "question": "The customer-portal URL of the survey link page for BFD customers (the token is appended as ?token=…).",
+      "proposed": null, "evidence": "OQ-A2(f); integration guide, secure-link flow. Secure links stay off until the security review (NFR-CSE-009).",
+      "owner": "QDB portal team", "blocks": "switching secure links on"
+    },
+    {
+      "id": "BFD-10", "path": "settings.qdb_retention_days, qdb_retention_mode",
+      "question": "How long survey responses are kept, and whether they are then deleted or anonymised.",
+      "proposed": null, "evidence": "OQ-A1, QDB Compliance. Empty = no retention pass runs.",
+      "owner": "QDB Compliance", "blocks": "go-live"
+    }
+  ]
+}

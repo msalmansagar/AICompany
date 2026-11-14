@@ -7,10 +7,61 @@ import {
   STATUS_TO_PICKLIST,
   SUMMARY_MODE_TO_PICKLIST,
   PICKLIST_TO_SUMMARY_MODE,
+  FORM_TYPE_TO_PICKLIST,
+  PICKLIST_TO_FORM_TYPE,
+  SCORING_MODE_TO_PICKLIST,
 } from '@/constants/attributeNames';
 import type { DesignerFormModel, FormStatus } from '@/state/models/DesignerFormModel';
-import type { SummaryMode } from '@qdb/shared';
-import { withRetry } from './crmRetry';
+import type { FormType, ScoringMode, SummaryMode } from '@qdb/shared';
+import { isMissingColumnError, withRetry } from './crmRetry';
+
+const FORM_SELECT_COLUMNS = [
+  FORM_DEFINITION_ATTRS.ID,
+  FORM_DEFINITION_ATTRS.NAME,
+  FORM_DEFINITION_ATTRS.CODE,
+  FORM_DEFINITION_ATTRS.DESCRIPTION,
+  FORM_DEFINITION_ATTRS.ENTITY_LOGICAL_NAME,
+  FORM_DEFINITION_ATTRS.ICON_NAME,
+  FORM_DEFINITION_ATTRS.IMAGE_URL,
+  FORM_DEFINITION_ATTRS.HEADER_TEXT,
+  FORM_DEFINITION_ATTRS.HEADER_IMAGE_URL,
+  FORM_DEFINITION_ATTRS.FOOTER_TEXT,
+  FORM_DEFINITION_ATTRS.FOOTER_IMAGE_URL,
+  FORM_DEFINITION_ATTRS.STATUS,
+  FORM_DEFINITION_ATTRS.CURRENT_VERSION,
+  FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT,
+  FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS,
+  FORM_DEFINITION_ATTRS.SHOW_SUMMARY_STEP,
+  FORM_DEFINITION_ATTRS.SUMMARY_MODE,
+  FORM_DEFINITION_ATTRS.SHOW_PROGRESS_BAR,
+  FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID,
+  FORM_DEFINITION_ATTRS.CONFIRMATION_MESSAGE,
+  FORM_DEFINITION_ATTRS.CONFIRMATION_RECORD_REF_ATTRIBUTE,
+  FORM_DEFINITION_ATTRS.ACCESS_GROUP_ID,
+  FORM_DEFINITION_ATTRS.CREATED_BY,
+  FORM_DEFINITION_ATTRS.CREATED_ON,
+  FORM_DEFINITION_ATTRS.MODIFIED_BY,
+  FORM_DEFINITION_ATTRS.MODIFIED_ON,
+];
+
+interface RetrievedFormRecord {
+  record: Record<string, unknown>;
+  isFormTypeAvailable: boolean;
+  isScoringAvailable: boolean;
+}
+
+function readFormType(record: Record<string, unknown>): FormType | undefined {
+  const raw = record[FORM_DEFINITION_ATTRS.FORM_TYPE];
+  return raw != null ? PICKLIST_TO_FORM_TYPE[Number(raw)] : undefined;
+}
+
+function readScoringMode(record: Record<string, unknown>): ScoringMode | undefined {
+  // None (100000000) is the default state — semantically absent — so we return undefined for it,
+  // matching the C# publisher which omits scoringMode from JSON for None. Only Weighted (100000001)
+  // is a meaningful value that the model and UI need to know about.
+  const raw = record[FORM_DEFINITION_ATTRS.SCORING_MODE];
+  return Number(raw) === SCORING_MODE_TO_PICKLIST.Weighted ? 'Weighted' : undefined;
+}
 
 export interface CreateFormDto {
   name: string;
@@ -18,6 +69,8 @@ export interface CreateFormDto {
   description: string;
   entityLogicalName: string;
   themeId: string | null;
+  /** FR-CSE-071: when true, creates as Survey type with allowSaveDraft=false and no entity. */
+  isSurvey?: boolean;
 }
 
 export interface UpdateFormDto {
@@ -33,6 +86,9 @@ export interface UpdateFormDto {
   footerImageUrl?: string | null;
   status?: FormStatus;
   currentVersion?: string;
+  formType?: FormType;
+  // FR-CSE-061: only written when isScoringAvailable is true on the loaded org.
+  scoringMode?: ScoringMode;
   themeId?: string | null;
   allowSaveDraft?: boolean;
   draftExpiryDays?: number | null;
@@ -83,20 +139,51 @@ export class FormDefinitionService {
   constructor(private readonly webApi: IWebApiAdapter) {}
 
   async createForm(dto: CreateFormDto): Promise<string> {
+    // FR-CSE-071: surveys write to survey response tables, not a CRM entity.
+    // allowSaveDraft is always false for surveys; entityLogicalName is omitted.
+    const payload: Record<string, unknown> = {
+      [FORM_DEFINITION_ATTRS.NAME]: dto.name,
+      [FORM_DEFINITION_ATTRS.CODE]: dto.code,
+      [FORM_DEFINITION_ATTRS.DESCRIPTION]: dto.description,
+      [FORM_DEFINITION_ATTRS.STATUS]: STATUS_TO_PICKLIST['draft'],
+      [FORM_DEFINITION_ATTRS.CURRENT_VERSION]: 1,
+      [FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT]: dto.isSurvey ? false : true,
+    };
+
+    if (!dto.isSurvey) {
+      payload[FORM_DEFINITION_ATTRS.ENTITY_LOGICAL_NAME] = dto.entityLogicalName ?? null;
+    }
+
     const result = await withRetry(
-      () =>
-        this.webApi.createRecord(ENTITY_NAMES.FORM_DEFINITION, {
-          [FORM_DEFINITION_ATTRS.NAME]: dto.name,
-          [FORM_DEFINITION_ATTRS.CODE]: dto.code,
-          [FORM_DEFINITION_ATTRS.DESCRIPTION]: dto.description,
-          [FORM_DEFINITION_ATTRS.STATUS]: STATUS_TO_PICKLIST['draft'],
-          [FORM_DEFINITION_ATTRS.CURRENT_VERSION]: 1,
-          [FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT]: true,
-          [FORM_DEFINITION_ATTRS.ENTITY_LOGICAL_NAME]: dto.entityLogicalName ?? null,
-        }),
+      () => this.webApi.createRecord(ENTITY_NAMES.FORM_DEFINITION, payload),
       'createForm'
     );
     return result.id;
+  }
+
+  /**
+   * FR-CSE-071 — probe whether the qdb_form_type column exists on this org.
+   *
+   * Uses a lightweight $top=1 query that selects only qdb_form_type. A
+   * missing-column error means the column has not been provisioned yet, which
+   * the wizard uses to disable the Survey option with an explanation.
+   * All other errors propagate unchanged.
+   */
+  async probeFormTypeAvailability(): Promise<boolean> {
+    try {
+      await withRetry(
+        () =>
+          this.webApi.retrieveMultipleRecords(
+            ENTITY_NAMES.FORM_DEFINITION,
+            `?$select=${FORM_DEFINITION_ATTRS.FORM_TYPE}&$top=1`,
+          ),
+        'probeFormTypeAvailability',
+      );
+      return true;
+    } catch (error) {
+      if (isMissingColumnError(error)) return false;
+      throw error;
+    }
   }
 
   async updateForm(id: string, dto: UpdateFormDto, etag?: string): Promise<void> {
@@ -110,6 +197,8 @@ export class FormDefinitionService {
     if (dto.currentVersion !== undefined) {
       data[FORM_DEFINITION_ATTRS.CURRENT_VERSION] = parseInt(dto.currentVersion, 10) || 1;
     }
+    if (dto.formType !== undefined) data[FORM_DEFINITION_ATTRS.FORM_TYPE] = FORM_TYPE_TO_PICKLIST[dto.formType];
+    if (dto.scoringMode !== undefined) data[FORM_DEFINITION_ATTRS.SCORING_MODE] = SCORING_MODE_TO_PICKLIST[dto.scoringMode];
     if (dto.allowSaveDraft !== undefined) data[FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT] = dto.allowSaveDraft;
     if (dto.draftExpiryDays !== undefined) data[FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS] = dto.draftExpiryDays;
     if (dto.showSummaryStep !== undefined) data[FORM_DEFINITION_ATTRS.SHOW_SUMMARY_STEP] = dto.showSummaryStep;
@@ -158,83 +247,17 @@ export class FormDefinitionService {
   }
 
   async getForm(id: string): Promise<DesignerFormModel> {
-    const select = [
-      FORM_DEFINITION_ATTRS.ID,
-      FORM_DEFINITION_ATTRS.NAME,
-      FORM_DEFINITION_ATTRS.CODE,
-      FORM_DEFINITION_ATTRS.DESCRIPTION,
-      FORM_DEFINITION_ATTRS.ENTITY_LOGICAL_NAME,
-      FORM_DEFINITION_ATTRS.ICON_NAME,
-      FORM_DEFINITION_ATTRS.IMAGE_URL,
-      FORM_DEFINITION_ATTRS.HEADER_TEXT,
-      FORM_DEFINITION_ATTRS.HEADER_IMAGE_URL,
-      FORM_DEFINITION_ATTRS.FOOTER_TEXT,
-      FORM_DEFINITION_ATTRS.FOOTER_IMAGE_URL,
-      FORM_DEFINITION_ATTRS.STATUS,
-      FORM_DEFINITION_ATTRS.CURRENT_VERSION,
-      FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT,
-      FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS,
-      FORM_DEFINITION_ATTRS.SHOW_SUMMARY_STEP,
-      FORM_DEFINITION_ATTRS.SUMMARY_MODE,
-      FORM_DEFINITION_ATTRS.SHOW_PROGRESS_BAR,
-      FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID,
-      FORM_DEFINITION_ATTRS.CONFIRMATION_MESSAGE,
-      FORM_DEFINITION_ATTRS.CONFIRMATION_RECORD_REF_ATTRIBUTE,
-      FORM_DEFINITION_ATTRS.ACCESS_GROUP_ID,
-      FORM_DEFINITION_ATTRS.CREATED_BY,
-      FORM_DEFINITION_ATTRS.CREATED_ON,
-      FORM_DEFINITION_ATTRS.MODIFIED_BY,
-      FORM_DEFINITION_ATTRS.MODIFIED_ON,
-    ].join(',');
-
-    const record = await withRetry(
-      () => this.webApi.retrieveRecord(ENTITY_NAMES.FORM_DEFINITION, id, `?$select=${select}`),
-      'getForm'
-    );
-
-    return this.mapRecordToModel(record);
+    const retrieved = await this.retrieveFormRecord(id, 'getForm');
+    return this.mapRecordToModel(retrieved);
   }
 
   /** Returns the form model together with its current @odata.etag for optimistic concurrency. */
   async getFormWithEtag(id: string): Promise<{ model: DesignerFormModel; etag: string | null }> {
-    const select = [
-      FORM_DEFINITION_ATTRS.ID,
-      FORM_DEFINITION_ATTRS.NAME,
-      FORM_DEFINITION_ATTRS.CODE,
-      FORM_DEFINITION_ATTRS.DESCRIPTION,
-      FORM_DEFINITION_ATTRS.ENTITY_LOGICAL_NAME,
-      FORM_DEFINITION_ATTRS.ICON_NAME,
-      FORM_DEFINITION_ATTRS.IMAGE_URL,
-      FORM_DEFINITION_ATTRS.HEADER_TEXT,
-      FORM_DEFINITION_ATTRS.HEADER_IMAGE_URL,
-      FORM_DEFINITION_ATTRS.FOOTER_TEXT,
-      FORM_DEFINITION_ATTRS.FOOTER_IMAGE_URL,
-      FORM_DEFINITION_ATTRS.STATUS,
-      FORM_DEFINITION_ATTRS.CURRENT_VERSION,
-      FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT,
-      FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS,
-      FORM_DEFINITION_ATTRS.SHOW_SUMMARY_STEP,
-      FORM_DEFINITION_ATTRS.SUMMARY_MODE,
-      FORM_DEFINITION_ATTRS.SHOW_PROGRESS_BAR,
-      FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID,
-      FORM_DEFINITION_ATTRS.CONFIRMATION_MESSAGE,
-      FORM_DEFINITION_ATTRS.CONFIRMATION_RECORD_REF_ATTRIBUTE,
-      FORM_DEFINITION_ATTRS.ACCESS_GROUP_ID,
-      FORM_DEFINITION_ATTRS.CREATED_BY,
-      FORM_DEFINITION_ATTRS.CREATED_ON,
-      FORM_DEFINITION_ATTRS.MODIFIED_BY,
-      FORM_DEFINITION_ATTRS.MODIFIED_ON,
-    ].join(',');
-
-    const record = await withRetry(
-      () => this.webApi.retrieveRecord(ENTITY_NAMES.FORM_DEFINITION, id, `?$select=${select}`),
-      'getFormWithEtag',
-    );
-
-    const rawEtag = record['@odata.etag'];
+    const retrieved = await this.retrieveFormRecord(id, 'getFormWithEtag');
+    const rawEtag = retrieved.record['@odata.etag'];
     const etag = typeof rawEtag === 'string' ? rawEtag : null;
 
-    return { model: this.mapRecordToModel(record), etag };
+    return { model: this.mapRecordToModel(retrieved), etag };
   }
 
   async listForms(filter?: FormListFilter): Promise<FormSummary[]> {
@@ -292,7 +315,51 @@ export class FormDefinitionService {
     );
   }
 
-  private mapRecordToModel(record: Record<string, unknown>): DesignerFormModel {
+  /**
+   * Retrieves the form, adding newer columns progressively as the org supports them.
+   *
+   * Tier 1 (all new): qdb_form_type + qdb_scoring_mode — both available.
+   * Tier 2 (form_type only): qdb_scoring_mode is not yet deployed.
+   * Tier 3 (baseline): qdb_form_type is also missing (pre-survey orgs).
+   *
+   * Only missing-column errors cause fallback; every other error propagates unchanged.
+   */
+  private async retrieveFormRecord(id: string, operation: string): Promise<RetrievedFormRecord> {
+    const retrieveWith = (columns: string[]) =>
+      withRetry(
+        () => this.webApi.retrieveRecord(ENTITY_NAMES.FORM_DEFINITION, id, `?$select=${columns.join(',')}`),
+        operation,
+      );
+
+    // Tier 1: both new columns
+    try {
+      const record = await retrieveWith([
+        ...FORM_SELECT_COLUMNS,
+        FORM_DEFINITION_ATTRS.FORM_TYPE,
+        FORM_DEFINITION_ATTRS.SCORING_MODE,
+      ]);
+      return { record, isFormTypeAvailable: true, isScoringAvailable: true };
+    } catch (error) {
+      if (!isMissingColumnError(error)) throw error;
+    }
+
+    // Tier 2: qdb_form_type only — scoring not yet provisioned
+    try {
+      const record = await retrieveWith([...FORM_SELECT_COLUMNS, FORM_DEFINITION_ATTRS.FORM_TYPE]);
+      return { record, isFormTypeAvailable: true, isScoringAvailable: false };
+    } catch (error) {
+      if (!isMissingColumnError(error)) throw error;
+    }
+
+    // Tier 3: baseline — pre-survey org
+    return {
+      record: await retrieveWith(FORM_SELECT_COLUMNS),
+      isFormTypeAvailable: false,
+      isScoringAvailable: false,
+    };
+  }
+
+  private mapRecordToModel({ record, isFormTypeAvailable, isScoringAvailable }: RetrievedFormRecord): DesignerFormModel {
     return {
       id: String(record[FORM_DEFINITION_ATTRS.ID] ?? ''),
       name: String(record[FORM_DEFINITION_ATTRS.NAME] ?? ''),
@@ -311,6 +378,10 @@ export class FormDefinitionService {
       footerImageUrl: readOptionalText(record, FORM_DEFINITION_ATTRS.FOOTER_IMAGE_URL),
       status: picklistToStatus(record[FORM_DEFINITION_ATTRS.STATUS]),
       currentVersion: versionToString(record[FORM_DEFINITION_ATTRS.CURRENT_VERSION]),
+      formType: readFormType(record),
+      isFormTypeAvailable,
+      scoringMode: readScoringMode(record),
+      isScoringAvailable,
       themeId: null,
       allowSaveDraft: record[FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT] !== false,
       draftExpiryDays: record[FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS] != null

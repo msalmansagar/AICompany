@@ -38,6 +38,7 @@ const SYNCED_TYPES = [
   'ButtonConditionSet',
   'ScopedButton',
   'ResolvedExtraParams',
+  'FormType',
 ];
 
 /** Strip line and block comments so member extraction ignores documentation. */

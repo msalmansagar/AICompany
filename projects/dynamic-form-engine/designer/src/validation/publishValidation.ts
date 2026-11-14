@@ -4,8 +4,9 @@
 
 import { z } from 'zod';
 import type { DesignerState } from '@/state/designerStore';
-import { FIELD_TYPE } from '@/constants/fieldTypes';
+import { FIELD_TYPE, SURVEY_ALLOWED_FIELD_TYPES } from '@/constants/fieldTypes';
 import type { ScopedButtonRecord } from '@/services/ScopedButtonDesignService';
+import { findSurveyCodeError } from './surveyFormCode';
 
 export interface ValidationIssue {
   code: string;
@@ -40,6 +41,11 @@ function validateFormBasics(state: DesignerState, issues: ValidationIssue[]): vo
   const codeResult = formCodeSchema.safeParse(state.form?.code ?? '');
   if (!codeResult.success) {
     issues.push({ code: 'PV-002', message: codeResult.error.errors[0]?.message ?? 'Invalid form code', severity: 'error' });
+  }
+
+  const surveyCodeError = state.form ? findSurveyCodeError(state.form) : null;
+  if (surveyCodeError) {
+    issues.push({ code: 'PV-014', message: surveyCodeError, severity: 'error' });
   }
 }
 
@@ -119,6 +125,10 @@ function validateFields(state: DesignerState, issues: ValidationIssue[]): void {
 }
 
 function validateSubmissionMapping(state: DesignerState, issues: ValidationIssue[]): void {
+  // FR-CSE-074: surveys write to survey response tables, not a CRM entity.
+  // PV-011 and PV-012 do not apply to survey forms.
+  if (state.form?.formType === 'Survey') return;
+
   // Warn if no entity is configured — submission mapping requires it
   if (!state.form?.entityLogicalName) {
     issues.push({
@@ -140,6 +150,27 @@ function validateSubmissionMapping(state: DesignerState, issues: ValidationIssue
 }
 
 /**
+ * FR-CSE-074 — refuse to publish a survey that contains a control the survey path
+ * cannot store. Each disallowed field produces one PV-019 naming its label.
+ * Skipped for non-survey forms — Normal form palette is unchanged (C-6).
+ */
+function validateSurveyFieldTypes(state: DesignerState, issues: ValidationIssue[]): void {
+  if (state.form?.formType !== 'Survey') return;
+
+  for (const field of Object.values(state.fields)) {
+    if (!SURVEY_ALLOWED_FIELD_TYPES.has(field.fieldType)) {
+      issues.push({
+        code: 'PV-019',
+        message:
+          `Survey contains non-survey control "${field.label || field.code}" `
+          + `(type: ${field.fieldType}). Remove it or switch the form to Normal.`,
+        severity: 'error',
+      });
+    }
+  }
+}
+
+/**
  * Runs all publish validation checks against the current designer state.
  * Returns a result containing all issues found.
  * isValid is true only when there are zero error-severity issues.
@@ -155,6 +186,8 @@ export function validateForPublish(
   validateFields(state, issues);
   validateSubmissionMapping(state, issues);
   validateSectionReveal(state, sectionButtons, issues);
+  validateWeightedScoring(state, issues);
+  validateSurveyFieldTypes(state, issues);
 
   const isValid = issues.every(issue => issue.severity !== 'error');
   return { isValid, issues };
@@ -208,4 +241,92 @@ function hasAdvanceButton(buttons: readonly ScopedButtonRecord[]): boolean {
       return false;
     }
   });
+}
+
+// Field types that can carry a Weight in a weighted survey (FR-CSE-063).
+// Exactly the types the survey engine scores (QuestionScoring): choice questions with options.
+// Checkbox and yes/no fields carry no options, so they could never earn points.
+const SCORABLE_OPTION_FIELD_TYPES = new Set<string>([
+  FIELD_TYPE.DROPDOWN, FIELD_TYPE.RADIO, FIELD_TYPE.MULTI_SELECT,
+]);
+const SCORABLE_NUMBER_FIELD_TYPES = new Set(['number', 'decimal', 'currency']);
+
+/**
+ * Effective weight for a field: null/undefined/empty → 1 (default). Explicit 0 → excluded.
+ */
+function effectiveWeight(weight: number | null | undefined): number {
+  return weight != null ? weight : 1;
+}
+
+/**
+ * FR-CSE-070 — refuse to publish a Weighted survey unless:
+ *   PV-015: at least one scorable question has effective weight > 0.
+ *   PV-016: every option of every scored choice question has Points set
+ *           (rating-style questions are exempt — they use the option's numeric value).
+ *   PV-017: every scored number/decimal/currency question has both min and max.
+ *   PV-018: score min < score max for each scored number question.
+ *
+ * Skipped for non-survey forms and non-weighted surveys.
+ */
+function validateWeightedScoring(state: DesignerState, issues: ValidationIssue[]): void {
+  if (state.form?.formType !== 'Survey' || state.form.scoringMode !== 'Weighted') return;
+
+  const fields = Object.values(state.fields);
+
+  // PV-015: at least one scorable question must have effective weight > 0.
+  const hasActivelyScoredField = fields.some(
+    f => (SCORABLE_OPTION_FIELD_TYPES.has(f.fieldType) || SCORABLE_NUMBER_FIELD_TYPES.has(f.fieldType))
+      && effectiveWeight(f.scoreWeight) > 0,
+  );
+  if (!hasActivelyScoredField) {
+    issues.push({
+      code: 'PV-015',
+      message: 'A Weighted survey must have at least one scorable question with a weight greater than 0. '
+        + 'Set a Weight on a dropdown, radio, multi-select, or number question.',
+      severity: 'error',
+    });
+  }
+
+  for (const field of fields) {
+    const weight = effectiveWeight(field.scoreWeight);
+    if (weight <= 0) continue; // excluded from scoring
+
+    // PV-016: every option of a scored choice question must have Points (except rating-style).
+    if (SCORABLE_OPTION_FIELD_TYPES.has(field.fieldType)) {
+      const isRating = field.radioRenderStyle === 'rating';
+      if (!isRating && field.options.some(o => o.scorePoints == null)) {
+        issues.push({
+          code: 'PV-016',
+          message: `Field "${field.label || field.code}" is scored (weight ${weight}) but `
+            + 'one or more options are missing a Points value. Set Points on every option, '
+            + 'or change this field to rating style.',
+          severity: 'error',
+        });
+      }
+    }
+
+    // PV-017: scored number questions must have both min and max.
+    if (SCORABLE_NUMBER_FIELD_TYPES.has(field.fieldType)) {
+      const hasBoth = field.scoreMin != null && field.scoreMax != null;
+      if (!hasBoth) {
+        issues.push({
+          code: 'PV-017',
+          message: `Field "${field.label || field.code}" is a scored number question but `
+            + 'Score minimum and Score maximum must both be set.',
+          severity: 'error',
+        });
+        continue; // skip PV-018 when both are absent
+      }
+
+      // PV-018: min must be strictly less than max.
+      if (field.scoreMin! >= field.scoreMax!) {
+        issues.push({
+          code: 'PV-018',
+          message: `Field "${field.label || field.code}": Score minimum (${field.scoreMin}) `
+            + `must be less than Score maximum (${field.scoreMax}).`,
+          severity: 'error',
+        });
+      }
+    }
+  }
 }

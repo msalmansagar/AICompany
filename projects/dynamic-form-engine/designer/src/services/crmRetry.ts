@@ -11,11 +11,25 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// Xrm.WebApi reports a column this org has not provisioned without an HTTP status in the
+// message. It is as permanent as a 4xx, and column-tier fallbacks hit it on every load.
+const MISSING_COLUMN_PATTERN = /Could not find a property named|0x80060888/;
+
+function messageOf(error: unknown): string {
+  if (error == null || typeof error !== 'object') return '';
+  return String((error as Record<string, unknown>).message ?? '');
+}
+
 // 4xx errors are deterministic client mistakes — retrying won't help.
 function isClientError(error: unknown): boolean {
-  if (error == null || typeof error !== 'object') return false;
-  const msg = String((error as Record<string, unknown>).message ?? '');
-  return /\(4\d{2}\)/.test(msg);
+  const msg = messageOf(error);
+  return /\(4\d{2}\)/.test(msg) || MISSING_COLUMN_PATTERN.test(msg);
+}
+
+/** True when the error, or the error a CrmApiError wraps, names a column this org lacks. */
+export function isMissingColumnError(error: unknown): boolean {
+  const cause = error instanceof CrmApiError ? error.cause : undefined;
+  return MISSING_COLUMN_PATTERN.test(messageOf(error)) || MISSING_COLUMN_PATTERN.test(messageOf(cause));
 }
 
 export class CrmApiError extends Error {

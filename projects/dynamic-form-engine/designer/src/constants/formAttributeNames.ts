@@ -2,6 +2,9 @@
 // Split from attributeNames.ts (SC-09 — NFR-014 line-cap compliance).
 // Never use inline attribute name strings — always import from here or the barrel.
 
+import type { FormType, ScoringMode } from '@qdb/shared';
+export type { ScoringMode };
+
 export const FORM_DEFINITION_ATTRS = {
   ID: 'qdb_form_definitionid',
   NAME: 'qdb_title',
@@ -23,6 +26,8 @@ export const FORM_DEFINITION_ATTRS = {
   SHOW_SUMMARY_STEP: 'qdb_show_summary_step',
   SUMMARY_MODE: 'qdb_summary_mode',                 // DFE-FBE-001 — Picklist, see SUMMARY_MODE_TO_PICKLIST
   SHOW_PROGRESS_BAR: 'qdb_show_progress_bar',        // DFE-FBE-002
+  FORM_TYPE: 'qdb_form_type',                        // FR-CSE-019 — Picklist, see FORM_TYPE_TO_PICKLIST
+  SCORING_MODE: 'qdb_scoring_mode',                  // FR-CSE-061 — Picklist, see SCORING_MODE_TO_PICKLIST
   POWER_AUTOMATE_FLOW_ID: 'qdb_power_automate_flow_id',
   CONFIRMATION_MESSAGE: 'qdb_confirmation_message',
   // DFE-SUBMITCONFIRM-001: acknowledgement gate (label present ⇒ gate active).
@@ -85,6 +90,24 @@ export const SUMMARY_MODE_TO_PICKLIST: Record<string, number> = {
 };
 export const PICKLIST_TO_SUMMARY_MODE: Record<number, 'None' | 'SystemGenerated' | 'Manual'> = {
   100000001: 'None', 100000002: 'SystemGenerated', 100000003: 'Manual',
+};
+
+// FR-CSE-019 — qdb_form_type picklist. Not yet provisioned on every org: never name the
+// column in a write unless a type was explicitly chosen (see FormDefinitionService).
+export const FORM_TYPE_TO_PICKLIST: Record<FormType, number> = {
+  Standard: 100000000, Survey: 100000001,
+};
+export const PICKLIST_TO_FORM_TYPE: Record<number, FormType> = {
+  100000000: 'Standard', 100000001: 'Survey',
+};
+
+// FR-CSE-061 — qdb_scoring_mode picklist. Not provisioned on every org: same tier-
+// fallback pattern as qdb_form_type (see FormDefinitionService). No default written.
+export const SCORING_MODE_TO_PICKLIST: Record<ScoringMode, number> = {
+  None: 100000000, Weighted: 100000001,
+};
+export const PICKLIST_TO_SCORING_MODE: Record<number, ScoringMode> = {
+  100000000: 'None', 100000001: 'Weighted',
 };
 
 // DFE-NUMBAR — number/decimal/currency display style — qdb_number_display_style picklist
@@ -226,6 +249,10 @@ export const FORM_FIELD_ATTRS = {
   GRID_CARD_LAYOUT: 'qdb_grid_card_layout',
   GRID_SELECTABLE: 'qdb_grid_selectable',
   GRID_CARD_ICON: 'qdb_grid_card_icon',
+  // FR-CSE-063/064 — weighted-scoring fields (not on every org; read with SCORING_SELECT tier)
+  SCORE_WEIGHT: 'qdb_score_weight',
+  SCORE_MIN: 'qdb_score_min',
+  SCORE_MAX: 'qdb_score_max',
 } as const;
 
 // DFE-TABZONE-001 — qdb_placement optionset codes.
@@ -387,6 +414,8 @@ export const FORM_OPTION_VALUE_ATTRS = {
   PARENT_OPTION_VALUE: 'qdb_parent_option_value',
   IS_ACTIVE: 'qdb_is_active',
   NOTES: 'qdb_notes',
+  // FR-CSE-062 — points carried by each answer option in a weighted survey.
+  SCORE_POINTS: 'qdb_score_points',
 } as const;
 
 export const FORM_LOOKUP_CONFIG_ATTRS = {

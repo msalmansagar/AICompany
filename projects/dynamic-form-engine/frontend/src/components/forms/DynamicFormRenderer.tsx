@@ -204,11 +204,14 @@ function phaseReducer(state: PhaseState, action: PhaseAction): PhaseState {
 interface DynamicFormRendererProps {
   formCode: string;
   recordId?: string;
+  /** CSE-ENG-001: a survey invitation is answered once, so the confirmation offers no "Submit another". */
+  isSingleSubmission?: boolean;
 }
 
 export function DynamicFormRenderer({
   formCode,
   recordId,
+  isSingleSubmission = false,
 }: DynamicFormRendererProps) {
   // Read the active language from the LanguageProvider tree.
   // useLanguageContext will throw if LanguageProvider is absent — which is the
@@ -221,6 +224,7 @@ export function DynamicFormRenderer({
         supportedLanguages={supportedLanguages}
         activeLanguage={language}
         onLanguageSelect={setLanguage}
+        isSingleSubmission={isSingleSubmission}
       />
     </FormProvider>
   );
@@ -236,12 +240,14 @@ interface FormRendererInnerProps {
   supportedLanguages: import('@qdb/shared').LanguageConfig[];
   activeLanguage: string;
   onLanguageSelect: (code: string) => void;
+  isSingleSubmission: boolean;
 }
 
 function FormRendererInner({
   supportedLanguages,
   activeLanguage,
   onLanguageSelect,
+  isSingleSubmission,
 }: FormRendererInnerProps) {
   const styles = useStyles();
   const {
@@ -394,6 +400,7 @@ function FormRendererInner({
       <FormConfirmation
         confirmationMessage={formDefinition.confirmationMessage}
         referenceNumber={submissionReference}
+        isSingleSubmission={isSingleSubmission}
       />
     );
   }

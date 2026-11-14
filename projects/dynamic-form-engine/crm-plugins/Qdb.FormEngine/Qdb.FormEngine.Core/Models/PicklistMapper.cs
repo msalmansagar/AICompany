@@ -185,6 +185,16 @@ namespace Qdb.FormEngine.Core.Models
             }
         }
 
+        /// <summary>
+        /// Maps qdb_scoring_mode option set values. Returns null for None or absent so
+        /// non-scoring forms publish byte-identical JSON (NFR-CSE-010).
+        /// Only "weighted" is published — the None picklist entry has no runtime meaning.
+        /// </summary>
+        public static string ToScoringMode(int? value)
+        {
+            return value == 100000001 ? "weighted" : null;
+        }
+
         /// <summary>Maps qdb_action option set values for business rules.</summary>
         public static string ToBusinessRuleAction(int? value)
         {

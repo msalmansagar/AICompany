@@ -195,6 +195,8 @@ export function FieldProperties({ fieldId }: FieldPropertiesProps): React.ReactE
   const field = useDesignerStore(s => s.fields[fieldId] ?? null);
   const updateField = useDesignerStore(s => s.updateField);
   const formCode = useDesignerStore(s => s.form?.code ?? '');
+  // FR-CSE-073: surveys hide the CRM-mapping section from the Advanced tab.
+  const isSurvey = useDesignerStore(s => s.form?.formType === 'Survey');
 
   const handleLabelChange = (
     _: React.ChangeEvent<HTMLInputElement>,
@@ -399,8 +401,9 @@ export function FieldProperties({ fieldId }: FieldPropertiesProps): React.ReactE
           label: 'Advanced',
           content: (
             <>
-              <FieldMappingSummary field={field} />
-              <Divider />
+              {/* FR-CSE-073: surveys do not map fields to a CRM entity — hide the mapping panel. */}
+              {!isSurvey && <FieldMappingSummary field={field} />}
+              {!isSurvey && <Divider />}
               <Accordion collapsible>
                 <AccordionItem value="translations">
                   <AccordionHeader>Translations</AccordionHeader>

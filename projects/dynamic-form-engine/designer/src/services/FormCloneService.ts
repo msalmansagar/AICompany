@@ -6,6 +6,7 @@ import { FieldService } from './FieldService';
 import { OptionValueService } from './OptionValueService';
 import { LookupConfigService } from './LookupConfigService';
 import { ValidationRuleService } from './ValidationRuleService';
+import { hasSurveyCodePrefix } from '@/validation/surveyFormCode';
 
 const OPTION_FIELD_TYPES = new Set(['dropdown', 'multi_select', 'radio']);
 const LOOKUP_FIELD_TYPES = new Set(['lookup', 'child_entity_grid']);
@@ -31,14 +32,37 @@ export class FormCloneService {
 
   async cloneForm(sourceFormId: string): Promise<string> {
     const source = await this.formService.getForm(sourceFormId);
+    const isSurveySource = source.formType === 'Survey';
+
+    // FR-CSE-075: ensure the clone code keeps a survey prefix (srv_ or srv-) even when the
+    // maker manually edited it away on the source (the prefix is required for publish validation).
+    const rawBase = isSurveySource && !hasSurveyCodePrefix(source.code)
+      ? `srv_${source.code}`
+      : source.code;
+    // Keep the clone code within the Dataverse 100-char column limit.
+    // '_copy_' adds 6 chars; Date.now() adds 13 chars (epoch ms) → max base = 81 chars.
+    const MAX_CLONE_BASE = 81;
+    const cloneBase = rawBase.slice(0, MAX_CLONE_BASE);
 
     const newFormId = await this.formService.createForm({
       name: `${source.name} — Copy`,
-      code: `${source.code}_copy_${Date.now()}`,
+      code: `${cloneBase}_copy_${Date.now()}`,
       description: source.description,
       entityLogicalName: source.entityLogicalName,
       themeId: source.themeId,
+      // FR-CSE-075: a survey clone is itself a survey.
+      isSurvey: isSurveySource,
     });
+
+    // FR-CSE-075: stamp the Survey form-type picklist on the new record when the
+    // column is available. We must fetch a fresh etag first because the CREATE
+    // response body is empty (no etag from CRM on POST).
+    if (isSurveySource && source.isFormTypeAvailable) {
+      const { etag } = await this.formService.getFormWithEtag(newFormId);
+      if (etag) {
+        await this.formService.updateForm(newFormId, { formType: 'Survey' }, etag);
+      }
+    }
 
     const tabs = await this.tabService.listTabsForForm(sourceFormId);
     for (const tab of tabs) {

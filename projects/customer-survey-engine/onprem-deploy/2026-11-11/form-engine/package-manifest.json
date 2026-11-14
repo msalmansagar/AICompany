@@ -1,0 +1,109 @@
+{
+  "builtAt": "2026-11-13T20:20:57.522Z",
+  "target": "Dynamics 365 CE 9.1 on-prem: HL CRM and BFD CRM / QDB1",
+  "patch": {
+    "file": "QdbFormEngineSurveyUpdate_1_0_0_0_onprem_unmanaged.zip",
+    "sha256": "c692a980c9e25250640fac54b8d1077b4369c3d84d4cb3e0649c45448cef0d97",
+    "bytes": 3426,
+    "source": {
+      "file": "source/QdbFormEngineSurveyUpdate_cloud_unmanaged.zip",
+      "sha256": "c9413457231d4e3937ff859a0cd2be94781a3129e167c5b20210e11ad35bac24"
+    },
+    "rootAfter": "<ImportExportXml version=\"9.0.0.0\" SolutionPackageVersion=\"9.0\" languagecode=\"1033\" generatedBy=\"CrmLive\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">",
+    "columns": [
+      "qdb_form_definition.qdb_form_type",
+      "qdb_form_definition.qdb_scoring_mode",
+      "qdb_form_field.qdb_score_max",
+      "qdb_form_field.qdb_score_min",
+      "qdb_form_field.qdb_score_weight",
+      "qdb_form_option_value.qdb_score_points"
+    ],
+    "keptPrerequisites": 6,
+    "customizationTransforms": [
+      {
+        "name": "root-organisation-attributes",
+        "why": "OrganizationVersion / OrganizationSchemaType / CRMServerServiceabilityVersion are 9.2 export stamps",
+        "removed": 3
+      },
+      {
+        "name": "empty-autonumber-format",
+        "why": "AutoNumberFormat is empty on every column (no column is auto-numbered)",
+        "removed": 6
+      },
+      {
+        "name": "retrieve-audit-flag",
+        "why": "IsRetrieveAuditEnabled is 0 (off) on every table",
+        "removed": 0
+      },
+      {
+        "name": "teams-integration-flag",
+        "why": "IsMSTeamsIntegrationEnabled is 0 on every table; Teams integration is a Dataverse online feature",
+        "removed": 0
+      },
+      {
+        "name": "role-auto-assigned-flag",
+        "why": "Role IsAutoAssigned is 0 on every role",
+        "removed": 0
+      },
+      {
+        "name": "cascade-archive",
+        "why": "Long-term data retention (archive) does not exist on 9.1; there is nothing to cascade",
+        "removed": 0
+      },
+      {
+        "name": "form-header-density",
+        "why": "headerdensity is a Unified Interface header layout hint; 9.1 renders its default header",
+        "removed": 0
+      },
+      {
+        "name": "option-is-hidden",
+        "why": "IsHidden=\"0\" on options, states and statuses — no option is hidden",
+        "removed": 4
+      },
+      {
+        "name": "retrieve-multiple-audit-flag",
+        "why": "IsRetrieveMultipleAuditEnabled is 0 (off) on every table",
+        "removed": 0
+      },
+      {
+        "name": "sitemap-collapsible-groups",
+        "why": "EnableCollapsibleGroups is False",
+        "removed": 0
+      },
+      {
+        "name": "app-optimized-for",
+        "why": "AppModule OptimizedFor is empty",
+        "removed": 0
+      },
+      {
+        "name": "app-settings",
+        "why": "App settings (AppChannel) require the cloud-only msdyn_AppFrameworkInfraExtensions package",
+        "removed": 0
+      },
+      {
+        "name": "site-map-name",
+        "why": "A 9.1 server refuses an AppModuleSiteMap without <SiteMapName> (\"The SiteMapName in the AppModuleSiteMap is null or empty\", 0x80050109 — HL CRM test import, 2026-10-04); the cloud export keeps the name only in LocalizedNames",
+        "removed": 0,
+        "added": 0
+      }
+    ],
+    "entries": [
+      "[Content_Types].xml",
+      "customizations.xml",
+      "solution.xml"
+    ]
+  },
+  "webResources": {
+    "file": "FormDesignerWebResource_1.6.0.zip",
+    "sha256": "69a3e14c1dab11bb0f69ea358f2d6297d6cc2ee55c44a28cbbd1d71af87a9063",
+    "bytes": 1386144,
+    "designerSha256": "b63e0bfda1f050f38db49794bde42a330e558bc7f4c034fa2bb7c1d84428f7a0",
+    "runtimeSha256": "afe8eb3f1671c196e4d44490a7b8457baf71e23180f17cfae8c04566c8cffce6"
+  },
+  "plugin": {
+    "file": "Qdb.FormEngine.Plugins.dll",
+    "sha256": "137658ae3a101eb97376aef8e22ea155155f74b2490900a81be7729f8529f083",
+    "bytes": 903680,
+    "deploy": "Plugin Registration Tool → Update assembly; only after the qdb_grid_column_config census (DEF-002)"
+  }
+}
