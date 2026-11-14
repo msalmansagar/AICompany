@@ -18,7 +18,7 @@ back to the decision that created it.
 | A2 | NFR-CSE-004: SurveyEngine can be removed and every Form Engine form still publishes and renders | Release gate | QA | Open: approach decided 2026-11-13 by the CEO (QA Part D, no removal). The kit is ready (runbook 2.5–2.7, Gate 1b, `survey-stage2-check.console.js`); closes when Gate 1b passes on HL test and QDB1 test | `phase-2-ba.md` NFR table; `phase-5-qa.md` §5 Part D |
 | A3 | NFR-CSE-006: async trigger p95 < 10 s; the daily run covers the whole customer base in one run | Release gate | QA | Open: measured on cloud 2026-11-13. Daily run PASS (450 customers, one call, 24.4 s); trigger p95 **14 s, FAIL** (max 46 s, median 3 s; the six slow values were the first six changes). CEO decided 2026-11-13: measure on-prem, target unchanged. Closes when runbook 9.3 (`trigger-speed-test.ps1`) passes on HL test and QDB1 test | BRD section 9.2; `phase-5-qa.md` section 6 Results |
 | A4 | NFR-CSE-007: ≥ 80% branch coverage on survey code, from a coverage report | Release gate | QA | **Done** 2026-11-13: C# branch 80.05% (411 tests; was 59.1%), on-prem checks 97.2% (101 tests), provisioning 93.1% | `phase-5-qa.md` 2.6 |
-| A5 | **Audit phase** (`phase-6-audit.md`): governance, PDPPL alignment, audit trail | Release gate | Auditor (MSS) | Open | workflow |
+| A5 | **Audit phase** (`phase-6-audit.md`): governance, PDPPL alignment, audit trail | Release gate | Auditor (MSS) | **Done** 2026-11-14: **Cleared with conditions**. 25 findings: 0 critical, 7 high, 5 release-blocking (CMP-01 and CMP-02, tracked as B1–B3; CMP-03, SEC-01 and AUD-01, now B7–B9). Conditions are in section 11 of the audit | `phase-6-audit.md` |
 | A6 | **CEO final decision** (`phase-7-ceo.md`) | Release gate | CEO | Open | workflow |
 | A7 | Push `feat/survey-engine`, open the PR, code review of the B9 tooling, merge to main | Release gate | MSS + CEO (main merges need approval) | Partial: pushed 2026-11-13, draft PR #173 open; review and merge outstanding | PR #173 |
 | A8 | The CEO acknowledges two departures from approved decisions: (a) on-prem ships **without** the pre-registered trigger steps (readiness F4; the approval said "steps for the 3 known sources ship pre-registered"), activation creates them instead; (b) **customer = account or contact per org** (F1) supersedes the B1 decision and BRD assumption A-01 | Release gate | CEO | **Done** 2026-11-12: both accepted | `phase-3-ceo-arch-decision.md` Amendments |
@@ -29,10 +29,13 @@ back to the decision that created it.
 |---|---|---|---|---|---|
 | B1 | **Retention period and PDPPL classification** of survey responses; then set Retention Days + Mode in each org's Survey Settings | Release gate | QDB Compliance | Open | OQ-A1, NFR-CSE-008, C-4; config HL-12 / BFD-10 |
 | B2 | **PDPPL sign-off** in writing | Release gate | QDB Compliance | Open | NFR-CSE-008, C-4 |
-| B3 | An **anonymised** response keeps its link to the invitation, and the invitation names the customer, so it can be re-identified. Compliance decides: accept, or also clear the invitation's customer on anonymise (small plugin change) | Release gate (part of B2) | QDB Compliance | Open | found in B5; `phase-3-arch.md` decisions (B5) |
+| B3 | An **anonymised** response keeps its link to the invitation, and the invitation names the customer, so it can be re-identified. Compliance decides: accept, or also clear the invitation's customer on anonymise (small plugin change). **The audit (CMP-02) found more re-identifiers:** the response's invitation link, and the source pointer (`qdb_source_record_id` / `qdb_source_table`). Compliance must see the full list | Release gate (part of B2) | QDB Compliance | Open | found in B5; `phase-3-arch.md` decisions (B5); `phase-6-audit.md` CMP-02 |
 | B4 | **Secure-link security review**: threat model of the token path (generation, entropy, expiry, single use, guessing rate) | Switching secure links on, any org | Security engineer + QDB IT security | Open | NFR-CSE-009 |
 | B5 | The portal team **rate-limits the token page** | Switching secure links on | QDB portal team | Open | architecture approval condition |
 | B6 | **Cloud residency.** `org5869857f` is in the EMEA region (`crm4.dynamics.com`). A cloud org that holds production responses must be Qatar-resident, or the cloud target leaves release 1 | Production on the cloud org | CEO + QDB Compliance | **Done** 2026-11-12: release 1 is on-prem only; the cloud org holds no production responses | C-1 (amended), C-4 |
+| B7 | **Retention and erasure beyond responses** (audit CMP-03): invitations, suppression logs and dispatch activities keep customer data indefinitely, and there is no per-customer erasure (DSAR) procedure. Decide the retention for each, implement it, and document the procedure; part of the B2 sign-off scope | Release gate | CEO + QDB Compliance, then MSS | Open | `phase-6-audit.md` CMP-03 |
+| B8 | **Scheduler privilege** (audit SEC-01 / OPS-03): `qdb_srv_RunDueSurveys` requires System Administrator, so the unattended service account holds it on both banking orgs. Replace it with a least-privilege Survey Scheduler role, or formally risk-accept it with compensating controls recorded | Release gate | CEO, then MSS | Open | `phase-6-audit.md` SEC-01; ADR-005 |
+| B9 | **Audit history on survey tables** (audit AUD-01): org auditing is on, but `IsAuditEnabled=false` on all nine survey tables (verified on the cloud org 2026-11-14), and nothing in provisioning or the kit enables it. Enable it on the config and integrity-sensitive tables, and read back `IsAuditEnabled=true` on each on-prem org | Release gate | MSS + QDB IT | Open | `phase-6-audit.md` AUD-01 |
 
 ## C. On-prem deployment (each org: HL CRM, BFD CRM / QDB1; test first)
 
@@ -95,11 +98,11 @@ Kept for a later release that adds a Qatar-resident cloud org. None of these gat
 
 | | Release gates | Open | Partial | Done |
 |---|---|---|---|---|
-| A. Engagement | 8 | 5 | 1 | 2 |
-| B. Compliance and security | 3 (B1–B3) | 5 | 0 | 1 |
+| A. Engagement | 8 | 4 | 1 | 3 |
+| B. Compliance and security | 6 (B1–B3, B7–B9) | 8 | 0 | 1 |
 | C. On-prem, per org | all, ×2 orgs | 9 × 2 | 0 | 0 |
 | F. Engine | 1 (F1) | 3 | 0 | 2 |
 
-**Next for MSS:** the QA phase (A1–A4), then audit (A5); the PR (A7) is open as a draft.
+**Next for MSS:** the audit is done (A5, cleared with conditions). Next are the CEO's decisions on the audit's release-blocking items (B7–B9; B3 widened), then the CEO final decision (A6). The PR (A7) is open as a draft.
 **Next for QDB:** the configuration answers (section D), Compliance (B1–B3), and running the runbook on the
 two test orgs (section C).
