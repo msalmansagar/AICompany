@@ -94,6 +94,15 @@ function toDisplayAndDocumentProperties(field: DesignerFieldModel): DisplayAndDo
   };
 }
 
+// DFE-CKEY-001: a cleared key maps to undefined above, so the old key survived Save.
+// Null is written only when the last-saved field held a key: the column then exists on this org.
+function toClearedComponentKey(
+  field: DesignerFieldModel,
+  savedField: DesignerFieldModel | undefined,
+): Pick<UpdateFieldDto, 'componentKey'> {
+  return field.componentKey == null && savedField?.componentKey != null ? { componentKey: null } : {};
+}
+
 function asJson(value: Record<string, string> | undefined): string | undefined {
   return value ? JSON.stringify(value) : undefined;
 }
@@ -139,6 +148,8 @@ type SaveableState = Pick<
    * Populated after the first getFormWithEtag() call during form load.
    */
   formEtag: string;
+  /** Fields as at load or the last successful save; lets Save tell a cleared value from one never set. */
+  savedFields?: Record<string, DesignerFieldModel>;
 };
 
 export interface FormSaveResult {
@@ -175,7 +186,7 @@ export class FormSaveService {
   }
 
   async save(state: SaveableState): Promise<FormSaveResult> {
-    const { form, tabs, sections, fields, tabOrder, sectionOrder, fieldOrder, newIds, dirtyIds, deletedIds, deletedEntityTypes, validationRules, businessRules, designPayload, formEtag } = state;
+    const { form, tabs, sections, fields, tabOrder, sectionOrder, fieldOrder, newIds, dirtyIds, deletedIds, deletedEntityTypes, validationRules, businessRules, designPayload, formEtag, savedFields } = state;
     if (!form) throw new Error('No form loaded');
 
     const resolvedIds: Record<string, string> = {};
@@ -409,6 +420,7 @@ export class FormSaveService {
           gridPageSize: field.gridPageSize,
           gridPagingStyle: field.gridPagingStyle,
           ...toDisplayAndDocumentProperties(field),
+          ...toClearedComponentKey(field, savedFields?.[id]),
         });
 
         // Step 4b: Sync options for dirty dropdown/multi_select/radio fields
