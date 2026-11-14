@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Run by a Windows Scheduled Task on a CRM or application server, under the AD service account,
-    which must hold the System Administrator role in CRM. Authenticates with Windows integrated
+    which must hold the Survey Scheduler role in CRM (no other role). Authenticates with Windows integrated
     authentication, so no password or secret is stored. Passes the server's local date as RunDate,
     so a run just after local midnight on the 1st is not read as the last day of the month in UTC.
     Calls again while IsComplete is false (the API stops each call within the plugin time limit).

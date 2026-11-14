@@ -9,7 +9,7 @@
  *      the next run releases the Postponed one; an expired Postponed invitation is discarded and logged.
  *   C  Retention: Delete removes an old response with its answers; Anonymise clears customer,
  *      answers JSON and answer text but keeps the numeric answer.
- *   D  A non-administrator is refused.
+ *   D  A user with neither System Administrator nor the Survey Scheduler role is refused.
  * The run also processes every other Postponed invitation on the org (B3 test data). Settings and
  * the test setup are restored in `finally`. Live writes: run only with a go-ahead.
  *
@@ -146,11 +146,11 @@ async function scenarioRetention(session, { setupId, customers, settingsId, peri
 }
 
 async function scenarioNonAdministrator(session, period) {
-  console.log('D — a non-administrator is refused');
+  console.log('D — a user with neither System Administrator nor Survey Scheduler is refused');
   const user = await findNonAdministrator(session);
   if (!user) { session.check('a non-administrator user exists to test with', false); return; }
   const outcome = await session.client.sendAsUser('POST', 'qdb_srv_RunDueSurveys', { RunDate: period.quietDate }, user.systemuserid).then(() => 'allowed', (error) => error.message);
-  session.check(`run by ${user.fullname} is refused`, outcome !== 'allowed' && outcome.includes('System Administrator'), outcome.slice(0, 160));
+  session.check(`run by ${user.fullname} (neither System Administrator nor Survey Scheduler) is refused`, outcome !== 'allowed' && outcome.includes('Survey Scheduler'), outcome.slice(0, 160));
 }
 
 async function createCustomers(session, stamp, period) {

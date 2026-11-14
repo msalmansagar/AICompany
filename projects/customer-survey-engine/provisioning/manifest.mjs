@@ -295,4 +295,11 @@ export const ROLES = Object.freeze([
       { table: 'qdb_form_definition', rights: ['Read'] },
     ],
   },
+  {
+    // CEO 2026-11-14 (Phase 6 audit SEC-01): the daily scheduler account holds only this role instead of
+    // System Administrator. qdb_srv_RunDueSurveys admits it by name (SchedulerAccessCheck.cs) and does
+    // its work as SYSTEM, so the role grants no table rights.
+    name: 'Survey Scheduler',
+    privileges: [],
+  },
 ]);

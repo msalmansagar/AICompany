@@ -21,7 +21,7 @@ A **WARN** needs a named person's decision, written down, before going on.
 |---|---|---|
 | 0.1 | Take a **full database backup** of the org. This is the real rollback: an unmanaged solution cannot be uninstalled cleanly (stage 10). | QDB DBA |
 | 0.2 | Check the kit files against the checksums in `README.md` (`Get-FileHash <file> -Algorithm SHA256`). | QDB IT |
-| 0.3 | Name the people: a **System Administrator** for the imports and source activation; the **AD service account** for the daily scheduler (needs System Administrator in CRM); the **portal backend's service account** (gets Survey Integration). | QDB IT |
+| 0.3 | Name the people: a **System Administrator** for the imports and source activation; the **AD service account** for the daily scheduler (gets only the **Survey Scheduler** role in CRM, stage 6); the **portal backend's service account** (gets Survey Integration). | QDB IT |
 
 ## Stage 1 — Preflight (read-only)
 
@@ -118,7 +118,8 @@ The package carries no trigger steps (readiness F4); activating a source creates
 | **Survey Admin** | survey administrators | setups, triggers, settings, SMS hand-off; reads sources and invitations |
 | **Survey Analyst** | people who read results | the only role that reads responses and answers (FR-CSE-060), with Excel export |
 | **Survey Integration** | the portal backend's service account | exactly what the four portal APIs need (integration guide) |
-| System Administrator | the activation operator and the scheduler's service account | source activation and the daily run are administrator-only |
+| **Survey Scheduler** | the scheduler's AD service account (0.3), and **no other role** | lets it call the daily run and nothing else: the role grants no table rights, and the run works as SYSTEM |
+| System Administrator | the activation operator | source activation is administrator-only. The scheduler's account must **not** be a System Administrator (Phase 6 audit, SEC-01) |
 
 ## Stage 7 — Configuration
 

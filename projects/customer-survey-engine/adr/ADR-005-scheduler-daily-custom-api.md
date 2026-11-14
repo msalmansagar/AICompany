@@ -36,3 +36,13 @@ creates no duplicates (FR-CSE-033).
   API; a CRM bulk-deletion-recurrence hack is explicitly rejected.
 - The API may run longer than a sandboxed plugin, so the ~450-invitation daily
   run fits comfortably (§7.3, NFR-CSE-006).
+
+## Amendment 2026-11-14 — who may call it
+
+The API was System Administrator only, so the unattended scheduler account had to
+hold System Administrator on each banking org (Phase 6 audit, SEC-01). The CEO decided
+that the API also accepts a dedicated **Survey Scheduler** role, held directly or
+through a team, and that the scheduler account holds only that role. The role grants
+no table rights: the run's work already happens as SYSTEM, so the role only admits the
+caller. System Administrator still works, so an administrator can re-run a missed day.
+Recorded in `phase-3-ceo-arch-decision.md` (Amendments).

@@ -444,6 +444,7 @@ The customer portal authenticates its own users (OQ-A2f — portal tech TBC); th
 | **Survey Admin** | CRUD setups, triggers, settings, sms_config; read sources; read suppression log | **Activate/deactivate a source** (needs System Administrator — plugin-step registration, FR-CSE-003); **read Response/Answer content** | FR-CSE-059 |
 | **Survey Analyst** | **Read** Response + Answer (the only role that can); read setups for context; Excel export | Write/alter setups or triggers | FR-CSE-060 |
 | **System Administrator** | Activate/deactivate sources (A3) | — | FR-CSE-003, A-07 |
+| **Survey Scheduler** (added 2026-11-14) | Call `qdb_srv_RunDueSurveys` | Everything else: no table rights | ADR-005 amendment; audit SEC-01 |
 | Integration **application/service user** | Minimal: read render cache, read/write invitation + response + answer + suppression log, read config | Alter setups/sources; read nothing outside the survey tables it needs | section 9.1, least-privilege Article VII |
 
 - **Answer-content restriction** (FR-CSE-060): `qdb_survey_response` and `qdb_survey_answer` read privilege is granted **only** to Survey Analyst (and the service user for write). A user with full access to the *customer* record does not inherit answer access — the tables are not parented to the customer for cascade, and answer read is role-gated, not ownership-gated. Verified by the FR-CSE-060 test (full-customer-access user cannot read answers).
@@ -681,7 +682,7 @@ These challenges must be addressed before Phase 4 begins.
 | Concurrency | Release and discard use row-version optimistic concurrency; a mismatch is counted as "changed elsewhere" and left alone | Section 7.1 requires every status change to be conditional on the current status, so overlapping runs cannot both act. |
 | Time budget | Each call stops after 90 s and answers `IsComplete = false`; the schedulers call again, up to 10 times | Custom API plugins share the 2-minute sandbox limit (rules: exit within 2 minutes). Every pass is idempotent. |
 | Retention | Needs both period and mode. Delete removes the response, and its answers cascade. Anonymise clears the customer, the answers JSON, the answer text and the name, and keeps numeric answers. A response's link to its invitation is kept | Choosing between deleting and keeping personal data belongs to Compliance (OQ-A1). **Open for Compliance:** the kept invitation link still lets someone re-identify an anonymised response through the invitation's customer. |
-| Who may call | System Administrator, as for source activation | The on-prem service account and the cloud flow's connection user must hold the role; checked on the initiating user. |
+| Who may call | System Administrator or the **Survey Scheduler** role (amended 2026-11-14) | Checked on the initiating user, directly or through a team. The on-prem service account and the cloud flow's connection user hold only Survey Scheduler, which grants no table rights; the run works as SYSTEM. Was "System Administrator only" until the Phase 6 audit (SEC-01) and the CEO's decision (Amendments in `phase-3-ceo-arch-decision.md`). |
 | Cloud scheduler | Power Automate flow built by a person in the maker portal (`scheduler/README.md`) | A flow needs a Dataverse connection, which only a signed-in user can create. |
 
 ### Implementation decisions (B6, 2026-11-10)

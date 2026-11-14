@@ -4,6 +4,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { TABLES, RELATIONSHIPS, ALTERNATE_KEYS, ROLES } from '../manifest.mjs';
 import { findManifestProblems } from '../lib/validate-manifest.mjs';
 
@@ -42,6 +43,19 @@ test('roles_surveyAdmin_cannotWriteSources', () => {
   const admin = ROLES.find((role) => role.name === 'Survey Admin');
   const sourceRights = admin.privileges.find((p) => p.table === 'qdb_survey_source').rights;
   assert.ok(!sourceRights.includes('Write'), sourceRights.join(','));
+});
+
+// CEO 2026-11-14 (audit SEC-01): the unattended scheduler account holds only this role. The run works as
+// SYSTEM, so the role only admits the caller and must never grant table rights.
+test('roles_surveyScheduler_grantsNoTableRights', () => {
+  assert.deepEqual(ROLES.find((role) => role.name === 'Survey Scheduler')?.privileges, []);
+});
+
+// The plugin admits the role by name; a rename on either side would lock the scheduler out.
+test('roles_surveyScheduler_nameMatchesThePluginCheck', () => {
+  const source = readFileSync(new URL('../../crm-plugins/Qdb.SurveyEngine/Data/SchedulerAccessCheck.cs', import.meta.url), 'utf8');
+  const [, pluginName] = source.match(/SurveySchedulerRoleName\s*=\s*"([^"]+)"/);
+  assert.ok(ROLES.some((role) => role.name === pluginName), pluginName);
 });
 
 test('roles_suppressionLog_isNeverWritableOrDeletable', () => {

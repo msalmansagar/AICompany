@@ -20,7 +20,7 @@
 
 **Re-running is safe.** Running it twice on the same day creates no duplicates: each period has one invitation per customer, enforced by the dedupe alternate key.
 
-**The caller must hold the System Administrator role.** That means the on-prem service account, or the user behind the cloud flow's Dataverse connection.
+**The caller must hold the Survey Scheduler role** (or System Administrator, for a manual re-run). That means the on-prem service account, or the user behind the cloud flow's Dataverse connection. Survey Scheduler grants no table rights; the run works as SYSTEM (CEO decision 2026-11-14, ADR-005 amendment).
 
 ## On-prem (both 9.1 orgs): Windows Scheduled Task
 

@@ -11,7 +11,8 @@ namespace Qdb.SurveyEngine.Plugins
     /// Custom API qdb_srv_RunDueSurveys (A1, section 7): optional input RunDate (string yyyy-MM-dd),
     /// outputs Summary (string) and IsComplete (bool). Called daily by a Windows Scheduled Task
     /// on-prem and by a Power Automate recurrence on cloud, which call again while IsComplete is
-    /// false. System Administrator only; the work runs as SYSTEM.
+    /// false. A System Administrator or the Survey Scheduler role may call it (SchedulerAccessCheck);
+    /// the work runs as SYSTEM.
     /// </summary>
     public sealed class RunDueSurveysPlugin : IPlugin
     {
@@ -30,8 +31,8 @@ namespace Qdb.SurveyEngine.Plugins
             var tracing = (ITracingService)serviceProvider.GetService(typeof(ITracingService));
             var runDate = ReadRunDate(context, DateTime.UtcNow);
             var system = ((IOrganizationServiceFactory)serviceProvider.GetService(typeof(IOrganizationServiceFactory))).CreateOrganizationService(null);
-            if (!new AdministratorCheck(system).IsSystemAdministrator(context.InitiatingUserId))
-                throw new InvalidPluginExecutionException("Only a System Administrator can run due surveys (the scheduler's account must have the role).");
+            if (!new SchedulerAccessCheck(system, new AdministratorCheck(system)).MayRunDueSurveys(context.InitiatingUserId))
+                throw new InvalidPluginExecutionException($"Only a System Administrator or a user with the {SchedulerAccessCheck.SurveySchedulerRoleName} role can run due surveys (give the scheduler's account the {SchedulerAccessCheck.SurveySchedulerRoleName} role).");
             var clock = new SystemClock();
             var summary = BuildService(system, clock, tracing).Run(runDate, new RunBudget(clock, WorkAllowance));
             tracing.Trace("Run due surveys for {0:yyyy-MM-dd}: {1}", runDate, summary);

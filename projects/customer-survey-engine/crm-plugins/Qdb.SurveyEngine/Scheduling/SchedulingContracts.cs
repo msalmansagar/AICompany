@@ -5,6 +5,12 @@ using Qdb.SurveyEngine.Services;
 
 namespace Qdb.SurveyEngine.Scheduling
 {
+    /// <summary>Answers whether a user may run qdb_srv_RunDueSurveys.</summary>
+    public interface ISchedulerAccessCheck
+    {
+        bool MayRunDueSurveys(Guid userId);
+    }
+
     /// <summary>Reads active scheduled triggers whose setup is also active.</summary>
     public interface IScheduledTriggerRepository
     {

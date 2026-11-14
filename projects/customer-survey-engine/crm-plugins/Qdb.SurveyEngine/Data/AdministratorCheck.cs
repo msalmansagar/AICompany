@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
 using Qdb.SurveyEngine.Activation;
@@ -22,29 +21,7 @@ namespace Qdb.SurveyEngine.Data
         }
 
         /// <inheritdoc />
-        public bool IsSystemAdministrator(Guid userId) => HasDirectRole(userId) || HasTeamRole(userId);
-
-        private bool HasDirectRole(Guid userId)
-        {
-            var query = AdministratorRoleQuery();
-            var userRoles = query.AddLink("systemuserroles", "roleid", "roleid");
-            userRoles.LinkCriteria.AddCondition("systemuserid", ConditionOperator.Equal, userId);
-            return _service.RetrieveMultiple(query).Entities.Any();
-        }
-
-        private bool HasTeamRole(Guid userId)
-        {
-            var query = AdministratorRoleQuery();
-            var membership = query.AddLink("teamroles", "roleid", "roleid").AddLink("teammembership", "teamid", "teamid");
-            membership.LinkCriteria.AddCondition("systemuserid", ConditionOperator.Equal, userId);
-            return _service.RetrieveMultiple(query).Entities.Any();
-        }
-
-        private static QueryExpression AdministratorRoleQuery()
-        {
-            var query = new QueryExpression("role") { ColumnSet = new ColumnSet(false), TopCount = 1 };
-            query.Criteria.AddCondition("roletemplateid", ConditionOperator.Equal, SystemAdministratorTemplateId);
-            return query;
-        }
+        public bool IsSystemAdministrator(Guid userId) =>
+            RoleMembership.Holds(_service, userId, new ConditionExpression("roletemplateid", ConditionOperator.Equal, SystemAdministratorTemplateId));
     }
 }

@@ -42,6 +42,8 @@ async function ensureRole({ client, solutionUniqueName, isApply, report }, role,
 
 async function grantPrivileges({ client, isApply, report }, role, roleId) {
   const names = role.privileges.flatMap(privilegeNamesFor);
+  // A role that only admits its holder to a check (Survey Scheduler) grants nothing; AddPrivilegesRole needs a list.
+  if (names.length === 0) { report('grant', `role ${role.name}: no table rights`); return; }
   report('grant', `role ${role.name}: ${names.length} privileges at organization depth`);
   if (!isApply) return;
   const privileges = await resolvePrivileges(client, names);
