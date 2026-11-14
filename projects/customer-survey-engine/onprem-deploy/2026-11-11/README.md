@@ -1,6 +1,7 @@
 # Customer Survey Engine — on-prem kit, 2026-11-11
 
-**Status: built, not yet imported anywhere.** On 2026-11-13 the SurveyEngine package was rebuilt to add the
+**Status: built, not yet imported anywhere.** On 2026-11-14 the SurveyEngine package was rebuilt again to add
+the Survey Scheduler role and the plugin that admits it (Phase 6 audit SEC-01). On 2026-11-13 it was rebuilt to add the
 survey health view, and the Form Engine designer was rebuilt as 1.6.0 to add survey mode (BRD addendum
 FR-CSE-071..075); the runtime, column patch contents and plugin are unchanged. One kit for both on-prem orgs, **HL CRM** (customers are
 contacts) and **BFD CRM / QDB1** (customers are accounts). Configuration, not code, makes an org one or
@@ -18,7 +19,7 @@ order it goes in.
 | 1 | `form-engine/QdbFormEngineSurveyUpdate_1_0_0_0_onprem_unmanaged.zip` | The six Form Engine columns the surveys use: `qdb_form_type`, `qdb_scoring_mode` (Form Definition), `qdb_score_weight/min/max` (Form Field), `qdb_score_points` (Form Option Value) | Solutions → Import |
 | 2 | `form-engine/FormDesignerWebResource_1.6.0.zip` | Form designer and in-CRM runtime with Form Type, the survey branch, no "Submit another" on surveys, and the scoring boxes. The designer adds survey mode: New Form asks Normal Form or Survey, and a survey shows only survey controls and settings. Supersedes 1.5.0 and 1.4.1 (it includes the 2026-10-19 fixes) | Solutions → Import, then Publish All |
 | 3 | `form-engine/Qdb.FormEngine.Plugins.dll` | Form Engine plugin that publishes the scoring values (scoring mode, weights, min/max, option points) into the survey JSON | Plugin Registration Tool → Update assembly. **Gated, see below** |
-| 4 | `SurveyEngine_1_0_0_0_onprem_unmanaged.zip` | The survey solution: 9 tables, 3 roles (Survey Admin, Analyst, Integration), 7 Custom APIs, the `Qdb.SurveyEngine` plugin with its 2 dispatch steps, views, charts, forms, the Survey Engine app and 9 icons, and the survey health view "Survey Jobs - Failed or Suspended" on System Job (the only change to an out-of-box table) | Solutions → Import, then Publish All |
+| 4 | `SurveyEngine_1_0_0_0_onprem_unmanaged.zip` | The survey solution: 9 tables, 4 roles (Survey Admin, Analyst, Integration, and Survey Scheduler for the daily scheduler's account), 7 Custom APIs, the `Qdb.SurveyEngine` plugin with its 2 dispatch steps, views, charts, forms, the Survey Engine app and 9 icons, and the survey health view "Survey Jobs - Failed or Suspended" on System Job (the only change to an out-of-box table) | Solutions → Import, then Publish All |
 
 `package-manifest.json` (survey) and `form-engine/package-manifest.json` record every change, count and
 checksum; `source/` and `form-engine/source/` hold the unmodified cloud exports they were built from.
@@ -71,7 +72,8 @@ prerequisites.
 
 | Check | Result |
 |---|---|
-| Survey assembly in the package | byte-identical to the local Release build of commit `82629dd6`, which runs on the cloud org (sha256 `41f89a5a…`) |
+| Survey assembly in the package | byte-identical to the local Release build of commit `e98ba33f` (Survey Scheduler role), which runs on the cloud org (sha256 `8efa470e…`, deployed and read back 2026-11-14) |
+| Survey Scheduler role | in the package with the four survey roles. Its grant is Read of the organization row; the platform adds nine default privileges to every new role (plugin/SDK metadata, SharePoint document data), as on the other three roles. Post-import Q3 and Q12 PASS on the cloud org |
 | Designer and runtime in 1.6.0 | byte-identical to the cloud org's web resources (designer `b63e0bfd…`, deployed and read back 2026-11-13; runtime `afe8eb3f…`, taken unchanged from 1.5.0) |
 | Form Engine plugin | byte-identical to the cloud org's assembly (`137658ae…`) |
 | System Job shell | kept, carrying only the survey health view; the build stops if it brings columns, forms, charts, ribbon buttons or any other view. Its cloud-only self-dependency is removed, as for Account. Preflight P13 confirms the org accepts views on System Job |
@@ -84,7 +86,7 @@ prerequisites.
 
 | File | SHA-256 | Bytes |
 |---|---|---|
-| `SurveyEngine_1_0_0_0_onprem_unmanaged.zip` | `85c91d50e704829a3342b5d703b9431e79e518910aae86394c8ed7721bcdc191` | 157,541 |
+| `SurveyEngine_1_0_0_0_onprem_unmanaged.zip` | `8d76e88fa0b2600698a750e945473d45b70d14d5467b2110eb8b73f758f79c76` | 157,877 |
 | `form-engine/QdbFormEngineSurveyUpdate_1_0_0_0_onprem_unmanaged.zip` | `c692a980c9e25250640fac54b8d1077b4369c3d84d4cb3e0649c45448cef0d97` | 3,426 |
 | `form-engine/FormDesignerWebResource_1.6.0.zip` | `69a3e14c1dab11bb0f69ea358f2d6297d6cc2ee55c44a28cbbd1d71af87a9063` | 1,386,144 |
 | `form-engine/Qdb.FormEngine.Plugins.dll` | `137658ae3a101eb97376aef8e22ea155155f74b2490900a81be7729f8529f083` | 903,680 |

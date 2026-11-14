@@ -1,11 +1,11 @@
 {
-  "builtAt": "2026-11-12T22:00:00.538Z",
+  "builtAt": "2026-11-14T10:50:04.887Z",
   "package": "SurveyEngine_1_0_0_0_onprem_unmanaged.zip",
-  "sha256": "85c91d50e704829a3342b5d703b9431e79e518910aae86394c8ed7721bcdc191",
-  "bytes": 157541,
+  "sha256": "8d76e88fa0b2600698a750e945473d45b70d14d5467b2110eb8b73f758f79c76",
+  "bytes": 157877,
   "source": {
     "file": "source/SurveyEngine_cloud_unmanaged.zip",
-    "sha256": "bef32c57d37ba4d33130fb3c5d727777218d0346a2342fb259a5638714c7193f"
+    "sha256": "20ac9eb54a78a96fa57fbf8ea09a11bbae4a76eeef012fa2e2f30b0fe4a6eadc"
   },
   "target": "Dynamics 365 CE 9.1 on-prem: HL CRM and BFD CRM / QDB1 (one package)",
   "manifest": {
@@ -39,7 +39,7 @@
     {
       "name": "role-auto-assigned-flag",
       "why": "Role IsAutoAssigned is 0 on every role",
-      "removed": 3
+      "removed": 4
     },
     {
       "name": "cascade-archive",
@@ -130,8 +130,8 @@
     }
   ],
   "assembly": {
-    "embeddedSha256": "41f89a5ac9d5621b68f023b937b142bd308c40f8c6c07d62122c923284aa0364",
-    "localBuildSha256": "41f89a5ac9d5621b68f023b937b142bd308c40f8c6c07d62122c923284aa0364",
+    "embeddedSha256": "8efa470ea08d8e6b11672abbe8ece3ebb80b8011b4bdb60cca0e14ed08d4082a",
+    "localBuildSha256": "8efa470ea08d8e6b11672abbe8ece3ebb80b8011b4bdb60cca0e14ed08d4082a",
     "isLocalBuild": true
   },
   "xsd": {
@@ -142,7 +142,8 @@
     "roleNames": [
       "Survey Admin",
       "Survey Analyst",
-      "Survey Integration"
+      "Survey Integration",
+      "Survey Scheduler"
     ],
     "relationships": 44,
     "pluginSteps": [

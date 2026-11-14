@@ -48,4 +48,10 @@ only admits the caller. Its one privilege is Read of the organization row, the p
 minimum that CRM 9.1 may require before any call reaches a plugin (security review). A
 read-only post-import check flags a second, independent role with the same name. System
 Administrator still works, so an administrator can re-run a missed day.
+
+Deployed to the cloud org on 2026-11-14 and verified there: the plugin bytes match the build;
+there is one Survey Scheduler role; and a user with neither role is refused. The platform
+also gives every new role nine default privileges: read of SDK message, plugin type,
+assembly and step metadata, plus SharePoint document data. All four survey roles carry
+the same nine, and none touches a survey or customer table.
 Recorded in `phase-3-ceo-arch-decision.md` (Amendments).
