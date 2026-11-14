@@ -15,7 +15,7 @@
  *   node --env-file=<dfe>/scripts/.env b6-integration-api-e2e.mjs
  */
 import { createHash, randomBytes } from 'node:crypto';
-import { openSession, runStamp, findNonAdministrator, ensureRow } from './e2e-helpers.mjs';
+import { openSession, runStamp, findUnprivilegedUser, ensureRow } from './e2e-helpers.mjs';
 
 const FORM_CODE = 'srv-customer-feedback-demo';
 const SETUP_NAME = 'Demo - Customer feedback';
@@ -118,7 +118,7 @@ async function scenarioSecureLink(session, { accountId, setupId, version, settin
 
 async function scenarioUnprivileged(session, { accountId, invitationId }) {
   console.log('F — caller without the Survey Integration role');
-  const user = await findNonAdministrator(session);
+  const user = await findUnprivilegedUser(session);
   if (!user) { session.check('a non-administrator user exists to test with', false); return; }
   const outcome = await refusal(session.client.sendAsUser('POST', 'qdb_srv_GetSurvey', { InvitationId: invitationId, CallerCustomerId: accountId }, user.systemuserid));
   session.check(`${user.fullname} (no survey role) is refused`, outcome !== 'allowed', outcome.slice(0, 160));

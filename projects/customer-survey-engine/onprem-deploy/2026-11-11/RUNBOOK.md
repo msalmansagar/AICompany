@@ -107,6 +107,7 @@ The package carries no trigger steps (readiness F4); activating a source creates
 | Q8–Q9 designer and runtime are the kit builds | PASS |
 | Q10 Form Engine plugin | INFO: says whether stage 3 was done |
 | Q11 survey health view on System Job | PASS. A System Administrator then opens Survey Engine → **Health → Survey Jobs**: it opens on "Survey Jobs - Failed or Suspended" (empty after a clean install) |
+| Q12 one Survey Scheduler role | PASS. If it FAILs with "independent roles share the name", find who created the extra role before stage 6 gives the scheduler's account its role: the daily run admits any role with that name |
 | **Render cache** | `compare-reports.mjs` reports **none changed by the import** |
 
 **Gate 2:** MSS confirms the comparison in writing.
@@ -118,7 +119,7 @@ The package carries no trigger steps (readiness F4); activating a source creates
 | **Survey Admin** | survey administrators | setups, triggers, settings, SMS hand-off; reads sources and invitations |
 | **Survey Analyst** | people who read results | the only role that reads responses and answers (FR-CSE-060), with Excel export |
 | **Survey Integration** | the portal backend's service account | exactly what the four portal APIs need (integration guide) |
-| **Survey Scheduler** | the scheduler's AD service account (0.3), and **no other role** | lets it call the daily run and nothing else: the role grants no table rights, and the run works as SYSTEM |
+| **Survey Scheduler** | the scheduler's AD service account (0.3), and **no other role** | lets it call the daily run and nothing else: the role grants no survey or customer table rights (only Read of the organization row, the platform minimum), and the run works as SYSTEM. Stage 8.2 proves the account can run it with this role alone |
 | System Administrator | the activation operator | source activation is administrator-only. The scheduler's account must **not** be a System Administrator (Phase 6 audit, SEC-01) |
 
 ## Stage 7 — Configuration

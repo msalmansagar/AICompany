@@ -43,6 +43,9 @@ The API was System Administrator only, so the unattended scheduler account had t
 hold System Administrator on each banking org (Phase 6 audit, SEC-01). The CEO decided
 that the API also accepts a dedicated **Survey Scheduler** role, held directly or
 through a team, and that the scheduler account holds only that role. The role grants
-no table rights: the run's work already happens as SYSTEM, so the role only admits the
-caller. System Administrator still works, so an administrator can re-run a missed day.
+no survey or customer table rights: the run's work already happens as SYSTEM, so the role
+only admits the caller. Its one privilege is Read of the organization row, the platform
+minimum that CRM 9.1 may require before any call reaches a plugin (security review). A
+read-only post-import check flags a second, independent role with the same name. System
+Administrator still works, so an administrator can re-run a missed day.
 Recorded in `phase-3-ceo-arch-decision.md` (Amendments).

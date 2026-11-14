@@ -11,7 +11,7 @@
  *
  *   node --env-file=<dfe>/scripts/.env b4-activation-e2e.mjs
  */
-import { openSession, pollFor, createDisbursement, moveDisbursement, findDisbursementSource, failedPluginJobsSince, runStamp, isAdministrator, findNonAdministrator, PAYMENT_PROCESSED, LETTER_OF_CREDIT } from './e2e-helpers.mjs';
+import { openSession, pollFor, createDisbursement, moveDisbursement, findDisbursementSource, failedPluginJobsSince, runStamp, isAdministrator, findUnprivilegedUser, PAYMENT_PROCESSED, LETTER_OF_CREDIT } from './e2e-helpers.mjs';
 import { ensureSurveyForm, ensureCompletionSetup, COMPLETION_FORM_CODE } from './e2e-fixtures.mjs';
 import { stepName } from '../provisioning/lib/plugin-payloads.mjs';
 
@@ -52,7 +52,7 @@ async function scenarioActivateSeedSource(session, { source, completion }) {
 
 async function scenarioNonAdministrator(session, sourceId) {
   console.log('B — a non-administrator is refused');
-  const user = await findNonAdministrator(session);
+  const user = await findUnprivilegedUser(session);
   if (!user) { session.check('a non-administrator user exists to test with', false, 'none found among the first 25 enabled users'); return; }
   const outcome = await session.client.sendAsUser('POST', 'qdb_srv_ActivateSource', { SourceId: sourceId }, user.systemuserid).then(() => 'allowed', (error) => error.message);
   session.check(`activation by ${user.fullname} is refused`, outcome !== 'allowed' && outcome.includes('System Administrator'), outcome.slice(0, 160));

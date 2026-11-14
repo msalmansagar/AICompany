@@ -11,7 +11,7 @@ export const emptyKit = (overrides = {}) => ({
   roleNames: [], customApis: [], surveyIcons: [], surveyViews: [], formEnginePluginAssembly: 'Qdb.FormEngine.Plugins',
   surveyPluginAssembly: 'Qdb.SurveyEngine', appModule: 'qdb_survey_engine', solution: 'SurveyEngine',
   publisher: { uniqueName: 'qdb', prefix: 'qdb', optionValuePrefix: 10000 }, designerResource: 'qdb_designer',
-  runtimeResource: 'qdb_runtime', dispatchPluginType: 'Dispatch', triggerPluginType: 'Trigger', hashes: {}, ...overrides,
+  runtimeResource: 'qdb_runtime', dispatchPluginType: 'Dispatch', triggerPluginType: 'Trigger', schedulerRoleName: 'Survey Scheduler', hashes: {}, ...overrides,
 });
 
 export const emptyConfig = (overrides = {}) => ({ settings: {}, sources: [], smsConfigs: [], ...overrides });

@@ -9,7 +9,8 @@ namespace Qdb.SurveyEngine.Data
     /// <summary>
     /// Admits a caller of qdb_srv_RunDueSurveys who is a System Administrator or holds the Survey Scheduler
     /// role, directly or through a team. The unattended scheduler account holds only Survey Scheduler, which
-    /// grants no table rights: the run itself works as SYSTEM (CEO 2026-11-14, Phase 6 audit SEC-01).
+    /// grants no survey or customer table rights: the run itself works as SYSTEM (CEO 2026-11-14, Phase 6
+    /// audit SEC-01).
     /// </summary>
     public sealed class SchedulerAccessCheck : ISchedulerAccessCheck
     {

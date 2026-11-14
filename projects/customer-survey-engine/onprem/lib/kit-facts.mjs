@@ -7,7 +7,7 @@
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { ROLES, SOLUTION, TABLES } from '../../provisioning/manifest.mjs';
+import { ROLES, SCHEDULER_ROLE_NAME, SOLUTION, TABLES } from '../../provisioning/manifest.mjs';
 import { APP, VIEWS } from '../../provisioning/ui-manifest.mjs';
 import { ICONS, iconResourceName } from '../../provisioning/ui-icons.mjs';
 import { PATCH_COLUMNS } from './form-engine-patch.mjs';
@@ -36,6 +36,7 @@ export function readKitFacts(kitDir) {
     publisher: { uniqueName: SOLUTION.publisherUniqueName, prefix: 'qdb', optionValuePrefix: 10000 },
     surveyTables: TABLES.map((table) => table.name),
     roleNames: ROLES.map((role) => role.name),
+    schedulerRoleName: SCHEDULER_ROLE_NAME,
     customApis: survey.contents.customApis,
     surveyIcons: Object.keys(ICONS).map(iconResourceName),
     // Views the survey adds to platform tables (the health view on System Job).

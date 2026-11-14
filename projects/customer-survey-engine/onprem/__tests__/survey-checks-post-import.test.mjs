@@ -69,6 +69,33 @@ test('postImport_dispatchStepDisabled_warnsQ6', async () => {
   assert.equal(checkOf(await postImport({ sdkmessageprocessingsteps: steps }), 'Q6').status, WARN);
 });
 
+// ── Q12 one Survey Scheduler role (security review SEC-NEW-001) ──
+// The daily run admits holders of a role with this name, so a second role created under the same name by
+// someone who can create roles would also be admitted. Business-unit copies share one root role.
+
+const SCHEDULER_KIT = emptyKit({ schedulerRoleName: 'Survey Scheduler' });
+const schedulerRole = (roleid, root) => ({ roleid, _parentrootroleid_value: root });
+
+test('postImport_schedulerRoleAndItsBusinessUnitCopies_passesQ12', async () => {
+  const answers = { roles: rows(schedulerRole('r1', 'r1'), schedulerRole('r2', 'r1')) };
+
+  assert.equal(checkOf(await postImport(answers, SCHEDULER_KIT), 'Q12').status, PASS);
+});
+
+test('postImport_secondIndependentSchedulerRole_failsQ12', async () => {
+  const answers = { roles: rows(schedulerRole('r1', 'r1'), schedulerRole('x9', 'x9')) };
+
+  assert.equal(checkOf(await postImport(answers, SCHEDULER_KIT), 'Q12').status, FAIL);
+});
+
+test('postImport_noSchedulerRole_failsQ12', async () => {
+  assert.equal(checkOf(await postImport({}, SCHEDULER_KIT), 'Q12').status, FAIL);
+});
+
+test('postImport_rolesUnreadable_warnsQ12', async () => {
+  assert.equal(checkOf(await postImport({ roles: notFound() }, SCHEDULER_KIT), 'Q12').status, WARN);
+});
+
 // ── Q7–Q10 Form Engine update ──
 
 const HASH_KIT = emptyKit({ hashes: { designer: sha256Of('designer'), runtime: sha256Of('runtime'), formEnginePlugin: sha256Of('dll') } });

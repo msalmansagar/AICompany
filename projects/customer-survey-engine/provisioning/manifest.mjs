@@ -244,6 +244,9 @@ const FULL = ['Create', 'Read', 'Write', 'Delete', 'Append', 'AppendTo'];
 const READ = ['Read', 'AppendTo'];
 const EXPORT_TO_EXCEL = Object.freeze({ name: 'prvExportToExcel' });
 
+/** The role qdb_srv_RunDueSurveys admits besides System Administrator; must equal SchedulerAccessCheck.SurveySchedulerRoleName. */
+export const SCHEDULER_ROLE_NAME = 'Survey Scheduler';
+
 /**
  * Roles (section 11.1). Response and Answer content is readable ONLY by Survey Analyst and the
  * integration user (FR-CSE-060). The suppression log is Create + Read only for everyone, so it
@@ -298,8 +301,10 @@ export const ROLES = Object.freeze([
   {
     // CEO 2026-11-14 (Phase 6 audit SEC-01): the daily scheduler account holds only this role instead of
     // System Administrator. qdb_srv_RunDueSurveys admits it by name (SchedulerAccessCheck.cs) and does
-    // its work as SYSTEM, so the role grants no table rights.
-    name: 'Survey Scheduler',
-    privileges: [],
+    // its work as SYSTEM, so the role grants no survey or customer table rights. Read of the organization
+    // row (as Basic User has) is kept because CRM 9.1 may refuse any call from a user with no privilege at
+    // all, before the plugin runs; it cannot be tested from here (security review SUSPECTED-001).
+    name: SCHEDULER_ROLE_NAME,
+    privileges: [{ table: 'organization', rights: ['Read'] }],
   },
 ]);

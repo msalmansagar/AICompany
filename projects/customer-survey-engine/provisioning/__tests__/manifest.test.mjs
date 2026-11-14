@@ -46,9 +46,10 @@ test('roles_surveyAdmin_cannotWriteSources', () => {
 });
 
 // CEO 2026-11-14 (audit SEC-01): the unattended scheduler account holds only this role. The run works as
-// SYSTEM, so the role only admits the caller and must never grant table rights.
-test('roles_surveyScheduler_grantsNoTableRights', () => {
-  assert.deepEqual(ROLES.find((role) => role.name === 'Survey Scheduler')?.privileges, []);
+// SYSTEM, so the role admits the caller and grants no survey or customer table rights; its one read of the
+// organization row is the platform minimum (security review of e32e2054, SUSPECTED-001).
+test('roles_surveyScheduler_grantsOnlyTheOrganizationRead', () => {
+  assert.deepEqual(ROLES.find((role) => role.name === 'Survey Scheduler')?.privileges, [{ table: 'organization', rights: ['Read'] }]);
 });
 
 // The plugin admits the role by name; a rename on either side would lock the scheduler out.

@@ -92,18 +92,29 @@ export async function failedPluginJobsSince(session, startedOn) {
 
 const SYSTEM_ADMINISTRATOR_TEMPLATE = '627090ff-40a3-4053-8790-584edc5be201';
 
-/** Mirrors AdministratorCheck: the System Administrator role directly or through a team. */
-export async function isAdministrator(session, userId) {
-  const direct = `_roletemplateid_value eq ${SYSTEM_ADMINISTRATOR_TEMPLATE} and systemuserroles_association/any(u:u/systemuserid eq ${userId})`;
+/** Mirrors RoleMembership: a role matching the filter, held directly or through a team. */
+async function holdsRole(session, userId, roleFilter) {
+  const direct = `${roleFilter} and systemuserroles_association/any(u:u/systemuserid eq ${userId})`;
   if ((await session.rows(`roles?$select=roleid&$filter=${encodeURIComponent(direct)}`)).length > 0) return true;
-  const viaTeam = `_roletemplateid_value eq ${SYSTEM_ADMINISTRATOR_TEMPLATE} and teamroles_association/any(t:t/teammembership_association/any(u:u/systemuserid eq ${userId}))`;
+  const viaTeam = `${roleFilter} and teamroles_association/any(t:t/teammembership_association/any(u:u/systemuserid eq ${userId}))`;
   return (await session.rows(`roles?$select=roleid&$filter=${encodeURIComponent(viaTeam)}`)).length > 0;
 }
 
-/** The first enabled interactive user without System Administrator, or null when none of the first 25 qualifies. */
-export async function findNonAdministrator(session) {
+/** Mirrors AdministratorCheck: the System Administrator role directly or through a team. */
+export const isAdministrator = (session, userId) => holdsRole(session, userId, `_roletemplateid_value eq ${SYSTEM_ADMINISTRATOR_TEMPLATE}`);
+
+/** Mirrors SchedulerAccessCheck's role half: the Survey Scheduler role directly or through a team. */
+const isSurveyScheduler = (session, userId) => holdsRole(session, userId, "name eq 'Survey Scheduler'");
+
+/**
+ * The first enabled interactive user who is neither a System Administrator nor a Survey Scheduler, so every
+ * administrator-or-scheduler check must refuse them; null when none of the first 25 qualifies.
+ */
+export async function findUnprivilegedUser(session) {
   const users = await session.rows(`systemusers?$select=systemuserid,fullname&$filter=isdisabled eq false and accessmode eq 0 and applicationid eq null&$top=25`);
-  for (const user of users) if (!(await isAdministrator(session, user.systemuserid))) return user;
+  for (const user of users) {
+    if (!(await isAdministrator(session, user.systemuserid)) && !(await isSurveyScheduler(session, user.systemuserid))) return user;
+  }
   return null;
 }
 

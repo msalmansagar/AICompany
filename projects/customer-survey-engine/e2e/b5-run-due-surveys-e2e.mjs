@@ -15,7 +15,7 @@
  *
  *   node --env-file=<dfe>/scripts/.env b5-run-due-surveys-e2e.mjs
  */
-import { openSession, findDisbursementSource, runStamp, findNonAdministrator, ensureRow, LETTER_OF_CREDIT, QDB_DIGITAL } from './e2e-helpers.mjs';
+import { openSession, findDisbursementSource, runStamp, findUnprivilegedUser, ensureRow, LETTER_OF_CREDIT, QDB_DIGITAL } from './e2e-helpers.mjs';
 import { ensureSurveyForm, COMPLETION_FORM_CODE } from './e2e-fixtures.mjs';
 
 const SETUP_NAME = 'E2E - Quarterly active in period';
@@ -147,7 +147,7 @@ async function scenarioRetention(session, { setupId, customers, settingsId, peri
 
 async function scenarioNonAdministrator(session, period) {
   console.log('D — a user with neither System Administrator nor Survey Scheduler is refused');
-  const user = await findNonAdministrator(session);
+  const user = await findUnprivilegedUser(session);
   if (!user) { session.check('a non-administrator user exists to test with', false); return; }
   const outcome = await session.client.sendAsUser('POST', 'qdb_srv_RunDueSurveys', { RunDate: period.quietDate }, user.systemuserid).then(() => 'allowed', (error) => error.message);
   session.check(`run by ${user.fullname} (neither System Administrator nor Survey Scheduler) is refused`, outcome !== 'allowed' && outcome.includes('Survey Scheduler'), outcome.slice(0, 160));
