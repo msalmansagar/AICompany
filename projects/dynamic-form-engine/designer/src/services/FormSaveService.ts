@@ -94,13 +94,37 @@ function toDisplayAndDocumentProperties(field: DesignerFieldModel): DisplayAndDo
   };
 }
 
-// DFE-CKEY-001: a cleared key maps to undefined above, so the old key survived Save.
-// Null is written only when the last-saved field held a key: the column then exists on this org.
-function toClearedComponentKey(
+/** Properties the designer can clear back to null; the toggles and styles above always hold a value. */
+const CLEARABLE_PROPERTIES = [
+  'componentKey',
+  'scoreWeight',
+  'scoreMin',
+  'scoreMax',
+  'staticContent',
+  'sourceFieldSchemaName',
+  'fileDownloadLabel',
+  'fileDownloadIcon',
+  'uploadDocumentSetting',
+  'downloadDocumentSetting',
+  'infoCardListType',
+  'infoCardListMarker',
+  'infoCardDownloadIcon',
+  'barMaxFieldSchemaName',
+  'barValueFieldSchemaName',
+] as const satisfies ReadonlyArray<keyof DisplayAndDocumentProperties>;
+
+type ClearedProperties = Partial<Record<(typeof CLEARABLE_PROPERTIES)[number], null>>;
+
+// DFE-CKEY-001 / DFE-CLEAR-001: a cleared value maps to undefined above, so the old value
+// survived Save. Null is written only when the last-saved field held a value: the column
+// then exists on this org.
+function toClearedProperties(
   field: DesignerFieldModel,
   savedField: DesignerFieldModel | undefined,
-): Pick<UpdateFieldDto, 'componentKey'> {
-  return field.componentKey == null && savedField?.componentKey != null ? { componentKey: null } : {};
+): ClearedProperties {
+  if (!savedField) return {};
+  const cleared = CLEARABLE_PROPERTIES.filter(property => field[property] == null && savedField[property] != null);
+  return Object.fromEntries(cleared.map(property => [property, null] as const));
 }
 
 function asJson(value: Record<string, string> | undefined): string | undefined {
@@ -420,7 +444,7 @@ export class FormSaveService {
           gridPageSize: field.gridPageSize,
           gridPagingStyle: field.gridPagingStyle,
           ...toDisplayAndDocumentProperties(field),
-          ...toClearedComponentKey(field, savedFields?.[id]),
+          ...toClearedProperties(field, savedFields?.[id]),
         });
 
         // Step 4b: Sync options for dirty dropdown/multi_select/radio fields
