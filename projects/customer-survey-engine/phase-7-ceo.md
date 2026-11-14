@@ -7,7 +7,7 @@
 | Date | 2026-11-14 |
 | Prepared by | MSS Technologies (orchestrator) |
 | For | The CEO, who decides |
-| Status | **Awaiting decision** |
+| Status | **Decided 2026-11-14: approved with conditions** |
 | Branch | `feat/survey-engine`, draft PR #173 |
 | Release 1 scope | On-prem only: HL CRM (customers are contacts) and BFD CRM / QDB1 (customers are accounts), Dynamics CRM 9.1 |
 
@@ -84,8 +84,8 @@
 
 | | |
 |---|---|
-| Option chosen | |
-| Conditions added or removed | |
-| Merge PR #173 to main now? | |
-| Decided by | The user, as CEO |
-| Date | |
+| Option chosen | **A. Approve with conditions** |
+| Conditions added or removed | None; conditions (1)–(4) in section 6 stand |
+| Merge PR #173 to main now? | Not decided in this answer; condition (4) needs a separate approval |
+| Decided by | The user, as CEO, in chat ("Approve with conditions") |
+| Date | 2026-11-14 |

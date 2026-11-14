@@ -19,7 +19,7 @@ back to the decision that created it.
 | A3 | NFR-CSE-006: async trigger p95 < 10 s; the daily run covers the whole customer base in one run | Release gate | QA | Open: measured on cloud 2026-11-13. Daily run PASS (450 customers, one call, 24.4 s); trigger p95 **14 s, FAIL** (max 46 s, median 3 s; the six slow values were the first six changes). CEO decided 2026-11-13: measure on-prem, target unchanged. Closes when runbook 9.3 (`trigger-speed-test.ps1`) passes on HL test and QDB1 test | BRD section 9.2; `phase-5-qa.md` section 6 Results |
 | A4 | NFR-CSE-007: ≥ 80% branch coverage on survey code, from a coverage report | Release gate | QA | **Done** 2026-11-13: C# branch 80.05% (411 tests; was 59.1%), on-prem checks 97.2% (101 tests), provisioning 93.1% | `phase-5-qa.md` 2.6 |
 | A5 | **Audit phase** (`phase-6-audit.md`): governance, PDPPL alignment, audit trail | Release gate | Auditor (MSS) | **Done** 2026-11-14: **Cleared with conditions**. 25 findings: 0 critical, 7 high, 5 release-blocking (CMP-01 and CMP-02, tracked as B1–B3; CMP-03, SEC-01 and AUD-01, now B7–B9). Conditions are in section 11 of the audit | `phase-6-audit.md` |
-| A6 | **CEO final decision** (`phase-7-ceo.md`) | Release gate | CEO | Open | workflow |
+| A6 | **CEO final decision** (`phase-7-ceo.md`) | Release gate | CEO | **Done** 2026-11-14: approved with conditions (Compliance D1–D9 and MSS builds of their choices; A2, A3, B8 and B9 on both test orgs; Gate 3; merge with approval) | `phase-7-ceo.md` |
 | A7 | Push `feat/survey-engine`, open the PR, code review of the B9 tooling, merge to main | Release gate | MSS + CEO (main merges need approval) | Partial: pushed 2026-11-13, draft PR #173 open; review and merge outstanding | PR #173 |
 | A8 | The CEO acknowledges two departures from approved decisions: (a) on-prem ships **without** the pre-registered trigger steps (readiness F4; the approval said "steps for the 3 known sources ship pre-registered"), activation creates them instead; (b) **customer = account or contact per org** (F1) supersedes the B1 decision and BRD assumption A-01 | Release gate | CEO | **Done** 2026-11-12: both accepted | `phase-3-ceo-arch-decision.md` Amendments |
 
@@ -98,7 +98,7 @@ Kept for a later release that adds a Qatar-resident cloud org. None of these gat
 
 | | Release gates | Open | Partial | Done |
 |---|---|---|---|---|
-| A. Engagement | 8 | 4 | 1 | 3 |
+| A. Engagement | 8 | 3 | 1 | 4 |
 | B. Compliance and security | 6 (B1–B3, B7–B9) | 8 | 0 | 1 |
 | C. On-prem, per org | all, ×2 orgs | 9 × 2 | 0 | 0 |
 | F. Engine | 1 (F1) | 3 | 0 | 2 |
