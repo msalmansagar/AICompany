@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| Date | 2026-11-12 |
-| Build | B0–B9 complete on `feat/survey-engine` (not yet pushed or merged). Live and verified end to end on the cloud org `org5869857f`; on-prem kit `onprem-deploy/2026-11-11/` built, not yet imported |
+| Date | 2026-11-12 (status refreshed 2026-11-14) |
+| Build | B0–B9 complete, merged to main 2026-11-14 (`52a99e89`, tag `survey-baseline`). Live and verified end to end on the cloud org `org5869857f`; on-prem kit `onprem-deploy/2026-11-11/` built, not yet imported |
 | Targets | **Release 1: HL CRM and BFD CRM / QDB1 (on-prem 9.1) only** (CEO, 2026-11-12). The cloud org `org5869857f` stays the build-and-test org |
 | Rule | A row marked **Release gate** must be **Done**, with the evidence named, before production on any org. Other rows gate only what their "Blocks" column says |
 
@@ -14,7 +14,7 @@ back to the decision that created it.
 
 | # | Gate | Blocks | Owner | Status | Source / evidence |
 |---|---|---|---|---|---|
-| A1 | **QA phase** (`phase-5-qa.md`): test strategy over the delivered build, including the unverified NFRs in A2–A4 | Release gate | QA (MSS) | Open | `new-project.md` sequence: Build → Code review → **QA** → Audit → CEO |
+| A1 | **QA phase** (`phase-5-qa.md`): test strategy over the delivered build, including the unverified NFRs in A2–A4 | Release gate | QA (MSS) | **Done** 2026-11-13: `phase-5-qa.md` complete. A4 closed there; A2 and A3 stay open below until they pass on the on-prem test orgs | `new-project.md` sequence: Build → Code review → **QA** → Audit → CEO |
 | A2 | NFR-CSE-004: SurveyEngine can be removed and every Form Engine form still publishes and renders | Release gate | QA | Open: approach decided 2026-11-13 by the CEO (QA Part D, no removal). The kit is ready (runbook 2.5–2.7, Gate 1b, `survey-stage2-check.console.js`); closes when Gate 1b passes on HL test and QDB1 test | `phase-2-ba.md` NFR table; `phase-5-qa.md` §5 Part D |
 | A3 | NFR-CSE-006: async trigger p95 < 10 s; the daily run covers the whole customer base in one run | Release gate | QA | Open: measured on cloud 2026-11-13. Daily run PASS (450 customers, one call, 24.4 s); trigger p95 **14 s, FAIL** (max 46 s, median 3 s; the six slow values were the first six changes). CEO decided 2026-11-13: measure on-prem, target unchanged. Closes when runbook 9.3 (`trigger-speed-test.ps1`) passes on HL test and QDB1 test | BRD section 9.2; `phase-5-qa.md` section 6 Results |
 | A4 | NFR-CSE-007: ≥ 80% branch coverage on survey code, from a coverage report | Release gate | QA | **Done** 2026-11-13: C# branch 80.05% (411 tests; was 59.1%), on-prem checks 97.2% (101 tests), provisioning 93.1% | `phase-5-qa.md` 2.6 |
@@ -96,13 +96,19 @@ Kept for a later release that adds a Qatar-resident cloud org. None of these gat
 
 ## Summary
 
-| | Release gates | Open | Partial | Done |
-|---|---|---|---|---|
-| A. Engagement | 8 | 3 | 0 | 5 |
-| B. Compliance and security | 6 (B1–B3, B7–B9) | 8 | 0 | 1 |
-| C. On-prem, per org | all, ×2 orgs | 9 × 2 | 0 | 0 |
-| F. Engine | 1 (F1) | 3 | 0 | 2 |
+As of 2026-11-14. Section G is not counted (not in release 1).
 
-**Next for MSS:** the audit is done (A5, cleared with conditions). Next are the CEO's decisions on the audit's release-blocking items (B7–B9; B3 widened), then the CEO final decision (A6). The PR (A7) is open as a draft.
-**Next for QDB:** the configuration answers (section D), Compliance (B1–B3), and running the runbook on the
-two test orgs (section C).
+| | Rows | Release gates | Open | Partial | Done |
+|---|---|---|---|---|---|
+| A. Engagement | 8 | 8 | 2 (A2, A3) | 0 | 6 |
+| B. Compliance and security | 9 | 6 (B1–B3, B7–B9) | 6 (B1–B5, B7) | 2 (B8, B9) | 1 (B6) |
+| C. On-prem, per org | 9 × 2 orgs | all | 18 | 0 | 0 |
+| D. Per-org configuration | 6 | none | 6 | 0 | 0 |
+| E. Channels and portal | 5 | none | 5 | 0 | 0 |
+| F. Engine | 5 | 1 (F1) | 3 (F2–F4) | 0 | 2 (F1, F5) |
+| **Total** | **51** | **33** | **40** | **2** | **9** |
+
+**Next for MSS:** nothing is blocked on MSS. When Compliance answers D1–D9 (`pdppl-decision-pack.md`), MSS builds
+the chosen retention, anonymise and erasure work (B1–B3, B7). F2–F4 block nothing.
+**Next for QDB:** Compliance answers D1–D9 (B1–B3, B7); the configuration answers (section D); and the runbook on
+the two test orgs (section C), which also closes A2, A3, B8 and B9.
