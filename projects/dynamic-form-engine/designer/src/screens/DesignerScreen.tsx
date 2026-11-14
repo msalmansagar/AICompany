@@ -262,7 +262,9 @@ export function DesignerScreen(): React.ReactElement {
         // successful PATCH, and executeSave refreshes it. Capturing at schedule time
         // would use a stale etag on rapid sequential saves, causing a spurious 412.
         const currentEtag = useConcurrencyStore.getState().recordEtags[form.id] ?? '';
-        return executeSave({ ...saveSnapshot, formEtag: currentEtag }, auditBaseline);
+        // Saved fields are read at flush time too, so a queued save sees what the previous one wrote.
+        const savedFields = useDesignerStore.getState().lastSavedAuditSnapshot?.fields;
+        return executeSave({ ...saveSnapshot, formEtag: currentEtag, savedFields }, auditBaseline);
       },
       (error) => {
         if (error instanceof PartialSaveError && Object.keys(error.resolvedIds).length > 0) {

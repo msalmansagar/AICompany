@@ -248,3 +248,43 @@ describe('FormSaveService — field properties reach FieldService (FR-CSE-024)',
     }
   });
 });
+
+describe('FormSaveService — clearing a component key (defect DFE-CKEY-001)', () => {
+  it('updateField_keyClearedAfterSavedWithKey_writesNull', async () => {
+    // The last-saved field held a key, so the column exists on this org and null is safe.
+    const webApi = makeWebApi();
+    const field = makeField(EXISTING_FIELD_ID, { componentKey: null });
+    const savedField = makeField(EXISTING_FIELD_ID, { componentKey: 'signature-pad' });
+
+    await makeSaveService(webApi).save(makeState(field, {
+      dirtyIds: [field.id],
+      savedFields: { [field.id]: savedField },
+    }));
+
+    expect(fieldPayloadSentBy(webApi.updateRecord)[FORM_FIELD_ATTRS.COMPONENT_KEY]).toBeNull();
+  });
+
+  it('updateField_keyNeverSet_sendsNoComponentKey', async () => {
+    const webApi = makeWebApi();
+    const field = makeField(EXISTING_FIELD_ID, { componentKey: null });
+
+    await makeSaveService(webApi).save(makeState(field, {
+      dirtyIds: [field.id],
+      savedFields: { [field.id]: makeField(EXISTING_FIELD_ID, { componentKey: null }) },
+    }));
+
+    expect(fieldPayloadSentBy(webApi.updateRecord)).not.toHaveProperty(FORM_FIELD_ATTRS.COMPONENT_KEY);
+  });
+
+  it('updateField_keyChanged_writesNewKey', async () => {
+    const webApi = makeWebApi();
+    const field = makeField(EXISTING_FIELD_ID, { componentKey: 'rating-stars' });
+
+    await makeSaveService(webApi).save(makeState(field, {
+      dirtyIds: [field.id],
+      savedFields: { [field.id]: makeField(EXISTING_FIELD_ID, { componentKey: 'signature-pad' }) },
+    }));
+
+    expect(fieldPayloadSentBy(webApi.updateRecord)[FORM_FIELD_ATTRS.COMPONENT_KEY]).toBe('rating-stars');
+  });
+});
