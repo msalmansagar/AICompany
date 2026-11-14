@@ -38,6 +38,15 @@ test('ensureTableAuditing_off_isTurnedOnPublishedAndReadBack', async () => {
   ]);
 });
 
+// A run that stopped part-way leaves some tables on: only the others are written and published.
+test('ensureTableAuditing_someOnSomeOff_writesAndPublishesOnlyTheOffOnes', async () => {
+  const { client, calls } = fakeClient({ qdb_survey_setup: true, qdb_survey_trigger: false });
+
+  await run(client, [{ name: 'qdb_survey_setup', isAuditEnabled: true }, { name: 'qdb_survey_trigger', isAuditEnabled: true }]);
+
+  assert.deepEqual(calls.filter((call) => !call.startsWith('GET')), ["PUT EntityDefinitions(LogicalName='qdb_survey_trigger')", 'POST PublishXml']);
+});
+
 test('ensureTableAuditing_unauditedTable_isLeftAlone', async () => {
   const { client, calls } = fakeClient({ qdb_survey_answer: false });
 

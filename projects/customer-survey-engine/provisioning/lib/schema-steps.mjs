@@ -122,13 +122,9 @@ async function ensureRelationship(context, relationship) {
 }
 
 /**
- * Publishes the given tables so their new columns can be keyed and queried.
- *
- * @param {{ client: object, tableNames: string[], isApply: boolean, report: Function }} context
- */
-/**
  * Turns change history on for each manifest table that asks for it (CEO 2026-11-14, audit AUD-01), publishes
- * and reads it back. Tables without isAuditEnabled are left exactly as they are.
+ * and reads it back. Tables without isAuditEnabled are left exactly as they are. Runs after ensureTables
+ * (step [2]), so every table it reads exists.
  *
  * @param {{ client: object, tables: object[], isApply: boolean, report: Function }} context
  */
@@ -156,6 +152,11 @@ async function turnAuditingOn(client, table) {
   await client.putMetadata(entityPath(table), { ...definition, IsAuditEnabled: { ...definition.IsAuditEnabled, Value: true } });
 }
 
+/**
+ * Publishes the given tables so their new columns can be keyed and queried.
+ *
+ * @param {{ client: object, tableNames: string[], isApply: boolean, report: Function }} context
+ */
 export async function publishTables({ client, tableNames, isApply, report }) {
   report('publish', `${tableNames.length} tables`);
   if (!isApply) return;
