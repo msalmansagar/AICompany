@@ -27,13 +27,13 @@ back to the decision that created it.
 
 | # | Gate | Blocks | Owner | Status | Source / evidence |
 |---|---|---|---|---|---|
-| B1 | **Retention period and PDPPL classification** of survey responses; then set Retention Days + Mode in each org's Survey Settings | Release gate | QDB Compliance | Open | OQ-A1, NFR-CSE-008, C-4; config HL-12 / BFD-10 |
-| B2 | **PDPPL sign-off** in writing | Release gate | QDB Compliance | Open | NFR-CSE-008, C-4 |
-| B3 | An **anonymised** response keeps its link to the invitation, and the invitation names the customer, so it can be re-identified. Compliance decides: accept, or also clear the invitation's customer on anonymise (small plugin change). **The audit (CMP-02) found more re-identifiers:** the response's invitation link, and the source pointer (`qdb_source_record_id` / `qdb_source_table`). Compliance must see the full list | Release gate (part of B2) | QDB Compliance | Open | found in B5; `phase-3-arch.md` decisions (B5); `phase-6-audit.md` CMP-02 |
+| B1 | **Retention period and PDPPL classification** of survey responses; then set Retention Days + Mode in each org's Survey Settings | Release gate | QDB Compliance | **Partial**: decided 2026-11-15 (D1 graduated classification; D2 delete at 24 months, `pdppl-decisions.md`). Closes when each org's Survey Settings carry Retention Days 730 and Mode Delete, and Compliance signs (B2) | OQ-A1, NFR-CSE-008, C-4; config HL-12 / BFD-10 |
+| B2 | **PDPPL sign-off** in writing | Release gate | QDB Compliance | Open: content decided 2026-11-15 (D1–D8, `pdppl-decisions.md`); per D9 the sign-off is issued after MSS builds and verifies the anonymise fix (B3) and the erasure API (B7) | NFR-CSE-008, C-4 |
+| B3 | An **anonymised** response keeps its link to the invitation, and the invitation names the customer, so it can be re-identified. Compliance decides: accept, or also clear the invitation's customer on anonymise (small plugin change). **The audit (CMP-02) found more re-identifiers:** the response's invitation link, and the source pointer (`qdb_source_record_id` / `qdb_source_table`). Compliance must see the full list | Release gate (part of B2) | QDB Compliance, then MSS | **Partial**: decided 2026-11-15 (D7): MSS extends anonymise to clear the invitation link and source pointer. Closes when built and verified (needs a BRD addendum first) | found in B5; `phase-3-arch.md` decisions (B5); `phase-6-audit.md` CMP-02 |
 | B4 | **Secure-link security review**: threat model of the token path (generation, entropy, expiry, single use, guessing rate) | Switching secure links on, any org | Security engineer + QDB IT security | Open | NFR-CSE-009 |
 | B5 | The portal team **rate-limits the token page** | Switching secure links on | QDB portal team | Open | architecture approval condition |
 | B6 | **Cloud residency.** `org5869857f` is in the EMEA region (`crm4.dynamics.com`). A cloud org that holds production responses must be Qatar-resident, or the cloud target leaves release 1 | Production on the cloud org | CEO + QDB Compliance | **Done** 2026-11-12: release 1 is on-prem only; the cloud org holds no production responses | C-1 (amended), C-4 |
-| B7 | **Retention and erasure beyond responses** (audit CMP-03): invitations, suppression logs and dispatch activities keep customer data indefinitely, and there is no per-customer erasure (DSAR) procedure. Decide the retention for each, implement it, and document the procedure; part of the B2 sign-off scope | Release gate | CEO + QDB Compliance, then MSS | Open | `phase-6-audit.md` CMP-03 |
+| B7 | **Retention and erasure beyond responses** (audit CMP-03): invitations, suppression logs and dispatch activities keep customer data indefinitely, and there is no per-customer erasure (DSAR) procedure. Decide the retention for each, implement it, and document the procedure; part of the B2 sign-off scope | Release gate | CEO + QDB Compliance, then MSS | **Partial**: decided 2026-11-15 (D3–D6, D8): invitations and suppression logs deleted at 24 months; hand-off activities under QDB policy until channels are on; audit log ≥ 24 months (QDB IT); MSS builds `qdb_srv_EraseCustomerSurveyData`. Closes when built and verified (needs a BRD addendum first) | `phase-6-audit.md` CMP-03 |
 | B8 | **Scheduler privilege** (audit SEC-01 / OPS-03): `qdb_srv_RunDueSurveys` requires System Administrator, so the unattended service account holds it on both banking orgs. Replace it with a least-privilege Survey Scheduler role, or formally risk-accept it with compensating controls recorded | Release gate | CEO, then MSS | **Partial**: CEO chose the role (2026-11-14). It is built (`e32e2054`, `e98ba33f`), code- and security-reviewed, deployed to the cloud org and verified there (assembly match, one role, a user with neither role refused), and in the kit (post-import Q3/Q12). Closes on each on-prem org when stage 6 gives the scheduler account only Survey Scheduler and stage 8.2 runs with it (this also confirms the platform-minimum privilege on 9.1) | `phase-6-audit.md` SEC-01; ADR-005 amendment |
 | B9 | **Audit history on survey tables** (audit AUD-01): org auditing is on, but `IsAuditEnabled=false` on all nine survey tables (verified on the cloud org 2026-11-14), and nothing in provisioning or the kit enables it. Enable it on the config and integrity-sensitive tables, and read back `IsAuditEnabled=true` on each on-prem org | Release gate | MSS + QDB IT | **Partial**: CEO chose "rules + invitations" (7 tables; not responses or answers, for PDPPL). Built (`f2cf521c`, `eff255f2`, reviewed), applied and read back on the cloud org (7 on, response and answer off, labels intact; P14 and Q13 PASS), and in the kit package. Closes on each on-prem org when preflight P14 and post-import Q13 PASS | `phase-6-audit.md` AUD-01; decision log 2026-11-14 |
 
@@ -60,7 +60,7 @@ Every row is one runbook stage (`onprem-deploy/2026-11-11/RUNBOOK.md`). Track HL
 | D1 | **HL request tables** and their customer, type, status and Digital/Legacy fields (HL-01, HL-02). None is known: HL is its own build | HL source rows | HL CRM administrator | Open |
 | D2 | **Status and type values** that fire each survey, per org (HL-03, BFD-03, OQ-A2(b)) | activating each source | Business owner + CRM administrator | Open |
 | D3 | **Applications Digital/Legacy field** (BFD-02; also unknown on the cloud org) | activating Applications | Business owner + CRM administrator | Open |
-| D4 | Default language and customer language field, per org (HL-04/05, BFD-04/05, OQ-A2(c)) | settings row | Business owner + CRM administrator | Open |
+| D4 | Default language and customer language field, per org (HL-04/05, BFD-04/05, OQ-A2(c)) | settings row | Business owner + CRM administrator | **Partial**: default language Arabic on both orgs (2026-11-15, in `config/`); the language field (a Survey Settings setting) is still with each org's CRM administrator |
 | D5 | **"Active customer"** for the scheduled population "All active customers": the engine counts every active (statecode 0) account or contact. Confirm, or define it | scheduled triggers using that population | QDB business owner | Open |
 | D6 | BFD source names confirmed on QDB1 (BFD-01; the preflight reads them) | BFD source rows | QDB1 CRM administrator | Open |
 
@@ -96,19 +96,20 @@ Kept for a later release that adds a Qatar-resident cloud org. None of these gat
 
 ## Summary
 
-As of 2026-11-14. Section G is not counted (not in release 1).
+As of 2026-11-15. Section G is not counted (not in release 1).
 
 | | Rows | Release gates | Open | Partial | Done |
 |---|---|---|---|---|---|
 | A. Engagement | 8 | 8 | 2 (A2, A3) | 0 | 6 |
-| B. Compliance and security | 9 | 6 (B1–B3, B7–B9) | 6 (B1–B5, B7) | 2 (B8, B9) | 1 (B6) |
+| B. Compliance and security | 9 | 6 (B1–B3, B7–B9) | 3 (B2, B4, B5) | 5 (B1, B3, B7, B8, B9) | 1 (B6) |
 | C. On-prem, per org | 9 × 2 orgs | all | 18 | 0 | 0 |
-| D. Per-org configuration | 6 | none | 6 | 0 | 0 |
+| D. Per-org configuration | 6 | none | 5 | 1 (D4) | 0 |
 | E. Channels and portal | 5 | none | 5 | 0 | 0 |
 | F. Engine | 5 | 1 (F1) | 3 (F2–F4) | 0 | 2 (F1, F5) |
-| **Total** | **51** | **33** | **40** | **2** | **9** |
+| **Total** | **51** | **33** | **36** | **6** | **9** |
 
-**Next for MSS:** nothing is blocked on MSS. When Compliance answers D1–D9 (`pdppl-decision-pack.md`), MSS builds
-the chosen retention, anonymise and erasure work (B1–B3, B7). F2–F4 block nothing.
-**Next for QDB:** Compliance answers D1–D9 (B1–B3, B7); the configuration answers (section D); and the runbook on
-the two test orgs (section C), which also closes A2, A3, B8 and B9.
+**Next for MSS:** the PDPPL decisions are made (`pdppl-decisions.md`, 2026-11-15). MSS builds invitation and
+suppression-log retention, the anonymise fix (B3) and the erasure API (B7), after a BRD addendum and CEO approval;
+Compliance signs B2 once those are verified. F2–F4 block nothing.
+**Next for QDB:** the remaining configuration answers (section D); the runbook on the two test orgs (section C),
+which also closes A2, A3, B8 and B9; QDB IT sets audit-log retention to at least 24 months (D6).

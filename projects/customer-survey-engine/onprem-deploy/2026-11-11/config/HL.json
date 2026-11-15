@@ -40,7 +40,7 @@
     "qdb_name": "Survey Settings",
     "qdb_customer_table": 100000001,
     "qdb_fatigue_min_days": 30,
-    "qdb_default_language": "TO_CONFIRM",
+    "qdb_default_language": "ar",
     "qdb_language_field": "TO_CONFIRM",
     "qdb_securelink_enabled": false
   },
@@ -79,6 +79,7 @@
       "id": "HL-04", "path": "settings.qdb_default_language",
       "question": "Default survey language for HL customers: en or ar?",
       "proposed": null, "evidence": "Cloud uses en. Used when the customer has no language value.",
+      "answer": "ar (CEO, 2026-11-15; pdppl-decisions.md)",
       "owner": "QDB business owner", "blocks": "entering the settings row"
     },
     {
