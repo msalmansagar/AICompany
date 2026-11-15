@@ -55,7 +55,7 @@ namespace Qdb.SurveyEngine.Plugins
             finally
             {
                 // Emit a trace line regardless of whether Erase succeeded or threw (SEC-001).
-                WriteTrace(tracing, request, counts, clock.UtcNow);
+                WriteTrace(tracing, DescribeRequest(request, clock.UtcNow), counts);
             }
         }
 
@@ -88,22 +88,22 @@ namespace Qdb.SurveyEngine.Plugins
                     $"Only a System Administrator or a user with the {ErasureAccessCheck.SurveyDataOfficerRoleName} role can erase customer survey data.");
         }
 
-        private static void WriteTrace(ITracingService tracing, ErasureRequest request, ErasureCounts counts, DateTime utcNow)
+        private static string DescribeRequest(ErasureRequest request, DateTime utcNow) =>
+            string.Format(
+                "Erase customer survey data: user={0}, customer={1}, mode={2}, dryRun={3}, utc={4:u}",
+                request.InitiatingUserId, request.CustomerId, request.Mode, request.DryRun, utcNow);
+
+        private static void WriteTrace(ITracingService tracing, string requestSummary, ErasureCounts counts)
         {
-            if (counts != null)
+            if (counts == null)
             {
-                tracing.Trace(
-                    "Erase customer survey data: user={0}, customer={1}, mode={2}, dryRun={3}, inv={4}, resp={5}, ans={6}, supp={7}, areActual={8}, isComplete={9}, utc={10:u}",
-                    request.InitiatingUserId, request.CustomerId, request.Mode, request.DryRun,
-                    counts.InvitationCount, counts.ResponseCount, counts.AnswerCount, counts.SuppressionLogCount,
-                    counts.AreActual, counts.IsComplete, utcNow);
+                tracing.Trace("{0} — Erase threw before returning counts.", requestSummary);
+                return;
             }
-            else
-            {
-                tracing.Trace(
-                    "Erase customer survey data: user={0}, customer={1}, mode={2}, dryRun={3}, utc={4:u} — Erase threw before returning counts.",
-                    request.InitiatingUserId, request.CustomerId, request.Mode, request.DryRun, utcNow);
-            }
+            tracing.Trace(
+                "{0}, inv={1}, resp={2}, ans={3}, supp={4}, areActual={5}, isComplete={6}",
+                requestSummary, counts.InvitationCount, counts.ResponseCount, counts.AnswerCount,
+                counts.SuppressionLogCount, counts.AreActual, counts.IsComplete);
         }
 
         private static void WriteOutputs(IPluginExecutionContext context, ErasureCounts counts)
