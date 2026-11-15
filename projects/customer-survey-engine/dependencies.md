@@ -32,3 +32,25 @@
 ## Review trigger
 
 Re-run a GitHub search if the architecture introduces a component outside CRM (a host process, a gateway or a reporting layer). The constraints above do not apply there.
+
+---
+
+## BRD Addendum C (FR-CSE-076..082, NFR-CSE-011..014) — GitHub research 2026-11-15
+
+**Scope searched:** (1) Dataverse/CRM bulk-delete or retention helpers usable inside a sandboxed plugin; (2) GDPR/DSAR erasure frameworks for Dynamics; (3) generic data-retention libraries for .NET; (4) whether the platform's own BulkDeleteRequest or Dataverse data-retention policies would meet FR-CSE-076/077 better than code.
+
+| Candidate | Stars | Last commit | Licence | Verdict | Reason |
+|---|---|---|---|---|---|
+| `AymericM78/Xrm.DataManager.Framework` | 5 | ~3 years ago | MIT | Rejected | Below 1 000-star threshold; abandoned; designed for external host process (CrmServiceClient), not a sandboxed plugin. Cannot be ILMerge'd safely into a single plugin assembly. |
+| `davidyack/CRMBulkOperations` | <50 | Unknown | Unknown | Rejected | Below threshold; targets older SDK (v8.2 / Execute Multiple pattern); no retention scheduling. |
+| `open-privacy/dsrhub` | <100 | Unknown | Apache 2.0 | Rejected | Below threshold; language-agnostic DSR orchestration microservice; not Dynamics-specific; requires a host process. |
+| Ethyca Fides | ~2 500 | Active | Apache 2.0 | Rejected | Python only; Dynamics 365 integration uses the Web API, not a plugin; not usable inside the sandbox. |
+| proGDPR (AppSource) | n/a | n/a | Commercial | Rejected | Commercial product; not open source. |
+| **BulkDeleteRequest (platform feature)** | n/a | n/a | MS Platform | Rejected — does not fit FR-CSE-076/077 | `BulkDeleteRequest` submits an asynchronous background job; it cannot be driven synchronously from within a plugin or made budget-aware inside a single plugin execution. It also triggers any registered plugins on the deleted entities, which can cause failures. The "sandbox fast delete" mode (`RunJobForSandbox`) that bypasses plugin triggers is a **cloud-only preview feature** unavailable on on-prem 9.1. |
+| Dataverse data-retention policies | n/a | n/a | MS Platform | Rejected — cloud only | Dataverse native retention policies are a Dataverse (cloud) feature; they do not exist in Dynamics 365 CE 9.1 on-premises. |
+
+**Conclusion: BUILD for all three parts.**
+
+All primitives needed (QueryExpression, DeleteRequest, UpdateRequest, `IOrganizationService.Execute`) are already part of `Microsoft.CrmSdk.CoreAssemblies` 9.0.2.49, which is the only production dependency in `Qdb.SurveyEngine.csproj`. The assembly requires no ILMerge step (confirmed in the csproj comment). No new dependency is introduced by this addendum.
+
+The result of this build is not a reusable component; it is survey-domain-specific retention logic. No COMPONENT-REGISTRY entry is warranted.
