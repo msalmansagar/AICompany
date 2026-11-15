@@ -746,3 +746,365 @@ These challenges must be addressed before Phase 4 begins.
 | Synchronous failures | Not in the view. The four integration APIs return their errors to the caller; the daily run's failures show in the scheduled task's log and Last Run Result (runbook stage 8); the org's Plug-in Trace Log holds both when tracing is on | A synchronous plugin's own writes roll back with it, so it cannot leave a record; Plug-in Trace Log allows no solution views (CanCreateViews false), and most survey trace rows there are expected API refusals, not failures. |
 | App | New **Health** group: Suppressions (moved from Results) and Survey Jobs. The app lists only the survey view for System Job; the org's own System Jobs views and default are unchanged | Admins open failures directly instead of filtering every system job in the org. |
 | Who sees Survey Jobs | System Administrators only. No survey role gets System Job read | System Job read is org-wide (every product's jobs and messages). The people who can act on a plugin failure are System Administrators; the platform hides the item from users without read. |
+
+---
+
+# Addendum C — PDPPL retention, anonymise fix and erasure API (BRD v1.4)
+
+Amends sections 7, 11 and 12 of this document. Scope and requirements are fixed
+by `phase-2-ba-addendum-pdppl-retention-erasure.md` (CEO-approved 2026-11-15,
+OQ-PDR-01 A / 02 B / 03 A). Covers FR-CSE-076..082 and NFR-CSE-011..014. Design
+only — no code is written this phase. New decision recorded in **ADR-008**.
+Clean-code constraints hold throughout: small single-responsibility classes,
+constructor-injected dependencies, no static mutable state, functions ≤20 lines,
+repository pattern for all data access.
+
+## C.1 Retention pass extension (FR-CSE-076, 077, 078; NFR-CSE-011)
+
+### C.1.1 Where it changes
+
+Section 7.1 pass 3 (retention) today runs **one** sub-pass — responses, via
+`RetentionPass` → `IResponseRetentionStore` (`ResponseRetentionStore`). Addendum
+C makes retention a three-step stage, run **in this fixed order within the one
+daily budget**:
+
+1. **Responses** — unchanged (`ResponseRetentionStore`, delete or anonymise per
+   `qdb_retention_mode`).
+2. **Invitations** — new (FR-CSE-076): delete invitation rows whose
+   `qdb_generated_on` is older than the effective cutoff.
+3. **Suppression logs** — new (FR-CSE-077): delete suppression-log rows whose
+   `createdon` is older than the effective cutoff.
+
+`RetentionPass.Apply` is extended to call the three steps in order; it stays the
+retention orchestrator (it already owns `_deps` and reads settings). Two new
+collaborators are added to `RunDueSurveysDependencies` and validated in
+`RunDueSurveysService.Compose`:
+
+| New abstraction (interface) | Impl | Methods |
+|---|---|---|
+| `IInvitationRetentionStore` | `InvitationRetentionStore` | `FindGeneratedBefore(DateTime cutoffUtc)` → ids ordered by `qdb_generated_on` asc; `Delete(Guid)` |
+| `ISuppressionLogRetentionStore` | `SuppressionLogRetentionStore` | `FindCreatedBefore(DateTime cutoffUtc)` → ids ordered by `createdon` asc; `Delete(Guid)` |
+
+Both impls take `IOrganizationService` by constructor and use
+`QueryPaging.RetrieveAll` (5,000-row pages, ordered for stable paging). They need
+no `CustomerLink` — retention is age-based, not customer-based.
+
+### C.1.2 Floors combine with `qdb_retention_days` (FR-CSE-078)
+
+Delete rows with `date < cutoff`, and never delete a row younger than the floor.
+The floor is therefore a **lower bound on the effective retention period**, not a
+second filter:
+
+```
+effectiveDays = Math.Max(qdb_retention_days, floorDays)
+cutoff        = Clock.UtcNow.AddDays(-effectiveDays)
+```
+
+- Invitations: `floorDays = 395` (~13 months). `MinimumRetentionDays` const on
+  `InvitationRetentionPass`.
+- Suppression logs: `floorDays = 365` (12 months). Const on
+  `SuppressionLogRetentionPass`.
+
+With `qdb_retention_days = 100` the invitation step uses 395 (floor wins, nothing
+younger than 395 days is touched); with `= 700` it uses 700 (floor has no
+effect). The floor is a **runtime guard**, computed every run, not configuration
+advice (FR-CSE-078 AC). The single CEO-chosen `qdb_retention_days` (OQ-PDR-01 A)
+feeds all three steps; no new settings columns.
+
+### C.1.3 Budget sharing, paging, and running out (NFR-CSE-011)
+
+All five passes of the daily run (postponed, scheduled, response-, invitation-,
+suppression-retention) share the **one** `RunBudget` (90-second `WorkAllowance`,
+`RunDueSurveysPlugin`). The retention stage checks `budget.IsExhausted` between
+each step and before each delete inside a step. The existing budget loop in
+`RetentionPass.Process` is extracted to a shared `internal static
+BudgetedDeletion.Run(ids, apply, verb, budget)` so all three retention steps
+share one tested loop (DRY; Boy-Scout refactor of the current private method).
+
+- **Reads** page at 5,000 rows, ordered oldest-first, so a budget cut always made
+  progress on the oldest rows and the next call resumes at the new oldest.
+- **Deletes** are synchronous per-row (consistent with `ResponseRetentionStore`;
+  `BulkDeleteRequest` rejected — see ADR-008 reasoning: async, no synchronous
+  count, harder to keep idempotent).
+- **Budget exhausted:** the step returns `IsComplete = false`; `RetentionResult`
+  / `RunSummary.IsComplete` propagate false; the external caller re-invokes
+  `qdb_srv_RunDueSurveys` until complete — the existing pattern (ADR-005). Every
+  step is **idempotent**: a deleted row no longer matches the age query, so a
+  re-run resumes cleanly with no double-processing.
+
+NFR-CSE-011 target (450 invitations + 1,000 suppression rows) fits one 90-second
+call; a larger go-live backlog is spread over successive daily runs by the budget.
+
+### C.1.4 Interaction with fatigue and milestone checks
+
+The 395-day invitation floor exists precisely to protect these reads: the
+milestone duplicate-check (FR-CSE-034..039) and the fatigue window
+(`qdb_fatigue_min_days`) both read recent invitation rows, and both look back well
+under 13 months. The floor guarantees daily retention never removes an invitation
+either check still needs. (This is distinct from **erasure**, where BR-PDR-01/02
+accept that a DSAR erasure resets the milestone counter and fatigue window — the
+data subject's right takes precedence. The daily pass does not.)
+
+### C.1.5 Cascade note (BR-PDR-04)
+
+Invitation delete runs **after** response delete, and `qdb_survey_response →
+qdb_survey_invitation` is Cascade. A response submitted close to the boundary and
+not yet reached by the response step is cascade-deleted (with its answers) a few
+days early when its invitation is deleted. Accepted as de-minimis; QA accounts for
+it in retention-boundary cases.
+
+## C.2 Anonymise fix (FR-CSE-079, 080)
+
+### C.2.1 The one code path that changes
+
+`ResponseRetentionStore.Anonymise(Guid responseId)` is the **single** anonymise
+code path (used by both daily retention and the erasure API, below). Three field
+clears are added to the existing response `Update`:
+
+```
+["qdb_survey_invitation_id"] = null,
+["qdb_source_table"]         = null,
+["qdb_source_record_id"]     = null,
+```
+
+retaining `qdb_survey_setup_id` and `qdb_form_code` (no personal data; needed for
+reporting). Answer-text nulling and `qdb_name`/customer/`qdb_answers_json`
+clearing are unchanged. After this, no field on the response points one hop to a
+customer identifier (FR-CSE-079 AC).
+
+### C.2.2 Repointing reports off the invitation link (FR-CSE-080)
+
+Searched across `provisioning/ui-manifest.mjs` (VIEWS, CHARTS, FORMS),
+`provisioning/manifest.mjs`, and the C# integration/data code. Findings, each
+named concretely:
+
+| Artifact | Uses invitation link to relate to a survey? | Action |
+|---|---|---|
+| View `Survey Responses - All`, `Survey Answers - All` | No — already relate via `qdb_survey_setup_id` (answers via `qdb_survey_response_id` → response's `qdb_survey_setup_id`) | None |
+| View `Open Survey Invitations`, `Survey Invitations - All` | On the invitation table itself | None |
+| Charts `Average Score % by Setup`, `Responses by Setup`, `Responses by Month`, `Average Score by Question` | Group by `qdb_survey_setup_id` / `qdb_submitted_on` / question | None |
+| Custom API queries (C# `Integration/`, `Data/`) | No reporting query joins response → invitation (`ResponseWriter` *writes* `qdb_survey_invitation_id` but nothing reads it to relate a response to a survey) | None |
+| **Response main form** (`FORMS`, `qdb_survey_response`, Response section) | Shows `qdb_survey_invitation_id` as a read-only field — identifies the customer one hop pre-anonymise, and always blank post-anonymise | **Remove** `qdb_survey_invitation_id` from the form's Response section (FR-CSE-080) |
+| **Alternate key `qdb_response_invitation`** (`ALTERNATE_KEYS`, column `qdb_survey_invitation_id`) | Submit-time dedupe, not reporting | **Verify live** — see C.5 R1 |
+
+So FR-CSE-080 repointing is, by design, nearly a no-op: the schema already keeps
+`qdb_survey_setup_id` directly on every response (`ResponseWriter` sets both), and
+every analyst view and chart already reads the setup link. The one UI change is
+removing the now-always-blank invitation field from the response form. The
+substantive work item is **confirming the alternate-key null behaviour on a live
+org before anonymise mode is activated** (R1).
+
+## C.3 Erasure Custom API `qdb_srv_EraseCustomerSurveyData` (FR-CSE-081, 082; NFR-CSE-012, 013, 014) — see ADR-008
+
+### C.3.1 Contract
+
+Unbound, global, non-private Custom API; plugin type
+`Qdb.SurveyEngine.Plugins.EraseCustomerSurveyDataPlugin`. Parameter types use the
+existing `PARAMETER_TYPE` map (boolean 0, integer 7, string 10, guid 12).
+
+| Direction | Name | Type | Notes |
+|---|---|---|---|
+| In | `CustomerGuid` | Guid (12), required | The account or contact id |
+| In | `Mode` | Integer (7), required | 100000000 = Delete, 100000001 = Anonymise; validated at the boundary (ADR-008: integer, not a picklist parameter — no new option set) |
+| In | `DryRun` | Boolean (0), required | |
+| Out | `InvitationCount` | Integer (7) | rows found (dry-run) / erased this call (live) |
+| Out | `ResponseCount` | Integer (7) | |
+| Out | `AnswerCount` | Integer (7) | |
+| Out | `SuppressionLogCount` | Integer (7) | |
+| Out | `AreActual` | Boolean (0) | true in live mode, false in dry-run (FR-CSE-081) |
+| Out | `IsComplete` | Boolean (0) | **new**, NFR-CSE-012 budget-and-rerun: false when the budget cut the run short; re-invoke until true (see C.3.5 and OQ-C2) |
+
+### C.3.2 Plugin and service layering
+
+Mirrors `RunDueSurveysPlugin` → `RunDueSurveysService`:
+
+- `EraseCustomerSurveyDataPlugin : IPlugin` (thin): reads/validates inputs,
+  creates the org service **as SYSTEM** (`CreateOrganizationService(null)`), runs
+  the access check, composes the service, calls it once, writes the outputs and
+  the trace line.
+- `CustomerErasureService` (composition root `Compose(...)`): orchestrates find →
+  mutate within budget; depends on injected `ICustomerSurveyDataRepository`,
+  `IResponseRetentionStore` (reused for anonymise), `IClock`, trace and an
+  `IErasureTraceWriter`.
+- `ICustomerSurveyDataRepository` / `CustomerSurveyDataRepository` (repository
+  pattern): per-table find-by-customer and delete, scoped by `CustomerLink`.
+- Value objects: `ErasureRequest { Guid CustomerId; ErasureMode Mode; bool
+  DryRun }`, `ErasureCounts { int Invitations, Responses, Answers,
+  SuppressionLogs; bool AreActual; bool IsComplete }`, `enum ErasureMode { Delete
+  = 100000000, Anonymise = 100000001 }`.
+
+### C.3.3 Customer resolution per org (CustomerLink)
+
+`CustomerLinkReader.Read(service)` once per execution → the org's `CustomerLink`
+(account/contact + lookup column), exactly as the daily run resolves it. Every
+find query filters its table on `link.LookupColumn == CustomerGuid`. Answers carry
+no customer lookup; they are found as children of the found responses
+(`qdb_survey_response_id In responseIds`, batched). A contact GUID on an
+account-configured org filters on `qdb_customer_id` (account), matches nothing,
+returns zeros with no error (FR-CSE-081 AC5; NFR-CSE-014 — one assembly, both
+orgs).
+
+### C.3.4 Delete order and cascades
+
+Counts are captured from the found sets **before** any mutation.
+
+- **Delete mode:** (1) delete invitations — the Cascade on `qdb_survey_response →
+  qdb_survey_invitation` and `qdb_survey_answer → qdb_survey_response` removes
+  their responses and answers automatically; (2) delete any residual responses
+  still carrying the customer lookup (defensive — covers a response whose
+  invitation link was already null); (3) delete suppression logs (no cascade).
+- **Anonymise mode (ordering is correctness-critical):** (1) `Anonymise` each
+  found response **first** — this nulls `qdb_survey_invitation_id` (FR-CSE-079),
+  severing the cascade; (2) **then** delete the invitations — the cascade no
+  longer reaches the now-unlinked, anonymised responses; (3) delete suppression
+  logs (BR-PDR-02/03: invitations embed the customer GUID in the dedupe key and
+  suppression logs are append-only — neither can be anonymised in place, both are
+  deleted in both modes). Reversing (1) and (2) would let the invitation cascade
+  destroy the response the operator meant to keep — pinned by a unit test (C.4).
+
+### C.3.5 2-minute limit, budget and rerun (NFR-CSE-012)
+
+Worst case ≈ 2,400 synchronous ops (300 invitations + 100 responses + 2,000
+suppression logs). The service runs inside a `RunBudget` (≈110 s allowance,
+leaving margin to write outputs and trace). If the budget is exhausted mid-run it
+stops, returns the counts of rows **actually** erased this call and
+`IsComplete = false`; the DSAR operator re-invokes until a run returns
+`IsComplete = true` (and, by then, zero remaining rows). Idempotent, so reruns are
+safe and a repeat DSAR on an already-erased customer is a no-op returning zeros.
+Dry-run never mutates and always returns `IsComplete = true` with the total found
+counts.
+
+### C.3.6 Trace record (NFR-CSE-013) — recommend the durable table (OQ-C1)
+
+The plugin emits one `ITracingService` trace line **before returning**: caller
+`InitiatingUserId`, `CustomerGuid`, `Mode`, `DryRun`, the four counts,
+`AreActual`, UTC timestamp. That satisfies the literal NFR and aids live
+diagnostics.
+
+**Weighing trace line vs dedicated table:** plugin trace logs (`plugintracelog`)
+are ephemeral (pruned, capped), only written when org trace logging is on, and
+admin-only — weak evidence for a DSAR register QDB Compliance may cite years
+later. A dedicated **append-only `qdb_survey_erasure_log` table** (one row per
+execution, same append-only shape as the suppression log, readable by Survey Data
+Officer / Compliance) is durable, queryable and is itself the DSAR evidence, at a
+cost of one table + relationship(s) + a role read + a view.
+
+**Recommendation: write both** — the trace line (NFR literal + diagnostics) and a
+durable `qdb_survey_erasure_log` row as the authoritative register. Because the
+table adds schema beyond the BRD's literal wording, it is raised as **OQ-C1** for
+the CEO, not assumed. `CustomerErasureService` writes the row behind an injected
+`IErasureTraceWriter` that is a no-op until the table exists (PAT-003), so the
+build proceeds either way and the decision is a data/provisioning switch.
+
+## C.4 Authorisation (FR-CSE-082)
+
+- **Role `Survey Data Officer`**, added to `manifest.mjs` ROLES, matched by name
+  exactly as `Survey Scheduler` is. New exported constant `DATA_OFFICER_ROLE_NAME
+  = 'Survey Data Officer'` (so the C# const and the manifest/check stay in sync by
+  name, per the SCHEDULER_ROLE_NAME precedent).
+- **Minimum privileges:** because the API runs as SYSTEM, the role needs **no
+  survey or customer table rights** — only to be matched by name. It holds only
+  `organization` Read (the CRM 9.1 platform minimum before a plugin runs;
+  SUSPECTED-001), identical to `Survey Scheduler`.
+- **Access check:** `IErasureAccessCheck` / `ErasureAccessCheck`, mirroring
+  `SchedulerAccessCheck` — admits a System Administrator (via `AdministratorCheck`
+  role template) **or** a holder of `Survey Data Officer` (direct or via team, via
+  `RoleMembership`). Any other caller → `InvalidPluginExecutionException`
+  (FR-CSE-082). Dry-run callers pass the same check (not a bypass).
+- **Exclusion from Survey Integration:** the portal service account holds Survey
+  Integration only, never Survey Data Officer (FR-CSE-082 AC5). Enforced two ways:
+  the manifest keeps the roles separate (verified at provisioning), and the
+  erasure plugin self-gates by role name — even a holder of Survey Integration is
+  refused unless they also hold Survey Data Officer. Survey Admin and Survey
+  Analyst hold no right that passes the check; no change to their grants.
+
+## C.5 Provisioning and kit impact
+
+| Area | Change |
+|---|---|
+| `provisioning/manifest.mjs` | Add `Survey Data Officer` role (`organization` Read only) to ROLES; export `DATA_OFFICER_ROLE_NAME`. Bump `SOLUTION.version` 1.0.0.0 → 1.1.0.0 so re-import upgrades. (If OQ-C1 = B: add `qdb_survey_erasure_log` append-only table, its customer/relationship links, a read grant on it to Survey Data Officer, and a results view.) |
+| `provisioning/lib/plugin-payloads.mjs` | Add `qdb_srv_EraseCustomerSurveyData` to `CUSTOM_APIS` with the C.3.1 contract. Add `guidInput`/`integerInput`/`booleanInput` and `integerOutput`/`booleanOutput` builders (only `stringInput`/`stringOutput` exist today). `ensureCustomApis` then registers it and its plugin type automatically. |
+| Solution export (`onprem/export-survey-solution.mjs`) | Re-export: the new Custom API, role (+ table/view if OQ-C1 = B) land in the SurveyEngine solution at the new version. |
+| On-prem kit (`onprem/build-onprem-kit.mjs`) | Rebuild: new DLL (retention passes + anonymise fix + erasure plugin) and new solution zip; `package-manifest.customApis` must include the new API so Q5 covers it. Re-import on **both** HL CRM and BFD/QDB1 (NFR-CSE-014). |
+| `onprem/lib/kit-facts.mjs` | Add `dataOfficerRoleName` fact. `roleNames` and `customApis` already derive from the manifest/package, so Q3 and Q5 auto-cover the new role and API; preflight `findCollisions` auto-covers both. |
+| `onprem/checks/survey-checks.js` | Add `checkDataOfficerRole` → **Q14** (parity with Q12 `checkSchedulerRole`): query `roles` by name, assert a single `_parentrootroleid_value` (one role, business-unit copies only; a second independent root means someone created a duplicate). Add to `postImport`. |
+| Runbook | Add stages: (a) assign Survey Data Officer to named Compliance staff, never the integration account; (b) DSAR erasure procedure — dry-run → review counts → live execute → re-invoke until `IsComplete` → record in the DSAR register (and in `qdb_survey_erasure_log` if OQ-C1 = B); (c) confirm `qdb_retention_days` (730) and `qdb_retention_mode` are set and the floors understood before go-live; (d) if trace-only (OQ-C1 = A), confirm plugin trace logging is on so NFR-CSE-013 evidence persists. |
+| Preflight / post-import | No new preflight beyond the auto-covered collision check; Q14 is the new post-import check. The reporting-query audit (FR-CSE-080) gate — remove the response-form invitation field and confirm no view depends on the link — runs before anonymise mode is activated on any org. |
+
+## C.6 Test strategy hooks (for QA — Article IV; xUnit + Moq fakes, cloud E2E on test data only)
+
+**Unit (fakes, as existing `__tests__` / C# tests):**
+- `InvitationRetentionPass` / `SuppressionLogRetentionPass`: floor math
+  (`Max(retentionDays, floorDays)`) — retention < floor uses floor, retention >
+  floor uses retention; deletes only rows older than the effective cutoff;
+  budget exhaustion → `IsComplete = false`; idempotent re-run.
+- `RetentionPass` orchestration: order responses → invitations → suppression;
+  stops between steps when the budget is spent; combined result string.
+- `ResponseRetentionStore.Anonymise`: now nulls `qdb_survey_invitation_id`,
+  `qdb_source_table`, `qdb_source_record_id`; keeps `qdb_survey_setup_id`,
+  `qdb_form_code`; nulls answer text.
+- `ErasureAccessCheck`: admit admin; admit Survey Data Officer (direct + team);
+  refuse a no-role user, a Survey Analyst, and a Survey Integration holder.
+- `CustomerErasureService`: dry-run changes nothing + exact counts, `AreActual =
+  false`; Delete mode counts + removals; **Anonymise mode asserts anonymise runs
+  before invitation delete so the cascade does not eat the response**; unknown
+  customer → zeros; contact GUID on account org → zeros; idempotent rerun →
+  zeros; budget exhaustion → `IsComplete = false` with partial counts. Parametrise
+  every data test over **both** `CustomerLink` variants (NFR-CSE-014).
+
+**Cloud E2E (org5869857f, synthetic test data only, cleaned up):**
+- Seed a synthetic customer with invitations / responses / answers / suppression
+  rows; dry-run asserts exact counts and no change; live Delete asserts all gone.
+- Separate synthetic customer: live Anonymise asserts responses anonymised
+  (invitation link, source table/record, customer, answer text all null),
+  invitations and suppression logs deleted, and — **critical (R1)** — that
+  nulling `qdb_survey_invitation_id` on two or more responses does **not** raise a
+  412 on the `qdb_response_invitation` alternate key.
+- Authorisation: a non-officer test user is refused; a Survey Data Officer test
+  user succeeds.
+- Retention floor: a short `qdb_retention_days` does not delete invitations
+  younger than 395 days.
+
+## C.7 Architectural risks and open technical questions
+
+| # | Risk / question | Impact | Mitigation / recommendation |
+|---|---|---|---|
+| R1 | Nulling `qdb_survey_invitation_id` on many responses (anonymise) may collide on the `qdb_response_invitation` alternate key if the platform does not treat nulls as index-excluded | High — anonymise batch fails with 412 | Dataverse normally excludes null rows from an alternate-key unique index (multiple nulls allowed), but this **must be proven on a live org before anonymise mode is activated** (PAT-002, ARC-M-002). If it does collide, fallback is a CEO decision: drop the `qdb_response_invitation` key (submit-dedupe would move to the token/status guard) — raised as OQ-C3. |
+| R2 | Anonymise-before-delete ordering in the erasure Anonymise path | High — wrong order cascades away the response | Pinned ordering in `CustomerErasureService` + a unit test (C.4/C.6) |
+| R3 | Pathological per-customer volume exceeds the 2-minute limit (NFR-CSE-012) | Medium — erasure stops short | Budget + `IsComplete` rerun (C.3.5); idempotent |
+| R4 | Plugin trace log too ephemeral/admin-only for multi-year DSAR evidence (NFR-CSE-013) | Medium — evidence gap | **OQ-C1** below |
+| R5 | BR-PDR-04 cascade deletes a boundary response a few days early | Low — de-minimis | Accepted (BA); QA covers in boundary cases |
+
+**Open questions for the CEO (not answered here):**
+
+- **OQ-C1 — DSAR evidence durability.** NFR-CSE-013 mandates only a plugin trace
+  entry. *Option A:* trace line only (as written; cheap, but ephemeral and
+  admin-only). *Option B (recommended):* trace line **plus** a durable
+  append-only `qdb_survey_erasure_log` table as the authoritative DSAR register
+  (adds one table + relationship + role read + view). **Recommend B** — a DSAR
+  register must outlive trace-log pruning and be readable by Compliance. Scope-
+  affecting (new schema), so a CEO call.
+- **OQ-C2 — `IsComplete` output.** The erasure API gains an `IsComplete` output
+  beyond the BRD's listed parameters, as the budget-and-rerun mechanism
+  NFR-CSE-012 explicitly authorises. *Option A:* accept the added output
+  (recommended — mirrors `qdb_srv_RunDueSurveys`). *Option B:* omit it and cap the
+  contract to the five listed outputs (then a budget-cut live run cannot signal
+  "re-run", weakening NFR-CSE-012). **Recommend A.** Likely a BA note rather than
+  a full CEO gate, but flagged for awareness.
+- **OQ-C3 — only if R1 proves a live collision.** Whether to drop the
+  `qdb_response_invitation` alternate key (moving submit-dedupe to the
+  token/status guard) so anonymise can null the invitation link in bulk. Do not
+  decide until R1 is measured live.
+
+## C.8 Cross-artifact note (Article XIX)
+
+Every Addendum-C requirement is traced by ID above (FR-CSE-076..082,
+NFR-CSE-011..014). No constitution MUST is contravened: retention and erasure are
+SYSTEM-run and role-gated (Article VII), all identifiers resolve by name/lookup at
+runtime (Article V, ARC-M-001), audit/append-only guarantees are preserved
+(suppression log and responses keep their audit posture; the recommended erasure
+log is append-only). The mechanical gate (`gate-analyze.sh`) and the QA-plan
+reconciliation are to be run by the orchestrator before the CEO Phase-3→4 gate;
+the one CRITICAL-eligible item is R1/OQ-C1's dependency chain, which gates
+*activation of anonymise mode*, not the build.
+
