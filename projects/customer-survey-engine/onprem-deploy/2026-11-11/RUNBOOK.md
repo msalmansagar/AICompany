@@ -34,7 +34,7 @@ A **WARN** needs a named person's decision, written down, before going on.
 |---|---|---|
 | P1 version 9.x | PASS | stop |
 | P2 upload limit ≥ 2,297,873 bytes (the 1.6.1 designer) | PASS | raise **System Settings → Email → Maximum file size** to 5,120 KB, re-run |
-| **P3 Custom APIs supported** (readiness F2) | PASS | **stop**: all seven survey APIs are Custom APIs; the design needs a different binding before this org can take the kit |
+| **P3 Custom APIs supported** (readiness F2) | PASS | **stop**: all eight survey APIs are Custom APIs; the design needs a different binding before this org can take the kit |
 | P4–P7 Form Engine present (tables, icons, plugin, Custom API) | PASS | stop: install or update the Form Engine first |
 | P8 publisher `qdb` with prefix `qdb` / `10000` | PASS | stop: a different publisher owns the prefix |
 | P9 nothing in the kit already exists | PASS on a first install | WARN: find out who created the listed components before importing; the import would merge into them |
@@ -101,7 +101,7 @@ The package carries no trigger steps (readiness F4); activating a source creates
 
 | Check | Pass |
 |---|---|
-| Q1–Q4 solution, 9 tables, 3 roles, app | PASS |
+| Q1–Q4 solution (version 1.1.0.0), 10 tables, 5 roles, app | PASS |
 | **Q5 eight Custom APIs bound to `Qdb.SurveyEngine`** | PASS. If not, open each API in the Plugin Registration Tool and set its plugin type from `Qdb.SurveyEngine.Plugins` (same name without the `qdb_srv_` prefix, e.g. `qdb_srv_GetSurvey` → `GetSurveyPlugin`) |
 | Q6 two dispatch steps enabled, no trigger steps | PASS |
 | Q7 six Form Engine columns | PASS |
