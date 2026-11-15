@@ -399,7 +399,13 @@ No row can move to **Done** yet: every one depends on on-prem import/verificatio
 - **C5** (retention days 730 / mode Delete set per org) — **blocks retention going live** (= B1).
 - **C1/C2** (performance at BRD volumes on 9.1) — must be measured; the budget-and-rerun design fails safe, so these gate go-live only if measurement fails.
 
-## AC-Decisions — for the CEO / QDB Compliance (not answered here)
+## AC-Decisions — for the CEO / QDB Compliance
+
+**Answered by the CEO on 2026-11-15, each as recommended** (recorded in `pdppl-decisions.md`): Decision 1
+**(a)** change history on `qdb_survey_erasure_log` (built in the manifest, commit following this audit; applied on
+each org by provisioning step 4b, and checked on-prem by Q13, which now covers 8 tables); Decision 2: the log is a
+compliance record, Confidential, its retention stated in the D9 sign-off; Decision 3: the change-history residual is
+acknowledged in the D9 sign-off. AUD-C-01 therefore closes once auditing is read back on each org.
 
 **Decision 1 (CEO + Compliance) — tamper-evidence of the DSAR register (AUD-C-01).**
 Options: **(a)** enable table auditing on `qdb_survey_erasure_log` so any delete/edit of a register row is itself logged; **(b)** build the synchronous append-only guard plugin (also closes SEC-03 for the suppression log) to block Update/Delete; **(c)** formally accept the residual with compensating controls (restricted SysAdmin population, periodic export of the register).

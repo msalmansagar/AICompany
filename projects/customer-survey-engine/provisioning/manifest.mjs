@@ -205,9 +205,10 @@ export const TABLES = Object.freeze([
     ],
   },
   // Addendum C OQ-C1 = B: durable append-only DSAR erasure register (FR-CSE-082, NFR-CSE-013).
-  // No isAuditEnabled: this table IS the audit record; audit history of a purely-Create table adds no value.
+  // Change history on (CEO 2026-11-15, audit AUD-C-01): rows are only ever created, so the threat is a
+  // privileged edit or delete, which is exactly what the platform audit records.
   {
-    name: 'qdb_survey_erasure_log', label: 'Survey Erasure Log', pluralLabel: 'Survey Erasure Logs',
+    name: 'qdb_survey_erasure_log', label: 'Survey Erasure Log', pluralLabel: 'Survey Erasure Logs', isAuditEnabled: true,
     description: 'Append-only DSAR erasure register. One row per qdb_srv_EraseCustomerSurveyData execution (NFR-CSE-013).',
     columns: [
       // Stored as a plain string so the caller identity is preserved even if the system-user record is later deleted.

@@ -38,12 +38,11 @@ test('roles_surveyDataOfficer_isDistinctFromSurveyIntegration', () => {
   assert.notEqual(DATA_OFFICER_ROLE_NAME, SCHEDULER_ROLE_NAME);
 });
 
-// The erasure log is itself the compliance record; audit history of a purely-Create table adds no value
-// and is not part of the CEO AUD-01 grant (which covers rule tables, invitations and the suppression log).
-test('tables_erasureLog_isNotAuditEnabledAsItIsItselfAComplianceRecord', () => {
+// The erasure log is the evidence of record; change history makes a privileged edit or delete visible (AUD-C-01).
+test('tables_erasureLog_isAuditEnabledSoTamperingIsRecorded', () => {
   const log = TABLES.find((table) => table.name === 'qdb_survey_erasure_log');
   assert.ok(log, 'qdb_survey_erasure_log table missing from manifest');
-  assert.ok(log.isAuditEnabled !== true, 'erasure log is a compliance record; enabling audit history on it adds no value');
+  assert.equal(log.isAuditEnabled, true);
 });
 
 test('tables_erasureLog_keepsTheCustomerAsTextWithNoLookup', () => {
@@ -130,10 +129,11 @@ test('roles_surveyScheduler_nameMatchesThePluginCheck', () => {
 
 // CEO 2026-11-14 (audit AUD-01, checklist B9): change history on the rule tables, invitations and the
 // suppression log, but not on responses or answers, whose history would keep anonymised answers (PDPPL).
-test('tables_auditHistory_isOnForRulesAndInvitationsOnly', () => {
+// CEO 2026-11-15 (audit AUD-C-01): also on the erasure log, so a privileged edit or delete is recorded.
+test('tables_auditHistory_isOnForRulesInvitationsAndTheErasureLogOnly', () => {
   const audited = TABLES.filter((table) => table.isAuditEnabled === true).map((table) => table.name).sort();
 
-  assert.deepEqual(audited, ['qdb_survey_invitation', 'qdb_survey_settings', 'qdb_survey_setup', 'qdb_survey_sms_config', 'qdb_survey_source', 'qdb_survey_suppression_log', 'qdb_survey_trigger']);
+  assert.deepEqual(audited, ['qdb_survey_erasure_log', 'qdb_survey_invitation', 'qdb_survey_settings', 'qdb_survey_setup', 'qdb_survey_sms_config', 'qdb_survey_source', 'qdb_survey_suppression_log', 'qdb_survey_trigger']);
 });
 
 test('roles_suppressionLog_isNeverWritableOrDeletable', () => {

@@ -43,6 +43,16 @@ The questions in `onprem-deploy/2026-11-11/config/` (`HL.json`, `BFD.json`, READ
 | BFD-02, BFD-03 | **Left with QDB** (business owner and QDB1 CRM administrator) |
 | HL-07..HL-11, BFD-07..BFD-09, E1, B4, B5 | **Left with QDB** (SMS service owner, QDB IT, portal team). Secure links are off at release 1; these are answered before switching them on |
 
+## Audit decisions on the erasure build (2026-11-15)
+
+The Addendum C audit (`phase-6-audit.md`) raised three points. The CEO answered each as recommended:
+
+| Finding | Decision |
+|---|---|
+| AUD-C-01: the erasure log is not tamper-evident against a System Administrator | **Change history on `qdb_survey_erasure_log`**, so an edit or delete of a log row is itself recorded |
+| AUD-C-02: the erasure log keeps erased customers' IDs with no retention of its own | **Kept as a compliance record** under its own legal basis, classified **Confidential** (added to D1); its retention period is stated in the D9 sign-off |
+| CMP-C-01: invitation change history keeps an erased customer's identity until it ages out (≥ 24 months, D6) | **Acknowledged as a time-limited residual** in the D9 sign-off and in erasure-request responses; no code change |
+
 ## What this leaves with QDB
 
 - QDB Compliance's written sign-off (D9), after items 2 and 3 are built.
