@@ -101,3 +101,35 @@ test('buildStepPayload_dispatchUpdate_isNamedForTheDispatchPluginAndFilteredToSt
 test('stepName_isStable_soReRunsFindTheExistingStep', () => {
   assert.equal(stepName('Update', 'qdb_cheque_clearing'), 'Qdb.SurveyEngine.Plugins.SurveyTriggerPlugin: Async Update of qdb_cheque_clearing');
 });
+
+// ── Addendum C: qdb_srv_EraseCustomerSurveyData and new parameter builders ──
+
+test('buildCustomApiPayload_eraseCustomerSurveyData_hasThreeRequiredInputsWithGuidIntegerBoolean', () => {
+  const payload = buildCustomApiPayload(apiNamed('qdb_srv_EraseCustomerSurveyData'), 'type-id');
+
+  // CustomerGuid (guid=12), Mode (integer=7), DryRun (boolean=0); all required (isoptional=false).
+  assert.deepEqual(payload.CustomAPIRequestParameters.map((p) => [p.uniquename, p.type, p.isoptional]),
+    [['CustomerGuid', 12, false], ['Mode', 7, false], ['DryRun', 0, false]]);
+});
+
+test('buildCustomApiPayload_eraseCustomerSurveyData_hasSixOutputsIncludingIsComplete', () => {
+  const payload = buildCustomApiPayload(apiNamed('qdb_srv_EraseCustomerSurveyData'), 'type-id');
+
+  assert.deepEqual(payload.CustomAPIResponseProperties.map((p) => [p.uniquename, p.type]), [
+    ['InvitationCount', 7], ['ResponseCount', 7], ['AnswerCount', 7], ['SuppressionLogCount', 7],
+    ['AreActual', 0], ['IsComplete', 0],
+  ]);
+});
+
+test('buildCustomApiPayload_eraseCustomerSurveyData_isUnboundAndBoundToErasePlugin', () => {
+  const payload = buildCustomApiPayload(apiNamed('qdb_srv_EraseCustomerSurveyData'), 'erase-id');
+
+  assert.equal(payload.uniquename, 'qdb_srv_EraseCustomerSurveyData');
+  assert.equal(payload.bindingtype, 0);
+  assert.equal(payload['PluginTypeId@odata.bind'], '/plugintypes(erase-id)');
+});
+
+test('describeSignature_eraseCustomerSurveyData_listsAllParameters', () => {
+  assert.equal(describeSignature(apiNamed('qdb_srv_EraseCustomerSurveyData')),
+    'CustomerGuid, Mode, DryRun → InvitationCount, ResponseCount, AnswerCount, SuppressionLogCount, AreActual, IsComplete');
+});

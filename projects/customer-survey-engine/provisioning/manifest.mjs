@@ -12,7 +12,7 @@
 export const SOLUTION = Object.freeze({
   uniqueName: 'SurveyEngine',
   friendlyName: 'Survey Engine',
-  version: '1.0.0.0',
+  version: '1.1.0.0',
   // The publisher of QdbDynamicFormEngine. Four publishers share the qdb prefix on the cloud org,
   // so it is pinned by unique name; on-prem orgs must carry the same publisher or the kit fails.
   publisherUniqueName: 'qdb',
@@ -204,6 +204,31 @@ export const TABLES = Object.freeze([
       boolean('qdb_is_active', 'Is Active', false),
     ],
   },
+  // Addendum C OQ-C1 = B: durable append-only DSAR erasure register (FR-CSE-082, NFR-CSE-013).
+  // No isAuditEnabled: this table IS the audit record; audit history of a purely-Create table adds no value.
+  {
+    name: 'qdb_survey_erasure_log', label: 'Survey Erasure Log', pluralLabel: 'Survey Erasure Logs',
+    description: 'Append-only DSAR erasure register. One row per qdb_srv_EraseCustomerSurveyData execution (NFR-CSE-013).',
+    columns: [
+      // Stored as a plain string so the caller identity is preserved even if the system-user record is later deleted.
+      string('qdb_caller_id', 'Caller', 100),
+      // The customer GUID as plain text, with no lookup: it stays as evidence after the customer record is
+      // deleted, and the log adds no navigable path back to the person it erased.
+      string('qdb_customer_guid', 'Customer GUID', 100),
+      // 100000000 = Delete, 100000001 = Anonymise; same values as ErasureMode enum in the plugin.
+      integer('qdb_mode', 'Erasure Mode'),
+      boolean('qdb_dry_run', 'Dry Run', false),
+      integer('qdb_invitation_count', 'Invitation Count', { min: 0, max: 2147483647 }),
+      integer('qdb_response_count', 'Response Count', { min: 0, max: 2147483647 }),
+      integer('qdb_answer_count', 'Answer Count', { min: 0, max: 2147483647 }),
+      integer('qdb_suppression_log_count', 'Suppression Log Count', { min: 0, max: 2147483647 }),
+      // true in live mode (counts are of rows actually erased); false in dry-run (counts are found rows).
+      boolean('qdb_are_actual', 'Are Actual', false),
+      // false when the time budget ran out mid-run; re-invoke qdb_srv_EraseCustomerSurveyData until true.
+      boolean('qdb_is_complete', 'Is Complete', false),
+      dateTime('qdb_logged_on', 'Logged On'),
+    ],
+  },
 ]);
 
 /**
@@ -230,6 +255,8 @@ export const RELATIONSHIPS = Object.freeze([
   { lookup: 'qdb_survey_setup_id', label: 'Survey Setup', from: 'qdb_survey_suppression_log', to: 'qdb_survey_setup', cascade: 'RemoveLink' },
   // B7: the queue survey emails are sent from; empty = no email (FR-CSE-049).
   { lookup: 'qdb_email_sender_queue_id', label: 'Email Sender Queue', from: 'qdb_survey_settings', to: 'queue', cascade: 'RemoveLink' },
+  // Addendum C OQ-C1 = B: navigable customer links on the erasure log (RemoveLink so deleting the customer
+  // row does not cascade-delete the compliance log; qdb_customer_guid preserves the durable GUID string).
 ]);
 
 /** Alternate keys enforce uniqueness the plugins rely on (NFR-CSE-002, section 4.4/4.5). */
@@ -248,6 +275,9 @@ const EXPORT_TO_EXCEL = Object.freeze({ name: 'prvExportToExcel' });
 
 /** The role qdb_srv_RunDueSurveys admits besides System Administrator; must equal SchedulerAccessCheck.SurveySchedulerRoleName. */
 export const SCHEDULER_ROLE_NAME = 'Survey Scheduler';
+
+/** The role qdb_srv_EraseCustomerSurveyData admits besides System Administrator; must equal ErasureAccessCheck.SurveyDataOfficerRoleName. */
+export const DATA_OFFICER_ROLE_NAME = 'Survey Data Officer';
 
 /**
  * Roles (section 11.1). Response and Answer content is readable ONLY by Survey Analyst and the
@@ -308,5 +338,17 @@ export const ROLES = Object.freeze([
     // all, before the plugin runs; it cannot be tested from here (security review SUSPECTED-001).
     name: SCHEDULER_ROLE_NAME,
     privileges: [{ table: 'organization', rights: ['Read'] }],
+  },
+  {
+    // Addendum C FR-CSE-082, ADR-008: least-privilege DSAR operations role (OQ-C1 = B, 2026-11-15).
+    // qdb_srv_EraseCustomerSurveyData admits it by name (ErasureAccessCheck.cs) and runs as SYSTEM,
+    // so the role grants no survey or customer table rights beyond the platform minimum (organization Read)
+    // and read of the erasure log so Compliance staff can query the DSAR register directly.
+    // Never assign to the portal integration account (FR-CSE-082 AC5).
+    name: DATA_OFFICER_ROLE_NAME,
+    privileges: [
+      { table: 'organization', rights: ['Read'] },
+      { table: 'qdb_survey_erasure_log', rights: ['Read'] },
+    ],
   },
 ]);

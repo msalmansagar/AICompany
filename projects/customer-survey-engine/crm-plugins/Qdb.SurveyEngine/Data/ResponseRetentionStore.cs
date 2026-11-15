@@ -46,6 +46,10 @@ namespace Qdb.SurveyEngine.Data
                 ["qdb_name"] = AnonymisedName,
                 [_customer.LookupColumn] = null,
                 ["qdb_answers_json"] = null,
+                // FR-CSE-079 / Addendum C.2.1: sever every remaining link to a customer identifier.
+                ["qdb_survey_invitation_id"] = null,
+                ["qdb_source_table"] = null,
+                ["qdb_source_record_id"] = null,
             });
         }
 

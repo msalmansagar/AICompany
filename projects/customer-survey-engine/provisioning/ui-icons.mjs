@@ -62,6 +62,12 @@ export const ICONS = Object.freeze({
     svg: svg(`<rect x="3" y="2.5" width="8" height="15" rx="1.5" ${STROKE}/><line x1="6" y1="15" x2="8" y2="15" ${STROKE}/>`
       + `<path d="M12.5 5.5h4a1 1 0 0 1 1 1v3.5a1 1 0 0 1-1 1h-1.5l-2 1.5v-1.5h-.5a1 1 0 0 1-1-1V6.5a1 1 0 0 1 1-1z" ${STROKE}/>`),
   },
+  // Addendum C OQ-C1 = B: durable DSAR erasure register. Icon: document with a shield overlay.
+  qdb_survey_erasure_log: {
+    label: 'Survey Erasure Log',
+    svg: svg(`<path d="M5 2.5h7l3.5 3.5V17.5H5z" ${STROKE}/><polyline points="12,2.5 12,6 15.5,6" ${STROKE}/>`
+      + `<path d="M10 9.5c-2 0-3.5 1-3.5 1v2.5c0 1.4 1.5 2.5 3.5 2.5s3.5-1.1 3.5-2.5V10.5s-1.5-1-3.5-1z" ${STROKE}/>`),
+  },
 });
 
 /** The web resource name for a table's icon, matching the Form Engine's qdb_icon_<name> convention. */

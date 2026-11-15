@@ -7,7 +7,7 @@ using Qdb.SurveyEngine.Scheduling;
 namespace Qdb.SurveyEngine.Tests
 {
     /// <summary>In-memory scheduling collaborators over an <see cref="InMemorySurveyStore"/>, so the daily job runs for real.</summary>
-    public sealed class InMemorySchedulingStore : IScheduledTriggerRepository, ICustomerPopulationReader, IScheduledInvitationReader, IPostponedInvitationStore, IResponseRetentionStore
+    public sealed class InMemorySchedulingStore : IScheduledTriggerRepository, ICustomerPopulationReader, IScheduledInvitationReader, IPostponedInvitationStore, IResponseRetentionStore, IInvitationRetentionStore, ISuppressionLogRetentionStore
     {
         private readonly InMemorySurveyStore _pipeline;
 
@@ -29,6 +29,15 @@ namespace Qdb.SurveyEngine.Tests
         public Dictionary<Guid, Tuple<DateTime, bool>> Responses { get; } = new Dictionary<Guid, Tuple<DateTime, bool>>();
         public List<Guid> Deleted { get; } = new List<Guid>();
         public List<Guid> Anonymised { get; } = new List<Guid>();
+
+        /// <summary>Invitation id → generated-on date; populated by retention extension tests.</summary>
+        public Dictionary<Guid, DateTime> InvitationGeneratedOn { get; } = new Dictionary<Guid, DateTime>();
+
+        /// <summary>Suppression log id → created-on date; populated by retention extension tests.</summary>
+        public Dictionary<Guid, DateTime> SuppressionLogCreatedOn { get; } = new Dictionary<Guid, DateTime>();
+
+        public List<Guid> DeletedInvitations { get; } = new List<Guid>();
+        public List<Guid> DeletedSuppressionLogs { get; } = new List<Guid>();
 
         public IReadOnlyList<SurveyTrigger> GetActiveScheduledTriggers() => ScheduledTriggers;
 
@@ -66,13 +75,27 @@ namespace Qdb.SurveyEngine.Tests
         public IReadOnlyList<Guid> FindIdentifiedSubmittedBefore(DateTime cutoffUtc) =>
             Responses.Where(r => r.Value.Item1 < cutoffUtc && r.Value.Item2).Select(r => r.Key).ToList();
 
-        public void Delete(Guid responseId) => Deleted.Add(responseId);
+        // IResponseRetentionStore — explicit to avoid ambiguity with the two other Delete(Guid) methods.
+        void IResponseRetentionStore.Delete(Guid responseId) => Deleted.Add(responseId);
 
         public void Anonymise(Guid responseId) => Anonymised.Add(responseId);
 
+        // IInvitationRetentionStore
+        IReadOnlyList<Guid> IInvitationRetentionStore.FindGeneratedBefore(DateTime cutoffUtc) =>
+            InvitationGeneratedOn.Where(kv => kv.Value < cutoffUtc).Select(kv => kv.Key).ToList();
+
+        void IInvitationRetentionStore.Delete(Guid invitationId) => DeletedInvitations.Add(invitationId);
+
+        // ISuppressionLogRetentionStore
+        IReadOnlyList<Guid> ISuppressionLogRetentionStore.FindCreatedBefore(DateTime cutoffUtc) =>
+            SuppressionLogCreatedOn.Where(kv => kv.Value < cutoffUtc).Select(kv => kv.Key).ToList();
+
+        void ISuppressionLogRetentionStore.Delete(Guid suppressionLogId) => DeletedSuppressionLogs.Add(suppressionLogId);
+
         public RunDueSurveysDependencies AsDependencies() => new RunDueSurveysDependencies
         {
-            Pipeline = _pipeline.AsDependencies(), ScheduledTriggers = this, Population = this, ScheduledInvitations = this, Postponed = this, Retention = this,
+            Pipeline = _pipeline.AsDependencies(), ScheduledTriggers = this, Population = this, ScheduledInvitations = this, Postponed = this,
+            Retention = this, InvitationRetention = this, SuppressionLogRetention = this,
         };
     }
 }

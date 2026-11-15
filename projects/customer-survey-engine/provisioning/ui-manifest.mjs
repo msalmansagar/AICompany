@@ -48,6 +48,12 @@ export const VIEWS = Object.freeze([
     columns: [['qdb_logged_on', 140], ['qdb_reason', 140], ['qdb_customer_id', 200], ['qdb_customer_contact_id', 200], ['qdb_survey_setup_id', 180], ['qdb_detail', 400]],
     filters: [['qdb_logged_on', 'last-x-days', 30]], order: { attribute: 'qdb_logged_on', descending: true },
   },
+  // Addendum C OQ-C1 = B: DSAR erasure register results view, readable by Survey Data Officer (NFR-CSE-013).
+  {
+    table: 'qdb_survey_erasure_log', name: 'Survey Erasure Log - All', description: 'All DSAR erasure executions, newest first (NFR-CSE-013, OQ-C1 = B).', isDefault: true,
+    columns: [['qdb_logged_on', 140], ['qdb_caller_id', 160], ['qdb_customer_guid', 260], ['qdb_mode', 110], ['qdb_dry_run', 80], ['qdb_are_actual', 90], ['qdb_is_complete', 90]],
+    order: { attribute: 'qdb_logged_on', descending: true },
+  },
   // Survey health (architecture approval, resolution 6): the async trigger and dispatch plugins
   // let unexpected errors through, so the platform records them as Failed system jobs; a job
   // that keeps hitting transient errors ends Suspended. Not the default system-job view: the app

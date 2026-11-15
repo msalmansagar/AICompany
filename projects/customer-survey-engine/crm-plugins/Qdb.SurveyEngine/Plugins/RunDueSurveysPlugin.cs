@@ -75,6 +75,8 @@ namespace Qdb.SurveyEngine.Plugins
                 ScheduledInvitations = new ScheduledInvitationReader(service),
                 Postponed = new PostponedInvitationStore(service, customer),
                 Retention = new ResponseRetentionStore(service, customer),
+                InvitationRetention = new InvitationRetentionStore(service),
+                SuppressionLogRetention = new SuppressionLogRetentionStore(service),
             });
         }
     }

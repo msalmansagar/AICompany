@@ -90,8 +90,27 @@ namespace Qdb.SurveyEngine.Scheduling
         /// <summary>Deletes the response; its answers go with it (cascade).</summary>
         void Delete(Guid responseId);
 
-        /// <summary>Clears the customer, the answers JSON and every answer's text; numeric answers stay for reporting.</summary>
+        /// <summary>Clears PII fields: customer, invitation link, source table/record, answers JSON and each answer text.</summary>
         void Anonymise(Guid responseId);
+    }
+
+    /// <summary>Finds and deletes invitation rows past the retention floor (FR-CSE-076).</summary>
+    public interface IInvitationRetentionStore
+    {
+        /// <summary>Invitation ids whose qdb_generated_on is older than the cutoff, ordered oldest first.</summary>
+        IReadOnlyList<Guid> FindGeneratedBefore(DateTime cutoffUtc);
+
+        /// <summary>Deletes the invitation; its responses and answers go with it (cascade).</summary>
+        void Delete(Guid invitationId);
+    }
+
+    /// <summary>Finds and deletes suppression-log rows past the retention floor (FR-CSE-077).</summary>
+    public interface ISuppressionLogRetentionStore
+    {
+        /// <summary>Suppression log ids whose createdon is older than the cutoff, ordered oldest first.</summary>
+        IReadOnlyList<Guid> FindCreatedBefore(DateTime cutoffUtc);
+
+        void Delete(Guid suppressionLogId);
     }
 
     /// <summary>All collaborators of <see cref="RunDueSurveysService"/>.</summary>
@@ -104,6 +123,12 @@ namespace Qdb.SurveyEngine.Scheduling
         public IScheduledInvitationReader ScheduledInvitations { get; set; }
         public IPostponedInvitationStore Postponed { get; set; }
         public IResponseRetentionStore Retention { get; set; }
+
+        /// <summary>Deletes invitation rows past the floor (FR-CSE-076, Addendum C).</summary>
+        public IInvitationRetentionStore InvitationRetention { get; set; }
+
+        /// <summary>Deletes suppression-log rows past the floor (FR-CSE-077, Addendum C).</summary>
+        public ISuppressionLogRetentionStore SuppressionLogRetention { get; set; }
     }
 
     /// <summary>
