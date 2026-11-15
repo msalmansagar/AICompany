@@ -5,7 +5,7 @@
 | Prepared by | MSS Technologies, Business Analyst |
 | Amends | `phase-2-ba.md` v1.3 (v1.1 + Addenda A and B) → becomes v1.4 when this addendum is approved |
 | Date | 2026-11-15 |
-| Status | **DRAFT — Pending CEO Approval** |
+| Status | **APPROVED by the CEO 2026-11-15** (BRD v1.4) |
 | Trigger | CEO answered the PDPPL Decision Pack (`pdppl-decisions.md`) on 2026-11-15, confirming D3, D4, D7 and D8. Those four decisions change what the engine promises, so they require a BRD addendum and CEO approval before any build. |
 
 ---
@@ -242,7 +242,7 @@ Recommendation: **Option A.** The append-only constraint on the suppression log 
 
 | Role | Name | Decision | Date |
 |---|---|---|---|
-| CEO | Pending | PENDING | |
+| CEO | CEO | **APPROVED** (OQ-PDR-01 A, 02 B, 03 A) | 2026-11-15 |
 | Requestor | Pending | PENDING | |
 
 This addendum must be CEO-approved before design or code begins. It becomes v1.4 of the BRD on approval.
