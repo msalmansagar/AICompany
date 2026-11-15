@@ -1075,7 +1075,9 @@ build proceeds either way and the decision is a data/provisioning switch.
 | R4 | Plugin trace log too ephemeral/admin-only for multi-year DSAR evidence (NFR-CSE-013) | Medium — evidence gap | **OQ-C1** below |
 | R5 | BR-PDR-04 cascade deletes a boundary response a few days early | Low — de-minimis | Accepted (BA); QA covers in boundary cases |
 
-**Open questions for the CEO (not answered here):**
+**Open questions for the CEO.** Answered 2026-11-15: **OQ-C1 Option B** (trace line plus the durable,
+append-only `qdb_survey_erasure_log` table, which is built in this addendum) and **OQ-C2 Option A** (the
+`IsComplete` output is accepted). OQ-C3 stays open until R1 is measured on a live org.
 
 - **OQ-C1 — DSAR evidence durability.** NFR-CSE-013 mandates only a plugin trace
   entry. *Option A:* trace line only (as written; cheap, but ephemeral and
