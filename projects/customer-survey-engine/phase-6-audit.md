@@ -332,3 +332,132 @@ unverified: On-prem HL/QDB1 org state (org-level audit, 9.1 Custom-API support, 
 ---
 
 *MEMORY-CANDIDATE:* For regulated-client CRM engagements, verify **table-level `IsAuditEnabled`** per entity with a direct `EntityDefinitions` read, not org-level `isauditenabled` — org auditing can be on while every custom table's auditing is off (CanBeChanged=true), leaving rule/config changes with no chain of custody. Provisioning manifests that create tables do not enable auditing by default; it must be set explicitly and read back per target org. (Source: CSE-ENG-001 Phase 6, AUD-01, 2026-11-14.)
+
+---
+
+# Addendum C — Audit: PDPPL Retention, Anonymise Fix and Erasure API (BRD v1.4)
+
+| | |
+|---|---|
+| Prepared by | Auditor & Governance (MSS) |
+| Date | 2026-11-15 |
+| Branch | `feat/survey-pdppl-erasure` (commits `9d5bb71e`..`72dfb76d`); not merged |
+| Scope | The Addendum C delta only: `RetentionPass` three-step extension (FR-CSE-076..078), the anonymise fix (FR-CSE-079/080), the `qdb_srv_EraseCustomerSurveyData` erasure API and `Survey Data Officer` role (FR-CSE-081/082), the `qdb_survey_erasure_log` register (OQ-C1=B), and the Q14 on-prem check. This addendum is written to close prior findings **CMP-02, CMP-03** and to assess the **CMP-06** posture. Release 1 remains **on-prem 9.1, HL CRM (contacts) + BFD CRM / QDB1 (accounts)**. |
+| Method | Direct source reads of the delivered code and provisioning manifest (cited `file:line`), cross-read against the BA addendum, ADR-008, the architecture Addendum C and QA Addendum C. No live-org write; no on-prem org reachable from here (same constraint as the base audit). |
+| Verdict | **CLEARED WITH CONDITIONS** (see AC-Verdict). |
+
+## AC-Status of the findings this addendum was built to close
+
+| Prior finding | Prior state | New state after Addendum C |
+|---|---|---|
+| **CMP-02** — anonymised response re-identifiable (source pointer + invitation link retained) | HIGH, BLOCKING (B3) | **Resolved in build.** `ResponseRetentionStore.Anonymise` now nulls `qdb_survey_invitation_id`, `qdb_source_table`, `qdb_source_record_id` in addition to name/customer/`qdb_answers_json`/answer text (`Data/ResponseRetentionStore.cs:44-54`). One anonymise path serves both the daily pass and the erasure API. Live-verified on the cloud org (QA e2e A2, 16/16). **Residual:** not reverified on on-prem 9.1, and the alternate-key null behaviour (R1/C3/DEF-QA-C-001) is unproven on 9.1 — if 9.1 does not treat nulls as index-excluded, the anonymise batch fails with a 412 and the fix does not hold on-prem. CMP-02 closes to production only on C3. |
+| **CMP-03** — retention covers responses only; no per-customer erasure | HIGH, BLOCKING (B7) | **Resolved in build.** `RetentionPass` is now a three-step stage (responses → invitations → suppression logs) with runtime floors (`Scheduling/RetentionPass.cs:15-18,44-84`), and `qdb_srv_EraseCustomerSurveyData` provides the per-customer DSAR path (`Erasure/CustomerErasureService.cs`, `Plugins/EraseCustomerSurveyDataPlugin.cs`). **Residual:** not imported or measured on either on-prem org (C1/C2); DSAR procedure not yet in the runbook (C4). CMP-03 closes to production on C1/C2/C4 + the B2 sign-off. |
+| **CMP-06** — secure-link plaintext token + contact data persist in CRM activity rows | MEDIUM (B4), channel off at release 1 | **Unchanged / not in scope.** Addendum C touches no secure-link path; the channel stays off at release 1. CMP-06 remains open under B4, deferred to channel enablement. No regression. |
+
+## AC-1 Findings
+
+Each: ID, severity, release-blocking?, confidence, recommendation. Only >80%-confidence findings reported.
+
+| ID | Severity | Blocking? | Confidence | Finding (one line) | Recommendation |
+|---|---|---|---|---|---|
+| **AUD-C-01** | MEDIUM | Not on its own; **becomes a condition** | 92% | The DSAR register `qdb_survey_erasure_log` — the authoritative evidence per NFR-CSE-013 / OQ-C1=B — is **neither tamper-evident nor truly append-only**. Table-level auditing is deliberately OFF (`manifest.mjs:208`), and no role or guard plugin prevents a System Administrator from updating or deleting rows (Survey Data Officer correctly holds Read-only `:351`; but SysAdmin is unconstrained — same gap class as SEC-03/AUD-01). The register a regulator may cite years later can be silently altered or erased with no trace. The manifest's reasoning ("audit history of a purely-Create table adds no value") is mistaken for this case: it is precisely the *delete* of a create-only row that audit history would catch. | Enable `isAuditEnabled` on `qdb_survey_erasure_log` (cheapest tamper-evidence; logs any delete/edit of the register), **or** build the append-only guard plugin (the one SEC-03 also wants), **or** have the CEO/Compliance formally record it as an accepted residual. A compliance register must resist the privileged insider it exists to document. **CEO/Compliance decision — see AC-Decisions #1.** |
+| **AUD-C-02** | LOW | No — **Compliance decision** | 85% | The erasure register has **no retention of its own** and stores the erased customer's GUID as plain text indefinitely (`ErasureLogWriter.cs:38`, `manifest.mjs:217`). This is defensible as a compliance-demonstration record, but it is an unbounded retention of a (pseudonymous) customer identifier that D1–D9 and the Survey Settings retention do **not** cover, and the D1 graduated classification does not list this new table. | Compliance to confirm the register is retained under a distinct legal basis (demonstrating PDPPL compliance), state its retention explicitly (or "indefinite, justified") in the D9 sign-off, and add `qdb_survey_erasure_log` to the D1 classification (extend B1 scope). **Compliance decision — see AC-Decisions #2.** |
+| **CMP-C-01** | LOW | No — documented residual | 90% | **Anonymise/erasure leave a re-identification window in CRM change history.** B9 enabled table auditing on `qdb_survey_invitation` (and suppression log). An invitation carries the customer lookup and embeds the customer GUID in its dedupe key; deleting or clearing it during anonymise/erasure writes the *prior* values into the audit log, where they persist until the audit-log retention (D6, ≥24 months, set by QDB IT) ages them out. So an "erased" customer stays reconstructable from change history for up to that window. The BA addendum §8 lists platform change history as out of scope, but the **conflict between B9 (chain-of-custody → auditing on) and anonymise/erasure (re-identification → auditing off)** is not surfaced to Compliance. (Response/answer auditing is correctly OFF, so the anonymised response row itself leaves no such trail.) | Fold the residual explicitly into the D9 sign-off: state that invitation change history retains customer-linked values for the audit-log retention window after erasure, and have Compliance confirm this is acceptable. No code change. **Compliance awareness — see AC-Decisions #3.** |
+| **SEC-C-01** | LOW | No (accepted as R6) | 85% | The erasure endpoint is reachable by **any** CRM user; `isprivate` only hides metadata and does not restrict callers, so the in-code `ErasureAccessCheck` is the sole gate. Accepted 2026-11-15 (arch R6) as it is true of every Custom API in the solution. **Mitigations verified:** the check runs **before** any input is read (`EraseCustomerSurveyDataPlugin.cs:40-42`, SEC-003), it is pinned by unit tests, and dry-run is not a bypass (same check). FR-CSE-082 AC5 verified: the two roles are separate in the manifest and Survey Integration does not hold Survey Data Officer. | None required; retain the accepted-risk record. Revisit only if 9.1 is proven to honour `executeprivilegename`. |
+| **SEC-C-02** | LOW | No (accepted as R7) | 85% | `ErasureAccessCheck` matches `Survey Data Officer` **by name** (`ErasureAccessCheck.cs:32`), so a role of that name created in another business unit also passes. Detective control only: Q14 (`checkDataOfficerRole`) flags a second independent root role at post-import. | Keep Q14 in `postImport` and run it **periodically** (as Q12 for Survey Scheduler). This is part of runbook condition C4 (DEF-QA-C-004) — ensure the periodic-Q14 instruction is actually written. |
+| **GOV-C-01** | INFO | No — positive | 95% | **Workflow ran in order and the CEO decisions are recorded.** Commit order is BRD addendum draft → CEO approval (BRD v1.4) → GitHub research → architecture + ADR-008 → CEO answers OQ-C1/C2 → build → review fixes → QA. CEO decisions are captured in `pdppl-decisions.md` (D1–D9), the BRD addendum approval table (OQ-PDR-01/02/03), and commit `a6954843` (OQ-C1=B, OQ-C2=A). No new-feature gate was skipped. | None. |
+| **GOV-C-02** | INFO | No — positive | 95% | **Least-privilege is correctly applied** to the new surface. `Survey Data Officer` holds only `organization` Read + `qdb_survey_erasure_log` Read (`manifest.mjs:348-353`); the erasure runs as SYSTEM so the role grants no survey/customer table rights. This is the SEC-01/`Survey Scheduler` pattern applied cleanly, and separates DSAR execution from full administration per OQ-PDR-02. | None. |
+
+## AC-2 OWASP delta (Addendum C surface only)
+
+- **A01 Broken Access Control** — the erasure endpoint adds a SYSTEM-level destructive operation gated only by the in-code check (SEC-C-01, accepted R6). Access check precedes input validation; dry-run is not a bypass. Net: controlled, with the standing Custom-API caveat.
+- **A08 / A09 Integrity & Logging** — the new DSAR register improves evidence (durable, append-only-by-role, written before mutation), but is **not tamper-evident against a sysadmin** (AUD-C-01) — the one material OWASP gap introduced by this addendum. Pairs with the existing AUD-01 theme.
+- No new injection, crypto, or SSRF surface: the erasure plugin makes no outbound calls, uses typed `QueryExpression`/`ConditionExpression` (no string SQL/FetchXML concatenation in the new data paths), validates `Mode` at the boundary, and writes no PII to traces (the trace line carries GUIDs and counts only).
+
+## AC-3 Compliance status (PDPPL)
+
+- **Retention & storage limitation (CMP-03):** now met in code for responses, invitations and suppression logs, with runtime floors that protect fatigue/milestone reads. The register itself is the one table with unbounded retention (AUD-C-02).
+- **Anonymisation (CMP-02):** now removes every one-hop re-identifier on the response row. Residual re-identification is via platform change history only (CMP-C-01), which is a documented, Compliance-acknowledged residual rather than a code defect.
+- **Data-subject rights / erasure (CMP-03):** a per-customer DSAR path now exists (dry-run → review → live → re-invoke until `IsComplete`), SYSTEM-run, role-gated, idempotent, both customer tables via `CustomerLink`.
+- **Data classification (D1):** does not yet name `qdb_survey_erasure_log` (AUD-C-02); extend under B1.
+- **Written sign-off (B2/D9):** the D7/D8 builds that D9 waits on are complete and cloud-verified but not on-prem-verified; the sign-off remains outstanding.
+
+## AC-4 Checklist status changes recommended (`go-live-checklist.md`)
+
+| Row | Current | Recommended | Reason |
+|---|---|---|---|
+| **B3** (anonymise re-identifiers) | Partial | **Build complete; closes on C3 + B2.** Keep Partial until the alternate-key null behaviour is reverified on on-prem 9.1 (C3/DEF-QA-C-001) and sign-off lands. | CMP-02 resolved in build and cloud-verified; on-prem reverify outstanding. |
+| **B7** (retention + erasure beyond responses + DSAR procedure) | Partial | **Build complete; stays Partial.** Closes on C1/C2 (on-prem measurement), C4 (runbook DSAR procedure), and the B2 sign-off. | CMP-03 resolved in build; procedure doc and on-prem measurement outstanding. |
+| **B1** (retention classification + set days/mode) | Partial | **Stays Partial; widen scope.** Add `qdb_survey_erasure_log` to the D1 classification (AUD-C-02); unchanged dependency on each org setting 730/Delete. | New table not in the classification; org values still unset (C5). |
+| **B2** (PDPPL sign-off) | Open | **Stays Open.** D7/D8 now built and cloud-verified; still gated on on-prem verification then the written sign-off. | D9 sign-off is issued after verification; on-prem not yet done. |
+
+No row can move to **Done** yet: every one depends on on-prem import/verification (C1–C3, C5), the runbook (C4), and/or the written sign-off (B2) — all genuinely outstanding.
+
+**QA conditions that MUST block production** (from QA Addendum C C1–C5):
+- **C3** (R1 alternate-key null on 9.1) — **blocks activation of anonymise mode** on any production org; if it collides, CMP-02 is not actually closed on-prem.
+- **C4** (runbook: DSAR procedure, unpaired-started-row guidance, periodic Q14) — **blocks the erasure feature**; without it Compliance cannot process a DSAR correctly and NFR-CSE-013 evidence use is undefined.
+- **C5** (retention days 730 / mode Delete set per org) — **blocks retention going live** (= B1).
+- **C1/C2** (performance at BRD volumes on 9.1) — must be measured; the budget-and-rerun design fails safe, so these gate go-live only if measurement fails.
+
+## AC-Decisions — for the CEO / QDB Compliance (not answered here)
+
+**Decision 1 (CEO + Compliance) — tamper-evidence of the DSAR register (AUD-C-01).**
+Options: **(a)** enable table auditing on `qdb_survey_erasure_log` so any delete/edit of a register row is itself logged; **(b)** build the synchronous append-only guard plugin (also closes SEC-03 for the suppression log) to block Update/Delete; **(c)** formally accept the residual with compensating controls (restricted SysAdmin population, periodic export of the register).
+*MSS recommendation:* **(a)** — lowest cost, directly tamper-evident, consistent with the B9 decision for the other integrity-sensitive tables; optionally plus (b) later for defence in depth.
+
+**Decision 2 (Compliance) — retention and classification of the register (AUD-C-02).**
+The register retains the erased customer's GUID indefinitely. Confirm the legal basis (compliance demonstration), state a retention for the register (or record it as indefinite-and-justified) in the D9 sign-off, and add `qdb_survey_erasure_log` to the D1 classification.
+*MSS recommendation:* retain as a compliance record under a distinct basis, classify **Confidential**, retention explicitly stated in the sign-off.
+
+**Decision 3 (Compliance) — change-history re-identification residual (CMP-C-01).**
+Enabling invitation auditing (B9) means an anonymised/erased customer stays re-identifiable from CRM change history until it ages out (D6, ≥24 months). Confirm this is acceptable and fold it into the D9 sign-off.
+*MSS recommendation:* acknowledge in the sign-off; no code change. (Reducing the window would mean shortening audit-log retention, which conflicts with the chain-of-custody goal B9 exists to serve — a Compliance trade-off, not an engineering one.)
+
+## AC-Verdict
+
+**CLEARED WITH CONDITIONS.**
+
+The Addendum C build **closes CMP-02 and CMP-03 in code** — the two PDPPL findings that were release-blocking in the base audit — with a correct, single anonymise path, a floored three-step retention pass, and a least-privilege, SYSTEM-run, idempotent, audited DSAR erasure API. Governance ran in order and the CEO decisions are recorded. The build may proceed through the PR / CEO gate.
+
+It **must not go to production on HL or QDB1** until: the on-prem reverification of the anonymise alternate-key behaviour (C3) passes; the DSAR runbook procedure and periodic-Q14 instruction (C4) are written; retention values are set per org (C5 / B1); the B2 written sign-off is issued after on-prem verification; and the erasure-register tamper-evidence question (AUD-C-01 / Decision 1) is resolved. AUD-C-02 and CMP-C-01 are Compliance decisions to be captured in the D9 sign-off, not code blockers.
+
+**Finding counts (Addendum C):** Critical 0 · Medium 1 (AUD-C-01) · Low 3 (AUD-C-02, CMP-C-01, SEC-C-01, SEC-C-02 — two Low accepted) · Info 2 positive (GOV-C-01/02). New release-blocking findings: 0 (the blockers are the carried-forward QA conditions C1–C5 and the standing B2 sign-off).
+
+---
+
+VERIFICATION (Addendum C audit)
+```
+criterion:  The Addendum C build closes CMP-02 and CMP-03 as claimed, the DSAR
+            register's append-only/tamper posture is as assessed, least-privilege
+            holds, and the workflow ran in order — all against the actual code and
+            manifest on feat/survey-pdppl-erasure.
+command:    Source reads: Data/ResponseRetentionStore.cs (anonymise fix);
+            Scheduling/RetentionPass.cs (three-step + floors);
+            Erasure/CustomerErasureService.cs + ErasureContracts.cs +
+            Plugins/EraseCustomerSurveyDataPlugin.cs (erasure API, access-before-input,
+            budget/IsComplete, started-before-mutation log);
+            Data/ErasureAccessCheck.cs + Data/ErasureLogWriter.cs;
+            provisioning/manifest.mjs (erasure-log table, roles, isAuditEnabled set);
+            git log origin/main..HEAD (workflow order).
+output:     ResponseRetentionStore.cs:44-54 Anonymise nulls qdb_survey_invitation_id,
+            qdb_source_table, qdb_source_record_id (+name/customer/answers_json/answer
+            text) — CMP-02 fix CONFIRMED.
+            RetentionPass.cs:44-84 responses→invitations→suppression, floors 395/365 via
+            Max(days,floor) — CMP-03 retention CONFIRMED.
+            EraseCustomerSurveyDataPlugin.cs:40-42 CheckAccess before ReadRequest (SEC-003);
+            CustomerErasureService.cs:69 started log row before mutation; :71-77 delete/
+            anonymise within RunBudget then completed row — erasure API CONFIRMED.
+            manifest.mjs:208 erasure log has NO isAuditEnabled; :348-353 Survey Data Officer
+            = organization Read + erasure_log Read only; :120,170 invitation+suppression
+            auditing ON, response/answer OFF — AUD-C-01, CMP-C-01, GOV-C-02 CONFIRMED.
+            git log: BRD→CEO approve→research→arch+ADR→CEO OQ→build→review→QA — GOV-C-01
+            CONFIRMED.
+result:     PASS — every load-bearing claim confirmed against primary evidence.
+unverified: On-prem 9.1 behaviour — anonymise alternate-key null (C3/DEF-QA-C-001),
+            NFR-CSE-011/012 wall-clock at BRD volumes (C1/C2), erasure API live on-prem,
+            Q14 post-import — all orgs unreachable from here. C# test counts (481/481)
+            and the 16/16 cloud e2e accepted from phase-5-qa.md Addendum C, not re-run.
+            Live table-audit state of qdb_survey_erasure_log not read. (Correction by
+            MSS: the table is provisioned on the cloud org org5869857f since 2026-11-15,
+            with auditing off as the manifest sets it; not yet on any on-prem org.)
+```
