@@ -1,15 +1,16 @@
 {
-  "builtAt": "2026-11-14T11:15:05.321Z",
-  "package": "SurveyEngine_1_0_0_0_onprem_unmanaged.zip",
-  "sha256": "39c03f77b5b60bb319273356cbea4179c4f236e247a93e5371e122cb8a04448e",
-  "bytes": 157892,
+  "builtAt": "2026-11-15T10:04:27.634Z",
+  "package": "SurveyEngine_1_1_0_0_onprem_unmanaged.zip",
+  "solutionVersion": "1.1.0.0",
+  "sha256": "e3534cf82c9c510f0f131e890b7870307af6d247cfaa11a936d2d19e2c76c983",
+  "bytes": 175769,
   "source": {
     "file": "source/SurveyEngine_cloud_unmanaged.zip",
-    "sha256": "6dddffbce2c720a445acb6728d1196aa7c40686918f8c6ed9a3d21607941e07d"
+    "sha256": "a93b7c46aa01a4e6d2a52d93d680c719b02362060166822815058d6fbdc43d93"
   },
   "target": "Dynamics 365 CE 9.1 on-prem: HL CRM and BFD CRM / QDB1 (one package)",
   "manifest": {
-    "rootBefore": "<ImportExportXml version=\"9.2.26102.136\" SolutionPackageVersion=\"9.2\" languagecode=\"1033\" generatedBy=\"CrmLive\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" OrganizationVersion=\"9.2.26102.136\" OrganizationSchemaType=\"Full\" CRMServerServiceabilityVersion=\"9.2.26102.00136\">",
+    "rootBefore": "<ImportExportXml version=\"9.2.26103.165\" SolutionPackageVersion=\"9.2\" languagecode=\"1033\" generatedBy=\"CrmLive\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" OrganizationVersion=\"9.2.26103.165\" OrganizationSchemaType=\"Full\" CRMServerServiceabilityVersion=\"9.2.26103.00165\">",
     "rootAfter": "<ImportExportXml version=\"9.0.0.0\" SolutionPackageVersion=\"9.0\" languagecode=\"1033\" generatedBy=\"CrmLive\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">",
     "removedRootComponents": 9,
     "removedDependencies": 21,
@@ -24,27 +25,27 @@
     {
       "name": "empty-autonumber-format",
       "why": "AutoNumberFormat is empty on every column (no column is auto-numbered)",
-      "removed": 236
+      "removed": 262
     },
     {
       "name": "retrieve-audit-flag",
       "why": "IsRetrieveAuditEnabled is 0 (off) on every table",
-      "removed": 9
+      "removed": 10
     },
     {
       "name": "teams-integration-flag",
       "why": "IsMSTeamsIntegrationEnabled is 0 on every table; Teams integration is a Dataverse online feature",
-      "removed": 9
+      "removed": 10
     },
     {
       "name": "role-auto-assigned-flag",
       "why": "Role IsAutoAssigned is 0 on every role",
-      "removed": 4
+      "removed": 5
     },
     {
       "name": "cascade-archive",
       "why": "Long-term data retention (archive) does not exist on 9.1; there is nothing to cascade",
-      "removed": 44
+      "removed": 47
     },
     {
       "name": "form-header-density",
@@ -54,12 +55,12 @@
     {
       "name": "option-is-hidden",
       "why": "IsHidden=\"0\" on options, states and statuses — no option is hidden",
-      "removed": 88
+      "removed": 98
     },
     {
       "name": "retrieve-multiple-audit-flag",
       "why": "IsRetrieveMultipleAuditEnabled is 0 (off) on every table",
-      "removed": 9
+      "removed": 10
     },
     {
       "name": "sitemap-collapsible-groups",
@@ -130,22 +131,23 @@
     }
   ],
   "assembly": {
-    "embeddedSha256": "8efa470ea08d8e6b11672abbe8ece3ebb80b8011b4bdb60cca0e14ed08d4082a",
-    "localBuildSha256": "8efa470ea08d8e6b11672abbe8ece3ebb80b8011b4bdb60cca0e14ed08d4082a",
+    "embeddedSha256": "9e0991fd54794eda1653afff3b0e4a47bc64554390374466ebfe6ed31ebb81b2",
+    "localBuildSha256": "9e0991fd54794eda1653afff3b0e4a47bc64554390374466ebfe6ed31ebb81b2",
     "isLocalBuild": true
   },
   "xsd": {
     "status": "not run: --schemas not given (Microsoft CRM SDK Schemas\\9.0.0.2090 not on this machine)"
   },
   "contents": {
-    "tables": 10,
+    "tables": 11,
     "roleNames": [
       "Survey Admin",
       "Survey Analyst",
+      "Survey Data Officer",
       "Survey Integration",
       "Survey Scheduler"
     ],
-    "relationships": 44,
+    "relationships": 47,
     "pluginSteps": [
       "Qdb.SurveyEngine.Plugins.InvitationDispatchPlugin: Async Create of qdb_survey_invitation",
       "Qdb.SurveyEngine.Plugins.InvitationDispatchPlugin: Async Update of qdb_survey_invitation"
@@ -153,13 +155,14 @@
     "customApis": [
       "qdb_srv_ActivateSource",
       "qdb_srv_DeactivateSource",
+      "qdb_srv_EraseCustomerSurveyData",
       "qdb_srv_GetSurvey",
       "qdb_srv_ListPendingSurveys",
       "qdb_srv_RunDueSurveys",
       "qdb_srv_SubmitResponse",
       "qdb_srv_ValidateLinkToken"
     ],
-    "webResources": 9,
+    "webResources": 10,
     "appModules": 1,
     "siteMaps": 1
   },
@@ -169,6 +172,7 @@
     "solution.xml",
     "PluginAssemblies/QdbSurveyEngine-BEC4129F-E8DC-F111-84E8-000D3ABCF32D/QdbSurveyEngine.dll",
     "WebResources/qdb_icon_survey_answerBF326D37-3ADD-F111-84E8-7C1E525145CB",
+    "WebResources/qdb_icon_survey_erasure_logA641137D-CCE0-F111-84EA-000D3ABD8313",
     "WebResources/qdb_icon_survey_invitation7F4A4E13-3ADD-F111-84E8-000D3ABCF32D",
     "WebResources/qdb_icon_survey_response022A0225-3ADD-F111-84EA-000D3ABD8313",
     "WebResources/qdb_icon_survey_settings5CE92958-3ADD-F111-84E8-000D3ABCF32D",
@@ -183,6 +187,16 @@
     "customapis/qdb_srv_DeactivateSource/customapi.xml",
     "customapis/qdb_srv_DeactivateSource/customapirequestparameters/SourceId/customapirequestparameter.xml",
     "customapis/qdb_srv_DeactivateSource/customapiresponseproperties/Message/customapiresponseproperty.xml",
+    "customapis/qdb_srv_EraseCustomerSurveyData/customapi.xml",
+    "customapis/qdb_srv_EraseCustomerSurveyData/customapirequestparameters/CustomerGuid/customapirequestparameter.xml",
+    "customapis/qdb_srv_EraseCustomerSurveyData/customapirequestparameters/DryRun/customapirequestparameter.xml",
+    "customapis/qdb_srv_EraseCustomerSurveyData/customapirequestparameters/Mode/customapirequestparameter.xml",
+    "customapis/qdb_srv_EraseCustomerSurveyData/customapiresponseproperties/AnswerCount/customapiresponseproperty.xml",
+    "customapis/qdb_srv_EraseCustomerSurveyData/customapiresponseproperties/AreActual/customapiresponseproperty.xml",
+    "customapis/qdb_srv_EraseCustomerSurveyData/customapiresponseproperties/InvitationCount/customapiresponseproperty.xml",
+    "customapis/qdb_srv_EraseCustomerSurveyData/customapiresponseproperties/IsComplete/customapiresponseproperty.xml",
+    "customapis/qdb_srv_EraseCustomerSurveyData/customapiresponseproperties/ResponseCount/customapiresponseproperty.xml",
+    "customapis/qdb_srv_EraseCustomerSurveyData/customapiresponseproperties/SuppressionLogCount/customapiresponseproperty.xml",
     "customapis/qdb_srv_GetSurvey/customapi.xml",
     "customapis/qdb_srv_GetSurvey/customapirequestparameters/CallerCustomerId/customapirequestparameter.xml",
     "customapis/qdb_srv_GetSurvey/customapirequestparameters/InvitationId/customapirequestparameter.xml",
