@@ -109,6 +109,37 @@ namespace Qdb.SurveyEngine.Tests
         }
 
         [Fact]
+        public void Anonymise_AccountOrg_NullsTheInvitationId_SourceTable_SourceRecordId()
+        {
+            var service = ServiceWithAnswers();
+            Entity written = null;
+            service.Setup(s => s.Update(It.Is<Entity>(e => e.LogicalName == "qdb_survey_response")))
+                   .Callback<Entity>(e => written = e);
+
+            new ResponseRetentionStore(service.Object, CustomerLink.Account).Anonymise(ResponseId);
+
+            // FR-CSE-079 / Addendum C.2.1: all three link columns must be nulled.
+            Assert.True(written.Contains("qdb_survey_invitation_id") && written["qdb_survey_invitation_id"] == null);
+            Assert.True(written.Contains("qdb_source_table") && written["qdb_source_table"] == null);
+            Assert.True(written.Contains("qdb_source_record_id") && written["qdb_source_record_id"] == null);
+        }
+
+        [Fact]
+        public void Anonymise_ContactOrg_NullsTheInvitationId_SourceTable_SourceRecordId()
+        {
+            var service = ServiceWithAnswers();
+            Entity written = null;
+            service.Setup(s => s.Update(It.Is<Entity>(e => e.LogicalName == "qdb_survey_response")))
+                   .Callback<Entity>(e => written = e);
+
+            new ResponseRetentionStore(service.Object, CustomerLink.Contact).Anonymise(ResponseId);
+
+            Assert.True(written.Contains("qdb_survey_invitation_id") && written["qdb_survey_invitation_id"] == null);
+            Assert.True(written.Contains("qdb_source_table") && written["qdb_source_table"] == null);
+            Assert.True(written.Contains("qdb_source_record_id") && written["qdb_source_record_id"] == null);
+        }
+
+        [Fact]
         public void Anonymise_NoAnswers_UpdatesOnlyTheResponse()
         {
             var service = ServiceWithAnswers();

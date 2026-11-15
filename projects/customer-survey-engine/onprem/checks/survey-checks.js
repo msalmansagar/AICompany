@@ -369,11 +369,24 @@ const SurveyChecks = (() => {
       roots.size === 1 ? 'present' : `${roots.size} independent roles share the name: find who created the extra one before giving the scheduler account its role`)];
   }
 
+  // Addendum C FR-CSE-082, ADR-008: the erasure API admits holders of this role. Business-unit copies share
+  // one root; a second independent root means someone created a duplicate that also passes the access check.
+  async function checkDataOfficerRole(get, kit) {
+    const title = `One ${kit.dataOfficerRoleName} role (its business-unit copies only)`;
+    const response = await tryGet(get, `roles?$select=roleid,_parentrootroleid_value&$filter=name eq ${quoted(kit.dataOfficerRoleName)}`);
+    if (!response.ok) return [result('Q14', title, WARN, `could not read: ${response.message}`)];
+    const roots = new Set((response.json.value || []).map((role) => role._parentrootroleid_value));
+    if (roots.size === 0) return [result('Q14', title, FAIL, 'not found (Publish All, then check again)')];
+    return [result('Q14', title, roots.size === 1 ? PASS : FAIL,
+      roots.size === 1 ? 'present' : `${roots.size} independent roles share the name: find who created the extra one before assigning any Compliance staff`)];
+  }
+
   async function postImport({ get, kit }) {
     const checks = [
       ...(await checkSurveyComponents(get, kit)), ...(await checkCustomApiBindings(get, kit)),
       ...(await checkSteps(get, kit)), ...(await checkFormEngineUpdate(get, kit)), ...(await checkSurveyViews(get, kit)),
       ...(await checkSchedulerRole(get, kit)), ...(await checkTableAuditing(get, kit)),
+      ...(await checkDataOfficerRole(get, kit)),
     ];
     return { kind: 'survey-post-import', checks, renderCache: await renderCacheSnapshot(get) };
   }

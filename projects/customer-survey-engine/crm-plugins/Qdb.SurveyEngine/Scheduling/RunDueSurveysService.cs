@@ -33,6 +33,8 @@ namespace Qdb.SurveyEngine.Scheduling
             if (dependencies.ScheduledTriggers == null || dependencies.Population == null || dependencies.ScheduledInvitations == null
                 || dependencies.Postponed == null || dependencies.Retention == null)
                 throw new ArgumentException("Every RunDueSurveysDependencies member is required.", nameof(dependencies));
+            if (dependencies.InvitationRetention == null || dependencies.SuppressionLogRetention == null)
+                throw new ArgumentException("InvitationRetention and SuppressionLogRetention are required (Addendum C).", nameof(dependencies));
             var suppressions = new SuppressionRecorder(pipeline);
             var builder = new ScheduledCandidateBuilder(dependencies, suppressions, new FormPinner(pipeline, suppressions));
             var scheduled = new ScheduledTriggerPass(dependencies, builder, new InvitationDispatcher(pipeline, suppressions));

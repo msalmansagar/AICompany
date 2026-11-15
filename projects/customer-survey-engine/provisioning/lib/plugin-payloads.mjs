@@ -77,6 +77,11 @@ const PARAMETER_TYPE = Object.freeze({ boolean: 0, integer: 7, string: 10, guid:
 
 const stringInput = (name, description, isOptional = true) => ({ name, displayName: name, description, type: PARAMETER_TYPE.string, isOptional });
 const stringOutput = (name, description) => ({ name, displayName: name, description, type: PARAMETER_TYPE.string });
+const guidInput = (name, description, isOptional = false) => ({ name, displayName: name, description, type: PARAMETER_TYPE.guid, isOptional });
+const integerInput = (name, description, isOptional = false) => ({ name, displayName: name, description, type: PARAMETER_TYPE.integer, isOptional });
+const booleanInput = (name, description, isOptional = false) => ({ name, displayName: name, description, type: PARAMETER_TYPE.boolean, isOptional });
+const integerOutput = (name, description) => ({ name, displayName: name, description, type: PARAMETER_TYPE.integer });
+const booleanOutput = (name, description) => ({ name, displayName: name, description, type: PARAMETER_TYPE.boolean });
 const INVITATION_INPUTS = Object.freeze([
   stringInput('InvitationId', 'The invitation id (GUID); needs CallerCustomerId.'),
   stringInput('CallerCustomerId', 'The authenticated customer\'s account id (GUID); the invitation must belong to it.'),
@@ -120,6 +125,24 @@ export const CUSTOM_APIS = Object.freeze([
     [{ name: 'Valid', displayName: 'Valid', description: 'True when the token opens an invitation.', type: PARAMETER_TYPE.boolean },
       stringOutput('Reason', 'used, expired or unknown when not valid.'), stringOutput('InvitationId', 'The unlocked invitation.'),
       stringOutput('SetupId', 'Its setup.'), stringOutput('FormCode', 'Its form code.'), stringOutput('Language', 'Its language.')]),
+  // Addendum C FR-CSE-081, 082, NFR-CSE-012, 013, 014. ADR-008: unbound, runs as SYSTEM; caller admitted
+  // by Survey Data Officer role name or System Administrator. Mode: 100000000=Delete, 100000001=Anonymise.
+  { uniqueName: 'qdb_srv_EraseCustomerSurveyData', displayName: 'Erase Customer Survey Data',
+    typeName: 'Qdb.SurveyEngine.Plugins.EraseCustomerSurveyDataPlugin',
+    description: 'PDPPL DSAR right-to-erasure for one customer. Requires the Survey Data Officer role (FR-CSE-081, 082).',
+    inputs: [
+      guidInput('CustomerGuid', 'The account or contact id to erase.', false),
+      integerInput('Mode', '100000000=Delete, 100000001=Anonymise; validated at the boundary.', false),
+      booleanInput('DryRun', 'If true, counts are returned but nothing is deleted or anonymised.', false),
+    ],
+    outputs: [
+      integerOutput('InvitationCount', 'Rows found (dry-run) or erased this call (live).'),
+      integerOutput('ResponseCount', 'Rows found (dry-run) or erased this call (live).'),
+      integerOutput('AnswerCount', 'Rows found (dry-run) or erased this call (live).'),
+      integerOutput('SuppressionLogCount', 'Rows found (dry-run) or erased this call (live).'),
+      booleanOutput('AreActual', 'True in live mode, false in dry-run (FR-CSE-081).'),
+      booleanOutput('IsComplete', 'False when the budget ran out; call again until true.'),
+    ] },
 ]);
 
 /** The integration APIs run as the calling user, so the Survey Integration role decides who may call them. */

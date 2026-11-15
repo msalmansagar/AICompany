@@ -9,5 +9,6 @@
 | ADR-005 | Scheduler: daily Custom API via Windows Task / Power Automate | Accepted | 2026-11-09 | architect |
 | ADR-006 | Generic status-set triggers with auto-registered steps | Accepted | 2026-11-09 | architect |
 | ADR-007 | Response storage shape (Response + Answer + JSON) | Accepted | 2026-11-09 | architect |
+| ADR-008 | Erasure Custom API: execution model and authorisation | Accepted | 2026-11-15 | architect |
 
 Status values: Proposed | Accepted | Deprecated | Superseded

@@ -7,7 +7,7 @@
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { ROLES, SCHEDULER_ROLE_NAME, SOLUTION, TABLES } from '../../provisioning/manifest.mjs';
+import { DATA_OFFICER_ROLE_NAME, ROLES, SCHEDULER_ROLE_NAME, SOLUTION, TABLES } from '../../provisioning/manifest.mjs';
 import { APP, VIEWS } from '../../provisioning/ui-manifest.mjs';
 import { ICONS, iconResourceName } from '../../provisioning/ui-icons.mjs';
 import { PATCH_COLUMNS } from './form-engine-patch.mjs';
@@ -38,6 +38,7 @@ export function readKitFacts(kitDir) {
     auditedTables: TABLES.filter((table) => table.isAuditEnabled === true).map((table) => table.name),
     roleNames: ROLES.map((role) => role.name),
     schedulerRoleName: SCHEDULER_ROLE_NAME,
+    dataOfficerRoleName: DATA_OFFICER_ROLE_NAME,
     customApis: survey.contents.customApis,
     surveyIcons: Object.keys(ICONS).map(iconResourceName),
     // Views the survey adds to platform tables (the health view on System Job).

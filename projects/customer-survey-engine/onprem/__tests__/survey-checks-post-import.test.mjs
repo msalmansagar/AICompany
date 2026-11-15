@@ -96,6 +96,32 @@ test('postImport_rolesUnreadable_warnsQ12', async () => {
   assert.equal(checkOf(await postImport({ roles: notFound() }, SCHEDULER_KIT), 'Q12').status, WARN);
 });
 
+// ── Q14 one Survey Data Officer role (Addendum C FR-CSE-082, ADR-008) ──
+// The erasure API admits holders of this role; a second independent root means someone created a duplicate.
+
+const OFFICER_KIT = emptyKit({ dataOfficerRoleName: 'Survey Data Officer' });
+const officerRole = (roleid, root) => ({ roleid, _parentrootroleid_value: root });
+
+test('postImport_dataOfficerRoleAndItsBusinessUnitCopies_passesQ14', async () => {
+  const answers = { roles: rows(officerRole('d1', 'd1'), officerRole('d2', 'd1')) };
+
+  assert.equal(checkOf(await postImport(answers, OFFICER_KIT), 'Q14').status, PASS);
+});
+
+test('postImport_secondIndependentDataOfficerRole_failsQ14', async () => {
+  const answers = { roles: rows(officerRole('d1', 'd1'), officerRole('x9', 'x9')) };
+
+  assert.equal(checkOf(await postImport(answers, OFFICER_KIT), 'Q14').status, FAIL);
+});
+
+test('postImport_noDataOfficerRole_failsQ14', async () => {
+  assert.equal(checkOf(await postImport({}, OFFICER_KIT), 'Q14').status, FAIL);
+});
+
+test('postImport_dataOfficerRolesUnreadable_warnsQ14', async () => {
+  assert.equal(checkOf(await postImport({ roles: notFound() }, OFFICER_KIT), 'Q14').status, WARN);
+});
+
 // ── Q13 change history on the audited survey tables (audit AUD-01, checklist B9) ──
 
 const AUDIT_KIT = emptyKit({ auditedTables: ['qdb_survey_setup', 'qdb_survey_invitation'] });
