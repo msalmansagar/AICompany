@@ -12,6 +12,7 @@ namespace Qdb.SurveyEngine.Plugins
     /// InvitationCount, ResponseCount, AnswerCount, SuppressionLogCount (integers), AreActual and
     /// IsComplete (bools). Runs as SYSTEM; callers must hold Survey Data Officer or System
     /// Administrator (ErasureAccessCheck). Re-invoke while IsComplete is false (NFR-CSE-012).
+    /// SEC-003: access is verified before inputs are validated.
     /// </summary>
     public sealed class EraseCustomerSurveyDataPlugin : IPlugin
     {
@@ -35,18 +36,27 @@ namespace Qdb.SurveyEngine.Plugins
 
             var context = (IPluginExecutionContext)serviceProvider.GetService(typeof(IPluginExecutionContext));
             var tracing = (ITracingService)serviceProvider.GetService(typeof(ITracingService));
-            var request = ReadRequest(context);
 
+            // SEC-003: check caller access BEFORE validating request inputs.
             var system = ((IOrganizationServiceFactory)serviceProvider.GetService(typeof(IOrganizationServiceFactory))).CreateOrganizationService(null);
             CheckAccess(system, context.InitiatingUserId);
 
+            var request = ReadRequest(context);
             var clock = new SystemClock();
             var customer = CustomerLinkReader.Read(system);
-            var service = CustomerErasureService.Compose(system, customer, clock, new ErasureLogWriter(system));
-            var counts = service.Erase(request, new RunBudget(clock, WorkAllowance));
+            var erasureService = CustomerErasureService.Compose(system, customer, clock);
 
-            WriteTrace(tracing, request, counts, clock.UtcNow);
-            WriteOutputs(context, counts);
+            ErasureCounts counts = null;
+            try
+            {
+                counts = erasureService.Erase(request, new RunBudget(clock, WorkAllowance));
+                WriteOutputs(context, counts);
+            }
+            finally
+            {
+                // Emit a trace line regardless of whether Erase succeeded or threw (SEC-001).
+                WriteTrace(tracing, request, counts, clock.UtcNow);
+            }
         }
 
         private static ErasureRequest ReadRequest(IPluginExecutionContext context)
@@ -80,11 +90,20 @@ namespace Qdb.SurveyEngine.Plugins
 
         private static void WriteTrace(ITracingService tracing, ErasureRequest request, ErasureCounts counts, DateTime utcNow)
         {
-            tracing.Trace(
-                "Erase customer survey data: user={0}, customer={1}, mode={2}, dryRun={3}, inv={4}, resp={5}, ans={6}, supp={7}, areActual={8}, isComplete={9}, utc={10:u}",
-                request.InitiatingUserId, request.CustomerId, request.Mode, request.DryRun,
-                counts.InvitationCount, counts.ResponseCount, counts.AnswerCount, counts.SuppressionLogCount,
-                counts.AreActual, counts.IsComplete, utcNow);
+            if (counts != null)
+            {
+                tracing.Trace(
+                    "Erase customer survey data: user={0}, customer={1}, mode={2}, dryRun={3}, inv={4}, resp={5}, ans={6}, supp={7}, areActual={8}, isComplete={9}, utc={10:u}",
+                    request.InitiatingUserId, request.CustomerId, request.Mode, request.DryRun,
+                    counts.InvitationCount, counts.ResponseCount, counts.AnswerCount, counts.SuppressionLogCount,
+                    counts.AreActual, counts.IsComplete, utcNow);
+            }
+            else
+            {
+                tracing.Trace(
+                    "Erase customer survey data: user={0}, customer={1}, mode={2}, dryRun={3}, utc={4:u} — Erase threw before returning counts.",
+                    request.InitiatingUserId, request.CustomerId, request.Mode, request.DryRun, utcNow);
+            }
         }
 
         private static void WriteOutputs(IPluginExecutionContext context, ErasureCounts counts)

@@ -13,43 +13,42 @@ namespace Qdb.SurveyEngine.Erasure
     /// data, captures counts before mutation, then deletes or anonymises per mode within the time
     /// budget. Idempotent: a re-run on an already-erased customer returns zeros. A budget-cut live
     /// run returns IsComplete = false; re-invoke until true (C.3.5, NFR-CSE-012).
+    ///
+    /// SEC-001: for every live run a "started" log row is written BEFORE any mutation so that
+    /// evidence of the erasure attempt exists even if the run is interrupted. A "completed" row is
+    /// written after. For dry runs (SEC-002) a single log row is written with the found counts.
     /// </summary>
     public sealed class CustomerErasureService
     {
-        private readonly ICustomerSurveyDataRepository _repo;
-        private readonly IResponseRetentionStore _responseStore;
-        private readonly IClock _clock;
-        private readonly IErasureTraceWriter _erasureLog;
+        private readonly CustomerErasureDependencies _deps;
 
-        public CustomerErasureService(
-            ICustomerSurveyDataRepository repo,
-            IResponseRetentionStore responseStore,
-            IClock clock,
-            IErasureTraceWriter erasureLog)
+        public CustomerErasureService(CustomerErasureDependencies dependencies)
         {
-            _repo = repo ?? throw new ArgumentNullException(nameof(repo));
-            _responseStore = responseStore ?? throw new ArgumentNullException(nameof(responseStore));
-            _clock = clock ?? throw new ArgumentNullException(nameof(clock));
-            _erasureLog = erasureLog ?? throw new ArgumentNullException(nameof(erasureLog));
+            if (dependencies == null) throw new ArgumentNullException(nameof(dependencies));
+            if (dependencies.Repo == null) throw new ArgumentException("Repo is required.", nameof(dependencies));
+            if (dependencies.ResponseStore == null) throw new ArgumentException("ResponseStore is required.", nameof(dependencies));
+            if (dependencies.Clock == null) throw new ArgumentException("Clock is required.", nameof(dependencies));
+            if (dependencies.ErasureLog == null) throw new ArgumentException("ErasureLog is required.", nameof(dependencies));
+            _deps = dependencies;
         }
 
-        /// <summary>Wires the concrete CRM-backed implementations.</summary>
-        public static CustomerErasureService Compose(
-            IOrganizationService service,
-            CustomerLink customer,
-            IClock clock,
-            IErasureTraceWriter erasureLog)
+        /// <summary>Wires the concrete CRM-backed implementations (ErasureLogWriter is built internally).</summary>
+        public static CustomerErasureService Compose(IOrganizationService service, CustomerLink customer, IClock clock)
         {
-            return new CustomerErasureService(
-                new CustomerSurveyDataRepository(service, customer),
-                new ResponseRetentionStore(service, customer),
-                clock,
-                erasureLog);
+            if (service == null) throw new ArgumentNullException(nameof(service));
+            return new CustomerErasureService(new CustomerErasureDependencies
+            {
+                Repo = new CustomerSurveyDataRepository(service, customer),
+                ResponseStore = new ResponseRetentionStore(service, customer),
+                Clock = clock,
+                ErasureLog = new ErasureLogWriter(service),
+            });
         }
 
         /// <summary>
-        /// Finds all of the customer's survey data, then — unless dry-run — erases it per mode.
-        /// Writes one durable audit row on every live execution (OQ-C1 Option B).
+        /// Finds all of the customer's survey data, writes a log row, then — unless dry-run — erases
+        /// it per mode and writes a second "completed" row. The "started" row is written before any
+        /// mutation; if that write fails nothing is erased (SEC-001).
         /// </summary>
         public ErasureCounts Erase(ErasureRequest request, RunBudget budget)
         {
@@ -57,38 +56,58 @@ namespace Qdb.SurveyEngine.Erasure
             if (budget == null) throw new ArgumentNullException(nameof(budget));
 
             var sets = FindAllData(request.CustomerId);
-            if (request.DryRun) return sets.ToDryCounts();
+
+            if (request.DryRun)
+            {
+                // SEC-002: write a dry-run record (AreActual=false, found counts) before returning.
+                _deps.ErasureLog.Write(BuildRecord(request, sets.ToDryCounts()));
+                return sets.ToDryCounts();
+            }
+
+            // SEC-001: write "started" row (found counts, AreActual=false, IsComplete=false).
+            // If this write fails, the exception propagates here and no mutation occurs.
+            _deps.ErasureLog.Write(BuildRecord(request, sets.ToStartedCounts()));
 
             var counts = request.Mode == ErasureMode.Delete
                 ? ExecuteDelete(sets, request.CustomerId, budget)
                 : ExecuteAnonymise(sets, budget);
 
-            _erasureLog.Write(BuildRecord(request, counts));
+            // SEC-001: write "completed" row (actual counts, AreActual=true).
+            _deps.ErasureLog.Write(BuildRecord(request, counts));
             return counts;
         }
 
         private ErasureDataSets FindAllData(Guid customerId)
         {
-            var invitations = _repo.FindInvitations(customerId);
-            var responses = _repo.FindResponses(customerId);
-            var answers = _repo.FindAnswers(responses);
-            var suppressionLogs = _repo.FindSuppressionLogs(customerId);
-            return new ErasureDataSets(invitations, responses, answers, suppressionLogs);
+            var invitations = _deps.Repo.FindInvitations(customerId);
+            var responses = _deps.Repo.FindResponses(customerId);
+            var answers = _deps.Repo.FindAnswers(responses);
+            var suppressionLogs = _deps.Repo.FindSuppressionLogs(customerId);
+            return new ErasureDataSets
+            {
+                Invitations = invitations,
+                Responses = responses,
+                Answers = answers,
+                SuppressionLogs = suppressionLogs,
+            };
         }
 
         /// <summary>
         /// Delete mode (C.3.4): delete invitations (cascade removes their responses and answers),
         /// delete any residual responses still carrying the customer lookup, delete suppression logs.
+        /// Every step runs through BudgetedDeletion so the time limit is respected.
         /// </summary>
         private ErasureCounts ExecuteDelete(ErasureDataSets sets, Guid customerId, RunBudget budget)
         {
-            var invDone = BudgetedDeletion.Run(sets.Invitations, _repo.DeleteInvitation, budget, out bool invComplete);
+            var invDone = BudgetedDeletion.Run(sets.Invitations, _deps.Repo.DeleteInvitation, budget, out bool invComplete);
             if (!invComplete) return LiveCounts(invDone, sets.Responses.Count, sets.Answers.Count, 0, false);
 
             // Defensive: delete responses with no invitation link that the cascade did not reach.
-            foreach (var id in _repo.FindResidualResponses(customerId)) _repo.DeleteResponse(id);
+            var residual = _deps.Repo.FindResidualResponses(customerId);
+            BudgetedDeletion.Run(residual, _deps.Repo.DeleteResponse, budget, out bool residualComplete);
+            if (!residualComplete) return LiveCounts(invDone, sets.Responses.Count, sets.Answers.Count, 0, false);
 
-            var supDone = BudgetedDeletion.Run(sets.SuppressionLogs, _repo.DeleteSuppressionLog, budget, out bool supComplete);
+            var supDone = BudgetedDeletion.Run(sets.SuppressionLogs, _deps.Repo.DeleteSuppressionLog, budget, out bool supComplete);
             return LiveCounts(invDone, sets.Responses.Count, sets.Answers.Count, supDone, supComplete);
         }
 
@@ -99,13 +118,13 @@ namespace Qdb.SurveyEngine.Erasure
         /// </summary>
         private ErasureCounts ExecuteAnonymise(ErasureDataSets sets, RunBudget budget)
         {
-            var respDone = BudgetedDeletion.Run(sets.Responses, _responseStore.Anonymise, budget, out bool respComplete);
+            var respDone = BudgetedDeletion.Run(sets.Responses, _deps.ResponseStore.Anonymise, budget, out bool respComplete);
             if (!respComplete) return LiveCounts(0, respDone, sets.Answers.Count, 0, false);
 
-            var invDone = BudgetedDeletion.Run(sets.Invitations, _repo.DeleteInvitation, budget, out bool invComplete);
+            var invDone = BudgetedDeletion.Run(sets.Invitations, _deps.Repo.DeleteInvitation, budget, out bool invComplete);
             if (!invComplete) return LiveCounts(invDone, respDone, sets.Answers.Count, 0, false);
 
-            var supDone = BudgetedDeletion.Run(sets.SuppressionLogs, _repo.DeleteSuppressionLog, budget, out bool supComplete);
+            var supDone = BudgetedDeletion.Run(sets.SuppressionLogs, _deps.Repo.DeleteSuppressionLog, budget, out bool supComplete);
             return LiveCounts(invDone, respDone, sets.Answers.Count, supDone, supComplete);
         }
 
@@ -125,30 +144,19 @@ namespace Qdb.SurveyEngine.Erasure
                 SuppressionLogCount = counts.SuppressionLogCount,
                 AreActual = counts.AreActual,
                 IsComplete = counts.IsComplete,
-                ExecutedOnUtc = _clock.UtcNow,
+                ExecutedOnUtc = _deps.Clock.UtcNow,
             };
     }
 
     /// <summary>All survey data found for one customer before any mutation (counts captured pre-mutation, C.3.4).</summary>
     internal sealed class ErasureDataSets
     {
-        public ErasureDataSets(
-            IReadOnlyList<Guid> invitations,
-            IReadOnlyList<Guid> responses,
-            IReadOnlyList<Guid> answers,
-            IReadOnlyList<Guid> suppressionLogs)
-        {
-            Invitations = invitations;
-            Responses = responses;
-            Answers = answers;
-            SuppressionLogs = suppressionLogs;
-        }
+        public IReadOnlyList<Guid> Invitations { get; set; } = new List<Guid>();
+        public IReadOnlyList<Guid> Responses { get; set; } = new List<Guid>();
+        public IReadOnlyList<Guid> Answers { get; set; } = new List<Guid>();
+        public IReadOnlyList<Guid> SuppressionLogs { get; set; } = new List<Guid>();
 
-        public IReadOnlyList<Guid> Invitations { get; }
-        public IReadOnlyList<Guid> Responses { get; }
-        public IReadOnlyList<Guid> Answers { get; }
-        public IReadOnlyList<Guid> SuppressionLogs { get; }
-
+        /// <summary>Dry-run result: found counts, AreActual=false, IsComplete=true.</summary>
         public ErasureCounts ToDryCounts() => new ErasureCounts
         {
             InvitationCount = Invitations.Count,
@@ -157,6 +165,17 @@ namespace Qdb.SurveyEngine.Erasure
             SuppressionLogCount = SuppressionLogs.Count,
             AreActual = false,
             IsComplete = true,
+        };
+
+        /// <summary>Started-row counts: found counts, AreActual=false, IsComplete=false (mutation not yet complete).</summary>
+        public ErasureCounts ToStartedCounts() => new ErasureCounts
+        {
+            InvitationCount = Invitations.Count,
+            ResponseCount = Responses.Count,
+            AnswerCount = Answers.Count,
+            SuppressionLogCount = SuppressionLogs.Count,
+            AreActual = false,
+            IsComplete = false,
         };
     }
 }

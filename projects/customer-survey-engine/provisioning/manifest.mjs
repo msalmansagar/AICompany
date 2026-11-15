@@ -255,8 +255,8 @@ export const RELATIONSHIPS = Object.freeze([
   { lookup: 'qdb_survey_setup_id', label: 'Survey Setup', from: 'qdb_survey_suppression_log', to: 'qdb_survey_setup', cascade: 'RemoveLink' },
   // B7: the queue survey emails are sent from; empty = no email (FR-CSE-049).
   { lookup: 'qdb_email_sender_queue_id', label: 'Email Sender Queue', from: 'qdb_survey_settings', to: 'queue', cascade: 'RemoveLink' },
-  // Addendum C OQ-C1 = B: navigable customer links on the erasure log (RemoveLink so deleting the customer
-  // row does not cascade-delete the compliance log; qdb_customer_guid preserves the durable GUID string).
+  // The erasure log (Addendum C, OQ-C1 = B) has no lookups on purpose: the caller and customer are kept as
+  // text, so the evidence outlives those records and the log adds no navigable path back to the person.
 ]);
 
 /** Alternate keys enforce uniqueness the plugins rely on (NFR-CSE-002, section 4.4/4.5). */

@@ -1,8 +1,20 @@
 using System;
 using System.Collections.Generic;
+using Qdb.SurveyEngine.Scheduling;
+using Qdb.SurveyEngine.Services;
 
 namespace Qdb.SurveyEngine.Erasure
 {
+    /// <summary>All collaborators of <see cref="CustomerErasureService"/>.</summary>
+    public sealed class CustomerErasureDependencies
+    {
+        public ICustomerSurveyDataRepository Repo { get; set; }
+        public IResponseRetentionStore ResponseStore { get; set; }
+        public IClock Clock { get; set; }
+        public IErasureTraceWriter ErasureLog { get; set; }
+    }
+
+
     /// <summary>
     /// How to process a customer's survey data for a DSAR right-to-erasure request (FR-CSE-081).
     /// Integer values match the Custom API Mode parameter contract (ADR-008: no new option set).
@@ -96,8 +108,8 @@ namespace Qdb.SurveyEngine.Erasure
     }
 
     /// <summary>
-    /// Writes one row to the durable DSAR audit log (qdb_survey_erasure_log). Implementations must
-    /// be a no-op when the table does not yet exist in the org (PAT-003 / OQ-C1).
+    /// Writes one row to the durable DSAR audit log (qdb_survey_erasure_log). A failed write
+    /// propagates to the caller — the erasure has no recorded evidence and must not look successful.
     /// </summary>
     public interface IErasureTraceWriter
     {

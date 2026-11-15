@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.Xrm.Sdk;
+using Microsoft.Xrm.Sdk.Query;
 using Moq;
 using Qdb.SurveyEngine.Data;
 using Qdb.SurveyEngine.Erasure;
+using Qdb.SurveyEngine.Plugins;
 using Qdb.SurveyEngine.Scheduling;
 using Qdb.SurveyEngine.Services;
 using Xunit;
@@ -11,8 +14,9 @@ using Xunit;
 namespace Qdb.SurveyEngine.Tests
 {
     /// <summary>
-    /// CustomerErasureService: dry-run, delete mode, anonymise mode, budget exhaustion,
-    /// idempotent reruns, and cross-org safety (NFR-CSE-012/013/014, FR-CSE-081, C.3.4/ADR-008 R2).
+    /// CustomerErasureService: dry-run, delete mode, anonymise mode, two-write audit pattern,
+    /// budget exhaustion, idempotent reruns, and cross-org safety
+    /// (NFR-CSE-012/013/014, FR-CSE-081, C.3.4/ADR-008 R2, SEC-001/002/003).
     /// </summary>
     public class CustomerErasureServiceTests
     {
@@ -35,7 +39,7 @@ namespace Qdb.SurveyEngine.Tests
             return clock;
         }
 
-        /// <summary>A clock that returns max value — any budget created from it is immediately exhausted.</summary>
+        /// <summary>A clock that returns DateTime.MaxValue — any budget created from it is immediately exhausted.</summary>
         private static Mock<IClock> ExhaustedClock()
         {
             var clock = new Mock<IClock>();
@@ -70,7 +74,13 @@ namespace Qdb.SurveyEngine.Tests
             Mock<IResponseRetentionStore> responseStore,
             Mock<IClock> clock,
             Mock<IErasureTraceWriter> erasureLog) =>
-            new CustomerErasureService(repo.Object, responseStore.Object, clock.Object, erasureLog.Object);
+            new CustomerErasureService(new CustomerErasureDependencies
+            {
+                Repo = repo.Object,
+                ResponseStore = responseStore.Object,
+                Clock = clock.Object,
+                ErasureLog = erasureLog.Object,
+            });
 
         private static ErasureRequest DeleteRequest(bool dryRun = false) => new ErasureRequest
         {
@@ -82,7 +92,7 @@ namespace Qdb.SurveyEngine.Tests
             CustomerId = CustomerId, InitiatingUserId = UserId, Mode = ErasureMode.Anonymise, DryRun = dryRun,
         };
 
-        // ── Dry-run ──────────────────────────────────────────────────────────
+        // ── Dry-run (SEC-002) ────────────────────────────────────────────────
 
         [Fact]
         public void Erase_DryRun_ReturnsFoundCounts_WithAreActualFalse()
@@ -106,8 +116,9 @@ namespace Qdb.SurveyEngine.Tests
         }
 
         [Fact]
-        public void Erase_DryRun_MutatesNothing()
+        public void Erase_DryRun_MutatesNothingButWritesOneLogRow()
         {
+            // SEC-002: dry-run writes a log row (DryRun=true, AreActual=false) but no data writes.
             var repo = RepoWithData(invitations: new[] { InvId1 }, suppressionLogs: new[] { SupLogId1 });
             var responseStore = ResponseStore();
             var erasureLog = ErasureLog();
@@ -119,8 +130,24 @@ namespace Qdb.SurveyEngine.Tests
             repo.Verify(r => r.DeleteInvitation(It.IsAny<Guid>()), Times.Never());
             repo.Verify(r => r.DeleteSuppressionLog(It.IsAny<Guid>()), Times.Never());
             responseStore.Verify(r => r.Anonymise(It.IsAny<Guid>()), Times.Never());
-            // No audit row written for dry-run.
-            erasureLog.Verify(w => w.Write(It.IsAny<ErasureRecord>()), Times.Never());
+            erasureLog.Verify(w => w.Write(It.IsAny<ErasureRecord>()), Times.Once());
+        }
+
+        [Fact]
+        public void Erase_DryRun_LogRowHasDryRunTrueAndAreActualFalse()
+        {
+            var repo = RepoWithData(invitations: new[] { InvId1, InvId2 });
+            ErasureRecord written = null;
+            var erasureLog = new Mock<IErasureTraceWriter>();
+            erasureLog.Setup(w => w.Write(It.IsAny<ErasureRecord>())).Callback<ErasureRecord>(r => written = r);
+            var clock = AmpleClock();
+            var service = Build(repo, ResponseStore(), clock, erasureLog);
+
+            service.Erase(DeleteRequest(dryRun: true), AmpleBudget(clock));
+
+            Assert.True(written.DryRun);
+            Assert.False(written.AreActual);
+            Assert.Equal(2, written.InvitationCount);
         }
 
         // ── Delete mode ──────────────────────────────────────────────────────
@@ -149,6 +176,22 @@ namespace Qdb.SurveyEngine.Tests
             service.Erase(DeleteRequest(), AmpleBudget(clock));
 
             repo.Verify(r => r.DeleteResponse(residualId), Times.Once());
+        }
+
+        [Fact]
+        public void Erase_DeleteMode_BudgetExhaustedDuringResiduals_IsCompleteFalse()
+        {
+            // No invitations (empty list → BudgetedDeletion returns isComplete=true even with zero budget).
+            // One residual response → budget is exhausted when that step runs.
+            var residualId = Guid.NewGuid();
+            var repo = RepoWithData(residualResponses: new[] { residualId });
+            var clock = ExhaustedClock();
+            var service = Build(repo, ResponseStore(), clock, ErasureLog());
+
+            var counts = service.Erase(DeleteRequest(), ExhaustedBudget(clock));
+
+            Assert.False(counts.IsComplete);
+            repo.Verify(r => r.DeleteResponse(residualId), Times.Never());
         }
 
         [Fact]
@@ -255,8 +298,6 @@ namespace Qdb.SurveyEngine.Tests
         }
 
         // ── Cross-org safety (NFR-CSE-014) ───────────────────────────────────
-        // CustomerSurveyDataRepository filters on the org's LookupColumn, so a contact GUID on an
-        // account org hits zero rows. We verify the service simply returns zeros and completes.
 
         [Theory]
         [InlineData(true)]
@@ -307,10 +348,10 @@ namespace Qdb.SurveyEngine.Tests
             Assert.True(second.IsComplete);
         }
 
-        // ── Audit log ────────────────────────────────────────────────────────
+        // ── Audit log — two-write pattern (SEC-001) ──────────────────────────
 
         [Fact]
-        public void Erase_LiveRun_WritesOneAuditRow()
+        public void Erase_LiveRun_WritesTwoAuditRows()
         {
             var repo = RepoWithData();
             var erasureLog = ErasureLog();
@@ -319,25 +360,101 @@ namespace Qdb.SurveyEngine.Tests
 
             service.Erase(DeleteRequest(), AmpleBudget(clock));
 
-            erasureLog.Verify(w => w.Write(It.IsAny<ErasureRecord>()), Times.Once());
+            erasureLog.Verify(w => w.Write(It.IsAny<ErasureRecord>()), Times.Exactly(2));
         }
 
         [Fact]
-        public void Erase_LiveRun_AuditRowCarriesRequestFields()
+        public void Erase_LiveRun_WritesStartedRowBeforeAnyMutation()
         {
-            var repo = RepoWithData();
-            ErasureRecord written = null;
+            // SEC-001: the first log Write must precede any DeleteInvitation.
+            var ops = new List<string>();
+            var repo = RepoWithData(invitations: new[] { InvId1 });
+            repo.Setup(r => r.DeleteInvitation(It.IsAny<Guid>())).Callback<Guid>(id => ops.Add("delete"));
             var erasureLog = new Mock<IErasureTraceWriter>();
-            erasureLog.Setup(w => w.Write(It.IsAny<ErasureRecord>())).Callback<ErasureRecord>(r => written = r);
+            erasureLog.Setup(w => w.Write(It.IsAny<ErasureRecord>())).Callback<ErasureRecord>(r => ops.Add("log-write"));
             var clock = AmpleClock();
             var service = Build(repo, ResponseStore(), clock, erasureLog);
 
             service.Erase(DeleteRequest(), AmpleBudget(clock));
 
-            Assert.Equal(CustomerId, written.CustomerId);
-            Assert.Equal(UserId, written.InitiatingUserId);
-            Assert.Equal(ErasureMode.Delete, written.Mode);
-            Assert.False(written.DryRun);
+            var firstWrite = ops.IndexOf("log-write");
+            var firstDelete = ops.IndexOf("delete");
+            Assert.True(firstWrite >= 0 && firstDelete >= 0, "Both Write and Delete must have been called.");
+            Assert.True(firstWrite < firstDelete, "Started log row must be written before first mutation.");
+        }
+
+        [Fact]
+        public void Erase_LiveRun_StartedRowHasFoundCountsAndAreActualFalseAndIsCompleteFalse()
+        {
+            // SEC-001: "started" row carries the found counts, AreActual=false, IsComplete=false.
+            var writes = new List<ErasureRecord>();
+            var erasureLog = new Mock<IErasureTraceWriter>();
+            erasureLog.Setup(w => w.Write(It.IsAny<ErasureRecord>())).Callback<ErasureRecord>(r => writes.Add(r));
+            var repo = RepoWithData(invitations: new[] { InvId1 }, suppressionLogs: new[] { SupLogId1 });
+            var clock = AmpleClock();
+            var service = Build(repo, ResponseStore(), clock, erasureLog);
+
+            service.Erase(DeleteRequest(), AmpleBudget(clock));
+
+            var startedRow = writes[0];
+            Assert.Equal(1, startedRow.InvitationCount);
+            Assert.Equal(1, startedRow.SuppressionLogCount);
+            Assert.False(startedRow.AreActual);
+            Assert.False(startedRow.IsComplete);
+        }
+
+        [Fact]
+        public void Erase_LiveRun_CompletedRowHasAreActualTrueAndIsCompleteTrue()
+        {
+            var writes = new List<ErasureRecord>();
+            var erasureLog = new Mock<IErasureTraceWriter>();
+            erasureLog.Setup(w => w.Write(It.IsAny<ErasureRecord>())).Callback<ErasureRecord>(r => writes.Add(r));
+            var repo = RepoWithData();
+            var clock = AmpleClock();
+            var service = Build(repo, ResponseStore(), clock, erasureLog);
+
+            service.Erase(DeleteRequest(), AmpleBudget(clock));
+
+            var completedRow = writes[1];
+            Assert.True(completedRow.AreActual);
+            Assert.True(completedRow.IsComplete);
+        }
+
+        [Fact]
+        public void Erase_LiveRun_AuditRowsCarryRequestFields()
+        {
+            var writes = new List<ErasureRecord>();
+            var erasureLog = new Mock<IErasureTraceWriter>();
+            erasureLog.Setup(w => w.Write(It.IsAny<ErasureRecord>())).Callback<ErasureRecord>(r => writes.Add(r));
+            var repo = RepoWithData();
+            var clock = AmpleClock();
+            var service = Build(repo, ResponseStore(), clock, erasureLog);
+
+            service.Erase(DeleteRequest(), AmpleBudget(clock));
+
+            Assert.All(writes, row =>
+            {
+                Assert.Equal(CustomerId, row.CustomerId);
+                Assert.Equal(UserId, row.InitiatingUserId);
+                Assert.Equal(ErasureMode.Delete, row.Mode);
+                Assert.False(row.DryRun);
+            });
+        }
+
+        [Fact]
+        public void Erase_StartedWriteFails_NoMutationsOccur()
+        {
+            // SEC-001: if the started-row write fails, the exception propagates and nothing is erased.
+            var repo = RepoWithData(invitations: new[] { InvId1 }, suppressionLogs: new[] { SupLogId1 });
+            var erasureLog = new Mock<IErasureTraceWriter>();
+            erasureLog.Setup(w => w.Write(It.IsAny<ErasureRecord>())).Throws(new InvalidOperationException("log write failed"));
+            var clock = AmpleClock();
+            var service = Build(repo, ResponseStore(), clock, erasureLog);
+
+            Assert.Throws<InvalidOperationException>(() => service.Erase(DeleteRequest(), AmpleBudget(clock)));
+
+            repo.Verify(r => r.DeleteInvitation(It.IsAny<Guid>()), Times.Never());
+            repo.Verify(r => r.DeleteSuppressionLog(It.IsAny<Guid>()), Times.Never());
         }
 
         // ── Null-guard ───────────────────────────────────────────────────────
@@ -355,6 +472,12 @@ namespace Qdb.SurveyEngine.Tests
         {
             var service = Build(RepoWithData(), ResponseStore(), AmpleClock(), ErasureLog());
             Assert.Throws<ArgumentNullException>(() => service.Erase(DeleteRequest(), null));
+        }
+
+        [Fact]
+        public void Constructor_NullDependencies_Throws()
+        {
+            Assert.Throws<ArgumentNullException>(() => new CustomerErasureService(null));
         }
     }
 
@@ -380,33 +503,33 @@ namespace Qdb.SurveyEngine.Tests
         [Fact]
         public void Write_HappyPath_CreatesOneRow()
         {
-            var service = new Mock<Microsoft.Xrm.Sdk.IOrganizationService>();
-            new Qdb.SurveyEngine.Data.ErasureLogWriter(service.Object).Write(SampleRecord());
-            service.Verify(s => s.Create(It.Is<Microsoft.Xrm.Sdk.Entity>(e => e.LogicalName == ErasureLogWriter.ErasureLogTable)), Times.Once());
+            var service = new Mock<IOrganizationService>();
+            new ErasureLogWriter(service.Object).Write(SampleRecord());
+            service.Verify(s => s.Create(It.Is<Entity>(e => e.LogicalName == ErasureLogWriter.ErasureLogTable)), Times.Once());
         }
 
         [Fact]
         public void Write_OrgFault_Propagates()
         {
-            // An erasure without recorded evidence must not look successful to the caller.
-            var service = new Mock<Microsoft.Xrm.Sdk.IOrganizationService>();
-            service.Setup(s => s.Create(It.IsAny<Microsoft.Xrm.Sdk.Entity>()))
-                   .Throws(new System.ServiceModel.FaultException<Microsoft.Xrm.Sdk.OrganizationServiceFault>(new Microsoft.Xrm.Sdk.OrganizationServiceFault()));
+            // A failed write propagates — the erasure has no recorded evidence.
+            var service = new Mock<IOrganizationService>();
+            service.Setup(s => s.Create(It.IsAny<Entity>()))
+                   .Throws(new System.ServiceModel.FaultException<OrganizationServiceFault>(new OrganizationServiceFault()));
 
-            var writer = new Qdb.SurveyEngine.Data.ErasureLogWriter(service.Object);
+            var writer = new ErasureLogWriter(service.Object);
 
-            Assert.Throws<System.ServiceModel.FaultException<Microsoft.Xrm.Sdk.OrganizationServiceFault>>(() => writer.Write(SampleRecord()));
+            Assert.Throws<System.ServiceModel.FaultException<OrganizationServiceFault>>(() => writer.Write(SampleRecord()));
         }
 
         [Fact]
         public void Write_HappyPath_KeepsCallerAndCustomerAsText()
         {
-            var service = new Mock<Microsoft.Xrm.Sdk.IOrganizationService>();
-            Microsoft.Xrm.Sdk.Entity written = null;
-            service.Setup(s => s.Create(It.IsAny<Microsoft.Xrm.Sdk.Entity>())).Callback<Microsoft.Xrm.Sdk.Entity>(e => written = e);
+            var service = new Mock<IOrganizationService>();
+            Entity written = null;
+            service.Setup(s => s.Create(It.IsAny<Entity>())).Callback<Entity>(e => written = e);
             var record = SampleRecord();
 
-            new Qdb.SurveyEngine.Data.ErasureLogWriter(service.Object).Write(record);
+            new ErasureLogWriter(service.Object).Write(record);
 
             Assert.Equal(record.InitiatingUserId.ToString("D"), written["qdb_caller_id"]);
             Assert.Equal(record.CustomerId.ToString("D"), written["qdb_customer_guid"]);
@@ -415,7 +538,7 @@ namespace Qdb.SurveyEngine.Tests
         [Fact]
         public void Write_NullRecord_Throws()
         {
-            var writer = new Qdb.SurveyEngine.Data.ErasureLogWriter(new Mock<Microsoft.Xrm.Sdk.IOrganizationService>().Object);
+            var writer = new ErasureLogWriter(new Mock<IOrganizationService>().Object);
             Assert.Throws<ArgumentNullException>(() => writer.Write(null));
         }
 
@@ -423,6 +546,65 @@ namespace Qdb.SurveyEngine.Tests
         public void ErasureLogTable_IsTheProvisionedTableName()
         {
             Assert.Equal("qdb_survey_erasure_log", ErasureLogWriter.ErasureLogTable);
+        }
+    }
+
+    // ── EraseCustomerSurveyDataPlugin — SEC-003 access before validation ──────
+
+    public class EraseCustomerSurveyDataPluginTests
+    {
+        /// <summary>
+        /// Builds a minimal IServiceProvider mock with the given role-collection for the initiating user
+        /// and the given input parameters. If inputParameters is null, the context returns an empty collection.
+        /// </summary>
+        private static IServiceProvider ProviderWith(
+            Guid initiatingUserId,
+            EntityCollection roleResult,
+            ParameterCollection inputParameters = null)
+        {
+            var outputs = new ParameterCollection();
+            var context = new Mock<IPluginExecutionContext>();
+            context.SetupGet(c => c.InitiatingUserId).Returns(initiatingUserId);
+            context.SetupGet(c => c.InputParameters).Returns(inputParameters ?? new ParameterCollection());
+            context.SetupGet(c => c.OutputParameters).Returns(outputs);
+
+            // IOrganizationService: returns the specified role collection for every RetrieveMultiple call,
+            // and reads qdb_survey_settings for CustomerLinkReader.
+            var orgService = new Mock<IOrganizationService>();
+            orgService.Setup(s => s.RetrieveMultiple(It.Is<QueryBase>(q => IsRoleQuery(q)))).Returns(roleResult);
+            var settingsEntity = new Entity("qdb_survey_settings", Guid.NewGuid());
+            orgService.Setup(s => s.RetrieveMultiple(It.Is<QueryBase>(q => !IsRoleQuery(q))))
+                      .Returns(new EntityCollection(new[] { settingsEntity }) { MoreRecords = false });
+
+            var factory = new Mock<IOrganizationServiceFactory>();
+            factory.Setup(f => f.CreateOrganizationService(null)).Returns(orgService.Object);
+
+            var tracing = new Mock<ITracingService>();
+            tracing.Setup(t => t.Trace(It.IsAny<string>(), It.IsAny<object[]>()));
+
+            var provider = new Mock<IServiceProvider>();
+            provider.Setup(p => p.GetService(typeof(IPluginExecutionContext))).Returns(context.Object);
+            provider.Setup(p => p.GetService(typeof(ITracingService))).Returns(tracing.Object);
+            provider.Setup(p => p.GetService(typeof(IOrganizationServiceFactory))).Returns(factory.Object);
+            return provider.Object;
+        }
+
+        private static bool IsRoleQuery(QueryBase q) =>
+            q is QueryExpression qe && (qe.EntityName == "role" || qe.EntityName == "team");
+
+        [Fact]
+        public void Execute_UnauthorisedUser_ThrowsAccessDenied_EvenWhenParametersAreMissing()
+        {
+            // SEC-003: access check happens BEFORE input validation.
+            // User has no roles → access denied; parameters are empty → would also fail validation.
+            // The access-denied exception must be thrown, not the "DryRun is required" exception.
+            var userId = Guid.NewGuid();
+            var provider = ProviderWith(userId, new EntityCollection(), inputParameters: new ParameterCollection());
+
+            var ex = Assert.Throws<InvalidPluginExecutionException>(() =>
+                new EraseCustomerSurveyDataPlugin().Execute(provider));
+
+            Assert.Contains(ErasureAccessCheck.SurveyDataOfficerRoleName, ex.Message);
         }
     }
 }

@@ -1074,6 +1074,8 @@ build proceeds either way and the decision is a data/provisioning switch.
 | R3 | Pathological per-customer volume exceeds the 2-minute limit (NFR-CSE-012) | Medium — erasure stops short | Budget + `IsComplete` rerun (C.3.5); idempotent |
 | R4 | Plugin trace log too ephemeral/admin-only for multi-year DSAR evidence (NFR-CSE-013) | Medium — evidence gap | **OQ-C1** below |
 | R5 | BR-PDR-04 cascade deletes a boundary response a few days early | Low — de-minimis | Accepted (BA); QA covers in boundary cases |
+| R6 | Security review SEC-004: any CRM user can reach the erasure endpoint; the in-code check on the initiating user is the only gate | Low — a future code change that skips the check would expose SYSTEM-level deletion | Accepted 2026-11-15, as for every other Custom API in this solution (`isprivate` only hides metadata, it does not restrict callers). Unit tests pin the access check before any input read; Q14 detects a second "Survey Data Officer" root role. Revisit if 9.1 is proven to honour `executeprivilegename` |
+| R7 | Security review: a role named "Survey Data Officer" created in another business unit also passes the name match | Low — detective control only | Q14 at post-import; run it again periodically (runbook), as for Q12 |
 
 **Open questions for the CEO.** Answered 2026-11-15: **OQ-C1 Option B** (trace line plus the durable,
 append-only `qdb_survey_erasure_log` table, which is built in this addendum) and **OQ-C2 Option A** (the
