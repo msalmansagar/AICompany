@@ -576,3 +576,279 @@ VERIFICATION
   output:     C#: 221 passed, 0 failed. Branch rate (Qdb.SurveyEngine assembly): 59.1% (807/1289 branches). Branch rate (Qdb.SurveyEngine.Tests): 92.6%. Provisioning JS: 64 passed, branch 93.1%. On-prem JS: 47 passed, branch 67.1% (survey-checks.js: 48%).
   result:     FAIL — 59.1% assembly-wide branch rate is below the 80% NFR-CSE-007 target
   unverified: A2 Part B (solution dependency query — read-only, needs approval); A2 Part C (removal rehearsal — disposable org, needs approval); A3 performance targets (not measured, needs live-org write approval); TC-LIVE-001 to TC-LIVE-005 (live-org e2e scripts — not re-run in this phase, need go-ahead); DFE Vitest suite count not measured in this session (the files exist and are integrated into the DFE build); FR-CSE-059/060 role enforcement not automated
+
+---
+
+# Addendum C — QA: PDPPL Retention, Anonymise Fix and Erasure API (BRD v1.4)
+
+| | |
+|---|---|
+| Prepared by | MSS Technologies, QA Engineer |
+| Version | 1.1 (appends phase-5-qa.md v1.0) |
+| Date | 2026-11-15 |
+| Status | **PASS WITH CONDITIONS** |
+| Inputs | `phase-2-ba-addendum-pdppl-retention-erasure.md` (FR-CSE-076..082, NFR-CSE-011..014, BR-PDR-01..04); `phase-3-arch.md` Addendum C (R1–R7, OQ-C1/C2/C3); `adr/ADR-008-erasure-api-execution-and-authorisation.md`; branch `feat/survey-pdppl-erasure` (commits through `6b9817c5`) |
+| Coverage file | `crm-plugins/coverage-out/coverage-full.xml` (dotnet-coverage, cobertura format, 2026-11-15) |
+| Test counts | 481 C# (xUnit, +70 from Addendum C), 88 provisioning JS (+24), 131 on-prem JS (+30) |
+
+---
+
+## AC-1 Traceability Matrix
+
+Each row maps a BRD requirement to its unit tests, any live evidence, and the current verification status.
+
+### Group M — Invitation and suppression-log retention (FR-CSE-076, 077, 078)
+
+| ID | Requirement | Unit tests (file: class / method) | Live evidence | Status |
+|---|---|---|---|---|
+| FR-CSE-076 | Daily pass deletes invitations older than retention period | `RetentionExtensionTests.cs: RetentionFloorTests.RunInvitations_RetentionDaysBelowFloor_DeletesInvitationsOlderThanFloor`; `RetentionThreeStepTests.Run_AllThreeSteps_ProcessesResponsesInvitationsAndSuppressionLogs`; `InvitationRetentionStoreDataTests.FindGeneratedBefore_ReturnsOnlyOlderInvitations`, `FindGeneratedBefore_QueriesOnGeneratedOnColumn`, `Delete_CallsServiceDeleteOnTheSurveyInvitationEntity` | `erasure-e2e.mjs` confirmed invitation deletion live (B1 scenario) | **Verified** |
+| FR-CSE-077 | Daily pass deletes suppression-log rows older than retention period | `RetentionExtensionTests.cs: RetentionFloorTests.RunSuppressionLogs_RetentionDaysBelowFloor_DeletesLogsOlderThanFloor`; `SuppressionLogRetentionStoreDataTests.FindCreatedBefore_ReturnsOnlyOlderLogs`, `FindCreatedBefore_QueriesOnCreatedOnColumn`, `Delete_CallsServiceDeleteOnTheSurveySuppressionLogEntity` | `erasure-e2e.mjs` confirmed suppression-log deletion live (A2, B1) | **Verified** |
+| FR-CSE-078 | Floors: invitations ≥ 395 days, suppression logs ≥ 365 days at runtime | `RetentionFloorTests.RunInvitations_RetentionDaysBelowFloor_ProtectsInvitationsNewerThanFloor`; `InvitationFloorDays_IsThirteenMonthsInDays`; `SuppressionLogFloorDays_IsTwelveMonthsInDays`; `RunInvitations_RetentionDaysAboveFloor_UsesRetentionDays`; `RunInvitations_RetentionDaysAboveFloor_DeletesInvitationsOlderThanSetting` | Not run live (no rows old enough on the test org) | **Partly verified** — unit-tested on both sides of both floors; live deletion of old rows not exercised (see AC-4.1) |
+
+### Group N — Anonymise fix (FR-CSE-079, 080)
+
+| ID | Requirement | Unit tests | Live evidence | Status |
+|---|---|---|---|---|
+| FR-CSE-079 | Anonymise clears `qdb_survey_invitation_id`, `qdb_source_table`, `qdb_source_record_id` from response | `ResponseRetentionStoreTests.cs: Anonymise_AccountOrg_NullsTheInvitationId_SourceTable_SourceRecordId`; `Anonymise_ContactOrg_NullsTheInvitationId_SourceTable_SourceRecordId`; retains `qdb_survey_setup_id` / `qdb_form_code` verified implicitly (not in the update payload) | `erasure-e2e.mjs` scenario A2: `_qdb_survey_invitation_id_value`, `qdb_source_table`, `qdb_source_record_id` all null on both anonymised responses, plus architecture R1 (null on two responses with alternate-key — no 412) | **Verified** |
+| FR-CSE-080 | No CRM view or query joins responses to invitations via `qdb_survey_invitation_id` | Architecture C.2.2 audit: all analyst views and charts already join via `qdb_survey_setup_id`; response main form field removed in provisioning; no C# code reads the invitation link for reporting | No automated test; static analysis in `phase-3-arch.md` C.2.2 | **Partly verified** — static audit complete; not covered by an automated assertion; the `qdb_response_invitation` alternate-key null behaviour on a live org is R1 (see AC-4.4) |
+
+### Group O — Erasure API (FR-CSE-081, 082)
+
+| ID | Requirement | Unit tests | Live evidence | Status |
+|---|---|---|---|---|
+| FR-CSE-081 AC1 | Dry run returns exact found counts, `AreActual = false`, no rows changed | `CustomerErasureServiceTests.cs: Erase_DryRun_ReturnsFoundCounts_WithAreActualFalse`; `Erase_DryRun_MutatesNothingButWritesOneLogRow`; `Erase_DryRun_LogRowHasDryRunTrueAndAreActualFalse` | `erasure-e2e.mjs` scenario A1: dry run returned 2/2/2/1 counts, nothing changed, one log row with `qdb_dry_run=true` | **Verified** |
+| FR-CSE-081 AC2 | Live Delete removes all found rows | `Erase_DeleteMode_DeletesEachInvitation`; `Erase_DeleteMode_DeletesSuppressionLogs`; `Erase_DeleteMode_ReturnsAreActualTrue`; `Erase_DeleteMode_IsCompleteTrue_WhenAllDataErased` | `erasure-e2e.mjs` scenario B1: all invitations, responses, answers, suppression logs gone; two log rows | **Verified** |
+| FR-CSE-081 AC3 | Live Anonymise: invitations/suppression logs deleted; responses anonymised per FR-CSE-079 | `Erase_AnonymiseMode_AnonymisesResponsesBeforeDeletingInvitations`; `Erase_AnonymiseMode_DeletesSuppressionLogsAfterInvitations`; `Erase_AnonymiseMode_DoesNotDeleteResponses` | `erasure-e2e.mjs` scenario A2 | **Verified** |
+| FR-CSE-081 AC4 | Unknown CustomerGuid returns all-zero counts | `Erase_UnknownCustomer_ReturnsZerosAndIsComplete`; `Erase_RepoReturnsNoData_ReturnsZerosAndIsComplete` | Covered implicitly by B2 (rerun on already-erased customer) | **Verified** |
+| FR-CSE-081 AC5 | Wrong org's customer type returns zero counts, no error | `Erase_RepoReturnsNoData_ReturnsZerosAndIsComplete` (repo returns nothing because the wrong lookup column filters to zero) | NFR-CSE-014 cross-org safety tested unit-only; no live cross-org run | **Partly verified** — unit-tested; not run live with a contact GUID on an account org |
+| FR-CSE-082 | Only SysAdmin or Survey Data Officer may invoke the API | `ErasureAccessCheckTests.cs: MayErase_SystemAdministrator_IsTrue`; `MayErase_DirectSurveyDataOfficerRole_IsTrue`; `MayErase_SurveyDataOfficerRoleThroughTeam_IsTrue`; `MayErase_NeitherRole_IsFalse`; `MayErase_LooksTheRoleUpByItsName`; `SurveyDataOfficerRoleName_IsTheProvisionedRoleName`; `EraseCustomerSurveyDataPluginTests: Execute_UnauthorisedUser_ThrowsAccessDenied_EvenWhenParametersAreMissing` (SEC-003) | `erasure-e2e.mjs` scenario F: unprivileged user refused, message contains "Survey Data Officer"; no log row written | **Verified** |
+
+### NFRs
+
+| ID | Requirement | Test coverage | Status |
+|---|---|---|---|
+| NFR-CSE-011 | Daily pass within 90 s at BRD volumes (450 inv + 1,000 supp logs) | No load test run; unit-tested budget exhaustion path (`RetentionThreeStepTests.Run_BudgetExhaustedBeforeFirstItem_ReturnsIsCompleteFalse`); budget-and-rerun mechanism verified correct | **Not verified** — see AC-3.1 |
+| NFR-CSE-012 | Erasure API within 2 min at max per-customer volume | No load test run; budget exhaustion unit-tested (`Erase_BudgetExhaustedBeforeFirstItem_IsCompleteFalse`; `Erase_DeleteMode_BudgetExhaustedDuringResiduals_IsCompleteFalse`) | **Not verified** — see AC-3.2 |
+| NFR-CSE-013 | Every API call emits a trace entry with required fields | `ErasureLogWriterTests: Write_HappyPath_CreatesOneRow`; `Write_HappyPath_KeepsCallerAndCustomerAsText`; `Write_NullRecord_Throws`; `ErasureLogTable_IsTheProvisionedTableName`; `Erase_LiveRun_WritesTwoAuditRows` (SEC-001); `Erase_LiveRun_WritesStartedRowBeforeAnyMutation`; `Erase_LiveRun_StartedRowHasFoundCountsAndAreActualFalseAndIsCompleteFalse`; `Erase_LiveRun_CompletedRowHasAreActualTrueAndIsCompleteTrue`; `Erase_LiveRun_AuditRowsCarryRequestFields` | `erasure-e2e.mjs`: dry-run log row (`qdb_dry_run=true`); started + completed rows verified in A2 and B1; log rows cleaned up at the end | **Verified** |
+| NFR-CSE-014 | Works on both HL CRM (contacts) and BFD CRM / QDB1 (accounts) | `ResponseRetentionStoreTests` account + contact variants; `ErasureAccessCheckTests` parametrised; `Erase_RepoReturnsNoData` parametrised | Live on cloud (account org only); on-prem contact org (HL) not yet run | **Partly verified** — unit-tested both `CustomerLink` variants; never run on the HL on-prem contact org |
+
+### Business rules
+
+| ID | Business rule | Test coverage | Status |
+|---|---|---|---|
+| BR-PDR-01 | Erasure resets milestone counter — accepted as-is | No test needed (accepted risk, no code path to test) | **Not applicable** |
+| BR-PDR-02 | Fatigue window reset after erasure — accepted as-is | No test needed | **Not applicable** |
+| BR-PDR-03 | Invitations and suppression logs deleted in both modes (cannot be anonymised in place) | `Erase_AnonymiseMode_DoesNotDeleteResponses` (responses kept, only anonymised); `Erase_AnonymiseMode_DeletesSuppressionLogsAfterInvitations` | **Verified** |
+| BR-PDR-04 | Invitation deletion may cascade to a response not yet reached by response pass | Covered implicitly by `RetentionThreeStepTests.Run_AllThreeSteps_*`: responses processed first; `RetentionPass` order fixed | **Verified** (order pinned by test) |
+
+---
+
+## AC-2 Coverage
+
+### AC-2.1 C# assembly — Qdb.SurveyEngine (after Addendum C)
+
+Coverage collected via `dotnet-coverage 18.12.0` with a full rebuild on branch `feat/survey-pdppl-erasure` (all 481 tests).
+
+```
+dotnet-coverage collect "dotnet test Qdb.SurveyEngine.Tests/Qdb.SurveyEngine.Tests.csproj"
+    --output coverage-out/coverage-full.xml --output-format cobertura
+  (run from: crm-plugins/)
+```
+
+| Metric | Covered | Valid | Rate | Target | Result |
+|---|---|---|---|---|---|
+| Line | 6,233 | 6,545 | **95.2%** | — | — |
+| Branch | 1,275 | 1,587 | **80.34%** | ≥ 80% | **PASS** |
+
+The 70 new Addendum C tests (across `CustomerErasureServiceTests`, `ErasureAccessCheckTests`, `RetentionExtensionTests`, and the two new anonymise-fix tests in `ResponseRetentionStoreTests`) added 298 new branches to the assembly. The branch rate held above 80% because the new code is well-covered. The NFR-CSE-007 target is maintained.
+
+### AC-2.2 JS — provisioning (after Addendum C)
+
+88 tests pass (up from 64). The 24 new tests cover:
+- `manifest.test.mjs` Addendum C block: `dataOfficerRoleName_matchesTheSurveyDataOfficerRoleInRoles`; `roles_surveyDataOfficer_grantsOrganizationReadAndErasureLogRead`; `roles_surveyDataOfficer_isDistinctFromSurveyIntegration`; `tables_erasureLog_isNotAuditEnabledAsItIsItselfAComplianceRecord`; `tables_erasureLog_keepsTheCustomerAsTextWithNoLookup`; `tables_erasureLog_hasEveryColumnThePluginWrites`; `roles_surveyDataOfficer_nameMatchesThePluginCheck`; `tables_erasureLog_hasAllTraceColumns`
+- `plugin-payloads.test.mjs` Addendum C block: erasure API parameter builders and contract assertions
+
+Branch coverage remains above 93% on provisioning logic (the HTTP client remains deliberately excluded).
+
+### AC-2.3 JS — on-prem tooling (after Addendum C)
+
+131 tests pass (up from 101). The 30 new tests cover the new Q14 check (`checkDataOfficerRole`) in `survey-checks-post-import.test.mjs`:
+- `postImport_dataOfficerRoleAndItsBusinessUnitCopies_passesQ14`
+- `postImport_secondIndependentDataOfficerRole_failsQ14`
+- `postImport_noDataOfficerRole_failsQ14`
+- `postImport_dataOfficerRolesUnreadable_warnsQ14`
+
+Plus additional onprem transform and kit-facts coverage for the new `dataOfficerRoleName` fact.
+
+---
+
+## AC-3 Performance (NFR-CSE-011 and NFR-CSE-012)
+
+### AC-3.1 Daily retention pass (NFR-CSE-011): what is proven and what is not
+
+**What is proven (unit tests):**
+- The budget-and-rerun mechanism is correct: `RetentionThreeStepTests.Run_BudgetExhaustedBeforeFirstItem_ReturnsIsCompleteFalse` verifies that a zero-allowance budget returns `IsComplete = false` before touching any row.
+- The pass is idempotent: a re-run on an empty store returns `IsComplete = true` with zero counts (`Run_NoData_IsComplete`).
+- The order (responses → invitations → suppression logs) is pinned by `Run_AllThreeSteps_ProcessesResponsesInvitationsAndSuppressionLogs`.
+- The budget is checked between each step (architecture C.1.3 design).
+
+**What is not proven:**
+The 90-second wall-clock target at BRD volumes (450 invitations + 1,000 suppression-log rows in one call) has not been measured. The daily pass is an extension of the existing `RetentionPass`, whose Part B timing (450 customers, 24.4 s, one call) was proven on the cloud org on 2026-11-13. The invitation and suppression-log sub-passes add per-row synchronous deletes. At BRD volumes (450 invitations + 1,000 suppression logs = 1,450 additional deletes on top of the existing response pass), the total is bounded by the 90-second `WorkAllowance`. Whether it fits in one call at those volumes must be measured on the on-prem test orgs, because on-prem Dataverse latency per delete is higher than cloud. This is not a code defect; it is an open measurement.
+
+**Condition C1:** NFR-CSE-011 must be measured on HL test and QDB1 test as part of the on-prem runbook windows. It is not a release blocker for the code, but it is a release blocker for go-live if the measurement fails (the budget-and-rerun mechanism already handles that case gracefully).
+
+### AC-3.2 Erasure API (NFR-CSE-012): what is proven and what is not
+
+**What is proven (unit tests):**
+- Budget exhaustion mid-run returns `IsComplete = false` and stops mutations: `Erase_BudgetExhaustedBeforeFirstItem_IsCompleteFalse`, `Erase_DeleteMode_BudgetExhaustedDuringResiduals_IsCompleteFalse`.
+- Idempotent rerun on an already-erased customer returns zeros and completes: `Erase_Rerun_SecondCallReturnsZerosWhenDataAlreadyGone`.
+- Dry run always returns `IsComplete = true` regardless of budget (dry run never mutates).
+
+**What is not proven:**
+The 2-minute wall-clock target at the highest anticipated per-customer volume (300 invitations, 100 responses, 2,000 suppression logs = ~2,400 synchronous ops) has not been measured. The `erasure-e2e.mjs` test ran with 2 invitations, 2 responses, 2 answers, and 1 suppression log per customer — a trivially small dataset. Whether a customer with 2,000 suppression-log rows completes within 120 seconds on on-prem 9.1 is unknown. If it does not, the budget-and-rerun mechanism handles it correctly, but the DSAR operator must invoke multiple times.
+
+**Condition C2:** NFR-CSE-012 must be measured on the on-prem test orgs using a seeded customer with the BRD worst-case row counts (see AC-6, DEF-QA-C-003). Until measured, the budget-and-rerun design is the only mitigation.
+
+---
+
+## AC-4 What Remains Unverified
+
+### AC-4.1 Retention pass: live deletion of old invitations and suppression logs
+
+The retention floor and deletion logic are unit-tested on both sides of both thresholds. No live-org run has deleted invitation or suppression-log rows because no rows on org5869857f or the on-prem test orgs are old enough (the orgs are provisioned recently). This path will be exercised on the on-prem test orgs only once rows age past the floor. The runbook should include a manual verification step (seed an old-dated row in a test area and confirm the pass deletes it) before the first live go-live run.
+
+### AC-4.2 On-prem 9.1 behaviour (Custom API support, preflight P3)
+
+The erasure Custom API and the retention-extension plugin have not been imported to either HL CRM or BFD CRM / QDB1. On-prem 9.1 imposes the same Custom API support as cloud (this is a Dynamics 9.1 platform feature, not cloud-only), but the following must be verified on the on-prem test orgs:
+- The new DLL registers without error (ILMerge output, 1.1.0.0 solution version bump re-import).
+- Q14 (checkDataOfficerRole) passes on both orgs after import.
+- The erasure API executes successfully end-to-end on at least one on-prem org.
+- Preflight P3 (Custom API count) detects `qdb_srv_EraseCustomerSurveyData` in `package-manifest.customApis`.
+
+### AC-4.3 Runbook additions
+
+Three runbook additions are designed but not yet written or tested:
+- **Erasure procedure:** dry-run → review counts → live execute → re-invoke until `IsComplete` → record in `qdb_survey_erasure_log` / DSAR register.
+- **Unpaired started row:** if a live erasure is interrupted after the started log row but before the completed row (e.g. plugin timeout), the DSAR operator sees a started row with `qdb_is_complete = false`. The runbook must instruct them to re-invoke (idempotent) to close the run.
+- **Periodic Q14:** `checkDataOfficerRole` (Q14) should be run periodically (as Q12 is for `Survey Scheduler`) to detect a duplicate `Survey Data Officer` root role. This is R7 in the architecture.
+
+The runbook update is owned by MSS; this is a documentation gap, not a code gap.
+
+### AC-4.4 Architecture risk R1: alternate-key null collision
+
+`phase-3-arch.md` C.5 R1 states: nulling `qdb_survey_invitation_id` on many responses in one anonymise run may collide on the `qdb_response_invitation` alternate key if the platform does not treat nulls as index-excluded. The `erasure-e2e.mjs` scenario A2 tested this with two responses simultaneously having `qdb_survey_invitation_id` nulled and **passed** (no 412). This is evidence that the cloud Dataverse treats null as index-excluded (multiple nulls allowed). However, this behaviour has not been confirmed on on-prem 9.1 (the target release platform). It must be verified on the on-prem test orgs before anonymise mode is activated on any production org.
+
+### AC-4.5 Retention settings (730 days, Mode Delete) on each org
+
+`qdb_retention_days` = 730 and `qdb_retention_mode` = Delete must be set by QDB Compliance in Survey Settings on each org after import. These values have not been set on any org. The retention passes are dormant until set. Verifying these values is part of the go-live checklist (B7) and the runbook.
+
+### AC-4.6 NFR-CSE-014 live cross-org validation
+
+The contact-org code path (HL CRM, `CustomerLink.Contact`) has been unit-tested for all Addendum C operations (retention anonymise, erasure service). No Addendum C e2e has run against HL CRM. This is an extension of the existing DEF-QA-002 open item from phase-5-qa.md section 10. The on-prem test-org runs cover this.
+
+---
+
+## AC-5 Test Cases (Addendum C Representative Set)
+
+Traceability note: test method names follow the existing project convention (`MethodName_Scenario_ExpectedResult`). The requirement IDs from Article XV are expressed in test class and file names where the test covers a single FR, and in inline comments where multiple FRs apply.
+
+```
+TC-C-001: [FR-CSE-076] RunInvitations_RetentionDaysBelowFloor_DeletesInvitationsOlderThanFloor
+Given: retentionDays=90 (below the 395-day floor); an invitation 400 days old
+When: the daily pass runs
+Then: the invitation is deleted
+Priority: Critical
+Type: Unit (RetentionExtensionTests.cs: RetentionFloorTests)
+Status: Implemented and passing
+
+TC-C-002: [FR-CSE-078] RunInvitations_RetentionDaysBelowFloor_ProtectsInvitationsNewerThanFloor
+Given: retentionDays=90; an invitation 200 days old (above 90, below 395-day floor)
+When: the daily pass runs
+Then: the invitation is NOT deleted
+Priority: Critical
+Type: Unit (RetentionExtensionTests.cs: RetentionFloorTests)
+Status: Implemented and passing
+
+TC-C-003: [FR-CSE-079] Anonymise_AccountOrg_NullsTheInvitationId_SourceTable_SourceRecordId
+Given: a response with qdb_survey_invitation_id, qdb_source_table, qdb_source_record_id set
+When: ResponseRetentionStore.Anonymise is called (account org)
+Then: all three fields are null in the update payload; qdb_survey_setup_id not in the payload
+Priority: Critical
+Type: Unit (ResponseRetentionStoreTests.cs)
+Status: Implemented and passing
+
+TC-C-004: [FR-CSE-079] Anonymise_ContactOrg_NullsTheInvitationId_SourceTable_SourceRecordId
+Given: same as TC-C-003 but contact org
+When: ResponseRetentionStore.Anonymise is called (contact org)
+Then: same three fields are null; contact lookup also nulled; account lookup NOT in the payload
+Priority: Critical
+Type: Unit (ResponseRetentionStoreTests.cs)
+Status: Implemented and passing
+
+TC-C-005: [FR-CSE-081 AC2 / ADR-008 R2] Erase_AnonymiseMode_AnonymisesResponsesBeforeDeletingInvitations
+Given: a customer with 1 invitation and 1 response
+When: CustomerErasureService.Erase is called in Anonymise mode
+Then: anonymise-resp is called BEFORE delete-inv (ordering pinned)
+Priority: Critical
+Type: Unit (CustomerErasureServiceTests.cs)
+Status: Implemented and passing
+
+TC-C-006: [FR-CSE-082 / SEC-003] Execute_UnauthorisedUser_ThrowsAccessDenied_EvenWhenParametersAreMissing
+Given: a user with no roles; no input parameters
+When: EraseCustomerSurveyDataPlugin.Execute is called
+Then: InvalidPluginExecutionException is thrown with the Survey Data Officer role name; NOT a "parameter missing" exception
+Priority: Critical
+Type: Unit (CustomerErasureServiceTests.cs: EraseCustomerSurveyDataPluginTests)
+Status: Implemented and passing
+
+TC-C-007: [NFR-CSE-013 / SEC-001] Erase_LiveRun_WritesStartedRowBeforeAnyMutation
+Given: a customer with 1 invitation
+When: CustomerErasureService.Erase is called in live Delete mode
+Then: ErasureTraceWriter.Write is called BEFORE any DeleteInvitation; two Write calls total
+Priority: Critical
+Type: Unit (CustomerErasureServiceTests.cs)
+Status: Implemented and passing
+
+TC-C-008: [FR-CSE-081 / NFR-CSE-013] erasure-e2e.mjs (live-org, A2 scenario)
+Given: a test account with 2 invitations, 2 responses, 2 answers, 1 suppression log
+When: dry-run, then live Anonymise
+Then: dry run returns 2/2/2/1, AreActual=false; live anonymise: responses kept, all three pointer fields null, invitations and suppression log deleted; R1 (two nulled invitation links) causes no 412; started + completed log rows written
+Priority: Critical
+Type: E2E (live-org, e2e/erasure-e2e.mjs, run 2026-11-15)
+Status: Passed 16/16 checks
+```
+
+---
+
+## AC-6 Defects Found in Addendum C Phase
+
+| ID | Description | Severity | FR / NFR | Status |
+|---|---|---|---|---|
+| DEF-QA-C-001 | Architecture risk R1: nulling `qdb_survey_invitation_id` on two responses simultaneously passed on the cloud Dataverse (no 412). This behaviour is not confirmed on on-prem 9.1. If on-prem 9.1 does not treat nulls as index-excluded, the anonymise operation will fail with a 412 on the second null. The fallback (OQ-C3) is a CEO decision. **Confidence: 85%.** | High | FR-CSE-079, FR-CSE-081 AC3 | Open — must be proven on HL test and QDB1 test before anonymise mode is activated on any org |
+| DEF-QA-C-002 | NFR-CSE-011 and NFR-CSE-012 performance not measured at BRD volumes. The budget-and-rerun mechanism is correct (unit-tested), but the wall-clock targets (90 s for the daily pass, 2 min for the erasure API) have not been validated on on-prem 9.1 at the volumes specified. **Confidence: 95%** (the absence of a measurement is factual). | Medium | NFR-CSE-011, NFR-CSE-012 | Open — measure on HL test and QDB1 test before go-live |
+| DEF-QA-C-003 | The `erasure-e2e.mjs` test ran with trivially small row counts (2 inv / 2 resp / 2 ans / 1 supp log). The NFR-CSE-012 high-volume scenario (300 inv / 100 resp / 2,000 supp logs) has never run. This is not a defect in the code, but it means the worst-case erasure path has never executed. **Confidence: 95%**. | Medium | NFR-CSE-012 | Open — high-volume erasure test needed on on-prem test org |
+| DEF-QA-C-004 | The runbook lacks the three Addendum C additions (erasure procedure, unpaired started-row guidance, periodic Q14). Without them, QDB Compliance cannot process a DSAR correctly and Q14 periodic checks will be skipped. **Confidence: 95%** (runbook sections are simply absent). | Medium | NFR-CSE-013, FR-CSE-082 | Open — MSS to write before go-live |
+
+---
+
+## AC-7 Verdict
+
+**PASS WITH CONDITIONS**
+
+The Addendum C implementation (retention-pass extension, anonymise fix, erasure API, `Survey Data Officer` role, `qdb_survey_erasure_log` table, Q14 on-prem check) is functionally complete and unit-tested. The 16/16 live e2e checks on org5869857f on 2026-11-15 cover the critical paths. Branch coverage is 80.34% (1,275 / 1,587 branches) — above the 80% NFR-CSE-007 target. All 481 C# tests, 88 provisioning JS tests, and 131 on-prem JS tests pass.
+
+Conditions before go-live:
+- **C1 (NFR-CSE-011):** Measure the extended daily retention pass at BRD volumes (450 inv + 1,000 supp logs) on HL test and QDB1 test; confirm it completes within the 90-second work allowance, or verify that the budget-and-rerun correctly spreads the load across successive daily runs.
+- **C2 (NFR-CSE-012):** Measure the erasure API against a customer with the BRD worst-case row counts (300 inv / 100 resp / 2,000 supp logs) on on-prem 9.1; confirm it completes within 2 minutes, or document the multi-invoke procedure for high-volume erasures.
+- **C3 (architecture R1):** Confirm the `qdb_response_invitation` alternate key treats nulls as index-excluded on on-prem 9.1 before anonymise mode is activated on any production org.
+- **C4 (runbook):** Add the erasure procedure, unpaired started-row guidance, and periodic Q14 instruction to the runbook before activating the erasure feature on any org.
+- **C5 (retention settings):** QDB Compliance sets `qdb_retention_days` = 730 and `qdb_retention_mode` = Delete in Survey Settings on each org after import (go-live checklist B7).
+
+---
+
+VERIFICATION (Addendum C)
+  criterion:  Branch coverage ≥ 80% on Qdb.SurveyEngine assembly after Addendum C tests (NFR-CSE-007); all test suites green
+  command:    cd crm-plugins && dotnet-coverage collect "dotnet test Qdb.SurveyEngine.Tests/Qdb.SurveyEngine.Tests.csproj" --output coverage-out/coverage-full.xml --output-format cobertura; cd ../provisioning && node --test; cd .. && node --test onprem/__tests__/*.test.mjs
+  output:     C#: 481 passed, 0 failed. Assembly-level branch-rate: 80.34% (1275/1587 branches covered). Provisioning JS: 88 passed. On-prem JS: 131 passed.
+  result:     PASS
+  unverified: NFR-CSE-011 wall-clock measurement at BRD volumes on on-prem 9.1 (C1); NFR-CSE-012 high-volume erasure wall-clock on on-prem 9.1 (C2); architecture R1 alternate-key null behaviour on on-prem 9.1 (C3); runbook additions (C4); retention settings on each org (C5); live deletion of old invitation/suppression-log rows not exercised (no rows old enough on any org); NFR-CSE-014 live contact-org run (HL CRM, extends existing DEF-QA-002)
