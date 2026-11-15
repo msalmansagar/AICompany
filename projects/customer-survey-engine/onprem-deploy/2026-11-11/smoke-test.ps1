@@ -61,7 +61,7 @@ $PendingStatus = 100000000
 $SubmittedStatus = 100000002
 $PortalChannel = 100000000
 $ContactTable = 100000001
-$SurveyApis = @('qdb_srv_ActivateSource', 'qdb_srv_DeactivateSource', 'qdb_srv_RunDueSurveys', 'qdb_srv_ListPendingSurveys', 'qdb_srv_GetSurvey', 'qdb_srv_SubmitResponse', 'qdb_srv_ValidateLinkToken')
+$SurveyApis = @('qdb_srv_ActivateSource', 'qdb_srv_DeactivateSource', 'qdb_srv_RunDueSurveys', 'qdb_srv_ListPendingSurveys', 'qdb_srv_GetSurvey', 'qdb_srv_SubmitResponse', 'qdb_srv_ValidateLinkToken', 'qdb_srv_EraseCustomerSurveyData')
 
 function Add-Result([string]$Id, [string]$Title, [bool]$Passed, [string]$Detail) {
     $status = if ($Passed) { 'PASS' } else { 'FAIL' }
@@ -113,7 +113,7 @@ function Test-ReadOnly {
     Add-Result 'R1' 'Signed in to CRM' $whoAmI.Ok $(if ($whoAmI.Ok) { 'user ' + $whoAmI.Json.UserId } else { "HTTP $($whoAmI.Status)" })
     $link = Get-CustomerLink
     $missing = @($SurveyApis | Where-Object { -not @((Invoke-Crm GET ("customapis?`$select=uniquename&`$filter=uniquename eq '{0}'" -f $_)).Json.value).Count })
-    Add-Result 'R3' 'Seven survey Custom APIs exist' ($missing.Count -eq 0) $(if ($missing.Count) { 'missing: ' + ($missing -join ', ') } else { '' })
+    Add-Result 'R3' ('{0} survey Custom APIs exist' -f $SurveyApis.Count) ($missing.Count -eq 0) $(if ($missing.Count) { 'missing: ' + ($missing -join ', ') } else { '' })
     $nobody = [guid]::NewGuid().ToString()
     $list = Invoke-Crm POST 'qdb_srv_ListPendingSurveys' @{ CustomerId = $nobody; Language = $Language } -AsIntegration
     Add-Result 'R4' 'ListPendingSurveys runs (unknown customer: empty list)' ($list.Ok -and $list.Json.SurveysJson -eq '[]') $(if ($list.Ok) { $list.Json.SurveysJson } else { "HTTP $($list.Status)" })

@@ -1,6 +1,10 @@
 # Customer Survey Engine — on-prem kit, 2026-11-11
 
-**Status: built, not yet imported anywhere.** Later on 2026-11-14 the Form Engine designer was rebuilt as 1.6.1
+**Status: built, not yet imported anywhere.** On 2026-11-15 the SurveyEngine package was rebuilt as **1.1.0.0**
+for BRD addendum C (PDPPL decisions): invitation and suppression-log retention, the anonymise fix, the erasure
+API `qdb_srv_EraseCustomerSurveyData` with the **Survey Data Officer** role and the audited erasure log, all
+CEO-approved with conditions and verified on the cloud org (runbook section 11; Q13 now 8 tables; new Q14).
+Earlier on 2026-11-14 the Form Engine designer was rebuilt as 1.6.1
 with three Save fixes, all deployed and verified on the cloud org: clearing a component key (DFE-CKEY-001, PR #177),
 clearing score weights, min and max and 11 other settings (DFE-CLEAR-001, #178), and an autosave that lost a field
 added while it ran (DFE-AUTOSAVE-001, #179). On 2026-11-14 the SurveyEngine package was rebuilt twice: to add
@@ -23,7 +27,7 @@ order it goes in.
 | 1 | `form-engine/QdbFormEngineSurveyUpdate_1_0_0_0_onprem_unmanaged.zip` | The six Form Engine columns the surveys use: `qdb_form_type`, `qdb_scoring_mode` (Form Definition), `qdb_score_weight/min/max` (Form Field), `qdb_score_points` (Form Option Value) | Solutions → Import |
 | 2 | `form-engine/FormDesignerWebResource_1.6.1.zip` | Form designer and in-CRM runtime with Form Type, the survey branch, no "Submit another" on surveys, and the scoring boxes. The designer adds survey mode: New Form asks Normal Form or Survey, and a survey shows only survey controls and settings. 1.6.1 adds the three Save fixes above. Supersedes 1.6.0, 1.5.0 and 1.4.1 (it includes the 2026-10-19 fixes) | Solutions → Import, then Publish All |
 | 3 | `form-engine/Qdb.FormEngine.Plugins.dll` | Form Engine plugin that publishes the scoring values (scoring mode, weights, min/max, option points) into the survey JSON | Plugin Registration Tool → Update assembly. **Gated, see below** |
-| 4 | `SurveyEngine_1_0_0_0_onprem_unmanaged.zip` | The survey solution: 9 tables, 4 roles (Survey Admin, Analyst, Integration, and Survey Scheduler for the daily scheduler's account), 7 Custom APIs, the `Qdb.SurveyEngine` plugin with its 2 dispatch steps, views, charts, forms, the Survey Engine app and 9 icons, and the survey health view "Survey Jobs - Failed or Suspended" on System Job (the only change to an out-of-box table) | Solutions → Import, then Publish All |
+| 4 | `SurveyEngine_1_1_0_0_onprem_unmanaged.zip` | The survey solution, version 1.1.0.0: 10 tables (with the erasure log), 5 roles (Survey Admin, Analyst, Integration, Survey Scheduler for the daily scheduler's account, and Survey Data Officer for erasure requests), 8 Custom APIs (with the erasure API), the `Qdb.SurveyEngine` plugin with its 2 dispatch steps, views, charts, forms, the Survey Engine app and 10 icons, and the survey health view "Survey Jobs - Failed or Suspended" on System Job (the only change to an out-of-box table) | Solutions → Import, then Publish All |
 
 `package-manifest.json` (survey) and `form-engine/package-manifest.json` record every change, count and
 checksum; `source/` and `form-engine/source/` hold the unmodified cloud exports they were built from.
@@ -76,13 +80,15 @@ prerequisites.
 
 | Check | Result |
 |---|---|
-| Survey assembly in the package | byte-identical to the local Release build of commit `e98ba33f` (Survey Scheduler role), which runs on the cloud org (sha256 `8efa470e…`, deployed and read back 2026-11-14) |
-| Change history | `IsAuditEnabled=1` on the package's source, setup, trigger, invitation, suppression log, settings and SMS config tables, and `0` on response and answer (read from `customizations.xml`). Post-import Q13 checks it on each org; preflight P14 checks the org switch. P14 and Q13 PASS on the cloud org |
-| Survey Scheduler role | in the package with the four survey roles. Its grant is Read of the organization row; the platform adds nine default privileges to every new role (plugin/SDK metadata, SharePoint document data), as on the other three roles. Post-import Q3 and Q12 PASS on the cloud org |
+| Survey assembly in the package | byte-identical to the local Release build of main `c8e4a479` (addendum C), which runs on the cloud org (sha256 `9e0991fd…`, deployed and read back 2026-11-15) |
+| Solution version | the export carries 1.1.0.0, the manifest's version; the build stops if they differ |
+| Change history | `IsAuditEnabled=1` on the package's source, setup, trigger, invitation, suppression log, settings, SMS config and erasure log tables, and `0` on response and answer (read from `customizations.xml`). Post-import Q13 checks it on each org; preflight P14 checks the org switch |
+| Survey Scheduler and Survey Data Officer roles | in the package with the other three survey roles. Survey Scheduler grants Read of the organization row; Survey Data Officer grants that and Read of the erasure log. The platform adds nine default privileges to every new role, as on the others. Post-import Q12 and Q14 check each has one root role |
+| Erasure API | `e2e/erasure-e2e.mjs` 16/16 on the cloud org (2026-11-15): refusal without the role, dry run, anonymise (R1: several empty invitation links accepted), delete, rerun, log rows. Still to confirm on 9.1: R1 and timing (QA C1–C3) |
 | Designer and runtime in 1.6.1 | byte-identical to the cloud org's web resources (designer `e6093c74…`, built from main `911026f2`, deployed and read back 2026-11-14; runtime `afe8eb3f…`, taken unchanged from 1.6.0) |
 | Form Engine plugin | byte-identical to the cloud org's assembly (`137658ae…`) |
 | System Job shell | kept, carrying only the survey health view; the build stops if it brings columns, forms, charts, ribbon buttons or any other view. Its cloud-only self-dependency is removed, as for Account. Preflight P13 confirms the org accepts views on System Job |
-| Relationships | 44, all between survey tables or to Account, Contact, SystemUser, Organization, Queue; the build refuses any other |
+| Relationships | 47, all between survey tables or to Account, Contact, SystemUser, Organization, Queue; the build refuses any other |
 | Custom API ↔ plugin binding | carried by `plugintypeexportkey` to plugin types in the same package; still to be confirmed after import (runbook) |
 | XSD against Microsoft's 9.0.0.2090 schema | **not run**: the CRM SDK schemas are not on the build machine; the Debt Collection kit found that schema advisory only |
 | Custom APIs on 9.1 | **unproven on QDB's orgs** (readiness F2): preflight check before any import |
@@ -91,7 +97,7 @@ prerequisites.
 
 | File | SHA-256 | Bytes |
 |---|---|---|
-| `SurveyEngine_1_0_0_0_onprem_unmanaged.zip` | `39c03f77b5b60bb319273356cbea4179c4f236e247a93e5371e122cb8a04448e` | 157,892 |
+| `SurveyEngine_1_1_0_0_onprem_unmanaged.zip` | `e3534cf82c9c510f0f131e890b7870307af6d247cfaa11a936d2d19e2c76c983` | 175,769 |
 | `form-engine/QdbFormEngineSurveyUpdate_1_0_0_0_onprem_unmanaged.zip` | `bbef1bd91cf84cd2c97fe8bf1cba0cf2bb5ff37fce573728e4134edb759de980` | 3,426 |
 | `form-engine/FormDesignerWebResource_1.6.1.zip` | `b2a8ef00d98b213f6c8d784b50cc2e25291cb323ef780f92e8fb87cfe1bce008` | 1,386,590 |
 | `form-engine/Qdb.FormEngine.Plugins.dll` | `137658ae3a101eb97376aef8e22ea155155f74b2490900a81be7729f8529f083` | 903,680 |

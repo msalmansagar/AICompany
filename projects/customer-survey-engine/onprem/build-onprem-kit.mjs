@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { CUSTOMIZATION_TRANSFORMS, transformSurveySolutionManifest } from './lib/survey-onprem-transforms.mjs';
 import { applyTransforms, extract, repack, sha256, sha256OfFile } from './lib/package-tools.mjs';
+import { SOLUTION } from '../provisioning/manifest.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const XSD_SCRIPT = resolve(HERE, '../../debtcollection/crm/scripts/validate-solution-xsd.ps1');
@@ -25,7 +26,14 @@ const PACKAGE_ENTRIES = ['[Content_Types].xml', 'customizations.xml', 'solution.
 const { values } = parseArgs({ options: { date: { type: 'string' }, schemas: { type: 'string' } } });
 const KIT = resolve(HERE, `../onprem-deploy/${values.date ?? new Date().toISOString().slice(0, 10)}`);
 const SOURCE_ZIP = join(KIT, 'source', 'SurveyEngine_cloud_unmanaged.zip');
-const PACKAGE_ZIP = join(KIT, 'SurveyEngine_1_0_0_0_onprem_unmanaged.zip');
+const PACKAGE_ZIP = join(KIT, `SurveyEngine_${SOLUTION.version.replace(/\./g, '_')}_onprem_unmanaged.zip`);
+
+/** The export must carry the manifest's solution version, or the package name would misstate it. */
+function checkSolutionVersion(workDir) {
+  const [, exported] = readFileSync(join(workDir, 'solution.xml'), 'utf8').match(/<Version>([^<]+)<\/Version>/) ?? [];
+  if (exported !== SOLUTION.version) throw new Error(`the export is version ${exported}, the manifest ${SOLUTION.version}; set the org's solution version and re-export`);
+  return exported;
+}
 
 function applyManifestTransform(workDir, removedStepIds) {
   const file = join(workDir, 'solution.xml');
@@ -75,6 +83,7 @@ function describeContents(workDir) {
 function build(workDir) {
   console.log(`source ${SOURCE_ZIP}`);
   extract(SOURCE_ZIP, workDir);
+  const solutionVersion = checkSolutionVersion(workDir);
   const { applied, details } = applyTransforms(join(workDir, 'customizations.xml'), CUSTOMIZATION_TRANSFORMS);
   const manifest = applyManifestTransform(workDir, details.removedIds ?? []);
   const assembly = compareAssembly(workDir);
@@ -82,7 +91,7 @@ function build(workDir) {
   const contents = describeContents(workDir);
   const entries = repack(workDir, PACKAGE_ZIP, PACKAGE_ENTRIES);
   return {
-    builtAt: new Date().toISOString(), package: PACKAGE_ZIP.split(/[\\/]/).pop(), sha256: sha256OfFile(PACKAGE_ZIP), bytes: statSync(PACKAGE_ZIP).size,
+    builtAt: new Date().toISOString(), package: PACKAGE_ZIP.split(/[\\/]/).pop(), solutionVersion, sha256: sha256OfFile(PACKAGE_ZIP), bytes: statSync(PACKAGE_ZIP).size,
     source: { file: 'source/SurveyEngine_cloud_unmanaged.zip', sha256: sha256OfFile(SOURCE_ZIP) },
     target: 'Dynamics 365 CE 9.1 on-prem: HL CRM and BFD CRM / QDB1 (one package)',
     manifest, customizationTransforms: applied, assembly, xsd, contents, entries,

@@ -87,7 +87,7 @@ is done.
 
 | # | Step |
 |---|---|
-| 4.1 | **Import** → `SurveyEngine_1_0_0_0_onprem_unmanaged.zip`. Leave "enable SDK message processing steps" ticked: the two invitation dispatch steps must be on. |
+| 4.1 | **Import** → `SurveyEngine_1_1_0_0_onprem_unmanaged.zip`. Leave "enable SDK message processing steps" ticked: the two invitation dispatch steps must be on. |
 | 4.2 | **Publish All Customizations.** |
 
 The package carries no trigger steps (readiness F4); activating a source creates them (stage 8).
@@ -102,14 +102,15 @@ The package carries no trigger steps (readiness F4); activating a source creates
 | Check | Pass |
 |---|---|
 | Q1–Q4 solution, 9 tables, 3 roles, app | PASS |
-| **Q5 seven Custom APIs bound to `Qdb.SurveyEngine`** | PASS. If not, open each API in the Plugin Registration Tool and set its plugin type from `Qdb.SurveyEngine.Plugins` (same name without the `qdb_srv_` prefix, e.g. `qdb_srv_GetSurvey` → `GetSurveyPlugin`) |
+| **Q5 eight Custom APIs bound to `Qdb.SurveyEngine`** | PASS. If not, open each API in the Plugin Registration Tool and set its plugin type from `Qdb.SurveyEngine.Plugins` (same name without the `qdb_srv_` prefix, e.g. `qdb_srv_GetSurvey` → `GetSurveyPlugin`) |
 | Q6 two dispatch steps enabled, no trigger steps | PASS |
 | Q7 six Form Engine columns | PASS |
 | Q8–Q9 designer and runtime are the kit builds | PASS |
 | Q10 Form Engine plugin | INFO: says whether stage 3 was done |
 | Q11 survey health view on System Job | PASS. A System Administrator then opens Survey Engine → **Health → Survey Jobs**: it opens on "Survey Jobs - Failed or Suspended" (empty after a clean install) |
 | Q12 one Survey Scheduler role | PASS. If it FAILs with "independent roles share the name", find who created the extra role before stage 6 gives the scheduler's account its role: the daily run admits any role with that name |
-| Q13 change history on the 7 audited survey tables | PASS (tables audited and org auditing on). WARN: the tables are audited but org auditing is off; turn it on (P14). FAIL: Publish All, then check again. Responses and answers are deliberately not audited (PDPPL). This line is the evidence for checklist B9 |
+| Q13 change history on the 8 audited survey tables | PASS (tables audited and org auditing on). WARN: the tables are audited but org auditing is off; turn it on (P14). FAIL: Publish All, then check again. Responses and answers are deliberately not audited (PDPPL). The eighth table is the erasure log, audited so an edit or delete of its evidence is recorded (audit AUD-C-01). This line is the evidence for checklist B9 |
+| Q14 one Survey Data Officer role | PASS. If it FAILs with "independent roles share the name", find who created the extra role before stage 6 gives anyone the role: the erasure API admits any role with that name. **Re-run the post-import check every quarter** and after any business-unit or role change, since only this check catches a same-named role created later (architecture R7) |
 | **Render cache** | `compare-reports.mjs` reports **none changed by the import** |
 
 **Gate 2:** MSS confirms the comparison in writing.
@@ -122,6 +123,7 @@ The package carries no trigger steps (readiness F4); activating a source creates
 | **Survey Analyst** | people who read results | the only role that reads responses and answers (FR-CSE-060), with Excel export |
 | **Survey Integration** | the portal backend's service account | exactly what the four portal APIs need (integration guide) |
 | **Survey Scheduler** | the scheduler's AD service account (0.3), and **no other role** | lets it call the daily run and nothing else: the role grants no survey or customer table rights (only Read of the organization row, the platform minimum), and the run works as SYSTEM. Stage 8.2 proves the account can run it with this role alone |
+| **Survey Data Officer** | the named QDB Compliance staff who handle erasure requests, and **never** a service or integration account | lets them run the erasure API (section 11) and read the erasure log; it grants no survey or customer table rights, and the erasure works as SYSTEM |
 | System Administrator | the activation operator | source activation is administrator-only. The scheduler's account must **not** be a System Administrator (Phase 6 audit, SEC-01) |
 
 ## Stage 7 — Configuration
@@ -131,7 +133,7 @@ Only once every question that blocks a row is answered (`config/README.md`). In 
 
 | # | Row | From |
 |---|---|---|
-| 7.1 | **Survey Settings** (exactly one row). **Customer Table = Contact on HL, Account on QDB1**; leave secure links off. | `config/<org>.json` → `settings` |
+| 7.1 | **Survey Settings** (exactly one row). **Customer Table = Contact on HL, Account on QDB1**; leave secure links off. **Retention Days = 730 and Retention Mode = Delete** (PDPPL decisions D2–D4): the daily run then deletes responses, invitations and suppression logs older than that, never invitations under 13 months or suppression logs under 12 months. | `config/<org>.json` → `settings`; `pdppl-decisions.md` |
 | 7.2 | **Survey Sources**, one per request table, all **inactive**. | `sources` |
 | 7.3 | **Survey SMS Config**, only when secure links are to be used. | `smsConfigs` |
 | 7.4 | Publish each survey form in the Form Designer with **Form Type = Survey**, then create its **Survey Setup** and **Survey Triggers** (status and type values per HL-03 / BFD-03). | survey owners |
@@ -170,7 +172,7 @@ org (HL and QDB1 have different URLs).
 From any Windows machine that reaches CRM, in Windows PowerShell, signed in as a System Administrator:
 
 ```powershell
-# 1. Read-only: settings row, the seven Custom APIs, and each portal API's plugin answering as designed.
+# 1. Read-only: settings row, the eight Custom APIs, and each portal API's plugin answering as designed.
 .\smoke-test.ps1 -OrgUrl https://<crm-server>/<org>
 
 # 2. Test orgs only: one survey end to end through the portal APIs, as the portal's service account.
@@ -217,3 +219,32 @@ measurement of 2026-11-13 is information only.
 | Everything must go | Restore the stage 0.1 database backup. Deleting the SurveyEngine solution removes only the solution record, not its tables. |
 
 The six Form Engine columns are additive and unused by anything else; leaving them in place is harmless.
+
+## Section 11 — Erasure requests (after go-live)
+
+When QDB Compliance accepts a customer's request to erase their data (PDPPL decision D8). Run by a holder
+of **Survey Data Officer** (stage 6) or a System Administrator, in the browser console on a CRM page of the
+customer's org. Each call is recorded in **Survey Engine → Survey Erasure Logs**.
+
+| # | Step |
+|---|---|
+| 11.1 | Find the customer's record id: the **contact** on HL CRM, the **account** on QDB1. |
+| 11.2 | **Dry run** (`DryRun: true`). Changes nothing; returns how many invitations, responses, answers and suppression logs the customer has, and writes one log row. |
+| 11.3 | Check the counts make sense for this customer, then run it **live** (`DryRun: false`) with **Mode 100000000 (Delete)**. Use **Mode 100000001 (Anonymise)** only where MSS has confirmed R1 on this org (QA condition C3); it keeps the responses as anonymous scores and deletes everything else. |
+| 11.4 | If the answer has `IsComplete: false`, the time limit stopped it: run the same call again until `IsComplete` is `true`. Each rerun carries on where the last stopped. |
+| 11.5 | Open **Survey Erasure Logs**: a live run writes a row with **Are Actual = No** before it changes anything, then a row with **Are Actual = Yes** after. Record both in QDB's erasure-request register. |
+| 11.6 | If the "Are Actual = No" row has no "Yes" row after it, the evidence row failed to save after the erasure: run the live call again. It finds nothing left and writes a fresh pair of rows, showing the data is gone. |
+
+```js
+fetch(Xrm.Utility.getGlobalContext().getClientUrl() + '/api/data/v9.0/qdb_srv_EraseCustomerSurveyData', {
+  method: 'POST', credentials: 'same-origin',
+  headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'OData-Version': '4.0', 'OData-MaxVersion': '4.0' },
+  body: JSON.stringify({ CustomerGuid: '<the contact or account id>', Mode: 100000000, DryRun: true }),
+}).then((r) => r.json()).then(console.log);
+```
+
+**What the reply to the customer must say** (PDPPL decisions, audit CMP-C-01): survey data is erased from
+CRM, but CRM change history on invitations keeps their identity until it ages out (at least 24 months, set
+by QDB IT, D6); database backups, Excel exports already taken, and the SMS gateway, email system and portal
+are outside this procedure. After an erasure the customer can be surveyed again sooner than the fatigue rule
+would allow, and a milestone survey they already answered may be sent again (decision pack D8).
