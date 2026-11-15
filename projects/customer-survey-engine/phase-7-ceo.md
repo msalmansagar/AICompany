@@ -89,3 +89,26 @@
 | Merge PR #173 to main now? | Not decided in this answer; condition (4) needs a separate approval |
 | Decided by | The user, as CEO, in chat ("Approve with conditions") |
 | Date | 2026-11-14 |
+
+---
+
+# Addendum C — final decision (PDPPL retention, anonymise fix, erasure API)
+
+BRD v1.4 (`phase-2-ba-addendum-pdppl-retention-erasure.md`, FR-CSE-076..082, NFR-CSE-011..014), built on
+branch `feat/survey-pdppl-erasure`.
+
+| Evidence | Result |
+|---|---|
+| Tests | C# 481, provisioning 88, on-prem checks 131, all pass; branch coverage 80.34% (`phase-5-qa.md` Addendum C) |
+| Reviews | Code review and security review approved after fixes (SEC-001..003 fixed; SEC-004 and the business-unit role-name case accepted as R6, R7) |
+| Live (org5869857f, 2026-11-15) | Provisioned and deployed, assembly matches the build; `e2e/erasure-e2e.mjs` 16/16, including R1 (several empty invitation links accepted); change history on the erasure log read back |
+| QA | Pass with conditions C1–C5 |
+| Audit | Cleared with conditions; CMP-02 and CMP-03 resolved in the build; AUD-C-01 fixed (change history on the erasure log); AUD-C-02 and CMP-C-01 go into the D9 sign-off (`pdppl-decisions.md`) |
+
+| | |
+|---|---|
+| Option chosen | **Approve with conditions** |
+| Conditions | Before production on HL CRM or QDB1: (1) the daily run and the erasure measured inside their time limits on the on-prem test orgs (QA C1, C2); (2) R1 confirmed on on-prem 9.1 before anonymise mode is used (C3); (3) runbook additions: erasure procedure, unpaired started row, periodic Q14 (C4); (4) Retention Days 730 and Mode Delete set per org (C5); (5) QDB Compliance's written sign-off (B2), covering D1–D9 and the audit decisions |
+| Merge to main | Not decided in this answer; needs a separate approval |
+| Decided by | The user, as CEO, in chat ("Approve with conditions") |
+| Date | 2026-11-15 |
