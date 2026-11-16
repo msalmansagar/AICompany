@@ -198,8 +198,9 @@ export const TABLES = Object.freeze([
       string('qdb_recipient_field', 'Recipient Field', 128, { required: true }),
       string('qdb_message_field', 'Message Field', 128, { required: true }),
       string('qdb_customer_link_field', 'Customer Link Field', 128),
-      // B7: where the customer's mobile number lives on account differs per org; empty = no SMS.
-      string('qdb_customer_phone_field', 'Customer Mobile Field', 128),
+      // B7: where the customer's mobile number lives differs per org; empty = no SMS. Addendum D
+      // (FR-CSE-092): an ordered comma-separated list of columns, one SMS per distinct number.
+      string('qdb_customer_phone_field', 'Customer Mobile Fields', 1000),
       memo('qdb_static_columns_json', 'Static Columns JSON', 4000),
       boolean('qdb_is_active', 'Is Active', false),
     ],

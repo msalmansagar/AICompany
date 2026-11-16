@@ -12,7 +12,7 @@ namespace Qdb.SurveyEngine.Tests
     public sealed class InMemoryDispatch : IDispatchStore, IDispatchConfigReader, ISmsHandOff, IEmailSender
     {
         public DispatchInvitation Invitation { get; set; }
-        public CustomerContact Contact { get; set; } = new CustomerContact { Mobile = "+97455500000", Email = "customer@example.com" };
+        public CustomerContact Contact { get; set; } = new CustomerContact { Phones = new[] { new CustomerPhone("telephone1", "+97455500000") }, Email = "customer@example.com" };
         public DispatchSettings Settings { get; set; } = new DispatchSettings { SecureLinkEnabled = true, SecureLinkBaseUrl = "https://portal.example/survey", EmailSenderQueueId = Guid.NewGuid() };
         public SmsHandOffConfig Sms { get; set; } = new SmsHandOffConfig { TableLogicalName = "fax", RecipientField = "faxnumber", MessageField = "qdb_message_body", CustomerPhoneField = "telephone1" };
         public string SavedTokenHash { get; private set; }
@@ -20,14 +20,23 @@ namespace Qdb.SurveyEngine.Tests
         public List<EmailMessage> SentEmail { get; } = new List<EmailMessage>();
         public string EmailFailure { get; set; }
 
+        /// <summary>Numbers whose SMS hand-off fails.</summary>
+        public HashSet<string> FailingNumbers { get; } = new HashSet<string>();
+
         public DispatchInvitation FindInvitation(Guid invitationId) => Invitation?.Id == invitationId ? Invitation : null;
-        public CustomerContact ReadContact(Guid customerId, string phoneField) => new CustomerContact { Email = Contact.Email, Mobile = phoneField == null ? null : Contact.Mobile };
+
+        public CustomerContact ReadContact(Guid customerId, IReadOnlyList<string> phoneFields) => new CustomerContact
+        {
+            Email = Contact.Email,
+            Phones = Contact.Phones.Where(phone => phoneFields.Contains(phone.Field)).ToArray(),
+        };
         public void SaveTokenHash(Guid invitationId, string tokenHash) => SavedTokenHash = tokenHash;
         public DispatchSettings GetSettings() => Settings;
         public SmsHandOffConfig FindActiveSmsConfig() => Sms;
 
         public ChannelOutcome Send(SmsHandOffConfig config, SmsMessage message)
         {
+            if (FailingNumbers.Contains(message.Recipient)) return ChannelOutcome.Failed("The SMS table rejected the row.");
             SentSms.Add(message);
             return ChannelOutcome.Sent();
         }
@@ -137,7 +146,7 @@ namespace Qdb.SurveyEngine.Tests
         [Fact]
         public void Dispatch_NoMobileNumber_StillEmailsAndLogsTheMissingSms()
         {
-            _dispatch.Contact.Mobile = null;
+            _dispatch.Contact.Phones = new CustomerPhone[0];
 
             Dispatch();
 
@@ -177,6 +186,102 @@ namespace Qdb.SurveyEngine.Tests
 
             Assert.Single(_dispatch.SentSms);
             Assert.Contains("Email failed: The sender queue has no email address.", OnlyLogRow().Detail);
+        }
+
+        private void GiveThreePhonesTwoEqual()
+        {
+            _dispatch.Sms.CustomerPhoneField = "telephone1, qdb_mobile_number_2, address1_telephone1";
+            _dispatch.Contact.Phones = new[]
+            {
+                new CustomerPhone("telephone1", "+974 5555 1234"),
+                new CustomerPhone("qdb_mobile_number_2", "97455551234"),
+                new CustomerPhone("address1_telephone1", "+974 6666 0000"),
+            };
+        }
+
+        [Fact]
+        public void Dispatch_SeveralPhoneColumns_SendsOneSmsPerDistinctNumber()
+        {
+            GiveThreePhonesTwoEqual();
+
+            Dispatch();
+
+            Assert.Equal(new[] { "+974 5555 1234", "+974 6666 0000" }, _dispatch.SentSms.Select(sms => sms.Recipient));
+        }
+
+        [Fact]
+        public void Dispatch_SeveralPhoneColumns_EverySmsCarriesTheSameLink()
+        {
+            GiveThreePhonesTwoEqual();
+
+            Dispatch();
+
+            Assert.Single(_dispatch.SentSms.Select(sms => sms.FullText).Distinct());
+        }
+
+        [Fact]
+        public void Dispatch_OneOfTwoNumbersFails_SendsTheOtherAndLogsTheFailingColumn()
+        {
+            GiveThreePhonesTwoEqual();
+            _dispatch.FailingNumbers.Add("+974 6666 0000");
+
+            Dispatch();
+
+            Assert.Single(_dispatch.SentSms);
+            Assert.Contains("SMS to address1_telephone1 failed", OnlyLogRow().Detail);
+        }
+
+        [Fact]
+        public void Dispatch_PhoneColumnNotInTheConfiguredList_IsNotMessaged()
+        {
+            _dispatch.Contact.Phones = new[] { new CustomerPhone("telephone1", "+97455500000"), new CustomerPhone("telephone2", "+97411111111") };
+
+            Dispatch();
+
+            Assert.Equal("+97455500000", Assert.Single(_dispatch.SentSms).Recipient);
+        }
+    }
+
+    public class PhoneNumbersTests
+    {
+        [Fact]
+        public void ParseFieldList_CommaListWithBlanksAndRepeats_ReturnsOrderedDistinctNames()
+        {
+            Assert.Equal(new[] { "telephone1", "qdb_mobile_number_2" }, PhoneNumbers.ParseFieldList(" telephone1 ,, qdb_mobile_number_2; TELEPHONE1 "));
+        }
+
+        [Fact]
+        public void ParseFieldList_SingleName_ReturnsIt()
+        {
+            Assert.Equal(new[] { "mobilephone" }, PhoneNumbers.ParseFieldList("mobilephone"));
+        }
+
+        [Fact]
+        public void ParseFieldList_Empty_ReturnsNothing()
+        {
+            Assert.Empty(PhoneNumbers.ParseFieldList("  "));
+        }
+
+        [Fact]
+        public void Distinct_SameDigitsInDifferentFormats_KeepsTheFirstColumn()
+        {
+            var phones = new[] { new CustomerPhone("a", "+974 5555-1234"), new CustomerPhone("b", "(974) 55551234") };
+
+            Assert.Equal("a", Assert.Single(PhoneNumbers.Distinct(phones)).Field);
+        }
+
+        [Fact]
+        public void Distinct_BlankOrDigitlessValues_AreDropped()
+        {
+            var phones = new[] { new CustomerPhone("a", null), new CustomerPhone("b", " - "), new CustomerPhone("c", " 123 ") };
+
+            Assert.Equal("123", Assert.Single(PhoneNumbers.Distinct(phones)).Number);
+        }
+
+        [Fact]
+        public void DigitsOf_Null_IsEmpty()
+        {
+            Assert.Equal(string.Empty, PhoneNumbers.DigitsOf(null));
         }
     }
 

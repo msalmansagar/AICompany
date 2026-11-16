@@ -6,7 +6,8 @@ using Qdb.SurveyEngine.Integration;
 namespace Qdb.SurveyEngine.Dispatch
 {
     /// <summary>
-    /// Sends a Pending secure-link invitation by SMS and by email (FR-CSE-048, 049, 050), once.
+    /// Sends a Pending secure-link invitation by SMS and by email (FR-CSE-048, 049, 050), once. The SMS
+    /// goes to every distinct number in the configured phone columns, each with the same link (FR-CSE-093).
     /// The token is issued here, because its plaintext may exist only in the message; its stored
     /// hash marks the invitation as dispatched, so a re-run sends nothing. A channel that cannot
     /// deliver (no mobile, no email, no configuration, a failed send) is logged as Not delivered and
@@ -61,8 +62,9 @@ namespace Qdb.SurveyEngine.Dispatch
         {
             var sms = _deps.Config.FindActiveSmsConfig();
             var missing = sms == null ? "an active SMS configuration" : sms.MissingSetting();
-            var contact = _deps.Store.ReadContact(invitation.CustomerId, missing == null ? sms.CustomerPhoneField : null);
-            var plan = new ChannelPlan { Sms = missing == null && !string.IsNullOrWhiteSpace(contact.Mobile) ? sms : null, Contact = contact, SenderQueueId = settings.EmailSenderQueueId };
+            var contact = _deps.Store.ReadContact(invitation.CustomerId, missing == null ? sms.CustomerPhoneFields : new string[0]);
+            var numbers = PhoneNumbers.Distinct(contact.Phones);
+            var plan = new ChannelPlan { Sms = missing == null && numbers.Count > 0 ? sms : null, Numbers = numbers, Contact = contact, SenderQueueId = settings.EmailSenderQueueId };
             if (missing != null) plan.Problems.Add($"SMS not sent: no {missing}.");
             else if (plan.Sms == null) plan.Problems.Add("SMS not sent: the customer has no mobile number.");
             if (!settings.EmailSenderQueueId.HasValue) plan.Problems.Add("Email not sent: Survey Settings has no Email Sender Queue.");
@@ -72,10 +74,10 @@ namespace Qdb.SurveyEngine.Dispatch
 
         private IEnumerable<string> Send(DispatchInvitation invitation, ChannelPlan plan, ComposedMessage message)
         {
-            if (plan.Sms != null)
+            foreach (var phone in plan.Sms == null ? new CustomerPhone[0] : plan.Numbers)
             {
-                var sms = _deps.Sms.Send(plan.Sms, new SmsMessage { CustomerId = invitation.CustomerId, Recipient = plan.Contact.Mobile.Trim(), FullText = message.SmsFullText, ShortText = message.SmsShortText });
-                if (!sms.IsSent) yield return "SMS failed: " + sms.Failure;
+                var sms = _deps.Sms.Send(plan.Sms, new SmsMessage { CustomerId = invitation.CustomerId, Recipient = phone.Number, FullText = message.SmsFullText, ShortText = message.SmsShortText });
+                if (!sms.IsSent) yield return $"SMS to {phone.Field} failed: {sms.Failure}";
             }
             if (!plan.CanEmail) yield break;
             var email = _deps.Email.Send(new EmailMessage { SenderQueueId = plan.SenderQueueId.Value, CustomerId = invitation.CustomerId, InvitationId = invitation.Id, Subject = message.Subject, HtmlBody = message.EmailHtml });
@@ -101,6 +103,10 @@ namespace Qdb.SurveyEngine.Dispatch
         private sealed class ChannelPlan
         {
             public SmsHandOffConfig Sms { get; set; }
+
+            /// <summary>The distinct numbers to message, one SMS each (FR-CSE-093).</summary>
+            public IReadOnlyList<CustomerPhone> Numbers { get; set; } = new CustomerPhone[0];
+
             public CustomerContact Contact { get; set; }
             public Guid? SenderQueueId { get; set; }
             public List<string> Problems { get; } = new List<string>();

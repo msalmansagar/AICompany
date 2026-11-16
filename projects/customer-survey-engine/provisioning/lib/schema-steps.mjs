@@ -77,6 +77,7 @@ async function ensureColumn(context, table, column) {
   if (await context.client.find(presencePath)) {
     context.report('exists', `column ${table.name}.${column.name}`, true);
     if (column.type === 'picklist') await ensurePicklistOptions(context, table, column);
+    if (column.type === 'string' || column.type === 'memo') await ensureTextLength(context, table, column);
     return;
   }
   const subject = `column ${table.name}.${column.name} (${column.type})`;
@@ -84,6 +85,23 @@ async function ensureColumn(context, table, column) {
   if (!context.isApply) return;
   await createMetadata(context, {
     path: `${entityPath(table.name)}/Attributes`, payload: buildAttributePayload(column, context.languageCode), presencePath, subject,
+  });
+}
+
+const TEXT_METADATA_TYPE = { string: 'StringAttributeMetadata', memo: 'MemoAttributeMetadata' };
+
+/**
+ * Grows an existing text column to the manifest's MaxLength (e.g. Addendum D's phone-field list).
+ * Never shrinks: a shorter manifest value is left alone, because shrinking can truncate stored data.
+ */
+async function ensureTextLength(context, table, column) {
+  const typedPath = `${entityPath(table.name)}/Attributes(LogicalName='${column.name}')/Microsoft.Dynamics.CRM.${TEXT_METADATA_TYPE[column.type]}`;
+  const { '@odata.context': _context, ...definition } = await context.client.find(typedPath);
+  if (!definition.MaxLength || definition.MaxLength >= column.maxLength) return;
+  context.report('update', `column ${table.name}.${column.name} MaxLength ${definition.MaxLength} → ${column.maxLength}`);
+  if (!context.isApply) return;
+  await context.client.putMetadata(`${entityPath(table.name)}/Attributes(LogicalName='${column.name}')`, {
+    ...definition, '@odata.type': `Microsoft.Dynamics.CRM.${TEXT_METADATA_TYPE[column.type]}`, MaxLength: column.maxLength,
   });
 }
 

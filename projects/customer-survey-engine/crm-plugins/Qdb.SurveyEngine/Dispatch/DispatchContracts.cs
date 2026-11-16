@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Qdb.SurveyEngine.Domain;
 using Qdb.SurveyEngine.Services;
 
@@ -32,10 +33,12 @@ namespace Qdb.SurveyEngine.Dispatch
         public string MessageArabic { get; set; }
     }
 
-    /// <summary>How to reach the customer; either value may be empty.</summary>
+    /// <summary>How to reach the customer; the email may be empty and the phone list may be empty.</summary>
     public sealed class CustomerContact
     {
-        public string Mobile { get; set; }
+        /// <summary>Every filled configured phone column, in configured order, before de-duplication.</summary>
+        public IReadOnlyList<CustomerPhone> Phones { get; set; } = new CustomerPhone[0];
+
         public string Email { get; set; }
     }
 
@@ -49,8 +52,11 @@ namespace Qdb.SurveyEngine.Dispatch
         /// <summary>Optional lookup on the SMS table set to the customer (e.g. regardingobjectid).</summary>
         public string CustomerLinkField { get; set; }
 
-        /// <summary>The account column holding the customer's mobile number.</summary>
+        /// <summary>The customer column(s) holding mobile numbers: one name, or an ordered comma-separated list (FR-CSE-092).</summary>
         public string CustomerPhoneField { get; set; }
+
+        /// <summary>The configured phone columns in order.</summary>
+        public IReadOnlyList<string> CustomerPhoneFields => PhoneNumbers.ParseFieldList(CustomerPhoneField);
 
         /// <summary>{"column":"value",...} set as constants on every SMS row.</summary>
         public string StaticColumnsJson { get; set; }
@@ -61,7 +67,7 @@ namespace Qdb.SurveyEngine.Dispatch
             if (string.IsNullOrWhiteSpace(TableLogicalName)) return "SMS table";
             if (string.IsNullOrWhiteSpace(RecipientField)) return "recipient field";
             if (string.IsNullOrWhiteSpace(MessageField)) return "message field";
-            if (string.IsNullOrWhiteSpace(CustomerPhoneField)) return "customer mobile field";
+            if (CustomerPhoneFields.Count == 0) return "customer mobile field";
             return null;
         }
     }
@@ -80,8 +86,8 @@ namespace Qdb.SurveyEngine.Dispatch
         /// <summary>The invitation with its setup wording, or null when it no longer exists.</summary>
         DispatchInvitation FindInvitation(Guid invitationId);
 
-        /// <summary>The customer's email (emailaddress1) and, when a field is given, mobile number.</summary>
-        CustomerContact ReadContact(Guid customerId, string phoneField);
+        /// <summary>The customer's email (emailaddress1) and the filled values of the given phone columns (none when the list is empty).</summary>
+        CustomerContact ReadContact(Guid customerId, IReadOnlyList<string> phoneFields);
 
         /// <summary>Stores the token's hash on the invitation; the plaintext is never stored.</summary>
         void SaveTokenHash(Guid invitationId, string tokenHash);
