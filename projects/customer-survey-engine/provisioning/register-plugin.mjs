@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { SOLUTION } from './manifest.mjs';
 import { createDataverseClient } from './lib/dataverse-client.mjs';
-import { stepsForSources, DISPATCH } from './lib/plugin-payloads.mjs';
+import { stepsForSources, DISPATCH, TRIGGER_VALIDATION } from './lib/plugin-payloads.mjs';
 import { ensureAssembly, ensurePluginType, ensureSteps, ensureCustomApis } from './lib/plugin-steps.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -42,6 +42,9 @@ async function run() {
   console.log('[5] Invitation dispatch (enabled; sends only secure-link invitations)');
   const dispatchTypeId = await ensurePluginType({ ...context, assemblyId }, DISPATCH);
   await ensureSteps({ ...context, pluginTypeId: dispatchTypeId, steps: DISPATCH.steps });
+  console.log('[6] One-time trigger validation (enabled, synchronous pre-operation)');
+  const validationTypeId = await ensurePluginType({ ...context, assemblyId }, TRIGGER_VALIDATION);
+  await ensureSteps({ ...context, pluginTypeId: validationTypeId, steps: TRIGGER_VALIDATION.steps });
 }
 
 run().catch((error) => { console.error(`✗ ${error.message}`); process.exit(1); });

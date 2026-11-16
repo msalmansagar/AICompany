@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildStepPayload, buildPreImagePayload, stepsForSources, stepName, PLUGIN, CUSTOM_APIS, DISPATCH, buildCustomApiPayload, describeSignature } from '../lib/plugin-payloads.mjs';
+import { buildStepPayload, buildPreImagePayload, stepsForSources, stepName, PLUGIN, CUSTOM_APIS, DISPATCH, TRIGGER_VALIDATION, buildCustomApiPayload, describeSignature } from '../lib/plugin-payloads.mjs';
 
 const apiNamed = (uniqueName) => CUSTOM_APIS.find((api) => api.uniqueName === uniqueName);
 
@@ -132,4 +132,33 @@ test('buildCustomApiPayload_eraseCustomerSurveyData_isUnboundAndBoundToErasePlug
 test('describeSignature_eraseCustomerSurveyData_listsAllParameters', () => {
   assert.equal(describeSignature(apiNamed('qdb_srv_EraseCustomerSurveyData')),
     'CustomerGuid, Mode, DryRun → InvitationCount, ResponseCount, AnswerCount, SuppressionLogCount, AreActual, IsComplete');
+});
+
+test('describeSignature_oneTimeApis_takeATriggerIdAndReturnCountsOrProgress', () => {
+  assert.deepEqual(['qdb_srv_PreviewAudience', 'qdb_srv_SendOneTimeTrigger'].map((name) => describeSignature(apiNamed(name))), [
+    'TriggerId → Count, Message',
+    'TriggerId → Status, Invited, Postponed, Suppressed, IsComplete, Message',
+  ]);
+});
+
+test('buildCustomApiPayload_sendOneTimeTrigger_requiresAGuidTriggerIdAndBindsTheSendPlugin', () => {
+  const payload = buildCustomApiPayload(apiNamed('qdb_srv_SendOneTimeTrigger'), 'send-id');
+
+  assert.deepEqual([payload.CustomAPIRequestParameters[0].type, payload.CustomAPIRequestParameters[0].isoptional, payload['PluginTypeId@odata.bind']], [12, false, '/plugintypes(send-id)']);
+});
+
+test('buildStepPayload_triggerValidation_isSynchronousPreOperationWithoutAutoDelete', () => {
+  const update = TRIGGER_VALIDATION.steps.find((step) => step.message === 'Update');
+  const payload = buildStepPayload(update, { messageId: 'm', filterId: 'f', pluginTypeId: 't' });
+
+  assert.deepEqual([payload.mode, payload.stage, 'asyncautodelete' in payload], [0, 20, false]);
+  assert.equal(payload.name, 'Qdb.SurveyEngine.Plugins.TriggerAudienceValidationPlugin: Sync PreOperation Update of qdb_survey_trigger');
+});
+
+test('buildStepPayload_triggerValidationUpdate_isFilteredToTheDefinitionColumnsNotTheRunRecord', () => {
+  const update = TRIGGER_VALIDATION.steps.find((step) => step.message === 'Update');
+  const filtered = buildStepPayload(update, { messageId: 'm', filterId: 'f', pluginTypeId: 't' }).filteringattributes.split(',');
+
+  assert.ok(filtered.includes('qdb_audience_fetchxml'));
+  assert.ok(!filtered.some((column) => column.startsWith('qdb_run_') || column.endsWith('_count')));
 });
