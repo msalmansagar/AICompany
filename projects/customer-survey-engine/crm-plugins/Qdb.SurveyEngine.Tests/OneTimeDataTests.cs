@@ -81,19 +81,37 @@ namespace Qdb.SurveyEngine.Tests
             _service.Setup(s => s.Execute(It.IsAny<UpdateRequest>()))
                 .Throws(new FaultException<OrganizationServiceFault>(new OrganizationServiceFault { ErrorCode = unchecked((int)0x80060882) }));
 
-            Assert.False(Store().TryStart(new OneTimeTrigger { Trigger = new SurveyTrigger { Id = Guid.NewGuid() } }, DateTime.UtcNow));
+            Assert.False(Store().TryStart(new OneTimeTrigger { Trigger = new SurveyTrigger { Id = Guid.NewGuid() } }, DateTime.UtcNow).IsSaved);
+        }
+
+        private void AcceptWritesAndReturnVersion(string newVersion, Action<UpdateRequest> capture)
+        {
+            _service.Setup(s => s.Execute(It.IsAny<OrganizationRequest>())).Callback<OrganizationRequest>(r => capture((UpdateRequest)r)).Returns(new UpdateResponse());
+            _service.Setup(s => s.Retrieve("qdb_survey_trigger", It.IsAny<Guid>(), It.IsAny<ColumnSet>())).Returns(new Entity("qdb_survey_trigger") { RowVersion = newVersion });
         }
 
         [Fact]
-        public void TryStart_Succeeds_WritesSendingWithTheReadRowVersion()
+        public void TryStart_Succeeds_WritesSendingWithTheReadRowVersionAndReturnsTheNewOne()
         {
             UpdateRequest sent = null;
-            _service.Setup(s => s.Execute(It.IsAny<OrganizationRequest>())).Callback<OrganizationRequest>(r => sent = (UpdateRequest)r).Returns(new UpdateResponse());
+            AcceptWritesAndReturnVersion("10", r => sent = r);
 
-            var isStarted = Store().TryStart(new OneTimeTrigger { Trigger = new SurveyTrigger { Id = Guid.NewGuid() }, Run = new OneTimeRunState { RowVersion = "9" } }, DateTime.UtcNow);
+            var write = Store().TryStart(new OneTimeTrigger { Trigger = new SurveyTrigger { Id = Guid.NewGuid() }, Run = new OneTimeRunState { RowVersion = "9" } }, DateTime.UtcNow);
 
-            Assert.True(isStarted);
-            Assert.Equal(("9", (int)OneTimeRunStatus.Sending), (sent.Target.RowVersion, sent.Target.GetAttributeValue<OptionSetValue>("qdb_run_status").Value));
+            Assert.Equal((true, "10"), (write.IsSaved, write.RowVersion));
+            Assert.Equal(("9", (int)OneTimeRunStatus.Sending, ConcurrencyBehavior.IfRowVersionMatches),
+                (sent.Target.RowVersion, sent.Target.GetAttributeValue<OptionSetValue>("qdb_run_status").Value, sent.ConcurrencyBehavior));
+        }
+
+        [Fact]
+        public void TrySaveProgress_IsConditionalOnTheStateRowVersion()
+        {
+            UpdateRequest sent = null;
+            AcceptWritesAndReturnVersion("12", r => sent = r);
+
+            var write = Store().TrySaveProgress(Guid.NewGuid(), new OneTimeRunState { Status = OneTimeRunStatus.Sending, NextPage = 3, RowVersion = "11" });
+
+            Assert.Equal(("11", "3|", "12"), (sent.Target.RowVersion, sent.Target.GetAttributeValue<string>("qdb_run_cursor"), write.RowVersion));
         }
 
         [Fact]
@@ -108,14 +126,15 @@ namespace Qdb.SurveyEngine.Tests
         }
 
         [Fact]
-        public void Complete_WritesSentOnAndTotals()
+        public void TryComplete_WritesSentOnAndTotals()
         {
-            Entity updated = null;
-            _service.Setup(s => s.Update(It.IsAny<Entity>())).Callback<Entity>(e => updated = e);
+            UpdateRequest sent = null;
+            AcceptWritesAndReturnVersion("2", r => sent = r);
             var sentOn = new DateTime(2026, 12, 1, 10, 4, 0, DateTimeKind.Utc);
 
-            Store().Complete(Guid.NewGuid(), new OneTimeRunState { Status = OneTimeRunStatus.Sent, SentOn = sentOn, Counts = new OneTimeCounts { Invited = 5, Suppressed = 2 } });
+            Store().TryComplete(Guid.NewGuid(), new OneTimeRunState { Status = OneTimeRunStatus.Sent, SentOn = sentOn, Counts = new OneTimeCounts { Invited = 5, Suppressed = 2 }, RowVersion = "1" });
 
+            var updated = sent.Target;
             Assert.Equal((sentOn, 5, 2), (updated.GetAttributeValue<DateTime?>("qdb_sent_on"), updated.GetAttributeValue<int>("qdb_invited_count"), updated.GetAttributeValue<int>("qdb_suppressed_count")));
         }
 

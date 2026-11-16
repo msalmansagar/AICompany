@@ -238,15 +238,22 @@ namespace Qdb.SurveyEngine.Tests
         }
 
         [Fact]
-        public void SaveProgress_WritesCursorAndTotals()
+        public void TrySaveProgress_WritesCursorAndTotals()
         {
             var service = new Mock<IOrganizationService>();
             Entity updated = null;
-            service.Setup(s => s.Update(It.IsAny<Entity>())).Callback<Entity>(e => updated = e);
+            service.Setup(s => s.Execute(It.IsAny<OrganizationRequest>())).Callback<OrganizationRequest>(r => updated = ((Microsoft.Xrm.Sdk.Messages.UpdateRequest)r).Target).Returns(new Microsoft.Xrm.Sdk.Messages.UpdateResponse());
+            service.Setup(s => s.Retrieve(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<ColumnSet>())).Returns(new Entity("qdb_survey_trigger"));
 
-            new OneTimeTriggerStore(service.Object).SaveProgress(Guid.NewGuid(), new OneTimeRunState { Status = OneTimeRunStatus.Sending, NextPage = 2, PagingCookie = "c", Counts = new OneTimeCounts { Postponed = 3 } });
+            new OneTimeTriggerStore(service.Object).TrySaveProgress(Guid.NewGuid(), new OneTimeRunState { Status = OneTimeRunStatus.Sending, NextPage = 2, PagingCookie = "c", Counts = new OneTimeCounts { Postponed = 3 } });
 
             Assert.Equal(("2|c", 3), (updated.GetAttributeValue<string>("qdb_run_cursor"), updated.GetAttributeValue<int>("qdb_postponed_count")));
+        }
+
+        [Fact]
+        public void RunWrite_SavedWithoutVersion_HasAnEmptyVersion()
+        {
+            Assert.Equal((true, string.Empty), (RunWrite.Saved(null).IsSaved, RunWrite.Saved(null).RowVersion));
         }
 
         [Fact]

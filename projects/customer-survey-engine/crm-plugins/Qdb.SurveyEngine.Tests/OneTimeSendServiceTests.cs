@@ -210,11 +210,41 @@ namespace Qdb.SurveyEngine.Tests
         }
 
         [Fact]
-        public void Send_AnotherSendStartedFirst_IsRefused()
+        public void Send_AnotherSendStartedFirst_StopsAndSaysAnotherRunOwnsIt()
         {
+            GiveAudience(2);
             Store.IsStartRaceLost = true;
 
-            Assert.Throws<OneTimeSendRefusedException>(() => Send());
+            var result = Send();
+
+            Assert.Equal((true, 0), (result.IsComplete, _pipeline.Invitations.Count));
+            Assert.Contains("Another run", result.Message);
+        }
+
+        [Fact]
+        public void Send_ResumeWhileAnotherRunResumedFirst_SendsNothing()
+        {
+            GiveAudience(2);
+            _trigger.Run = new OneTimeRunState { Status = OneTimeRunStatus.Sending, NextPage = 1 };
+            Store.SavesBeforeRaceLost = 0;
+
+            var result = Send();
+
+            Assert.Contains("Another run", result.Message);
+            Assert.Empty(_pipeline.Invitations);
+        }
+
+        [Fact]
+        public void Send_PageWriteLostToAnotherRun_StopsWithoutOverwritingItsTotals()
+        {
+            GiveAudience(OneTimeSendService.PageSize * 3);
+            Store.SavesBeforeRaceLost = 1;
+
+            var result = Send();
+
+            Assert.Equal((OneTimeRunStatus.Sending, true), (result.Status, result.IsComplete));
+            Assert.Single(Store.SavedProgress);
+            Assert.Equal(OneTimeSendService.PageSize * 2, _pipeline.Invitations.Count);
         }
 
         [Fact]

@@ -36,20 +36,33 @@ namespace Qdb.SurveyEngine.Tests
             .Where(t => t.Run.Status == OneTimeRunStatus.NotSent || t.Run.Status == OneTimeRunStatus.Sending)
             .OrderBy(t => t.SendOn).Select(t => t.Trigger.Id).ToList();
 
-        public bool TryStart(OneTimeTrigger trigger, DateTime nowUtc)
+        /// <summary>Progress writes after this many succeed are lost to "another run" (null = never).</summary>
+        public int? SavesBeforeRaceLost { get; set; }
+
+        private int _rowVersion;
+
+        private RunWrite Won() => RunWrite.Saved((++_rowVersion).ToString());
+
+        public RunWrite TryStart(OneTimeTrigger trigger, DateTime nowUtc)
         {
-            if (IsStartRaceLost) return false;
+            if (IsStartRaceLost) return RunWrite.Lost();
             trigger.Run = new OneTimeRunState { Status = OneTimeRunStatus.Sending };
-            return true;
+            return Won();
         }
 
-        public void SaveProgress(Guid triggerId, OneTimeRunState state)
+        public RunWrite TrySaveProgress(Guid triggerId, OneTimeRunState state)
         {
+            if (SavesBeforeRaceLost.HasValue && SavedProgress.Count >= SavesBeforeRaceLost.Value) return RunWrite.Lost();
             SavedProgress.Add(state);
             Triggers[triggerId].Run = state;
+            return Won();
         }
 
-        public void Complete(Guid triggerId, OneTimeRunState state) => Triggers[triggerId].Run = state;
+        public RunWrite TryComplete(Guid triggerId, OneTimeRunState state)
+        {
+            Triggers[triggerId].Run = state;
+            return Won();
+        }
 
         public void Fail(Guid triggerId, string reason)
         {

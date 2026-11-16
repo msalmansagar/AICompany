@@ -48,6 +48,7 @@ namespace Qdb.SurveyEngine.Data
         {
             var query = BaseQuery();
             query.ColumnSet = new ColumnSet(false);
+            query.LinkEntities[0].Columns = new ColumnSet(false);
             query.Criteria.AddCondition("qdb_is_active", ConditionOperator.Equal, true);
             query.Criteria.AddCondition("qdb_send_on", ConditionOperator.LessEqual, nowUtc);
             query.Criteria.AddCondition("qdb_run_status", ConditionOperator.In, (int)OneTimeRunStatus.NotSent, (int)OneTimeRunStatus.Sending);
@@ -57,32 +58,38 @@ namespace Qdb.SurveyEngine.Data
         }
 
         /// <inheritdoc />
-        public bool TryStart(OneTimeTrigger trigger, DateTime nowUtc)
+        public RunWrite TryStart(OneTimeTrigger trigger, DateTime nowUtc)
         {
             var change = RunRecord(trigger.Trigger.Id, new OneTimeRunState { Status = OneTimeRunStatus.Sending });
             change["qdb_run_started_on"] = nowUtc;
             change["qdb_run_message"] = null;
-            change.RowVersion = trigger.Run.RowVersion;
-            try
-            {
-                _service.Execute(new UpdateRequest { Target = change, ConcurrencyBehavior = ConcurrencyBehavior.IfRowVersionMatches });
-                return true;
-            }
-            catch (FaultException<OrganizationServiceFault> fault) when (fault.Detail.ErrorCode == RowVersionMismatchError)
-            {
-                return false;
-            }
+            return TryUpdate(change, trigger.Run.RowVersion);
         }
 
         /// <inheritdoc />
-        public void SaveProgress(Guid triggerId, OneTimeRunState state) => _service.Update(RunRecord(triggerId, state));
+        public RunWrite TrySaveProgress(Guid triggerId, OneTimeRunState state) => TryUpdate(RunRecord(triggerId, state), state.RowVersion);
 
         /// <inheritdoc />
-        public void Complete(Guid triggerId, OneTimeRunState state)
+        public RunWrite TryComplete(Guid triggerId, OneTimeRunState state)
         {
             var change = RunRecord(triggerId, state);
             change["qdb_sent_on"] = state.SentOn;
-            _service.Update(change);
+            return TryUpdate(change, state.RowVersion);
+        }
+
+        // Conditional on the row version; the new version is read back so the caller's next write can use it.
+        private RunWrite TryUpdate(Entity change, string rowVersion)
+        {
+            change.RowVersion = rowVersion;
+            try
+            {
+                _service.Execute(new UpdateRequest { Target = change, ConcurrencyBehavior = ConcurrencyBehavior.IfRowVersionMatches });
+            }
+            catch (FaultException<OrganizationServiceFault> fault) when (fault.Detail.ErrorCode == RowVersionMismatchError)
+            {
+                return RunWrite.Lost();
+            }
+            return RunWrite.Saved(_service.Retrieve(change.LogicalName, change.Id, new ColumnSet("versionnumber")).RowVersion);
         }
 
         /// <inheritdoc />

@@ -30,7 +30,7 @@ namespace Qdb.SurveyEngine.Plugins
             var stored = isCreate ? new Entity(target.LogicalName) : system.Retrieve(target.LogicalName, target.Id, new ColumnSet(StoredColumns));
             if (KindOf(target, stored) != TriggerKind.OneTime) return;
             if (isCreate && !target.Contains("qdb_run_status")) target["qdb_run_status"] = new OptionSetValue((int)OneTimeRunStatus.NotSent);
-            var save = BuildSave(target, stored, isCreate);
+            var save = isCreate ? BuildCreate(target) : BuildUpdate(target, stored);
             if (!OneTimeTriggerRules.TouchesDefinition(save)) return;
             save.IsCallerSurveyAdmin = new OneTimeAccessCheck(system, new AdministratorCheck(system)).MaySendSurveys(context.InitiatingUserId);
             var problem = OneTimeTriggerRules.FindProblem(save, CustomerLinkReader.Read(system).TableLogicalName);
@@ -40,9 +40,16 @@ namespace Qdb.SurveyEngine.Plugins
         private static TriggerKind? KindOf(Entity target, Entity stored) =>
             (TriggerKind?)Merged<OptionSetValue>(target, stored, "qdb_trigger_kind")?.Value;
 
-        private static OneTimeTriggerSave BuildSave(Entity target, Entity stored, bool isCreate) => new OneTimeTriggerSave
+        // A create has nothing stored yet, so every value comes from the target.
+        private static OneTimeTriggerSave BuildCreate(Entity target)
         {
-            IsCreate = isCreate,
+            var save = BuildUpdate(target, new Entity(target.LogicalName));
+            save.IsCreate = true;
+            return save;
+        }
+
+        private static OneTimeTriggerSave BuildUpdate(Entity target, Entity stored) => new OneTimeTriggerSave
+        {
             ChangedColumns = new HashSet<string>(target.Attributes.Keys, StringComparer.OrdinalIgnoreCase),
             Audience = (AudienceKind?)Merged<OptionSetValue>(target, stored, "qdb_audience")?.Value ?? AudienceKind.AllActiveCustomers,
             AudienceFetchXml = Merged<string>(target, stored, "qdb_audience_fetchxml"),

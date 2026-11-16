@@ -99,7 +99,8 @@ namespace Qdb.SurveyEngine.Plugins
         private static OneTimeSendService BuildSender(IOrganizationService system, ITracingService tracing)
         {
             var customer = CustomerLinkReader.Read(system);
-            return PipelineComposition.BuildOneTimeSender(system, customer, PipelineComposition.BuildPipeline(system, customer, new SystemClock(), tracing));
+            var pipeline = PipelineComposition.BuildPipeline(new PluginRuntime(system, customer, new SystemClock(), tracing));
+            return PipelineComposition.BuildOneTimeSender(system, customer, pipeline);
         }
     }
 }

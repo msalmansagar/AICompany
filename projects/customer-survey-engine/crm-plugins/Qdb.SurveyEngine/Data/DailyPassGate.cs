@@ -16,6 +16,9 @@ namespace Qdb.SurveyEngine.Data
         private const string Column = "qdb_daily_passes_completed_on";
         private readonly IOrganizationService _service;
 
+        // The settings row HasCompleted read, kept so MarkCompleted in the same plugin call needs no second query.
+        private Entity _settings;
+
         public DailyPassGate(IOrganizationService service)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
@@ -24,14 +27,15 @@ namespace Qdb.SurveyEngine.Data
         /// <inheritdoc />
         public bool HasCompleted(DateTime runDate)
         {
-            var completedOn = FindSettings()?.GetAttributeValue<DateTime?>(Column);
+            _settings = FindSettings();
+            var completedOn = _settings?.GetAttributeValue<DateTime?>(Column);
             return completedOn.HasValue && completedOn.Value.Date == runDate.Date;
         }
 
         /// <inheritdoc />
         public void MarkCompleted(DateTime runDate)
         {
-            var settings = FindSettings();
+            var settings = _settings ?? FindSettings();
             if (settings == null) return;
             _service.Update(new Entity("qdb_survey_settings", settings.Id) { [Column] = runDate.Date });
         }

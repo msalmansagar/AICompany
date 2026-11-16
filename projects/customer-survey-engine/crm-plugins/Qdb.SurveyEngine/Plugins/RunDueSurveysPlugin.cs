@@ -60,7 +60,7 @@ namespace Qdb.SurveyEngine.Plugins
             var customer = CustomerLinkReader.Read(service);
             return RunDueSurveysService.Compose(new RunDueSurveysDependencies
             {
-                Pipeline = PipelineComposition.BuildPipeline(service, customer, clock, tracing),
+                Pipeline = PipelineComposition.BuildPipeline(new PluginRuntime(service, customer, clock, tracing)),
                 ScheduledTriggers = new ScheduledTriggerRepository(service),
                 Population = new CustomerPopulationReader(service, customer),
                 ScheduledInvitations = new ScheduledInvitationReader(service),

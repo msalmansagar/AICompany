@@ -40,8 +40,14 @@ namespace Qdb.SurveyEngine.OneTime
 
         public DateTime? SentOn { get; set; }
 
-        /// <summary>The row version read with the trigger; starting a send is conditional on it.</summary>
+        /// <summary>The row version last read or written; every run-record write is conditional on it.</summary>
         public string RowVersion { get; set; }
+
+        /// <summary>The same state with the row version a write returned.</summary>
+        public OneTimeRunState WithRowVersion(string rowVersion) => new OneTimeRunState
+        {
+            Status = Status, NextPage = NextPage, PagingCookie = PagingCookie, Counts = Counts, SentOn = SentOn, RowVersion = rowVersion,
+        };
     }
 
     /// <summary>Running totals of a send (FR-CSE-086).</summary>
@@ -79,7 +85,31 @@ namespace Qdb.SurveyEngine.OneTime
         int Count(AudienceQuery query);
     }
 
-    /// <summary>Reads One-time triggers and records their runs. Writes run as SYSTEM.</summary>
+    /// <summary>Whether a conditional run-record write won, and the row version to use for the next one.</summary>
+    public sealed class RunWrite
+    {
+        private RunWrite(bool isSaved, string rowVersion)
+        {
+            IsSaved = isSaved;
+            RowVersion = rowVersion;
+        }
+
+        /// <summary>False when another run changed the trigger first; that run owns the send.</summary>
+        public bool IsSaved { get; }
+
+        /// <summary>The trigger's row version after the write; empty when it was not saved.</summary>
+        public string RowVersion { get; }
+
+        public static RunWrite Saved(string rowVersion) => new RunWrite(true, rowVersion ?? string.Empty);
+
+        public static RunWrite Lost() => new RunWrite(false, string.Empty);
+    }
+
+    /// <summary>
+    /// Reads One-time triggers and records their runs. Writes run as SYSTEM. Every run-record write is
+    /// conditional on the row version last read or written, so when the form and the scheduler resume the
+    /// same send at once, only one of them keeps writing (review M-1).
+    /// </summary>
     public interface IOneTimeTriggerStore
     {
         /// <summary>The trigger with its setup, or null when it does not exist or is not a One-time trigger.</summary>
@@ -88,14 +118,14 @@ namespace Qdb.SurveyEngine.OneTime
         /// <summary>Active One-time triggers of active setups whose send time has come and that are Not sent or Sending, oldest send time first.</summary>
         IReadOnlyList<Guid> GetDueTriggerIds(DateTime nowUtc);
 
-        /// <summary>Not sent → Sending, conditional on the row version read; false when someone else changed it first.</summary>
-        bool TryStart(OneTimeTrigger trigger, DateTime nowUtc);
+        /// <summary>Marks the run as Sending (a fresh start or a resume), conditional on the row version read.</summary>
+        RunWrite TryStart(OneTimeTrigger trigger, DateTime nowUtc);
 
-        /// <summary>Commits the cursor and totals after a page.</summary>
-        void SaveProgress(Guid triggerId, OneTimeRunState state);
+        /// <summary>Commits the cursor and totals after a page, conditional on <see cref="OneTimeRunState.RowVersion"/>.</summary>
+        RunWrite TrySaveProgress(Guid triggerId, OneTimeRunState state);
 
-        /// <summary>Sending → Sent with the final totals.</summary>
-        void Complete(Guid triggerId, OneTimeRunState state);
+        /// <summary>Sending → Sent with the final totals, conditional on <see cref="OneTimeRunState.RowVersion"/>.</summary>
+        RunWrite TryComplete(Guid triggerId, OneTimeRunState state);
 
         /// <summary>→ Failed with the reason, shown on the trigger form; nothing more is sent.</summary>
         void Fail(Guid triggerId, string reason);

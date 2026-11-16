@@ -54,8 +54,9 @@ namespace Qdb.SurveyEngine.OneTime
             RefuseUnsendable(trigger);
             var plan = PlanSend(trigger);
             if (plan.Problem != null) return Failed(trigger, plan.Problem);
-            Start(trigger);
-            return SendPages(trigger, plan.Query, budget);
+            var claim = Claim(trigger);
+            if (!claim.IsSaved) return SentElsewhere(trigger.Run.Counts);
+            return SendPages(trigger, StartingState(trigger.Run, claim.RowVersion), new SendLoop(plan.Query, budget));
         }
 
         private OneTimeTrigger FindOneTime(Guid triggerId) =>
@@ -102,25 +103,34 @@ namespace Qdb.SurveyEngine.OneTime
             return new OneTimeSendResult { Status = OneTimeRunStatus.Failed, Counts = trigger.Run.Counts, IsComplete = true, Message = reason };
         }
 
-        // A Failed send that reached nobody starts again from the first page once its problem is fixed.
-        private void Start(OneTimeTrigger trigger)
-        {
-            if (trigger.Run.Status == OneTimeRunStatus.Sending) return;
-            if (!_deps.Triggers.TryStart(trigger, _deps.Pipeline.Clock.UtcNow))
-                throw new OneTimeSendRefusedException("Another send of this trigger started at the same moment. Wait a moment and refresh the form.");
-            trigger.Run = new OneTimeRunState { Status = OneTimeRunStatus.Sending };
-        }
+        // A resume re-writes the committed cursor conditionally, so of two callers resuming at once only one
+        // goes on (review M-1). A Failed send that reached nobody starts again from the first page.
+        private RunWrite Claim(OneTimeTrigger trigger) =>
+            trigger.Run.Status == OneTimeRunStatus.Sending
+                ? _deps.Triggers.TrySaveProgress(trigger.Trigger.Id, trigger.Run)
+                : _deps.Triggers.TryStart(trigger, _deps.Pipeline.Clock.UtcNow);
 
-        private OneTimeSendResult SendPages(OneTimeTrigger trigger, AudienceQuery query, RunBudget budget)
+        private static OneTimeRunState StartingState(OneTimeRunState run, string rowVersion) =>
+            run.Status == OneTimeRunStatus.Sending ? run.WithRowVersion(rowVersion) : new OneTimeRunState { Status = OneTimeRunStatus.Sending, RowVersion = rowVersion };
+
+        // Another run owns the send: stop without writing, and say so (the form stops calling on IsComplete).
+        private static OneTimeSendResult SentElsewhere(OneTimeCounts counts) => new OneTimeSendResult
+        {
+            Status = OneTimeRunStatus.Sending, Counts = counts, IsComplete = true,
+            Message = "Another run is sending this survey and will finish it. Refresh the form to see its progress.",
+        };
+
+        private OneTimeSendResult SendPages(OneTimeTrigger trigger, OneTimeRunState state, SendLoop loop)
         {
             var batch = new OneTimeBatch(trigger.Trigger, _deps.Pipeline.Config.GetSettings(), ReadGeneratedKeys(trigger.Trigger));
-            var state = trigger.Run;
-            while (!budget.IsExhausted)
+            while (!loop.Budget.IsExhausted)
             {
-                var page = _deps.Audience.ReadPage(query, state.NextPage, state.PagingCookie);
+                var page = _deps.Audience.ReadPage(loop.Query, state.NextPage, state.PagingCookie);
                 state = Advance(state, page, SendPage(batch, page.CustomerIds));
                 if (!page.MoreRecords) return Complete(trigger.Trigger.Id, state);
-                _deps.Triggers.SaveProgress(trigger.Trigger.Id, state);
+                var write = _deps.Triggers.TrySaveProgress(trigger.Trigger.Id, state);
+                if (!write.IsSaved) return SentElsewhere(state.Counts);
+                state = state.WithRowVersion(write.RowVersion);
             }
             return new OneTimeSendResult { Status = OneTimeRunStatus.Sending, Counts = state.Counts, IsComplete = false };
         }
@@ -164,10 +174,27 @@ namespace Qdb.SurveyEngine.OneTime
 
         private OneTimeSendResult Complete(Guid triggerId, OneTimeRunState state)
         {
-            var sent = new OneTimeRunState { Status = OneTimeRunStatus.Sent, NextPage = state.NextPage, PagingCookie = state.PagingCookie, Counts = state.Counts, SentOn = _deps.Pipeline.Clock.UtcNow };
-            _deps.Triggers.Complete(triggerId, sent);
+            var sent = new OneTimeRunState
+            {
+                Status = OneTimeRunStatus.Sent, NextPage = state.NextPage, PagingCookie = state.PagingCookie, Counts = state.Counts,
+                SentOn = _deps.Pipeline.Clock.UtcNow, RowVersion = state.RowVersion,
+            };
+            if (!_deps.Triggers.TryComplete(triggerId, sent).IsSaved) return SentElsewhere(state.Counts);
             _deps.Pipeline.Trace.Write($"One-time trigger {triggerId:D} sent: {sent.Counts}.");
             return new OneTimeSendResult { Status = OneTimeRunStatus.Sent, Counts = sent.Counts, IsComplete = true };
+        }
+
+        /// <summary>What every page of one Send call reads: the audience and the time budget.</summary>
+        private sealed class SendLoop
+        {
+            public SendLoop(AudienceQuery query, RunBudget budget)
+            {
+                Query = query;
+                Budget = budget;
+            }
+
+            public AudienceQuery Query { get; }
+            public RunBudget Budget { get; }
         }
     }
 }
