@@ -23,6 +23,9 @@ var QdbSurveyTriggerForm = (function () {
     });
   }
 
+  var PANEL_WAIT_RETRIES = 40;
+  var PANEL_WAIT_MS = 250;
+
   // The legacy web client on 9.1 has no getContentWindow; its control exposes the iframe instead.
   function audienceWindow(formContext) {
     var control = formContext.getControl(AUDIENCE_CONTROL);
@@ -31,10 +34,17 @@ var QdbSurveyTriggerForm = (function () {
     return Promise.resolve(control.getObject().contentWindow);
   }
 
+  // OnLoad can run before the panel's own script has loaded (seen live on the first open), so wait for it.
+  function panelApi(panel, attemptsLeft) {
+    if (panel && panel.QdbSurveyAudience) return Promise.resolve(panel.QdbSurveyAudience);
+    if (attemptsLeft <= 0) return Promise.reject(new Error('its script did not load.'));
+    return new Promise(function (resolve) { setTimeout(resolve, PANEL_WAIT_MS); }).then(function () { return panelApi(panel, attemptsLeft - 1); });
+  }
+
   function startAudiencePanel(formContext) {
     if (!isOneTime(formContext)) return;
-    audienceWindow(formContext).then(function (panel) {
-      if (panel.QdbSurveyAudience) panel.QdbSurveyAudience.init(formContext);
+    audienceWindow(formContext).then(function (panel) { return panelApi(panel, PANEL_WAIT_RETRIES); }).then(function (api) {
+      api.init(formContext);
     }).catch(function (problem) {
       formContext.ui.setFormNotification('The audience panel could not start: ' + problem.message, 'ERROR', 'qdb_audience_panel');
     });

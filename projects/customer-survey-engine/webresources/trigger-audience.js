@@ -21,7 +21,9 @@
   var CONTACT_TABLE_CODE = 100000001;
   var AUDIENCE_FILTER = 100000001;
   var RUN_STATUS = { notSent: 100000000, sending: 100000001, sent: 100000002, failed: 100000003 };
-  var CONTROL_RETRIES = 12;
+  // The condition page never reaches readyState "complete" (it keeps a request open), so its load event
+  // cannot be awaited; the control is polled for instead (found live on org5869857f, 2026-11-16).
+  var CONTROL_RETRIES = 40;
   var CONTROL_RETRY_MS = 500;
   var NOTIFICATION_ID = 'qdb_audience_builder';
 
@@ -63,7 +65,10 @@
 
   // ---- Browser part --------------------------------------------------------------------------
 
-  var state = { formContext: null, clientUrl: '', control: null, isFallback: false, isBusy: false };
+  // seededFetchXml: what the builder returned right after loading the saved filter. The builder rewrites
+  // operators it cannot show (a stored "like '%x'" comes back as "eq"), so the column is written only when
+  // the administrator changed the builder; an untouched filter is kept exactly as stored.
+  var state = { formContext: null, clientUrl: '', control: null, seededFetchXml: null, isFallback: false, isBusy: false };
 
   function element(id) { return document.getElementById(id); }
 
@@ -106,8 +111,8 @@
 
   function findBuilderControl() {
     try {
-      var advFind = element('builder').contentWindow.advFind;
-      var control = advFind && advFind.parentElement.children.advFind.control;
+      var host = element('builder').contentWindow.document.getElementById('advFind');
+      var control = host && host.control;
       return control && typeof control.get_fetchXml === 'function' ? control : null;
     } catch (unreachable) {
       return null;
@@ -125,6 +130,7 @@
     state.control = control;
     var saved = attributeValue('qdb_audience_fetchxml');
     if (saved) control.set_fetchXml(saved);
+    state.seededFetchXml = control.get_fetchXml();
     showMessage('Build the audience below, then save the trigger.');
   }
 
@@ -142,8 +148,8 @@
       var frame = element('builder');
       frame.style.display = 'block';
       frame.src = builderUrl(state.clientUrl, objectTypeCode);
-      return new Promise(function (resolve) { frame.onload = resolve; });
-    }).then(function () { return waitForControl(CONTROL_RETRIES); })
+      return waitForControl(CONTROL_RETRIES);
+    })
       .then(useBuilder)
       .catch(function (problem) { useFallback(problem.message); });
   }
@@ -151,6 +157,11 @@
   function readFetchXml() {
     if (state.isFallback) return element('fetchxml').value.trim() || null;
     return state.control ? state.control.get_fetchXml() : null;
+  }
+
+  /** Whether the filter must be written: always from the FetchXML box, from the builder only when it was changed. */
+  function shouldWriteFilter(current, seeded, isFallback) {
+    return isFallback || current !== seeded;
   }
 
   // Writes the builder's FetchXML before the record saves; blocks the save while the builder is still starting.
@@ -162,9 +173,12 @@
       return;
     }
     state.formContext.ui.clearFormNotification(NOTIFICATION_ID);
+    var current = readFetchXml();
+    if (!shouldWriteFilter(current, state.seededFetchXml, state.isFallback)) return;
     var fetchXml = state.formContext.getAttribute('qdb_audience_fetchxml');
-    fetchXml.setValue(readFetchXml());
+    fetchXml.setValue(current);
     fetchXml.setSubmitMode('always');
+    state.seededFetchXml = current;
   }
 
   function currentSendState() {
@@ -235,5 +249,8 @@
     refreshPanel();
   }
 
-  return { builderUrl: builderUrl, customerTableFor: customerTableFor, sendAvailability: sendAvailability, describeProgress: describeProgress, apiErrorText: apiErrorText, init: init, RUN_STATUS: RUN_STATUS };
+  return {
+    builderUrl: builderUrl, customerTableFor: customerTableFor, sendAvailability: sendAvailability, describeProgress: describeProgress,
+    apiErrorText: apiErrorText, shouldWriteFilter: shouldWriteFilter, init: init, RUN_STATUS: RUN_STATUS,
+  };
 }));

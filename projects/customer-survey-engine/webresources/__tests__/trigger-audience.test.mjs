@@ -47,6 +47,15 @@ test('describeProgress_incompleteCompleteAndFailed_readAsTheyShould', () => {
   ], ['Sending… 2 invited, 1 postponed, 0 suppressed', 'Sent: 2 invited, 1 postponed, 0 suppressed', 'Failed: bad filter']);
 });
 
+test('shouldWriteFilter_builderUntouched_keepsTheStoredFilter', () => {
+  // The builder returns a stored "like '%x'" as "eq": writing it back unchanged would alter the audience.
+  assert.equal(audience.shouldWriteFilter('<fetch>eq</fetch>', '<fetch>eq</fetch>', false), false);
+});
+
+test('shouldWriteFilter_builderChangedOrFallbackBox_writes', () => {
+  assert.deepEqual([audience.shouldWriteFilter('<a/>', '<b/>', false), audience.shouldWriteFilter('<a/>', '<a/>', true)], [true, true]);
+});
+
 test('apiErrorText_webApiErrorBody_returnsItsMessageElseAGenericOne', () => {
   assert.deepEqual([audience.apiErrorText({ error: { message: 'Only a Survey Admin…' } }, 400), audience.apiErrorText({}, 500)],
     ['Only a Survey Admin…', 'The request failed (HTTP 500).']);
