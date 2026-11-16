@@ -57,7 +57,7 @@ On 2026-11-16 the CEO asked for four things the engine does not do, and one chan
 ### 3.1 In scope
 
 - A **One-time** trigger on a survey setup, with a send moment of **Now** or a **date and time**.
-- An audience per one-time trigger: **All active customers** or **a saved view** of the org's customer table (account or contact) built with Advanced Find.
+- An audience per one-time trigger: **All active customers** or **a FetchXML filter stored on the trigger**, built with an Advanced Find-style web resource on the trigger form (reused from the Process Engine).
 - A **Send now** command on the trigger form (Survey Admin), with a preview of how many customers will receive it before it sends.
 - The scheduler checking for due one-time triggers every 15 minutes.
 - A configurable **list** of phone fields on the SMS hand-off row; one SMS per distinct filled number.
@@ -67,7 +67,7 @@ On 2026-11-16 the CEO asked for four things the engine does not do, and one chan
 ### 3.2 Out of scope
 
 - Recurring schedules at a time of day (e.g. every Monday 09:00). Recurring stays Monthly / Quarterly / Annually on calendar dates.
-- A custom filter builder inside the Survey Engine. The audience is built with the platform's Advanced Find and saved as a view (OQ-D2).
+- A new filter builder written from scratch. The Process Engine's existing component is reused (OQ-D2).
 - Audiences from tables other than the org's customer table (e.g. "customers whose loan is overdue" expressed on the loan table). Advanced Find on account/contact can filter on related records, which covers most cases; anything else is a later request.
 - Marketing lists.
 - Sending to anyone who is not a customer record of the org.
@@ -92,9 +92,9 @@ On 2026-11-16 the CEO asked for four things the engine does not do, and one chan
 
 | ID | Requirement | Acceptance criteria |
 |---|---|---|
-| FR-CSE-089 | The audience of a one-time trigger is either **All active customers** (statecode 0 on the org's customer table) or **a saved view** of the customer table chosen on the trigger. | On BFD the view picker lists account views; on HL, contact views. |
-| FR-CSE-090 | A saved view is built and edited with the platform's **Advanced Find** (any filter it supports, including conditions on related records) and saved as a view the Survey Admin can read. The engine reads the view's filter at send time, so the audience is whoever matches **when the survey is sent**, not when the trigger was created. | A view "Accounts in Doha with an active facility" built in Advanced Find returns 52 accounts today; a send next week uses the matches next week. |
-| FR-CSE-091 | Only the view's **filter** is used. The engine always reads the customer's id itself; columns, sort order and row limits in the view are ignored. A view that is deleted or no longer readable stops the send with a clear message; nothing is created. | A view with a "top 10" or extra columns still sends to every match. Deleting the view before a scheduled send produces a failed-run message on the trigger and no invitations. |
+| FR-CSE-089 | The audience of a one-time trigger is either **All active customers** (statecode 0 on the org's customer table) or **a filter** stored on the trigger itself as FetchXML in a multi-line text column (`qdb_audience_fetchxml`). | On BFD the filter is on account; on HL, on contact. A trigger with an empty filter and audience "Filter" cannot be activated. |
+| FR-CSE-090 | The trigger form hosts a **filter builder web resource** that opens an Advanced Find-style editor on the org's customer table (any condition Advanced Find supports, including related records), and writes the resulting FetchXML into `qdb_audience_fetchxml`. Re-opening it loads the saved filter for editing. The component is reused from the Process Engine, where the same pattern already exists. The engine runs the filter **at send time**, so the audience is whoever matches **when the survey is sent**. | An admin builds "Accounts in Doha with an active facility" (52 matches today) and saves the trigger; the column holds the FetchXML; re-opening the builder shows the same conditions; a send next week uses next week's matches. |
+| FR-CSE-091 | Only the filter's **conditions** are used. The engine forces the entity to the org's customer table, reads only the customer id, and ignores columns, sort order and row limits. FetchXML that does not parse, targets another table, or fails to run stops the send with a clear message on the trigger; nothing is created. The preview count (FR-CSE-084) runs the same filter. | FetchXML with `top="10"` or extra attributes still sends to every match. FetchXML on `incident` is refused at save and at send. |
 
 ### Group R — Multi-number SMS
 
@@ -113,13 +113,13 @@ On 2026-11-16 the CEO asked for four things the engine does not do, and one chan
 | NFR-CSE-015 | Performance — send now | Send now for all active customers at BRD volumes completes without hitting the 2-minute plugin limit. Larger audiences are processed in budgeted batches that resume until complete, like `RunDueSurveys`, and the form shows progress. | 450 customers send in one budgeted call; a 2,000-customer test audience completes across several calls with no duplicate invitation. |
 | NFR-CSE-016 | Timeliness — scheduled | A dated one-time trigger is processed within 15 minutes of its send time while the scheduler is running. | Measured on the test org: 3 triggers at different times all sent within 15 minutes of their time. |
 | NFR-CSE-017 | Safety — mass send | No mass send happens without a preview count and a confirmation (send now), or an explicit date and time set by a Survey Admin (scheduled). Only Survey Admin and System Administrator can send or schedule. | A Survey Analyst cannot see the Send now command; calling the API as Analyst is refused. |
-| NFR-CSE-018 | Compatibility | Works on both orgs (account / contact customer tables) and CRM 9.1 on-prem with the same assembly; saved views and Advanced Find are standard platform features on 9.1. | The same build passes the E2E on cloud with Account and Contact settings; preflight checks the view query on 9.1. |
+| NFR-CSE-018 | Compatibility | Works on both orgs (account / contact customer tables) and CRM 9.1 on-prem with the same assembly and the same filter builder web resource. | The same build passes the E2E on cloud with Account and Contact settings; the filter builder opens, saves and reloads a filter on 9.1 (test org). |
 
 ---
 
 ## 6. Business rules
 
-**BR-AUD-01 — The audience is evaluated at send time.** A saved view is a living filter. The people who receive the survey are the matches at the moment it is sent. The trigger records the count it sent to; it does not keep a list of who matched.
+**BR-AUD-01 — The audience is evaluated at send time.** The stored filter is a living query. The people who receive the survey are the matches at the moment it is sent. The trigger records the count it sent to; it does not keep a list of who matched.
 
 **BR-AUD-02 — Fatigue applies to general surveys.** A general survey is not exempt from the minimum-days rule (FR-CSE-040). Otherwise a mass send could reach someone surveyed yesterday. See OQ-D4.
 
@@ -133,7 +133,7 @@ On 2026-11-16 the CEO asked for four things the engine does not do, and one chan
 |---|---|---|
 | Scheduler frequency | The Windows Scheduled Task changes from daily to every 15 minutes (runbook stage 8). `RunDueSurveys` already tolerates repeated calls; its calendar-date work still runs once per day. | MSS (scripts, runbook) + QDB IT (task) |
 | Kit rebuild | New columns, trigger kind, ribbon command, plugin assembly, solution version → new kit for both orgs. | MSS |
-| Advanced Find views | Survey Admins build audience views with Advanced Find and save them (system views by an administrator, or personal views shared with the survey team). | QDB survey administrators |
+| Process Engine filter builder | The Advanced Find-style web resource from the Process Engine is reused on the survey trigger form; architecture confirms how it is shared (copied under the survey's own name, or referenced) and that it runs on 9.1. | MSS |
 | BFD SMS config | After the build, BFD's SMS row lists the five fields from BFD-06. | QDB (configuration) |
 
 ---
@@ -142,8 +142,8 @@ On 2026-11-16 the CEO asked for four things the engine does not do, and one chan
 
 | Risk | Impact | Owner | Mitigation |
 |---|---|---|---|
-| A wrong view sends a survey to far too many customers | High: customer annoyance, cannot be unsent | QDB / MSS | Preview count + confirmation (NFR-CSE-017); fatigue limit still applies; Admin-only. |
-| A view that filters on many related records is slow on 9.1 | Medium: send runs in several batches | MSS | Budgeted batches (NFR-CSE-015); preview shows the count before anything is sent. |
+| A wrong filter sends a survey to far too many customers | High: customer annoyance, cannot be unsent | QDB / MSS | Preview count + confirmation (NFR-CSE-017); fatigue limit still applies; Admin-only. |
+| A filter on many related records is slow on 9.1 | Medium: send runs in several batches | MSS | Budgeted batches (NFR-CSE-015); preview shows the count before anything is sent. |
 | Scheduler stops running; dated sends are late | Medium | QDB IT | Existing Survey health view shows failed jobs; the run sends late rather than never (FR-CSE-085: "first run at or after"). |
 | Multi-number sends several SMS to the same handset under different formats | Low | MSS | Digit-only duplicate check (FR-CSE-093). |
 
@@ -151,17 +151,17 @@ On 2026-11-16 the CEO asked for four things the engine does not do, and one chan
 
 ## 9. Open questions for the CEO
 
-Each is answered before architecture. Recommendations are given.
+**All five answered by the CEO on 2026-11-16** (OQ-D1 one SMS; OQ-D2 filter stored on the trigger via the Process Engine filter builder; OQ-D3 every 15 minutes; OQ-D4 fatigue applies; OQ-D5 filter only).
 
-**OQ-D1 — Multi-number duplicates.** Should two fields holding the same number (in different formats) receive one SMS or two? *Recommendation: one (digit-only comparison, FR-CSE-093).*
+**OQ-D1 — Multi-number duplicates. ANSWERED by the CEO 2026-11-16: one SMS** per distinct number, compared on digits only (FR-CSE-093).
 
-**OQ-D2 — How the audience is chosen.** (A) Build the filter in **Advanced Find, save it as a view**, and pick the view on the trigger; or (B) build a filter editor inside the Survey Engine form. *Recommendation: A.* Advanced Find is the platform's own filter builder on 9.1, supports related-record conditions, and costs nothing to build or maintain. B is weeks of work to rebuild what Advanced Find already does.
+**OQ-D2 — How the audience is chosen. ANSWERED by the CEO 2026-11-16:** Advanced Find-style filter, **stored on the trigger** as FetchXML in a multi-line text column, edited through a filter builder web resource on the trigger form, reusing the Process Engine's existing component (FR-CSE-089..091). Not a saved-view lookup.
 
-**OQ-D3 — Time precision for dated sends.** The scheduler runs once a day today. (A) Run it **every 15 minutes** → sends within 15 minutes of the chosen time; (B) hourly → within the hour; (C) keep daily and offer a date only. *Recommendation: A.*
+**OQ-D3 — Time precision for dated sends. ANSWERED by the CEO 2026-11-16: (A) every 15 minutes** — a dated send goes out within 15 minutes of its time (FR-CSE-085, NFR-CSE-016).
 
-**OQ-D4 — Fatigue for general surveys.** (A) The minimum-days rule **applies** (blocked customers are dropped or postponed per the trigger); (B) a general survey ignores it; (C) a per-trigger "Ignore fatigue" setting, default off. *Recommendation: A.* It protects customers from mass sends landing on top of a recent survey; C can be added later if a real case appears.
+**OQ-D4 — Fatigue for general surveys. ANSWERED by the CEO 2026-11-16: (A) the minimum-days rule applies** — blocked customers are dropped or postponed per the trigger and logged (FR-CSE-087, BR-AUD-02).
 
-**OQ-D5 — "Chosen list" meaning.** Is a saved view enough for "send to a chosen list", or do administrators also need to **tick customers in a grid** and press "Send survey" for just those? *Recommendation: view only for now.* A static list can be made in Advanced Find with "Customer is one of …" conditions; a grid command adds a ribbon button on account/contact (on every org's core form), which is wider change for little gain.
+**OQ-D5 — "Chosen list" meaning. ANSWERED by the CEO 2026-11-16: filter only.** Specific customers are chosen in the filter builder ("Customer equals … / is one of …"); no ribbon button on the core Account / Contact grids.
 
 ---
 
