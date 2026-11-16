@@ -57,22 +57,22 @@ Every row is one runbook stage (`onprem-deploy/2026-11-11/RUNBOOK.md`). Track HL
 
 | # | Gate | Blocks | Owner | Status |
 |---|---|---|---|---|
-| D1 | **HL request tables** and their customer, type, status and Digital/Legacy fields (HL-01, HL-02). None is known: HL is its own build | HL source rows | HL CRM administrator | Open |
-| D2 | **Status and type values** that fire each survey, per org (HL-03, BFD-03, OQ-A2(b)) | activating each source | Business owner + CRM administrator | Open |
-| D3 | **Applications Digital/Legacy field** (BFD-02; also unknown on the cloud org) | activating Applications | Business owner + CRM administrator | Open |
-| D4 | Default language and customer language field, per org (HL-04/05, BFD-04/05, OQ-A2(c)) | settings row | Business owner + CRM administrator | **Partial**: default language Arabic on both orgs (2026-11-15, in `config/`); the language field (a Survey Settings setting) is still with each org's CRM administrator |
+| D1 | **HL request tables** and their customer, type, status and Digital/Legacy fields (HL-01, HL-02). None is known: HL is its own build | HL source rows | HL CRM administrator | **Deferred to deployment configuration** (2026-11-16): QDB enters the HL source rows; not an MSS blocker |
+| D2 | **Status and type values** that fire each survey, per org (HL-03, BFD-03, OQ-A2(b)) | activating each source | Business owner + CRM administrator | **Deferred to deployment configuration** (2026-11-16): entered on the trigger rows; activation validates them |
+| D3 | **Applications Digital/Legacy field** (BFD-02; also unknown on the cloud org) | activating Applications | Business owner + CRM administrator | **Done** (2026-11-16): `qdb_applicationlandedfromnumuportal` = Yes; Disbursements/Fund Transfer `qdb_source_location` = QDB Digital (confirm QDB1's option value at entry) |
+| D4 | Default language and customer language field, per org (HL-04/05, BFD-04/05, OQ-A2(c)) | settings row | Business owner + CRM administrator | **Done** (2026-11-16): HL Arabic, BFD English (changed from Arabic); language field empty on both, still configurable |
 | D5 | **"Active customer"** for the scheduled population "All active customers": the engine counts every active (statecode 0) account or contact. Confirm, or define it | scheduled triggers using that population | QDB business owner | Open |
-| D6 | BFD source names confirmed on QDB1 (BFD-01; the preflight reads them) | BFD source rows | QDB1 CRM administrator | Open |
+| D6 | BFD source names confirmed on QDB1 (BFD-01; the preflight reads them) | BFD source rows | QDB1 CRM administrator | **Done** (2026-11-16, confirmed); the preflight still reads them |
 
 ## E. Channels and the customer portal
 
 | # | Gate | Blocks | Owner | Status | Source |
 |---|---|---|---|---|---|
 | E1 | The portal team builds the pending-survey popup, notification area and survey page on the four APIs | customers answering in the portal (the main channel) | QDB portal team | Open | FR-CSE-051..055; `docs/integration-guide.md` (delivered) |
-| E2 | SMS hand-off answers: mobile field, HL `vrp_type` SMS value, required columns (HL-06, HL-07, BFD-06) | secure-link SMS | CRM administrator / SMS service owner | Open | OQ-A2(e) |
-| E3 | **Does the SMS service need the activity's To party?** (HL-08, BFD-07). If yes, a small plugin change: the engine links the customer through Regarding today | secure-link SMS | SMS service owner → MSS | Open | config README |
-| E4 | Sender queue per org, with an approved, enabled mailbox (HL-10, BFD-08) | secure-link email | QDB IT | Open | readiness F9 |
-| E5 | Portal link-page URL per org (HL-11, BFD-09) | switching secure links on | QDB portal team | Open | OQ-A2(f) |
+| E2 | SMS hand-off answers: mobile field, HL `vrp_type` SMS value, required columns (HL-06, HL-07, BFD-06) | secure-link SMS | CRM administrator / SMS service owner | **Partial** (2026-11-16): HL `mobilephone`; HL-07 deferred to deployment configuration; BFD wants every filled number (5 fields) → **BRD Addendum D + build (MSS)**, `telephone1` until then | OQ-A2(e) |
+| E3 | **Does the SMS service need the activity's To party?** (HL-08, BFD-07). If yes, a small plugin change: the engine links the customer through Regarding today | secure-link SMS | SMS service owner → MSS | **Done** (2026-11-16): not needed; works as built | config README |
+| E4 | Sender queue per org, with an approved, enabled mailbox (HL-10, BFD-08) | secure-link email | QDB IT | **Deferred to deployment configuration** (2026-11-16): a queue whose mailbox is QDB's sending address, selected in Survey Settings | readiness F9 |
+| E5 | Portal link-page URL per org (HL-11, BFD-09) | switching secure links on | QDB portal team | **Deferred to deployment configuration** (2026-11-16) | OQ-A2(f) |
 
 ## F. Engine follow-ups (MSS)
 

@@ -20,6 +20,16 @@ inactive and a System Administrator activates each one with `qdb_srv_ActivateSou
 | SMS table | `letter`: number in `vrp_address`, text in `vrp_description`, SMS vs WhatsApp by `vrp_type` | `fax`: number in `faxnumber`, text in `qdb_message_body`; WhatsApp rows carry `qdb_whatsapptemplate` |
 | Customer mobile field | proposed `contact.mobilephone` | `account.qdb_mobile_number` or `telephone1` |
 
+## Status, 2026-11-16
+
+Every question now carries an `answer` in its file (record: `pdppl-decisions.md`, update of 2026-11-16).
+Settled: HL-04/05/06/08/09/12 and BFD-01/02/04/05/07/10. **Deferred to deployment configuration**, so QDB
+enters them in the Survey Engine app and they don't block MSS: HL-01/02/03/07/10/11 and BFD-03/08/09. HL's
+source rows and SMS static columns keep `TO_CONFIRM` until then.
+
+One answer changes the engine: **BFD-06** wants the SMS sent to every filled number among five account
+fields. The engine sends to one field, so this goes through BRD Addendum D; until then BFD uses `telephone1`.
+
 ## Questions for QDB, by what they block
 
 | Blocks | HL | BFD | Owner |
@@ -39,5 +49,5 @@ only the source, settings and trigger rows; the SMS, email and secure-link quest
 ## One engine limit these questions may expose
 
 The SMS hand-off links the customer through a lookup column (`regardingobjectid`), not the activity's
-**To** party. If QDB's SMS service reads To (HL-08, BFD-07), supporting it is a small plugin change, to
-be made only once the answer is known.
+**To** party. QDB answered HL-08 and BFD-07 on 2026-11-16: the SMS service does not read To, so no
+change is needed.

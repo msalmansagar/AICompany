@@ -96,7 +96,7 @@ Follow `RUNBOOK.md` stage by stage. Summary:
 | 4 | Import **SurveyEngine 1.1.0.0**, Publish All | `SurveyEngine_1_1_0_0_onprem_unmanaged.zip` | — |
 | 5 | **Post-import check** (read-only): Q1–Q14, including Q13 (change history on 8 tables) and Q14 (one Survey Data Officer role) | `scripts/survey-post-import.console.js` | **Gate 2**: send the report; MSS confirms |
 | 6 | Give the roles: Survey Admin, Survey Analyst, Survey Integration (portal account), Survey Scheduler (scheduler account only), **Survey Data Officer (named Compliance staff only, never a service account)** | — | — |
-| 7 | Configuration rows: **Survey Settings** (Customer Table = Contact on HL, Account on QDB1; **Retention Days 730, Mode Delete**; default language Arabic), Survey Sources (inactive), surveys published with Form Type = Survey, setups and triggers | `config/HL.json`, `config/BFD.json`, `config/README.md` | Rows with `TO_CONFIRM` values wait for QDB's answers |
+| 7 | Configuration rows: **Survey Settings** (Customer Table = Contact on HL, Account on QDB1; **Retention Days 730, Mode Delete**; default language Arabic on HL, English on QDB1), Survey Sources (inactive), surveys published with Form Type = Survey, setups and triggers | `config/HL.json`, `config/BFD.json`, `config/README.md` | Rows with `TO_CONFIRM` values wait for QDB's answers |
 | 8 | Activate sources (`qdb_srv_ActivateSource`), register the daily task | `scheduler/Register-RunDueSurveysTask.ps1` | — |
 | 9 | **Smoke test** (read-only, then end-to-end on test orgs) and the **trigger speed test** | `smoke-test.ps1`, `trigger-speed-test.ps1` | **Gate 3**: both test orgs pass |
 
