@@ -23,6 +23,7 @@ const CONTROL_CLASS = Object.freeze({
   picklist: '{3EF39988-22BB-4f0b-BBBE-64B5A3748AEE}',
   lookup: '{270BD3DB-D9AF-4782-9025-509E298DEC0A}',
   subgrid: '{E7A81278-8635-4d9e-8D4D-59480B391C5B}',
+  webResource: '{9FDF5F91-88B1-47f4-AD53-C11EFC01A01D}',
 });
 
 export const xml = (text) => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
@@ -111,11 +112,25 @@ export function buildChartPayload(chart) {
 const labels = (text) => `<labels><label description="${xml(text)}" languagecode="${LANGUAGE_CODE}" /></labels>`;
 
 function fieldCell(table, field) {
-  const { name, readOnly } = typeof field === 'string' ? { name: field, readOnly: false } : field;
+  const { name, readOnly, hidden } = typeof field === 'string' ? { name: field, readOnly: false, hidden: false } : field;
   const { type, label } = describeField(table, name);
   const disabled = readOnly ? ' disabled="true"' : '';
-  return `<row><cell id="${stableGuid(`${table}.${name}.cell`)}">${labels(label)}`
+  // A hidden field is still on the form, so a form script can read and write it (getAttribute).
+  const visible = hidden ? ' visible="false"' : '';
+  return `<row><cell id="${stableGuid(`${table}.${name}.cell`)}"${visible}>${labels(label)}`
     + `<control id="${xml(name)}" classid="${CONTROL_CLASS[type]}" datafieldname="${xml(name)}"${disabled} /></cell></row>`;
+}
+
+/** An HTML web resource on the form; `webResourceIdFor(name)` answers its id (Addendum D audience panel). */
+function webResourceCell(table, resource, webResourceIdFor) {
+  const parameters = `<Url>${xml(resource.name)}</Url><WebResourceId>${webResourceIdFor(resource.name)}</WebResourceId><PassParameters>false</PassParameters>`
+    + '<ShowOnMobileClient>false</ShowOnMobileClient><Security>false</Security><Scrolling>auto</Scrolling><Border>false</Border>';
+  return `<row><cell id="${stableGuid(`${table}.${resource.controlId}.cell`)}" showlabel="false" rowspan="${resource.rowSpan ?? 12}" colspan="1">${labels(resource.label)}`
+    + `<control id="${xml(resource.controlId)}" classid="${CONTROL_CLASS.webResource}"><parameters>${parameters}</parameters></control></cell></row>`;
+}
+
+function itemCell(table, item, webResourceIdFor) {
+  return item.webResource ? webResourceCell(table, item.webResource, webResourceIdFor) : fieldCell(table, item);
 }
 
 function subgridCell(table, subgrid, viewIdFor) {
@@ -128,18 +143,30 @@ function subgridCell(table, subgrid, viewIdFor) {
     + `<control id="${xml(subgrid.table)}_grid" classid="${CONTROL_CLASS.subgrid}" indicationOfSubgrid="true"><parameters>${parameters}</parameters></control></cell></row>`;
 }
 
-function sectionXml(table, section, viewIdFor) {
-  const rows = section.subgrid ? subgridCell(table, section.subgrid, viewIdFor) : section.fields.map((field) => fieldCell(table, field)).join('');
+function sectionXml(table, section, ids) {
+  const rows = section.subgrid ? subgridCell(table, section.subgrid, ids.viewIdFor) : section.fields.map((item) => itemCell(table, item, ids.webResourceIdFor)).join('');
   return `<section name="${xml(section.label.replace(/\W+/g, '_'))}" id="${stableGuid(`${table}.${section.label}.section`)}" showlabel="true" showbar="false" columns="1">${labels(section.label)}<rows>${rows}</rows></section>`;
 }
 
+/** The form script library and its OnLoad handler (execution context passed). */
+function scriptXml(table, script) {
+  if (!script) return '';
+  const library = `<formLibraries><Library name="${xml(script.library)}" libraryUniqueId="${stableGuid(`${table}.${script.library}.library`)}" /></formLibraries>`;
+  const handler = `<Handler functionName="${xml(script.onLoad)}" libraryName="${xml(script.library)}" handlerUniqueId="${stableGuid(`${table}.${script.onLoad}.handler`)}" enabled="true" parameters="" passExecutionContext="true" />`;
+  return `${library}<events><event name="onload" application="false" active="false"><Handlers>${handler}</Handlers></event></events>`;
+}
+
+const NO_WEB_RESOURCES = (name) => { throw new Error(`No id for web resource ${name}`); };
+
 /**
- * The main form XML. `viewIdFor(table, viewName)` answers the saved query id a subgrid lists.
+ * The main form XML. `viewIdFor(table, viewName)` answers the saved query id a subgrid lists;
+ * `webResourceIdFor(name)` the id of a web resource placed on the form.
  */
-export function buildFormXml(form, viewIdFor) {
+export function buildFormXml(form, viewIdFor, webResourceIdFor = NO_WEB_RESOURCES) {
+  const ids = { viewIdFor, webResourceIdFor };
   const tabs = form.tabs.map((tab) => `<tab name="${xml(tab.label.replace(/\W+/g, '_'))}" id="${stableGuid(`${form.table}.${tab.label}.tab`)}" expanded="true" showlabel="true">`
-    + `${labels(tab.label)}<columns><column width="100%"><sections>${tab.sections.map((section) => sectionXml(form.table, section, viewIdFor)).join('')}</sections></column></columns></tab>`).join('');
-  return `<form><tabs>${tabs}</tabs></form>`;
+    + `${labels(tab.label)}<columns><column width="100%"><sections>${tab.sections.map((section) => sectionXml(form.table, section, ids)).join('')}</sections></column></columns></tab>`).join('');
+  return `<form><tabs>${tabs}</tabs>${scriptXml(form.table, form.script)}</form>`;
 }
 
 /** A group entry's table name: the entry is a name, or { table, title }. */
