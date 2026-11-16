@@ -15,7 +15,7 @@
  *
  *   node --env-file=<dfe>/scripts/.env b5-run-due-surveys-e2e.mjs
  */
-import { openSession, findDisbursementSource, runStamp, findUnprivilegedUser, ensureRow, LETTER_OF_CREDIT, QDB_DIGITAL } from './e2e-helpers.mjs';
+import { openSession, findDisbursementSource, runStamp, findUnprivilegedUser, ensureRow, resetDailyPassGate, LETTER_OF_CREDIT, QDB_DIGITAL } from './e2e-helpers.mjs';
 import { ensureSurveyForm, COMPLETION_FORM_CODE } from './e2e-fixtures.mjs';
 
 const SETUP_NAME = 'E2E - Quarterly active in period';
@@ -28,7 +28,9 @@ const runDue = (session, runDate) => session.client.send('POST', 'qdb_srv_RunDue
 const invitationsOf = (session, setupId) =>
   session.rows(`qdb_survey_invitations?$select=_qdb_customer_id_value,qdb_status,qdb_schedule_period_key,qdb_expires_on,qdb_source_record_id&$filter=_qdb_survey_setup_id_value eq ${setupId}`);
 
+// Each scenario re-runs the daily passes for the same date, which the once-a-day gate would skip (ADR-010).
 async function runUntilComplete(session, runDate) {
+  await resetDailyPassGate(session);
   for (let call = 1; call <= 5; call += 1) {
     const result = await runDue(session, runDate);
     console.log(`  ${runDate} call ${call}: ${result.Summary}`);

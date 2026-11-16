@@ -1144,7 +1144,7 @@ changes, except that `qdb_customer_phone_field` now accepts a list (D.5).
 | `qdb_audience_fetchxml` | Multiple lines, 100 000 chars | The filter, as written by the builder (FR-CSE-089/090). |
 | `qdb_run_status` | Choice: Not sent / Sending / Sent / Failed | Run state (FR-CSE-086). Not editable on the form. |
 | `qdb_run_started_on`, `qdb_sent_on` | DateTime | When the run began / finished. |
-| `qdb_invited_count`, `qdb_suppressed_count` | Whole number | Running totals, updated per page. |
+| `qdb_invited_count`, `qdb_postponed_count`, `qdb_suppressed_count` | Whole number | Running totals, updated per page. *Build note:* Postponed is counted apart from Invited (Pending) and Suppressed (logged), so the trigger says what will still go out. |
 | `qdb_run_cursor` | Multiple lines, 4 000 | FetchXML paging cookie + page number of the last committed page, so a budget-cut run resumes without re-processing (ADR-010). |
 | `qdb_run_message` | Multiple lines, 2 000 | Last failure or refusal, shown on the form (FR-CSE-091). |
 
@@ -1173,8 +1173,10 @@ Engine's resources or its hard-coded `qdb_filter` column:
 **Server validation** (`AudienceQuery`, pure domain class, unit-tested) runs in the pre-operation plugin at
 save and again at send:
 
-- XML parses; root `fetch` has one `entity` whose name equals the org's customer table; no `aggregate`,
-  no `link-entity` with `link-type="outer"` that changes the root, no `count`/`top` honoured.
+- XML parses; root `fetch` has one `entity` whose name equals the org's customer table; no `aggregate`;
+  no `count`/`top` honoured. *Build note:* outer `link-entity` elements are **kept**, not refused: Advanced
+  Find writes them for "does not contain data" conditions, and the distinct id-only query cannot return
+  anything but customers of the root table.
 - The engine rewrites it: keeps the `filter` and `link-entity` elements (with their filters), drops every
   `attribute`, `all-attributes`, `order`, `top`, `count`, `page`, sets `distinct="true"`, adds only the
   primary id attribute, and pages with a cookie (page size 250).
