@@ -41,7 +41,9 @@
     "qdb_customer_table": 100000001,
     "qdb_fatigue_min_days": 30,
     "qdb_default_language": "ar",
-    "qdb_language_field": "TO_CONFIRM",
+    "qdb_language_field": "",
+    "qdb_retention_days": 730,
+    "qdb_retention_mode": 100000000,
     "qdb_securelink_enabled": false
   },
   "smsConfigs": [
@@ -51,7 +53,7 @@
       "qdb_recipient_field": "vrp_address",
       "qdb_message_field": "vrp_description",
       "qdb_customer_link_field": "regardingobjectid",
-      "qdb_customer_phone_field": "TO_CONFIRM",
+      "qdb_customer_phone_field": "mobilephone",
       "qdb_static_columns_json": "TO_CONFIRM",
       "qdb_is_active": true
     }
@@ -61,18 +63,21 @@
       "id": "HL-01", "path": "sources[*].qdb_table_logical_name, qdb_customer_lookup_field, qdb_type_field",
       "question": "Which HL CRM tables are the survey sources, and which field on each holds the customer (a lookup to contact)? HL is the housing-loan CRM; it may have no Fund Transfer table, in which case delete that row.",
       "proposed": null, "evidence": "The cloud sandbox mirrors BFD, not HL (Debt Collection, 2026-10-05); no HL request table is known.",
+      "answer": "Deferred to deployment configuration (user, 2026-11-16): HL has different tables; sources are configuration rows QDB enters later. Not an MSS blocker.",
       "owner": "QDB HL CRM administrator", "blocks": "entering the source rows"
     },
     {
       "id": "HL-02", "path": "sources[*].qdb_origin_field, qdb_origin_digital_values",
       "question": "On each HL source, which field tells a Digital (portal) request from a Legacy (customer-service) one, and which value(s) mean Digital?",
       "proposed": null, "evidence": "OQ-A2(d). On the cloud org the Disbursements and Fund Transfer origin field is qdb_source_location, 751090002 = QDB Digital.",
+      "answer": "Deferred to deployment configuration (user, 2026-11-16). Not an MSS blocker.",
       "owner": "QDB HL CRM administrator", "blocks": "entering the source rows"
     },
     {
       "id": "HL-03", "path": "triggers (not in this file)",
       "question": "For each survey to send, which statuscode value(s) fire it, and for which request types? These go on the trigger rows the survey administrator creates; the activation API checks them against the table's metadata.",
       "proposed": null, "evidence": "OQ-A2(b). Status values are per org.",
+      "answer": "Deferred to deployment configuration (user, 2026-11-16): the survey administrator enters trigger values in the app; activation validates them. Not an MSS blocker.",
       "owner": "QDB business owner + HL CRM administrator", "blocks": "activating each source"
     },
     {
@@ -86,48 +91,56 @@
       "id": "HL-05", "path": "settings.qdb_language_field",
       "question": "Which contact field holds the customer's preferred language (text en/ar or a choice)? Empty is a valid answer: everyone then gets the default language.",
       "proposed": "", "evidence": "OQ-A2(c). Debt Collection found no existing preferred-language field on contact; it proposed qdb_collectionlanguage, which is not built.",
+      "answer": "Empty (user, 2026-11-16). Stays configurable; while empty, every HL customer gets the default language (ar).",
       "owner": "QDB HL CRM administrator", "blocks": "entering the settings row"
     },
     {
       "id": "HL-06", "path": "smsConfigs[0].qdb_customer_phone_field",
       "question": "Which contact field holds the customer's mobile number for SMS?",
       "proposed": "mobilephone", "evidence": "Debt Collection Customer 360 map: HL mobile = contact.mobilephone, 'or QDB field — TBD'. HL cases copy qdb_customer_mobile_number from the customer (Case Management findings).",
+      "answer": "mobilephone (user, 2026-11-16).",
       "owner": "QDB HL CRM administrator", "blocks": "entering the SMS row"
     },
     {
       "id": "HL-07", "path": "smsConfigs[0].qdb_static_columns_json",
       "question": "HL sends SMS and WhatsApp through Letter, told apart by vrp_type. Which vrp_type value means SMS? Are any other columns required for the SMS service to pick a row up (subject, owner, status)?",
       "proposed": "{\"subject\": \"Customer survey\", \"vrp_type\": \"<SMS value>\"}", "evidence": "Debt Collection configuration guide 2a: vrp_type is the channel marker on HL Letter; its values are not in the schema evidence.",
+      "answer": "Deferred to deployment configuration (user, 2026-11-16): QDB enters the vrp_type SMS value in the SMS row's static columns. Not an MSS blocker.",
       "owner": "QDB HL CRM administrator / SMS service owner", "blocks": "entering the SMS row"
     },
     {
       "id": "HL-08", "path": "smsConfigs[0].qdb_customer_link_field",
       "question": "Does the SMS service need the customer on the Letter's To party? The engine links the customer through Regarding (regardingobjectid → contact) and puts the number in vrp_address; it cannot fill the To party without a code change.",
       "proposed": "regardingobjectid", "evidence": "Debt Collection links the customer through the To party. Whether the SMS service reads To is unknown.",
+      "answer": "No (user, 2026-11-16): the SMS service works from the number and Regarding; the To party is not needed. No engine change.",
       "owner": "SMS service owner", "blocks": "secure-link SMS on HL"
     },
     {
       "id": "HL-09", "path": "smsConfigs[0].qdb_message_field",
       "question": "Confirm the Letter text column is vrp_description (logical name) on HL.",
       "proposed": "vrp_description", "evidence": "Confirmed on HL 2026-10-06 (schema name vrp_Description, Debt Collection configuration guide); the cloud sandbox spells it vrp_descriptions.",
+      "answer": "Confirmed: vrp_description (user, 2026-11-16).",
       "owner": "QDB HL CRM administrator", "blocks": "nothing; preflight re-checks it"
     },
     {
       "id": "HL-10", "path": "settings.qdb_email_sender_queue_id (lookup, set in the form)",
       "question": "Which queue sends survey emails on HL? It needs an approved, enabled mailbox (Email Router or server-side sync).",
       "proposed": null, "evidence": "Readiness F9; on cloud a queue without an address failed every send.",
+      "answer": "Deferred to deployment configuration (user, 2026-11-16): QDB sends from a specific email address. CRM needs the From to be a queue or user, so QDB IT creates a queue whose mailbox is that address and picks it in Survey Settings; the engine creates and sends the email from it. No engine change.",
       "owner": "QDB IT (Exchange / CRM)", "blocks": "secure-link email on HL"
     },
     {
       "id": "HL-11", "path": "settings.qdb_securelink_base_url",
       "question": "The customer-portal URL of the survey link page for HL customers (the token is appended as ?token=…).",
       "proposed": null, "evidence": "OQ-A2(f); integration guide, secure-link flow. Secure links stay off until the security review (NFR-CSE-009).",
+      "answer": "Deferred to deployment configuration (user, 2026-11-16): the portal team sets it in Survey Settings when secure links are switched on.",
       "owner": "QDB portal team", "blocks": "switching secure links on"
     },
     {
       "id": "HL-12", "path": "settings.qdb_retention_days, qdb_retention_mode",
       "question": "How long survey responses are kept, and whether they are then deleted or anonymised.",
       "proposed": null, "evidence": "OQ-A1, QDB Compliance. Empty = no retention pass runs.",
+      "answer": "730 days, Delete (CEO decision D1, 2026-11-15; confirmed by the user 2026-11-16). Still subject to QDB Compliance's B2 sign-off.",
       "owner": "QDB Compliance", "blocks": "go-live"
     }
   ]

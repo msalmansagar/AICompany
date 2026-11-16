@@ -43,6 +43,22 @@ The questions in `onprem-deploy/2026-11-11/config/` (`HL.json`, `BFD.json`, READ
 | BFD-02, BFD-03 | **Left with QDB** (business owner and QDB1 CRM administrator) |
 | HL-07..HL-11, BFD-07..BFD-09, E1, B4, B5 | **Left with QDB** (SMS service owner, QDB IT, portal team). Secure links are off at release 1; these are answered before switching them on |
 
+### Update, 2026-11-16 (CEO)
+
+| ID | Answer |
+|---|---|
+| BFD-04 | **Changed to English (`en`) for BFD / QDB1.** Replaces the Arabic of 2026-11-15 for BFD only; HL stays Arabic |
+| HL-05, BFD-05 | Language field **empty** on both orgs; it stays configurable. Until it is set, HL customers get Arabic and BFD customers get English |
+| HL-06 | `mobilephone` |
+| BFD-06 | SMS to **every filled number** among `telephone1`, `qdb_mobile_number_2`, `qdb_mobilenumber3`, `address1_telephone2`, `address1_telephone1`. The engine sends to one field today, so this goes through the new-feature workflow (BRD Addendum D). Until it is built the row uses `telephone1` |
+| HL-08, BFD-07 | The SMS service does not need the To party; the engine works as built |
+| HL-09, BFD-01 | Confirmed |
+| BFD-02 | Applications: `qdb_applicationlandedfromnumuportal` = Yes; Disbursements and Fund Transfer: `qdb_source_location` = QDB Digital (QDB1 option value confirmed at entry) |
+| HL-12, BFD-10 | 730 days, Delete (D2), entered in both config files; Compliance still signs (B2) |
+| HL-01, HL-02, HL-03, HL-07, BFD-03 | **Deferred to deployment configuration** — rows QDB enters in the Survey Engine app; not MSS blockers |
+| HL-10, BFD-08 | QDB sends from a specific address: QDB IT creates a queue with that mailbox and selects it in Survey Settings (CRM needs a queue or user as From). No engine change |
+| HL-11, BFD-09 | Deferred to deployment configuration, set when secure links are switched on |
+
 ## Audit decisions on the erasure build (2026-11-15)
 
 The Addendum C audit (`phase-6-audit.md`) raised three points. The CEO answered each as recommended:
