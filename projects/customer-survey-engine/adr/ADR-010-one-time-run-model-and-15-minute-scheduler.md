@@ -1,7 +1,7 @@
 # ADR-010 — One-time trigger run model and the 15-minute scheduler
 
 **Project:** CSE-ENG-001 — Customer Survey Engine
-**Status:** Proposed
+**Status:** Accepted (CEO, 2026-11-16)
 **Date:** 2026-11-16
 **Requirements:** FR-CSE-083..088, NFR-CSE-015/016 (BRD Addendum D); CEO answers OQ-D3, OQ-D4
 **Amends:** ADR-005 (daily scheduler)

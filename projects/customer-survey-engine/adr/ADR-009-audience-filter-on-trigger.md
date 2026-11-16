@@ -1,7 +1,7 @@
 # ADR-009 — Audience filter stored on the trigger, built with the CRM condition page
 
 **Project:** CSE-ENG-001 — Customer Survey Engine
-**Status:** Proposed
+**Status:** Accepted (CEO, 2026-11-16)
 **Date:** 2026-11-16
 **Requirements:** FR-CSE-089..091, NFR-CSE-017/018 (BRD Addendum D); CEO answer OQ-D2
 
