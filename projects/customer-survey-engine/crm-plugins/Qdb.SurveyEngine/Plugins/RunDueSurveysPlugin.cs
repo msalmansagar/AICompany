@@ -9,9 +9,9 @@ namespace Qdb.SurveyEngine.Plugins
 {
     /// <summary>
     /// Custom API qdb_srv_RunDueSurveys (A1, section 7): optional input RunDate (string yyyy-MM-dd),
-    /// outputs Summary (string) and IsComplete (bool). Called daily by a Windows Scheduled Task
-    /// on-prem and by a Power Automate recurrence on cloud, which call again while IsComplete is
-    /// false. A System Administrator or the Survey Scheduler role may call it (SchedulerAccessCheck);
+    /// outputs Summary (string) and IsComplete (bool). Called every 15 minutes by a Windows Scheduled
+    /// Task on-prem and by a Power Automate recurrence on cloud, which call again while IsComplete is
+    /// false: due One-time triggers on every call, the daily passes once per run date (ADR-010). A System Administrator or the Survey Scheduler role may call it (SchedulerAccessCheck);
     /// the work runs as SYSTEM.
     /// </summary>
     public sealed class RunDueSurveysPlugin : IPlugin
@@ -60,16 +60,7 @@ namespace Qdb.SurveyEngine.Plugins
             var customer = CustomerLinkReader.Read(service);
             return RunDueSurveysService.Compose(new RunDueSurveysDependencies
             {
-                Pipeline = new SurveyTriggerDependencies
-                {
-                    Config = new SurveyConfigRepository(service),
-                    Languages = new CustomerLanguageReader(service, customer),
-                    RenderCache = new CachedRenderCacheReader(new RenderCacheReader(service)),
-                    Invitations = new InvitationRepository(service, customer),
-                    Suppressions = new SuppressionLogWriter(service, customer),
-                    Clock = clock,
-                    Trace = new TracingServiceTrace(tracing),
-                },
+                Pipeline = PipelineComposition.BuildPipeline(service, customer, clock, tracing),
                 ScheduledTriggers = new ScheduledTriggerRepository(service),
                 Population = new CustomerPopulationReader(service, customer),
                 ScheduledInvitations = new ScheduledInvitationReader(service),
@@ -77,6 +68,10 @@ namespace Qdb.SurveyEngine.Plugins
                 Retention = new ResponseRetentionStore(service, customer),
                 InvitationRetention = new InvitationRetentionStore(service),
                 SuppressionLogRetention = new SuppressionLogRetentionStore(service),
+                OneTimeTriggers = new OneTimeTriggerStore(service),
+                Audience = new AudienceReader(service),
+                CustomerTable = customer.TableLogicalName,
+                DailyPassGate = new DailyPassGate(service),
             });
         }
     }

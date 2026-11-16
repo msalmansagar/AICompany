@@ -7,6 +7,25 @@ namespace Qdb.SurveyEngine.Domain
         Created = 100000001,
         Scheduled = 100000002,
         Milestone = 100000003,
+
+        /// <summary>Addendum D: a general survey sent once, now or at a date and time, to an audience (FR-CSE-083).</summary>
+        OneTime = 100000004,
+    }
+
+    /// <summary>qdb_survey_trigger.qdb_audience: who a One-time trigger sends to (FR-CSE-089).</summary>
+    public enum AudienceKind
+    {
+        AllActiveCustomers = 100000000,
+        Filter = 100000001,
+    }
+
+    /// <summary>qdb_survey_trigger.qdb_run_status: a One-time trigger runs once (FR-CSE-086).</summary>
+    public enum OneTimeRunStatus
+    {
+        NotSent = 100000000,
+        Sending = 100000001,
+        Sent = 100000002,
+        Failed = 100000003,
     }
 
     /// <summary>qdb_survey_setup.qdb_delivery_digital / qdb_delivery_legacy.</summary>

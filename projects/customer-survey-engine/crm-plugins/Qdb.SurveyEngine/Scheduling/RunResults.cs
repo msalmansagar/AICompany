@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Qdb.SurveyEngine.OneTime;
 
 namespace Qdb.SurveyEngine.Scheduling
 {
@@ -46,24 +47,48 @@ namespace Qdb.SurveyEngine.Scheduling
         public override string ToString() => Outcome;
     }
 
-    /// <summary>The answer of one Run Due Surveys call.</summary>
+    /// <summary>
+    /// The answer of one Run Due Surveys call. The once-a-day passes (postponed, scheduled, retention)
+    /// are null when they already completed for the run date (ADR-010).
+    /// </summary>
     public sealed class RunSummary
     {
         public RunSummary(PostponedReleaseResult postponed, ScheduledRunResult scheduled, RetentionResult retention)
+            : this(new OneTimeDueResult(), postponed, scheduled, retention)
         {
+        }
+
+        private RunSummary(OneTimeDueResult oneTime, PostponedReleaseResult postponed, ScheduledRunResult scheduled, RetentionResult retention)
+        {
+            OneTime = oneTime ?? throw new System.ArgumentNullException(nameof(oneTime));
             Postponed = postponed;
             Scheduled = scheduled;
             Retention = retention;
         }
 
+        /// <summary>A call that ran the One-time pass and every daily pass.</summary>
+        public static RunSummary Full(OneTimeDueResult oneTime, PostponedReleaseResult postponed, ScheduledRunResult scheduled, RetentionResult retention) =>
+            new RunSummary(oneTime, postponed, scheduled, retention);
+
+        /// <summary>A call after the daily passes had already completed for the run date.</summary>
+        public static RunSummary OneTimeOnly(OneTimeDueResult oneTime) => new RunSummary(oneTime, null, null, null);
+
+        public OneTimeDueResult OneTime { get; }
         public PostponedReleaseResult Postponed { get; }
         public ScheduledRunResult Scheduled { get; }
         public RetentionResult Retention { get; }
 
+        /// <summary>True when the daily passes ran in this call.</summary>
+        public bool RanDailyPasses => Postponed != null;
+
+        /// <summary>True when every daily pass that ran finished; false before they ran.</summary>
+        public bool AreDailyPassesComplete => RanDailyPasses && Postponed.IsComplete && Scheduled.IsComplete && Retention.IsComplete;
+
         /// <summary>False when the time budget ran out; the caller calls again until true.</summary>
-        public bool IsComplete => Postponed.IsComplete && Scheduled.IsComplete && Retention.IsComplete;
+        public bool IsComplete => OneTime.IsComplete && (!RanDailyPasses || AreDailyPassesComplete);
 
         public override string ToString() =>
-            $"{Postponed} {Scheduled} {Retention}" + (IsComplete ? string.Empty : " Time budget spent: call again to continue.");
+            $"{OneTime} " + (RanDailyPasses ? $"{Postponed} {Scheduled} {Retention}" : "Daily passes: already completed for this date.")
+            + (IsComplete ? string.Empty : " Time budget spent: call again to continue.");
     }
 }

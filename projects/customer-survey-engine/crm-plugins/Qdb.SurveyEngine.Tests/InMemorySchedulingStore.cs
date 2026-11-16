@@ -14,7 +14,11 @@ namespace Qdb.SurveyEngine.Tests
         public InMemorySchedulingStore(InMemorySurveyStore pipeline)
         {
             _pipeline = pipeline;
+            OneTime = new InMemoryOneTimeStore(pipeline);
         }
+
+        /// <summary>Addendum D collaborators: One-time triggers, audience and the daily gate.</summary>
+        public InMemoryOneTimeStore OneTime { get; }
 
         public List<SurveyTrigger> ScheduledTriggers { get; } = new List<SurveyTrigger>();
         public List<Guid> ActiveCustomers { get; } = new List<Guid>();
@@ -96,6 +100,7 @@ namespace Qdb.SurveyEngine.Tests
         {
             Pipeline = _pipeline.AsDependencies(), ScheduledTriggers = this, Population = this, ScheduledInvitations = this, Postponed = this,
             Retention = this, InvitationRetention = this, SuppressionLogRetention = this,
+            OneTimeTriggers = OneTime, Audience = OneTime, CustomerTable = "account", DailyPassGate = OneTime,
         };
     }
 }

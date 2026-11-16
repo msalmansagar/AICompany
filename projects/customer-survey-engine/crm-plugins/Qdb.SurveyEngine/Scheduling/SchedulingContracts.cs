@@ -113,6 +113,19 @@ namespace Qdb.SurveyEngine.Scheduling
         void Delete(Guid suppressionLogId);
     }
 
+    /// <summary>
+    /// Remembers the last run date whose once-a-day passes all completed (qdb_survey_settings.
+    /// qdb_daily_passes_completed_on), so a scheduler calling every 15 minutes runs them once a day (ADR-010).
+    /// </summary>
+    public interface IDailyPassGate
+    {
+        /// <summary>True when the daily passes already completed for this run date.</summary>
+        bool HasCompleted(DateTime runDate);
+
+        /// <summary>Records that the daily passes completed for this run date.</summary>
+        void MarkCompleted(DateTime runDate);
+    }
+
     /// <summary>All collaborators of <see cref="RunDueSurveysService"/>.</summary>
     public sealed class RunDueSurveysDependencies
     {
@@ -129,6 +142,18 @@ namespace Qdb.SurveyEngine.Scheduling
 
         /// <summary>Deletes suppression-log rows past the floor (FR-CSE-077, Addendum C).</summary>
         public ISuppressionLogRetentionStore SuppressionLogRetention { get; set; }
+
+        /// <summary>One-time triggers and their runs (Addendum D).</summary>
+        public OneTime.IOneTimeTriggerStore OneTimeTriggers { get; set; }
+
+        /// <summary>Runs One-time audience queries (Addendum D).</summary>
+        public OneTime.IAudienceReader Audience { get; set; }
+
+        /// <summary>The org's customer table, for One-time audiences.</summary>
+        public string CustomerTable { get; set; }
+
+        /// <summary>Runs the daily passes once per run date (ADR-010).</summary>
+        public IDailyPassGate DailyPassGate { get; set; }
     }
 
     /// <summary>

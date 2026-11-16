@@ -130,7 +130,8 @@ export const TABLES = Object.freeze([
       dateTime('qdb_generated_on', 'Generated On'),
       dateTime('qdb_expires_on', 'Expires On'),
       integer('qdb_milestone_index', 'Milestone Index', { min: 0, max: 2147483647 }),
-      string('qdb_schedule_period_key', 'Schedule Period Key', 20),
+      // 50 since Addendum D: One-time invitations carry ONCE-{trigger id} (37 characters).
+      string('qdb_schedule_period_key', 'Schedule Period Key', 50),
       string('qdb_token_hash', 'Token Hash', 64),
       dateTime('qdb_token_used_on', 'Token Used On'),
       string('qdb_dedupe_key', 'Dedupe Key', 200, { required: true }),

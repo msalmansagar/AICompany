@@ -132,6 +132,8 @@ namespace Qdb.SurveyEngine.Tests
         {
             Scheduled(SchedulePeriod.Annually, "srv-annual");
             Run(NewYear);
+            // The daily gate would skip the second run (ADR-010); clear it to prove the pass itself is idempotent.
+            _store.OneTime.DailyPassesCompletedOn = null;
 
             var second = Run(NewYear);
 
