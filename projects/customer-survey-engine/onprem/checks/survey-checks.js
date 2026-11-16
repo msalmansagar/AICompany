@@ -96,7 +96,7 @@ const SurveyChecks = (() => {
     const response = await tryGet(get, 'customapis?$select=uniquename&$top=1');
     const formEngineApi = await firstRow(get, `customapis?$select=uniquename&$filter=uniquename eq ${quoted('qdb_GetPublishedFormJson')}`);
     return [
-      result('P3', 'Custom APIs are supported (readiness F2)', response.ok ? PASS : FAIL, response.ok ? 'customapi table answers' : `customapi table: ${response.message}. All seven survey APIs are Custom APIs; stop and raise this before importing.`),
+      result('P3', 'Custom APIs are supported (readiness F2)', response.ok ? PASS : FAIL, response.ok ? 'customapi table answers' : `customapi table: ${response.message}. Every survey API is a Custom API; stop and raise this before importing.`),
       result('P4', 'Form Engine Custom API qdb_GetPublishedFormJson exists', formEngineApi ? PASS : WARN, formEngineApi ? 'present' : 'absent: the Form Engine publish/runtime path may be older than expected'),
     ];
   }

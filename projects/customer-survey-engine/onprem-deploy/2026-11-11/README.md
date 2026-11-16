@@ -32,6 +32,8 @@ order it goes in.
 `package-manifest.json` (survey) and `form-engine/package-manifest.json` record every change, count and
 checksum; `source/` and `form-engine/source/` hold the unmodified cloud exports they were built from.
 `config/` holds each org's configuration rows and the questions QDB must answer first (B9 item 4).
+**`DEPLOYMENT-AND-HANDOVER.md`** is the overview for QDB: Form Engine prerequisite, the install order on test and
+production orgs, operations, the backend/frontend/mobile code and how to share it.
 **`RUNBOOK.md`** is the step-by-step deployment, with the read-only console checks in `scripts/` and the daily
 scheduler in `scheduler/` (B9 item 5). **`smoke-test.ps1`** proves the portal APIs on each org (B9 item 6,
 runbook stage 9); proven on the cloud org 2026-11-12, 14/14 with `-WriteTest`, nothing left behind.
