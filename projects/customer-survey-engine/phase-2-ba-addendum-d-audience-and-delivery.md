@@ -5,7 +5,7 @@
 | Prepared by | MSS Technologies, Business Analyst |
 | Amends | `phase-2-ba.md` v1.4 (v1.1 + Addenda A, B and C) → becomes v1.5 when this addendum is approved |
 | Date | 2026-11-16 |
-| Status | **DRAFT — awaiting CEO approval.** Nothing may be built from it until approved. |
+| Status | **APPROVED by the CEO 2026-11-16** (BRD v1.5) |
 | Trigger | The CEO answered the per-org configuration questions on 2026-11-16 (PR #185, `pdppl-decisions.md`). Two answers change what the engine promises: BFD-06 (SMS to every filled number) and a new requirement to send **general surveys** that no application, disbursement or transfer triggers, either immediately or at a chosen date and time, to all customers or to an audience chosen with an Advanced Find filter. |
 
 ---
@@ -169,6 +169,6 @@ On 2026-11-16 the CEO asked for four things the engine does not do, and one chan
 
 | Role | Name | Decision | Date |
 |---|---|---|---|
-| CEO | | PENDING | |
+| CEO | CEO | **APPROVED** (OQ-D1..D5 as recorded in §9) | 2026-11-16 |
 
 This addendum must be CEO-approved before architecture or code begins. It becomes v1.5 of the BRD on approval.
