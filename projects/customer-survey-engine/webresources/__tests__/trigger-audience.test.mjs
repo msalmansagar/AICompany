@@ -2,7 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
-const audience = createRequire(import.meta.url)('../trigger-audience.js');
+const audience = createRequire(import.meta.url)('../trigger-audience-core.js');
+const panel = createRequire(import.meta.url)('../trigger-audience.js');
+
+test('panel_loadsWithTheCoreModule_andExposesInit', () => {
+  assert.equal(typeof panel.init, 'function');
+});
 const { RUN_STATUS } = audience;
 const ready = { recordId: 'id', isDirty: false, isActive: true, runStatus: RUN_STATUS.notSent, reachedCount: 0 };
 
@@ -54,6 +59,43 @@ test('shouldWriteFilter_builderUntouched_keepsTheStoredFilter', () => {
 
 test('shouldWriteFilter_builderChangedOrFallbackBox_writes', () => {
   assert.deepEqual([audience.shouldWriteFilter('<a/>', '<b/>', false), audience.shouldWriteFilter('<a/>', '<a/>', true)], [true, true]);
+});
+
+const VIEW_WITH_RELATED = '<fetch version="1.0" output-format="xml-platform" mapping="logical"><entity name="account"><attribute name="name" /><order attribute="name" descending="false" />'
+  + '<filter type="and"><condition attribute="address1_city" operator="eq" value="Doha" /></filter>'
+  + '<link-entity name="contact" from="parentcustomerid" to="accountid" link-type="inner" alias="ab"><filter type="and"><condition attribute="lastname" operator="not-null" /></filter></link-entity></entity></fetch>';
+
+test('isFaithful_sameConditionsDifferentFormattingAndColumns_isTrue', () => {
+  const reformatted = "<fetch distinct='false' mapping='logical'><entity name='account'><attribute name='accountid' /><filter type='and'><condition value='Doha' operator='eq' attribute='address1_city' /></filter>"
+    + "<link-entity alias='x' to='accountid' from='parentcustomerid' name='contact'><filter><condition attribute='lastname' operator='not-null' /></filter></link-entity></entity></fetch>";
+
+  assert.equal(audience.isFaithful(VIEW_WITH_RELATED, reformatted), true);
+});
+
+test('isFaithful_editorDroppedTheRelatedEntity_isFalse', () => {
+  const dropped = '<fetch><entity name="account"><filter type="and"><condition attribute="address1_city" operator="eq" value="Doha" /></filter></entity></fetch>';
+
+  assert.equal(audience.isFaithful(VIEW_WITH_RELATED, dropped), false);
+});
+
+test('isFaithful_editorRewroteLikeAsEq_isFalse', () => {
+  const stored = '<fetch><entity name="account"><filter><condition attribute="name" operator="like" value="Survey E2E OT %1" /></filter></entity></fetch>';
+
+  assert.equal(audience.isFaithful(stored, stored.replace('like', 'eq')), false);
+});
+
+test('conditionSignature_multiValueCondition_includesItsValues', () => {
+  const inThree = '<condition attribute="statuscode" operator="in"><value>1</value><value>2</value></condition>';
+
+  assert.notEqual(audience.conditionSignature(inThree), audience.conditionSignature(inThree.replace('<value>2</value>', '')));
+});
+
+test('isViewNewer_viewEditedAfterTheCopy_isTrue', () => {
+  assert.deepEqual([
+    audience.isViewNewer('2026-12-10T08:00:00Z', '2026-12-01T09:00:00Z'),
+    audience.isViewNewer('2026-11-20T08:00:00Z', '2026-12-01T09:00:00Z'),
+    audience.isViewNewer(null, '2026-12-01T09:00:00Z'),
+  ], [true, false, false]);
 });
 
 test('apiErrorText_webApiErrorBody_returnsItsMessageElseAGenericOne', () => {

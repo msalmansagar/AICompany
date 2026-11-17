@@ -165,10 +165,27 @@ On 2026-11-16 the CEO asked for four things the engine does not do, and one chan
 
 ---
 
+## 9a. Amendment 1 — audience from a CRM view (CEO, 2026-11-17)
+
+After using the deployed builder, the CEO asked to **pull all views of the customer table and let the
+administrator pick one**. Reasons: the embedded condition editor did not offer related entities, and
+administrators already keep their audiences as views. Decision (asked and answered 2026-11-17): **Copy + Reload**.
+
+| ID | Requirement | Acceptance criteria |
+|---|---|---|
+| FR-CSE-090 (amended) | The audience panel lists **every view of the org's customer table** the administrator can see: system views and their own or shared personal views. Choosing one **copies its filter** into the trigger (`qdb_audience_fetchxml`) and sets the audience to Filter; the builder shows the copy for adjusting **for this survey only**. Building conditions by hand without a view stays possible. | On BFD the list shows account views (e.g. "Active Accounts", "My Active Accounts", a shared "Accounts in Doha"); choosing one fills the builder; saving stores the copy. |
+| FR-CSE-095 | The trigger records **which view** the audience was copied from and **when** (`qdb_audience_view_name`, `qdb_audience_view_id`, `qdb_audience_view_type`, `qdb_audience_copied_on`). The panel shows "Copied from: *view*, *date*". | After choosing "Accounts in Doha" on 1 Dec, the panel and the record show that view and date. |
+| FR-CSE-096 | If the source view has been **modified since the copy**, the panel warns and offers **Reload from view**, which replaces the copy with the view's current filter. Nothing changes until the administrator reloads and saves. Edits to or deletion of the view never change a survey by themselves. | The view is edited on 10 Dec; opening the trigger shows the warning; Reload + Save stores the new filter; without Reload the survey keeps the 1 Dec copy. A deleted view: the survey still sends with its copy. |
+| FR-CSE-097 | When the condition editor cannot show the copied filter faithfully (for example **related-entity conditions**), the panel does **not** load it for editing: it keeps the view's filter exactly as copied and says that changes are made by editing the view and reloading. A copied filter is never silently altered by the editor. | A view filtering accounts on related contacts is copied; the panel shows the read-only notice; the stored FetchXML keeps its `link-entity`. |
+
+Unchanged: the filter is evaluated on the send date (BR-AUD-01); only Survey Admin / System Administrator may
+save it; the server validates it at save and at send (FR-CSE-091); Reload is possible only until the survey is sent.
+
 ## 10. Approval
 
 | Role | Name | Decision | Date |
 |---|---|---|---|
 | CEO | CEO | **APPROVED** (OQ-D1..D5 as recorded in §9) | 2026-11-16 |
+| CEO | CEO | **Amendment 1 decided** (views, Copy + Reload, §9a) | 2026-11-17 |
 
 This addendum must be CEO-approved before architecture or code begins. It becomes v1.5 of the BRD on approval.

@@ -121,6 +121,11 @@ export const TABLES = Object.freeze([
       dateTime('qdb_send_on', 'Send On'),
       choice('qdb_audience', 'Audience', AUDIENCE_OPTIONS, AUDIENCE_OPTIONS[0].value),
       memo('qdb_audience_fetchxml', 'Audience Filter (FetchXML)', 100000),
+      // Amendment 1 (FR-CSE-095, 096): the view the filter was copied from, and when.
+      string('qdb_audience_view_name', 'Audience Copied From View', 200),
+      string('qdb_audience_view_id', 'Audience View Id', 40),
+      string('qdb_audience_view_type', 'Audience View Type', 20),
+      dateTime('qdb_audience_copied_on', 'Audience Copied On'),
       choice('qdb_run_status', 'Run Status', RUN_STATUS_OPTIONS, RUN_STATUS_OPTIONS[0].value),
       dateTime('qdb_run_started_on', 'Run Started On'),
       dateTime('qdb_sent_on', 'Sent On'),

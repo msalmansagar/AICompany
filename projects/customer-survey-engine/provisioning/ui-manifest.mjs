@@ -137,6 +137,8 @@ export const FORMS = Object.freeze([
       { label: 'Trigger', fields: ['qdb_name', 'qdb_survey_setup_id', 'qdb_trigger_kind', 'qdb_is_active', 'qdb_priority', 'qdb_fatigue_action'] },
       { label: 'One-time', fields: [
         'qdb_send_on', 'qdb_audience', { name: 'qdb_audience_fetchxml', hidden: true },
+        { name: 'qdb_audience_view_id', hidden: true }, { name: 'qdb_audience_view_type', hidden: true },
+        { name: 'qdb_audience_view_name', readOnly: true }, { name: 'qdb_audience_copied_on', readOnly: true },
         { webResource: { name: 'qdb_/survey/trigger-audience.html', controlId: 'WebResource_qdb_audience', label: 'Audience and sending', rowSpan: 14 } },
         { name: 'qdb_run_status', readOnly: true }, { name: 'qdb_sent_on', readOnly: true }, { name: 'qdb_invited_count', readOnly: true },
         { name: 'qdb_postponed_count', readOnly: true }, { name: 'qdb_suppressed_count', readOnly: true }, { name: 'qdb_run_message', readOnly: true },
@@ -189,6 +191,7 @@ export const FORMS = Object.freeze([
  */
 export const WEB_RESOURCES = Object.freeze([
   { name: 'qdb_/survey/trigger-audience.html', file: 'trigger-audience.html', type: 1, displayName: 'Survey Trigger Audience Panel' },
+  { name: 'qdb_/survey/trigger-audience-core.js', file: 'trigger-audience-core.js', type: 3, displayName: 'Survey Trigger Audience Rules' },
   { name: 'qdb_/survey/trigger-audience.js', file: 'trigger-audience.js', type: 3, displayName: 'Survey Trigger Audience Panel Script' },
   { name: 'qdb_/survey/trigger-form.js', file: 'trigger-form.js', type: 3, displayName: 'Survey Trigger Form Script' },
 ]);

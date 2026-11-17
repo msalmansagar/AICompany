@@ -11,64 +11,41 @@
  * Pure helpers are exported for node tests; the browser part starts from init(formContext).
  */
 (function (root, factory) {
-  var api = factory();
-  if (typeof module === 'object' && module.exports) module.exports = api;
+  var isNode = typeof module === 'object' && module.exports;
+  var api = factory(isNode ? require('./trigger-audience-core.js') : root.QdbSurveyAudienceCore);
+  if (isNode) module.exports = api;
   else root.QdbSurveyAudience = api;
-}(typeof self !== 'undefined' ? self : this, function () {
+}(typeof self !== 'undefined' ? self : this, function (core) {
   'use strict';
 
   var API_VERSION = 'v9.0';
-  var CONTACT_TABLE_CODE = 100000001;
   var AUDIENCE_FILTER = 100000001;
-  var RUN_STATUS = { notSent: 100000000, sending: 100000001, sent: 100000002, failed: 100000003 };
   // The condition page never reaches readyState "complete" (it keeps a request open), so its load event
   // cannot be awaited; the control is polled for instead (found live on org5869857f, 2026-11-16).
   var CONTROL_RETRIES = 40;
   var CONTROL_RETRY_MS = 500;
   var NOTIFICATION_ID = 'qdb_audience_builder';
 
-  // ---- Pure helpers (tested in node) ---------------------------------------------------------
-
-  /** The CRM condition-builder page for a table's object type code. */
-  function builderUrl(clientUrl, objectTypeCode) {
-    if (!/^\d+$/.test(String(objectTypeCode))) throw new Error('Object type code must be a number.');
-    return clientUrl.replace(/\/$/, '') + '/SFA/goal/ParticipatingQueryCondition.aspx?entitytypecode=' + objectTypeCode + '&readonlymode=false';
-  }
-
-  /** account or contact, from Survey Settings → Customer Table. */
-  function customerTableFor(customerTableCode) {
-    return customerTableCode === CONTACT_TABLE_CODE ? 'contact' : 'account';
-  }
-
-  /** Whether the Send now button may be pressed, and why not. */
-  function sendAvailability(state) {
-    if (!state.recordId) return { canSend: false, reason: 'Save the trigger first.' };
-    if (state.isDirty) return { canSend: false, reason: 'Save your changes first.' };
-    if (!state.isActive) return { canSend: false, reason: 'Switch the trigger on (Is Active) first.' };
-    if (state.runStatus === RUN_STATUS.sent) return { canSend: false, reason: 'Already sent. Copy the trigger to send again.' };
-    if (state.runStatus === RUN_STATUS.failed && state.reachedCount > 0) return { canSend: false, reason: 'This send failed part-way. Copy the trigger to send to the rest.' };
-    return { canSend: true, reason: '' };
-  }
-
-  /** One line for the panel after a Send call. */
-  function describeProgress(result) {
-    var totals = result.Invited + ' invited, ' + result.Postponed + ' postponed, ' + result.Suppressed + ' suppressed';
-    if (result.Status === 'Failed') return 'Failed: ' + result.Message;
-    return (result.IsComplete ? 'Sent: ' : 'Sending… ') + totals;
-  }
-
-  /** The error text in a Web API error body, or a generic one. */
-  function apiErrorText(body, status) {
-    var message = body && body.error && body.error.message;
-    return message ? String(message) : 'The request failed (HTTP ' + status + ').';
-  }
+  var builderUrl = core.builderUrl;
+  var customerTableFor = core.customerTableFor;
+  var sendAvailability = core.sendAvailability;
+  var describeProgress = core.describeProgress;
+  var apiErrorText = core.apiErrorText;
+  var shouldWriteFilter = core.shouldWriteFilter;
+  var isFaithful = core.isFaithful;
+  var isViewNewer = core.isViewNewer;
 
   // ---- Browser part --------------------------------------------------------------------------
 
   // seededFetchXml: what the builder returned right after loading the saved filter. The builder rewrites
   // operators it cannot show (a stored "like '%x'" comes back as "eq"), so the column is written only when
   // the administrator changed the builder; an untouched filter is kept exactly as stored.
-  var state = { formContext: null, clientUrl: '', control: null, seededFetchXml: null, isFallback: false, isBusy: false };
+  // lockedFetchXml: a copied view filter the editor cannot show faithfully (FR-CSE-097); kept exactly, never
+  // loaded into the editor. isLockedChanged: that copy is new and must be written on save.
+  var state = {
+    formContext: null, clientUrl: '', customerTable: 'account', control: null, seededFetchXml: null,
+    lockedFetchXml: null, isLockedChanged: false, isFallback: false, isLoadingBuilder: false, isBusy: false, views: [],
+  };
 
   function element(id) { return document.getElementById(id); }
 
@@ -102,11 +79,15 @@
 
   function isFilterAudience() { return attributeValue('qdb_audience') === AUDIENCE_FILTER; }
 
-  function readObjectTypeCode() {
+  function readCustomerTable() {
     return webApi('GET', 'qdb_survey_settingses?$select=qdb_customer_table&$top=1').then(function (settings) {
-      var code = settings.value.length ? settings.value[0].qdb_customer_table : null;
-      return webApi('GET', "EntityDefinitions(LogicalName='" + customerTableFor(code) + "')?$select=ObjectTypeCode");
-    }).then(function (definition) { return definition.ObjectTypeCode; });
+      state.customerTable = customerTableFor(settings.value.length ? settings.value[0].qdb_customer_table : null);
+      return state.customerTable;
+    });
+  }
+
+  function readObjectTypeCode() {
+    return webApi('GET', "EntityDefinitions(LogicalName='" + state.customerTable + "')?$select=ObjectTypeCode").then(function (definition) { return definition.ObjectTypeCode; });
   }
 
   function findBuilderControl() {
@@ -129,9 +110,29 @@
   function useBuilder(control) {
     state.control = control;
     var saved = attributeValue('qdb_audience_fetchxml');
-    if (saved) control.set_fetchXml(saved);
+    if (saved && !showInEditor(saved)) { lockCopy(saved, false); return; }
     state.seededFetchXml = control.get_fetchXml();
-    showMessage('Build the audience below, then save the trigger.');
+    showMessage('Pick a view or build the audience below, then save the trigger.');
+  }
+
+  /** Loads a filter into the editor; false (and nothing shown) when the editor would change it. */
+  function showInEditor(fetchXml) {
+    state.control.set_fetchXml(fetchXml);
+    if (isFaithful(fetchXml, state.control.get_fetchXml())) { element('builder').style.display = 'block'; return true; }
+    return false;
+  }
+
+  // FR-CSE-097: keep the filter exactly; changes go through the view and Reload.
+  function lockCopy(fetchXml, isNew) {
+    state.lockedFetchXml = fetchXml;
+    state.isLockedChanged = isNew;
+    element('builder').style.display = 'none';
+    showMessage('This audience uses conditions the editor here cannot show (for example on related records), so it is kept exactly as copied from the view. To change it, edit the view in CRM and press Reload from view.');
+  }
+
+  function unlockCopy() {
+    state.lockedFetchXml = null;
+    state.isLockedChanged = false;
   }
 
   function useFallback(reason) {
@@ -143,7 +144,8 @@
   }
 
   function loadBuilder() {
-    if (state.control || state.isFallback) return;
+    if (state.control || state.isFallback || state.isLoadingBuilder) return;
+    state.isLoadingBuilder = true;
     readObjectTypeCode().then(function (objectTypeCode) {
       var frame = element('builder');
       frame.style.display = 'block';
@@ -159,14 +161,20 @@
     return state.control ? state.control.get_fetchXml() : null;
   }
 
-  /** Whether the filter must be written: always from the FetchXML box, from the builder only when it was changed. */
-  function shouldWriteFilter(current, seeded, isFallback) {
-    return isFallback || current !== seeded;
+  function writeFilter(fetchXml) {
+    var attribute = state.formContext.getAttribute('qdb_audience_fetchxml');
+    attribute.setValue(fetchXml);
+    attribute.setSubmitMode('always');
   }
 
-  // Writes the builder's FetchXML before the record saves; blocks the save while the builder is still starting.
+  // Writes the audience before the record saves; blocks the save while the builder is still starting.
   function onFormSave(executionContext) {
     if (!isFilterAudience()) return;
+    if (state.lockedFetchXml !== null) {
+      if (state.isLockedChanged) writeFilter(state.lockedFetchXml);
+      state.isLockedChanged = false;
+      return;
+    }
     if (!state.control && !state.isFallback) {
       executionContext.getEventArgs().preventDefault();
       state.formContext.ui.setFormNotification('The audience builder is still loading; save again in a moment.', 'WARNING', NOTIFICATION_ID);
@@ -175,10 +183,99 @@
     state.formContext.ui.clearFormNotification(NOTIFICATION_ID);
     var current = readFetchXml();
     if (!shouldWriteFilter(current, state.seededFetchXml, state.isFallback)) return;
-    var fetchXml = state.formContext.getAttribute('qdb_audience_fetchxml');
-    fetchXml.setValue(current);
-    fetchXml.setSubmitMode('always');
+    writeFilter(current);
     state.seededFetchXml = current;
+  }
+
+  // ---- Audience from a view (Amendment 1, FR-CSE-090, 095..097) -------------------------------
+
+  function readViews() {
+    var table = "returnedtypecode eq '" + state.customerTable + "' and querytype eq 0";
+    var system = webApi('GET', 'savedqueries?$select=name,modifiedon&$filter=' + encodeURIComponent(table + ' and statecode eq 0') + '&$orderby=name');
+    var personal = webApi('GET', 'userqueries?$select=name,modifiedon&$filter=' + encodeURIComponent(table + ' and statecode eq 0') + '&$orderby=name');
+    return Promise.all([system, personal]).then(function (answers) {
+      return answers[0].value.map(function (v) { return { id: v.savedqueryid, type: 'savedquery', name: v.name, modifiedOn: v.modifiedon }; })
+        .concat(answers[1].value.map(function (v) { return { id: v.userqueryid, type: 'userquery', name: v.name, modifiedOn: v.modifiedon }; }));
+    });
+  }
+
+  function option(view) {
+    var item = document.createElement('option');
+    item.value = view.type + ':' + view.id;
+    item.textContent = view.name;
+    return item;
+  }
+
+  function renderViews(views) {
+    state.views = views;
+    var picker = element('view');
+    [['savedquery', 'System views'], ['userquery', 'My and shared views']].forEach(function (group) {
+      var members = views.filter(function (view) { return view.type === group[0]; });
+      if (!members.length) return;
+      var optgroup = document.createElement('optgroup');
+      optgroup.label = group[1];
+      members.forEach(function (view) { optgroup.appendChild(option(view)); });
+      picker.appendChild(optgroup);
+    });
+  }
+
+  function readViewFetchXml(view) {
+    var set = view.type === 'savedquery' ? 'savedqueries' : 'userqueries';
+    return webApi('GET', set + '(' + view.id + ')?$select=fetchxml,name,modifiedon').then(function (row) { return row.fetchxml; });
+  }
+
+  function recordSource(view) {
+    var values = { qdb_audience_view_name: view.name, qdb_audience_view_id: view.id, qdb_audience_view_type: view.type, qdb_audience_copied_on: new Date(), qdb_audience: AUDIENCE_FILTER };
+    // Read-only and hidden fields are not saved unless told to.
+    Object.keys(values).forEach(function (name) {
+      var attribute = state.formContext.getAttribute(name);
+      attribute.setValue(values[name]);
+      attribute.setSubmitMode('always');
+    });
+  }
+
+  function copyView(view) {
+    if (!state.control && !state.isFallback) return Promise.reject(new Error('The audience builder is still loading; try again in a moment.'));
+    return readViewFetchXml(view).then(function (fetchXml) {
+      recordSource(view);
+      if (state.isFallback) element('fetchxml').value = fetchXml;
+      else if (showInEditor(fetchXml)) { unlockCopy(); state.seededFetchXml = null; showMessage('Copied from "' + view.name + '". Adjust it below for this survey if needed, then save.'); }
+      else lockCopy(fetchXml, true);
+      refreshSource();
+      refreshPanel();
+    });
+  }
+
+  function selectedView() {
+    var parts = element('view').value.split(':');
+    return state.views.filter(function (view) { return view.type === parts[0] && view.id === parts[1]; })[0];
+  }
+
+  function storedView() {
+    var id = attributeValue('qdb_audience_view_id');
+    return state.views.filter(function (view) { return view.id === id; })[0];
+  }
+
+  function onPickView() {
+    var view = selectedView();
+    if (view) copyView(view).catch(function (problem) { showMessage(problem.message, true); });
+  }
+
+  function onReload() {
+    var view = storedView();
+    if (!view) { showMessage('The view this audience was copied from no longer exists or is not shared with you.', true); return; }
+    copyView(view).catch(function (problem) { showMessage(problem.message, true); });
+  }
+
+  // "Copied from" line, and the warning when the view changed since (FR-CSE-095, 096).
+  function refreshSource() {
+    var name = attributeValue('qdb_audience_view_name');
+    var copiedOn = attributeValue('qdb_audience_copied_on');
+    var view = storedView();
+    element('source').textContent = name ? 'Copied from: ' + name + (copiedOn ? ', ' + new Date(copiedOn).toLocaleString() : '') : '';
+    var isStale = Boolean(view) && isViewNewer(view.modifiedOn, copiedOn && new Date(copiedOn).toISOString());
+    element('stale').style.display = isStale ? 'block' : 'none';
+    element('reload').style.display = name ? 'inline-block' : 'none';
   }
 
   function currentSendState() {
@@ -246,11 +343,12 @@
     if (typeof formContext.data.entity.addOnPostSave === 'function') formContext.data.entity.addOnPostSave(refreshPanel);
     element('preview').onclick = onPreview;
     element('send').onclick = onSend;
-    refreshPanel();
+    element('view').onchange = onPickView;
+    element('reload').onclick = onReload;
+    readCustomerTable().then(readViews).then(function (views) { renderViews(views); refreshSource(); })
+      .catch(function (problem) { showMessage('Views could not be listed: ' + problem.message, true); })
+      .then(refreshPanel);
   }
 
-  return {
-    builderUrl: builderUrl, customerTableFor: customerTableFor, sendAvailability: sendAvailability, describeProgress: describeProgress,
-    apiErrorText: apiErrorText, shouldWriteFilter: shouldWriteFilter, init: init, RUN_STATUS: RUN_STATUS,
-  };
+  return { init: init };
 }));

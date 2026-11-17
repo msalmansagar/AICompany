@@ -16,11 +16,24 @@
     button:disabled { cursor: not-allowed; opacity: 0.5; }
     button:focus-visible { outline: 2px solid #0f6cbd; outline-offset: 2px; }
     #send-hint { color: #616161; }
+    .message.warning { background: #fff4ce; color: #614d00; }
+    .views { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 6px; }
+    .views label { font-weight: 600; }
+    #view { min-height: 32px; min-width: 280px; max-width: 100%; font: inherit; border: 1px solid #8a8886; border-radius: 4px; padding: 0 8px; }
+    .source { margin: 0 0 8px; color: #616161; min-height: 1em; }
   </style>
+  <script src="trigger-audience-core.js"></script>
   <script src="trigger-audience.js"></script>
 </head>
 <body>
   <p id="message" class="message" role="status" aria-live="polite">Loading…</p>
+  <div class="views">
+    <label for="view">Start from a view</label>
+    <select id="view"><option value="">Choose a view to copy its filter…</option></select>
+    <button id="reload" type="button" style="display: none;">Reload from view</button>
+  </div>
+  <p id="source" class="source"></p>
+  <p id="stale" class="message warning" role="alert" style="display: none;">The view has changed since this audience was copied from it. Press Reload from view to use its current filter, then save. Until you do, the survey keeps the earlier copy.</p>
   <div id="builder-area">
     <iframe id="builder" title="Audience filter builder" src="about:blank"></iframe>
     <div id="fallback">
