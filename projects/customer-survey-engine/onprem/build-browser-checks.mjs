@@ -36,8 +36,15 @@ const BROWSER_RUNNER = String.raw`
     if (!response.ok) { const error = new Error(response.status + ' ' + body.slice(0, 200)); error.status = response.status; throw error; }
     return JSON.parse(body);
   };
+  // A plain page (not the Web API), read-only: used by P15 to see whether the condition editor exists.
+  const getPage = async (path) => {
+    try {
+      const response = await fetch(clientUrl + '/' + path, { credentials: 'same-origin' });
+      return { ok: response.ok, text: response.ok ? await response.text() : '', message: 'HTTP ' + response.status };
+    } catch (error) { return { ok: false, text: '', message: error.message }; }
+  };
   console.log('Survey Engine ' + RUN.label + ' on ' + clientUrl + ': read-only, please wait…');
-  const report = await RUN.execute(get);
+  const report = await RUN.execute(get, getPage);
   report.org = RUN.org; report.url = clientUrl; report.ranAt = new Date().toISOString(); report.kitDate = KIT_DATE;
   if (report.checks) console.table(report.checks.map((check) => ({ id: check.id, status: check.status, check: check.title, detail: check.detail })));
   const file = 'survey-' + RUN.file + '-' + new Date().toISOString().slice(0, 10) + '.json';
@@ -63,7 +70,7 @@ function script({ title, kitDate, kit, run }) {
 }
 
 function preflightRun(org, config) {
-  return `const CONFIG = ${JSON.stringify(config)};\nconst RUN = { org: '${org}', label: 'preflight (${org})', file: 'preflight-${org}', execute: (get) => SurveyChecks.preflight({ get, kit: KIT, config: CONFIG }) };`;
+  return `const CONFIG = ${JSON.stringify(config)};\nconst RUN = { org: '${org}', label: 'preflight (${org})', file: 'preflight-${org}', execute: (get, getPage) => SurveyChecks.preflight({ get, kit: KIT, config: CONFIG, getPage }) };`;
 }
 
 function run() {

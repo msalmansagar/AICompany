@@ -249,13 +249,21 @@ const SurveyChecks = (() => {
     return result('C-src', `Source ${source.qdb_name} (${table})`, problems.length ? FAIL : PASS, problems.length ? problems.join('; ') : 'table and fields exist; customer lookup targets ' + customerTable);
   }
 
+  // Addendum D (FR-CSE-092): one column or an ordered comma-separated list, as the plugin reads it.
+  function phoneFields(configured) {
+    if (!confirmed(configured)) return [];
+    return String(configured || '').split(/[,;]/).map((field) => field.trim()).filter(Boolean);
+  }
+
   async function checkSmsConfig(get, sms, customerTable) {
     const table = sms.qdb_sms_table_logical_name;
     const problems = [];
     for (const field of ['qdb_recipient_field', 'qdb_message_field', 'qdb_customer_link_field']) {
       if (confirmed(sms[field]) && !(await attribute(get, table, sms[field]))) problems.push(`${table}.${sms[field]} missing`);
     }
-    if (confirmed(sms.qdb_customer_phone_field) && !(await attribute(get, customerTable, sms.qdb_customer_phone_field))) problems.push(`${customerTable}.${sms.qdb_customer_phone_field} missing`);
+    for (const phone of phoneFields(sms.qdb_customer_phone_field)) {
+      if (!(await attribute(get, customerTable, phone))) problems.push(`${customerTable}.${phone} missing`);
+    }
     return result('C-sms', `SMS hand-off ${sms.qdb_name} (${table})`, problems.length ? FAIL : PASS, problems.length ? problems.join('; ') : 'columns exist (TO_CONFIRM values not checked)');
   }
 
@@ -278,12 +286,25 @@ const SurveyChecks = (() => {
       .sort((left, right) => `${left.formCode}|${left.language}`.localeCompare(`${right.formCode}|${right.language}`));
   }
 
-  async function preflight({ get, kit, config }) {
+  /**
+   * Addendum D (ADR-009, risk R-D1): the One-time trigger's audience panel embeds CRM's condition editor
+   * page. Without it the panel falls back to a FetchXML box, so a missing page is a warning, not a stop.
+   * The page is not a Web API resource: only the browser run can fetch it (`getPage`).
+   */
+  async function checkConditionEditorPage(getPage) {
+    const title = 'CRM condition editor page for the survey audience panel (Addendum D, ADR-009)';
+    if (!getPage) return [result('P15', title, INFO, 'only checked by the browser console run')];
+    const page = await getPage('SFA/goal/ParticipatingQueryCondition.aspx?entitytypecode=1&readonlymode=false');
+    if (page.ok && page.text.indexOf('advFind') >= 0) return [result('P15', title, PASS, 'present: the audience panel uses the CRM condition editor')];
+    return [result('P15', title, WARN, `not usable (${page.ok ? 'no condition control on the page' : page.message}): the panel will offer a FetchXML box instead; views still work`)];
+  }
+
+  async function preflight({ get, kit, config, getPage }) {
     const checks = [
       ...(await checkPlatform(get, kit)), ...(await checkCustomApis(get)), ...(await checkFormEngine(get, kit)),
       ...(await checkPublisher(get, kit)), ...(await checkCollisions(get, kit)), ...(await checkServices(get)),
       ...(await gridColumnCensus(get)), ...(await checkSurveyViewTables(get, kit)), ...(await checkOrgAuditing(get)),
-      ...(await checkConfig(get, config)),
+      ...(await checkConditionEditorPage(getPage)), ...(await checkConfig(get, config)),
     ];
     return { kind: 'survey-preflight', checks, renderCache: await renderCacheSnapshot(get) };
   }

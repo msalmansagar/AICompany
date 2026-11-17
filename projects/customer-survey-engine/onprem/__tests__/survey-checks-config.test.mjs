@@ -93,6 +93,13 @@ test('preflight_smsColumnsMissing_failsCsmsNamingEach', async () => {
   assert.equal((await smsCheck(answers)).detail, 'letter.qdb_to missing; account.mobilephone missing');
 });
 
+test('preflight_phoneFieldList_checksEachColumnSeparately', async () => {
+  const config = emptyConfig({ smsConfigs: [{ ...SMS_CONFIG, qdb_customer_phone_field: 'telephone1, qdb_mobile_number_2' }] });
+  const answers = { "EntityDefinitions(LogicalName='account')/Attributes(LogicalName='qdb_mobile_number_2')": notFound() };
+
+  assert.equal(checkOf(await preflight(answers, config), 'C-sms').detail, 'account.qdb_mobile_number_2 missing');
+});
+
 test('preflight_configWithoutSmsList_checksNoSms', async () => {
   const config = emptyConfig({ smsConfigs: undefined });
 

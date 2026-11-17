@@ -5,6 +5,14 @@ import { createRequire } from 'node:module';
 const audience = createRequire(import.meta.url)('../trigger-audience-core.js');
 const panel = createRequire(import.meta.url)('../trigger-audience.js');
 
+const viewsModule = createRequire(import.meta.url)('../trigger-audience-views.js');
+
+test('findView_pickerValue_matchesTypeAndId', () => {
+  const list = [{ type: 'savedquery', id: 'a', name: 'A' }, { type: 'userquery', id: 'a', name: 'Mine' }];
+
+  assert.deepEqual([viewsModule.findView(list, 'userquery:a').name, viewsModule.findView(list, 'savedquery:b'), viewsModule.findView(list, '')], ['Mine', undefined, undefined]);
+});
+
 test('panel_loadsWithTheCoreModule_andExposesInit', () => {
   assert.equal(typeof panel.init, 'function');
 });
@@ -52,13 +60,13 @@ test('describeProgress_incompleteCompleteAndFailed_readAsTheyShould', () => {
   ], ['Sending… 2 invited, 1 postponed, 0 suppressed', 'Sent: 2 invited, 1 postponed, 0 suppressed', 'Failed: bad filter']);
 });
 
-test('shouldWriteFilter_builderUntouched_keepsTheStoredFilter', () => {
+test('isBuilderChanged_builderUntouched_isFalseSoTheStoredFilterIsKept', () => {
   // The builder returns a stored "like '%x'" as "eq": writing it back unchanged would alter the audience.
-  assert.equal(audience.shouldWriteFilter('<fetch>eq</fetch>', '<fetch>eq</fetch>', false), false);
+  assert.equal(audience.isBuilderChanged('<fetch>eq</fetch>', '<fetch>eq</fetch>'), false);
 });
 
-test('shouldWriteFilter_builderChangedOrFallbackBox_writes', () => {
-  assert.deepEqual([audience.shouldWriteFilter('<a/>', '<b/>', false), audience.shouldWriteFilter('<a/>', '<a/>', true)], [true, true]);
+test('isBuilderChanged_builderEdited_isTrue', () => {
+  assert.equal(audience.isBuilderChanged('<a/>', '<b/>'), true);
 });
 
 const VIEW_WITH_RELATED = '<fetch version="1.0" output-format="xml-platform" mapping="logical"><entity name="account"><attribute name="name" /><order attribute="name" descending="false" />'

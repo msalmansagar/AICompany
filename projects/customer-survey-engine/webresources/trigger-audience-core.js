@@ -46,9 +46,12 @@
     return message ? String(message) : 'The request failed (HTTP ' + status + ').';
   }
 
-  /** Whether the filter must be written: always from the FetchXML box, from the builder only when it was changed. */
-  function shouldWriteFilter(current, seeded, isFallback) {
-    return isFallback || current !== seeded;
+  /**
+   * Whether the editor's filter differs from what it showed after loading the stored one. The editor rewrites
+   * what it cannot show (a stored "like '%x'" comes back as "eq"), so an unchanged editor must not be written back.
+   */
+  function isBuilderChanged(current, seeded) {
+    return current !== seeded;
   }
 
   function attributesOf(tag) {
@@ -88,7 +91,7 @@
 
   return {
     builderUrl: builderUrl, customerTableFor: customerTableFor, sendAvailability: sendAvailability, describeProgress: describeProgress,
-    apiErrorText: apiErrorText, shouldWriteFilter: shouldWriteFilter, conditionSignature: conditionSignature, isFaithful: isFaithful,
+    apiErrorText: apiErrorText, isBuilderChanged: isBuilderChanged, conditionSignature: conditionSignature, isFaithful: isFaithful,
     isViewNewer: isViewNewer, RUN_STATUS: RUN_STATUS,
   };
 }));

@@ -5,10 +5,12 @@
  */
 (function (root, factory) {
   var isNode = typeof module === 'object' && module.exports;
-  var api = factory(isNode ? require('./trigger-audience-core.js') : root.QdbSurveyAudienceCore);
+  var api = isNode
+    ? factory(require('./trigger-audience-core.js'), require('./trigger-audience-views.js'))
+    : factory(root.QdbSurveyAudienceCore, root.QdbSurveyAudienceViews);
   if (isNode) module.exports = api;
   else root.QdbSurveyAudience = api;
-}(typeof self !== 'undefined' ? self : this, function (core) {
+}(typeof self !== 'undefined' ? self : this, function (core, views) {
   'use strict';
 
   var API_VERSION = 'v9.0';
@@ -24,7 +26,7 @@
   var sendAvailability = core.sendAvailability;
   var describeProgress = core.describeProgress;
   var apiErrorText = core.apiErrorText;
-  var shouldWriteFilter = core.shouldWriteFilter;
+  var isBuilderChanged = core.isBuilderChanged;
   var isFaithful = core.isFaithful;
   var isViewNewer = core.isViewNewer;
 
@@ -37,7 +39,7 @@
   // loaded into the editor. isLockedChanged: that copy is new and must be written on save.
   var state = {
     formContext: null, clientUrl: '', customerTable: 'account', control: null, seededFetchXml: null,
-    lockedFetchXml: null, isLockedChanged: false, isFallback: false, builderReady: null, isBusy: false, views: [],
+    lockedFetchXml: null, isLockedChanged: false, isFallback: false, builderReady: null, isBusy: false, isCopying: false, views: [],
   };
 
   function element(id) { return document.getElementById(id); }
@@ -195,47 +197,13 @@
     }
     state.formContext.ui.clearFormNotification(NOTIFICATION_ID);
     var current = readFetchXml();
-    if (!shouldWriteFilter(current, state.seededFetchXml, state.isFallback)) return;
+    // The FetchXML box always writes; the editor only when the administrator changed it.
+    if (!state.isFallback && !isBuilderChanged(current, state.seededFetchXml)) return;
     writeFilter(current);
     state.seededFetchXml = current;
   }
 
   // ---- Audience from a view (Amendment 1, FR-CSE-090, 095..097) -------------------------------
-
-  function readViews() {
-    var table = "returnedtypecode eq '" + state.customerTable + "' and querytype eq 0";
-    var system = webApi('GET', 'savedqueries?$select=name,modifiedon&$filter=' + encodeURIComponent(table + ' and statecode eq 0') + '&$orderby=name');
-    var personal = webApi('GET', 'userqueries?$select=name,modifiedon&$filter=' + encodeURIComponent(table + ' and statecode eq 0') + '&$orderby=name');
-    return Promise.all([system, personal]).then(function (answers) {
-      return answers[0].value.map(function (v) { return { id: v.savedqueryid, type: 'savedquery', name: v.name, modifiedOn: v.modifiedon }; })
-        .concat(answers[1].value.map(function (v) { return { id: v.userqueryid, type: 'userquery', name: v.name, modifiedOn: v.modifiedon }; }));
-    });
-  }
-
-  function option(view) {
-    var item = document.createElement('option');
-    item.value = view.type + ':' + view.id;
-    item.textContent = view.name;
-    return item;
-  }
-
-  function renderViews(views) {
-    state.views = views;
-    var picker = element('view');
-    [['savedquery', 'System views'], ['userquery', 'My and shared views']].forEach(function (group) {
-      var members = views.filter(function (view) { return view.type === group[0]; });
-      if (!members.length) return;
-      var optgroup = document.createElement('optgroup');
-      optgroup.label = group[1];
-      members.forEach(function (view) { optgroup.appendChild(option(view)); });
-      picker.appendChild(optgroup);
-    });
-  }
-
-  function readViewFetchXml(view) {
-    var set = view.type === 'savedquery' ? 'savedqueries' : 'userqueries';
-    return webApi('GET', set + '(' + view.id + ')?$select=fetchxml,name,modifiedon').then(function (row) { return row.fetchxml; });
-  }
 
   function recordSource(view) {
     var values = { qdb_audience_view_name: view.name, qdb_audience_view_id: view.id, qdb_audience_view_type: view.type, qdb_audience_copied_on: new Date(), qdb_audience: AUDIENCE_FILTER };
@@ -253,7 +221,7 @@
     state.formContext.getAttribute('qdb_audience').setValue(AUDIENCE_FILTER);
     element('builder-area').style.display = 'block';
     showMessage('Copying "' + view.name + '"…');
-    return startBuilder().then(function () { return readViewFetchXml(view); }).then(function (fetchXml) {
+    return startBuilder().then(function () { return views.readViewFetchXml(webApi, view); }).then(function (fetchXml) {
       recordSource(view);
       return state.isFallback ? useInFallback(fetchXml) : useInEditor(fetchXml, view);
     }).then(function () {
@@ -278,6 +246,10 @@
   // Drops the copied view and starts an empty editor; the next save writes whatever is built (FR-CSE-090).
   function onStartOver() {
     if (state.isFallback) { element('fetchxml').value = ''; return; }
+    runAlone(startOver);
+  }
+
+  function startOver() {
     ['qdb_audience_view_name', 'qdb_audience_view_id', 'qdb_audience_view_type', 'qdb_audience_copied_on'].forEach(function (name) {
       var attribute = state.formContext.getAttribute(name);
       attribute.setValue(null);
@@ -285,32 +257,36 @@
     });
     unlockCopy();
     element('view').value = '';
-    loadIntoFreshEditor(null).then(function () {
+    return loadIntoFreshEditor(null).then(function () {
       state.seededFetchXml = null;
       showMessage('Build the audience below, then save the trigger.');
       refreshSource();
-    }).catch(function (problem) { useFallback(problem.message); });
+    }, function (problem) { useFallback(problem.message); });
   }
 
-  function selectedView() {
-    var parts = element('view').value.split(':');
-    return state.views.filter(function (view) { return view.type === parts[0] && view.id === parts[1]; })[0];
-  }
+  function selectedView() { return views.findView(state.views, element('view').value); }
 
-  function storedView() {
-    var id = attributeValue('qdb_audience_view_id');
-    return state.views.filter(function (view) { return view.id === id; })[0];
+  function storedView() { return views.findView(state.views, attributeValue('qdb_audience_view_type') + ':' + attributeValue('qdb_audience_view_id')); }
+
+  /**
+   * Runs one editor change at a time. set_fetchXml adds to what the editor shows, so two loads overlapping
+   * on the same fresh page would merge two filters (review 2026-11-17); a second request is refused instead.
+   */
+  function runAlone(work) {
+    if (state.isCopying) { showMessage('Still copying the previous choice; try again in a moment.', true); return; }
+    state.isCopying = true;
+    work().catch(function (problem) { showMessage(problem.message, true); }).then(function () { state.isCopying = false; });
   }
 
   function onPickView() {
     var view = selectedView();
-    if (view) copyView(view).catch(function (problem) { showMessage(problem.message, true); });
+    if (view) runAlone(function () { return copyView(view); });
   }
 
   function onReload() {
     var view = storedView();
     if (!view) { showMessage('The view this audience was copied from no longer exists or is not shared with you.', true); return; }
-    copyView(view).catch(function (problem) { showMessage(problem.message, true); });
+    runAlone(function () { return copyView(view); });
   }
 
   // "Copied from" line, and the warning when the view changed since (FR-CSE-095, 096).
@@ -392,7 +368,11 @@
     element('view').onchange = onPickView;
     element('reload').onclick = onReload;
     element('start-over').onclick = onStartOver;
-    readCustomerTable().then(readViews).then(function (views) { renderViews(views); refreshSource(); })
+    readCustomerTable().then(function (table) { return views.readViews(webApi, table); }).then(function (list) {
+      state.views = list;
+      views.renderViews(element('view'), list);
+      refreshSource();
+    })
       .catch(function (problem) { showMessage('Views could not be listed: ' + problem.message, true); })
       .then(refreshPanel);
   }

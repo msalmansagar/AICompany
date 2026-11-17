@@ -53,7 +53,7 @@
       "qdb_recipient_field": "faxnumber",
       "qdb_message_field": "qdb_message_body",
       "qdb_customer_link_field": "regardingobjectid",
-      "qdb_customer_phone_field": "telephone1",
+      "qdb_customer_phone_field": "telephone1, qdb_mobile_number_2, qdb_mobilenumber3, address1_telephone2, address1_telephone1",
       "qdb_static_columns_json": "{\"subject\": \"Customer survey\"}",
       "qdb_is_active": true
     }
@@ -98,7 +98,7 @@
       "id": "BFD-06", "path": "smsConfigs[0].qdb_customer_phone_field",
       "question": "Which account field holds the customer's mobile number for SMS: telephone1, or qdb_mobile_number?",
       "proposed": "qdb_mobile_number", "evidence": "account.qdb_mobile_number exists on the cloud sandbox (Debt Collection schema assessment); the Debt Collection map says account.telephone1 'or QDB field — TBD'.",
-      "answer": "Send to EVERY filled number among telephone1, qdb_mobile_number_2, qdb_mobilenumber3, address1_telephone2, address1_telephone1 (user, 2026-11-16). ENGINE GAP: the engine sends to one configured field, so this needs BRD Addendum D (multi-number SMS) and a build. Until then the row uses telephone1.",
+      "answer": "Send to EVERY filled number among telephone1, qdb_mobile_number_2, qdb_mobilenumber3, address1_telephone2, address1_telephone1 (user, 2026-11-16). Built in BRD Addendum D (FR-CSE-092..094, kit 1.2.0.0): the row lists the five fields; one SMS per distinct number (digits compared). The preflight checks every listed field exists on QDB1.",
       "owner": "QDB1 CRM administrator", "blocks": "entering the SMS row"
     },
     {

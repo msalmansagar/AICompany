@@ -192,6 +192,7 @@ export const FORMS = Object.freeze([
 export const WEB_RESOURCES = Object.freeze([
   { name: 'qdb_/survey/trigger-audience.html', file: 'trigger-audience.html', type: 1, displayName: 'Survey Trigger Audience Panel' },
   { name: 'qdb_/survey/trigger-audience-core.js', file: 'trigger-audience-core.js', type: 3, displayName: 'Survey Trigger Audience Rules' },
+  { name: 'qdb_/survey/trigger-audience-views.js', file: 'trigger-audience-views.js', type: 3, displayName: 'Survey Trigger Audience Views' },
   { name: 'qdb_/survey/trigger-audience.js', file: 'trigger-audience.js', type: 3, displayName: 'Survey Trigger Audience Panel Script' },
   { name: 'qdb_/survey/trigger-form.js', file: 'trigger-form.js', type: 3, displayName: 'Survey Trigger Form Script' },
 ]);
