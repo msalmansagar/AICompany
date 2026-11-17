@@ -1,14 +1,7 @@
 /*
- * qdb_/survey/trigger-audience.js — the One-time trigger's audience panel (Addendum D, ADR-009).
- *
- * Hosts CRM's own condition builder (/SFA/goal/ParticipatingQueryCondition.aspx) in a same-origin
- * iframe, the technique proven by the Process Engine's qdb_AdvanceFindFilter.html, and writes its
- * FetchXML into qdb_audience_fetchxml when the form saves. If the page or its control is missing
- * (a 9.1 build without it), a plain FetchXML box takes over. Also offers Preview and Send now,
- * which call qdb_srv_PreviewAudience and qdb_srv_SendOneTimeTrigger. The server validates the
- * filter again at save and at send; nothing here is trusted.
- *
- * Pure helpers are exported for node tests; the browser part starts from init(formContext).
+ * qdb_/survey/trigger-audience.js — the One-time trigger's audience panel (Addendum D, ADR-009, Amendment 1):
+ * copy a view, adjust it in CRM's condition editor (a FetchXML box if that page is missing), Preview, Send now.
+ * The server validates the filter again at save and at send. Pure rules live in trigger-audience-core.js.
  */
 (function (root, factory) {
   var isNode = typeof module === 'object' && module.exports;
@@ -100,39 +93,55 @@
     }
   }
 
-  function waitForControl(attemptsLeft) {
+  // Waits for a control other than `previous`, so a reloaded page is not mistaken for the old one.
+  function waitForControl(attemptsLeft, previous) {
     var control = findBuilderControl();
-    if (control) return Promise.resolve(control);
+    if (control && control !== previous) return Promise.resolve(control);
     if (attemptsLeft <= 0) return Promise.reject(new Error('The CRM condition builder did not start.'));
-    return new Promise(function (resolve) { setTimeout(resolve, CONTROL_RETRY_MS); }).then(function () { return waitForControl(attemptsLeft - 1); });
+    return new Promise(function (resolve) { setTimeout(resolve, CONTROL_RETRY_MS); }).then(function () { return waitForControl(attemptsLeft - 1, previous); });
   }
 
+  // On a freshly loaded page the editor is empty, so the first set_fetchXml is exact.
   function useBuilder(control) {
     state.control = control;
     var saved = attributeValue('qdb_audience_fetchxml');
-    if (saved && !showInEditor(saved)) { lockCopy(saved, false); return; }
+    if (saved) control.set_fetchXml(saved);
+    if (saved && !isFaithful(saved, control.get_fetchXml())) { lockCopy(saved, false); return; }
     state.seededFetchXml = control.get_fetchXml();
     showMessage('Pick a view or build the audience below, then save the trigger.');
   }
 
-  /** Loads a filter into the editor; false (and nothing shown) when the editor would change it. */
-  function showInEditor(fetchXml) {
-    state.control.set_fetchXml(fetchXml);
-    if (isFaithful(fetchXml, state.control.get_fetchXml())) { element('builder').style.display = 'block'; return true; }
-    return false;
+  /**
+   * Reloads the editor page and loads one filter into it (none to start empty). set_fetchXml ADDS to the
+   * conditions already shown, and the page's own Clear asks for confirmation, so a fresh page is the only
+   * exact way to replace them (found live on org5869857f, 2026-11-17). Answers whether it shows the filter faithfully.
+   */
+  function loadIntoFreshEditor(fetchXml) {
+    var frame = element('builder');
+    var previous = state.control;
+    state.control = null;
+    frame.style.display = 'block';
+    frame.contentWindow.location.replace(frame.src);
+    return waitForControl(CONTROL_RETRIES, previous).then(function (control) {
+      state.control = control;
+      if (fetchXml) control.set_fetchXml(fetchXml);
+      return !fetchXml || isFaithful(fetchXml, control.get_fetchXml());
+    });
   }
 
-  // FR-CSE-097: keep the filter exactly; changes go through the view and Reload.
+  // FR-CSE-097: keep the filter exactly; changes go through the view and Reload, or Start over.
   function lockCopy(fetchXml, isNew) {
     state.lockedFetchXml = fetchXml;
     state.isLockedChanged = isNew;
     element('builder').style.display = 'none';
-    showMessage('This audience uses conditions the editor here cannot show (for example on related records), so it is kept exactly as copied from the view. To change it, edit the view in CRM and press Reload from view.');
+    element('start-over').style.display = 'inline-block';
+    showMessage('This audience uses conditions the editor here cannot show (for example on related records), so it is kept exactly as copied. To change it, edit the view in CRM and press Reload from view, or press Start over to build your own.');
   }
 
   function unlockCopy() {
     state.lockedFetchXml = null;
     state.isLockedChanged = false;
+    element('start-over').style.display = 'none';
   }
 
   function useFallback(reason) {
@@ -243,15 +252,44 @@
   function copyView(view) {
     state.formContext.getAttribute('qdb_audience').setValue(AUDIENCE_FILTER);
     element('builder-area').style.display = 'block';
-    if (!state.control && !state.isFallback) showMessage('Starting the audience builder…');
+    showMessage('Copying "' + view.name + '"…');
     return startBuilder().then(function () { return readViewFetchXml(view); }).then(function (fetchXml) {
       recordSource(view);
-      if (state.isFallback) element('fetchxml').value = fetchXml;
-      else if (showInEditor(fetchXml)) { unlockCopy(); state.seededFetchXml = null; showMessage('Copied from "' + view.name + '". Adjust it below for this survey if needed, then save.'); }
-      else lockCopy(fetchXml, true);
+      return state.isFallback ? useInFallback(fetchXml) : useInEditor(fetchXml, view);
+    }).then(function () {
       refreshSource();
       refreshPanel();
     });
+  }
+
+  function useInFallback(fetchXml) {
+    element('fetchxml').value = fetchXml;
+  }
+
+  function useInEditor(fetchXml, view) {
+    return loadIntoFreshEditor(fetchXml).then(function (isShownFaithfully) {
+      if (!isShownFaithfully) { lockCopy(fetchXml, true); return; }
+      unlockCopy();
+      state.seededFetchXml = null;
+      showMessage('Copied from "' + view.name + '". Adjust it below for this survey if needed, then save.');
+    });
+  }
+
+  // Drops the copied view and starts an empty editor; the next save writes whatever is built (FR-CSE-090).
+  function onStartOver() {
+    if (state.isFallback) { element('fetchxml').value = ''; return; }
+    ['qdb_audience_view_name', 'qdb_audience_view_id', 'qdb_audience_view_type', 'qdb_audience_copied_on'].forEach(function (name) {
+      var attribute = state.formContext.getAttribute(name);
+      attribute.setValue(null);
+      attribute.setSubmitMode('always');
+    });
+    unlockCopy();
+    element('view').value = '';
+    loadIntoFreshEditor(null).then(function () {
+      state.seededFetchXml = null;
+      showMessage('Build the audience below, then save the trigger.');
+      refreshSource();
+    }).catch(function (problem) { useFallback(problem.message); });
   }
 
   function selectedView() {
@@ -353,6 +391,7 @@
     element('send').onclick = onSend;
     element('view').onchange = onPickView;
     element('reload').onclick = onReload;
+    element('start-over').onclick = onStartOver;
     readCustomerTable().then(readViews).then(function (views) { renderViews(views); refreshSource(); })
       .catch(function (problem) { showMessage('Views could not be listed: ' + problem.message, true); })
       .then(refreshPanel);
