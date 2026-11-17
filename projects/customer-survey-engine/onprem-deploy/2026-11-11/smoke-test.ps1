@@ -61,7 +61,8 @@ $PendingStatus = 100000000
 $SubmittedStatus = 100000002
 $PortalChannel = 100000000
 $ContactTable = 100000001
-$SurveyApis = @('qdb_srv_ActivateSource', 'qdb_srv_DeactivateSource', 'qdb_srv_RunDueSurveys', 'qdb_srv_ListPendingSurveys', 'qdb_srv_GetSurvey', 'qdb_srv_SubmitResponse', 'qdb_srv_ValidateLinkToken', 'qdb_srv_EraseCustomerSurveyData')
+$SurveyApis = @('qdb_srv_ActivateSource', 'qdb_srv_DeactivateSource', 'qdb_srv_RunDueSurveys', 'qdb_srv_ListPendingSurveys', 'qdb_srv_GetSurvey', 'qdb_srv_SubmitResponse', 'qdb_srv_ValidateLinkToken', 'qdb_srv_EraseCustomerSurveyData',
+    'qdb_srv_PreviewAudience', 'qdb_srv_SendOneTimeTrigger')
 
 function Add-Result([string]$Id, [string]$Title, [bool]$Passed, [string]$Detail) {
     $status = if ($Passed) { 'PASS' } else { 'FAIL' }
