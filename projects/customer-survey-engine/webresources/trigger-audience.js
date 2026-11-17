@@ -44,7 +44,7 @@
   // loaded into the editor. isLockedChanged: that copy is new and must be written on save.
   var state = {
     formContext: null, clientUrl: '', customerTable: 'account', control: null, seededFetchXml: null,
-    lockedFetchXml: null, isLockedChanged: false, isFallback: false, isLoadingBuilder: false, isBusy: false, views: [],
+    lockedFetchXml: null, isLockedChanged: false, isFallback: false, builderReady: null, isBusy: false, views: [],
   };
 
   function element(id) { return document.getElementById(id); }
@@ -143,10 +143,13 @@
     showMessage(reason + ' Paste FetchXML downloaded from Advanced Find instead.', true);
   }
 
-  function loadBuilder() {
-    if (state.control || state.isFallback || state.isLoadingBuilder) return;
-    state.isLoadingBuilder = true;
-    readObjectTypeCode().then(function (objectTypeCode) {
+  /**
+   * Starts the condition editor once and answers a promise that settles when it is ready, or when the
+   * FetchXML box has taken over. Everything that needs the editor waits on this same promise.
+   */
+  function startBuilder() {
+    if (state.builderReady) return state.builderReady;
+    state.builderReady = readObjectTypeCode().then(function (objectTypeCode) {
       var frame = element('builder');
       frame.style.display = 'block';
       frame.src = builderUrl(state.clientUrl, objectTypeCode);
@@ -154,6 +157,7 @@
     })
       .then(useBuilder)
       .catch(function (problem) { useFallback(problem.message); });
+    return state.builderReady;
   }
 
   function readFetchXml() {
@@ -234,9 +238,13 @@
     });
   }
 
+  // Picking a view works from either audience setting: it switches to Filter, starts the editor if it is
+  // not running yet (it only runs for Filter), waits for it, then copies (review of 2026-11-17).
   function copyView(view) {
-    if (!state.control && !state.isFallback) return Promise.reject(new Error('The audience builder is still loading; try again in a moment.'));
-    return readViewFetchXml(view).then(function (fetchXml) {
+    state.formContext.getAttribute('qdb_audience').setValue(AUDIENCE_FILTER);
+    element('builder-area').style.display = 'block';
+    if (!state.control && !state.isFallback) showMessage('Starting the audience builder…');
+    return startBuilder().then(function () { return readViewFetchXml(view); }).then(function (fetchXml) {
       recordSource(view);
       if (state.isFallback) element('fetchxml').value = fetchXml;
       else if (showInEditor(fetchXml)) { unlockCopy(); state.seededFetchXml = null; showMessage('Copied from "' + view.name + '". Adjust it below for this survey if needed, then save.'); }
@@ -288,7 +296,7 @@
 
   function refreshPanel() {
     element('builder-area').style.display = isFilterAudience() ? 'block' : 'none';
-    if (isFilterAudience()) loadBuilder();
+    if (isFilterAudience()) startBuilder();
     var availability = sendAvailability(currentSendState());
     element('send').disabled = state.isBusy || !availability.canSend;
     element('preview').disabled = state.isBusy || !recordId() || state.formContext.data.entity.getIsDirty();
