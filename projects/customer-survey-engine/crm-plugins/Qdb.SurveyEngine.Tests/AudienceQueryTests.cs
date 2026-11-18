@@ -118,6 +118,33 @@ namespace Qdb.SurveyEngine.Tests
             Assert.Null(entity.Element("filter"));
         }
 
+        [Theory]
+        [InlineData("eq-userid")]
+        [InlineData("eq-useroruserteams")]
+        [InlineData("eq-businessid")]
+        public void FromFetchXml_CurrentUserCondition_IsRefused(string op)
+        {
+            var mine = $"<fetch><entity name='account'><filter><condition attribute='ownerid' operator='{op}' /></filter></entity></fetch>";
+
+            Assert.Contains("current user", Assert.Throws<AudienceFilterException>(() => AudienceQuery.FromFetchXml(mine, "account")).Message);
+        }
+
+        [Fact]
+        public void FromFetchXml_CurrentUserConditionInsideLinkEntity_IsRefused()
+        {
+            var mine = "<fetch><entity name='account'><link-entity name='contact' from='parentcustomerid' to='accountid'><filter><condition attribute='ownerid' operator='EQ-USERID' /></filter></link-entity></entity></fetch>";
+
+            Assert.Throws<AudienceFilterException>(() => AudienceQuery.FromFetchXml(mine, "account"));
+        }
+
+        [Fact]
+        public void FromFetchXml_OwnerIsASpecificUser_IsAccepted()
+        {
+            var resolved = "<fetch><entity name='account'><filter><condition attribute='ownerid' operator='eq' value='{11111111-2222-3333-4444-555555555555}' /></filter></entity></fetch>";
+
+            Assert.Contains("11111111-2222-3333-4444-555555555555", AudienceQuery.FromFetchXml(resolved, "account").ToPageFetchXml(1, 10, null));
+        }
+
         [Fact]
         public void AllActive_FiltersOnStatecodeZero()
         {

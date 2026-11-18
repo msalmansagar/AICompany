@@ -29,6 +29,9 @@
   var isBuilderChanged = core.isBuilderChanged;
   var isFaithful = core.isFaithful;
   var isViewNewer = core.isViewNewer;
+  var resolveCurrentUser = core.resolveCurrentUser;
+
+  function currentUserId() { return parent.Xrm.Utility.getGlobalContext().userSettings.userId; }
 
   // ---- Browser part --------------------------------------------------------------------------
 
@@ -199,7 +202,8 @@
     var current = readFetchXml();
     // The FetchXML box always writes; the editor only when the administrator changed it.
     if (!state.isFallback && !isBuilderChanged(current, state.seededFetchXml)) return;
-    writeFilter(current);
+    // An "Equals current user" chosen by hand is pinned to this administrator too (QA-D1).
+    writeFilter(resolveCurrentUser(current, currentUserId()));
     state.seededFetchXml = current;
   }
 
@@ -221,8 +225,9 @@
     state.formContext.getAttribute('qdb_audience').setValue(AUDIENCE_FILTER);
     element('builder-area').style.display = 'block';
     showMessage('Copying "' + view.name + '"…');
-    return startBuilder().then(function () { return views.readViewFetchXml(webApi, view); }).then(function (fetchXml) {
+    return startBuilder().then(function () { return views.readViewFetchXml(webApi, view); }).then(function (viewFetchXml) {
       recordSource(view);
+      var fetchXml = resolveCurrentUser(viewFetchXml, currentUserId());
       return state.isFallback ? useInFallback(fetchXml) : useInEditor(fetchXml, view);
     }).then(function () {
       refreshSource();

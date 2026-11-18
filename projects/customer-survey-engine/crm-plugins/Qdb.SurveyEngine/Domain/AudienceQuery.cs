@@ -42,7 +42,26 @@ namespace Qdb.SurveyEngine.Domain
             if (!string.Equals(table, customerTable, StringComparison.OrdinalIgnoreCase))
                 throw new AudienceFilterException($"The audience filter is on '{table}', but this org's customers are '{customerTable}' records.");
             var criteria = entity.Elements().Where(IsCriteria).Select(WithoutColumns).ToArray();
+            RefuseUserRelativeConditions(criteria);
             return new AudienceQuery(customerTable, criteria);
+        }
+
+        // QA-D1 (CEO 2026-11-18): Preview and Send run as SYSTEM, so "current user" conditions would select
+        // SYSTEM's records — nobody. The panel replaces them with the administrator when a view is copied;
+        // anything left is refused here rather than sending to no one.
+        private static readonly string[] UserRelativeOperators =
+        {
+            "eq-userid", "ne-userid", "eq-userteams", "eq-useroruserteams", "eq-useroruserhierarchy",
+            "eq-useroruserhierarchyandteams", "eq-businessid", "ne-businessid", "eq-userlanguage",
+        };
+
+        private static void RefuseUserRelativeConditions(XElement[] criteria)
+        {
+            var found = criteria.SelectMany(element => element.DescendantsAndSelf("condition"))
+                .Select(condition => ((string)condition.Attribute("operator") ?? string.Empty).ToLowerInvariant())
+                .Where(op => UserRelativeOperators.Contains(op)).Distinct().ToArray();
+            if (found.Length > 0)
+                throw new AudienceFilterException($"The audience uses a 'current user' condition ({string.Join(", ", found)}), which a survey sent by the server cannot resolve. Copy the view again (the panel fills in your user), or replace the condition with a specific user, team or business unit.");
         }
 
         /// <summary>One page of the audience: customer ids only, distinct, in id order.</summary>

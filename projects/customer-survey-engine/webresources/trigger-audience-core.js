@@ -60,9 +60,28 @@
     return found;
   }
 
+  // The editor writes a GUID as "{GUID}" in capitals; a view as a bare lower-case GUID. Same value either way.
+  function normaliseValue(value) {
+    var guid = /^\{?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\}?$/i.exec(value || '');
+    return guid ? guid[1].toLowerCase() : value;
+  }
+
+  /**
+   * QA-D1 (CEO 2026-11-18): a survey is sent by the server, where there is no "current user", so a view's
+   * "current user" conditions are pinned to the administrator who copies it ("My Active Accounts" becomes
+   * "accounts owned by <admin>"). Other user-relative operators stay; the server refuses them with a message.
+   */
+  function resolveCurrentUser(fetchXml, userId) {
+    var id = String(userId || '').replace(/[{}]/g, '').toLowerCase();
+    if (!id) return fetchXml;
+    return String(fetchXml || '').replace(/<condition\b([^>]*?)\boperator\s*=\s*(["'])(eq|ne)-userid\2([^>]*?)(\/?)>/gi, function (all, before, quote, op, after, slash) {
+      return '<condition' + before + 'operator=' + quote + op.toLowerCase() + quote + ' value=' + quote + id + quote + after + slash + '>';
+    });
+  }
+
   function signatureToken(tag) {
     var attributes = attributesOf(tag);
-    if (/^<condition/i.test(tag)) return 'c:' + [attributes.attribute, attributes.operator, attributes.value].join('|');
+    if (/^<condition/i.test(tag)) return 'c:' + [attributes.attribute, attributes.operator, normaliseValue(attributes.value)].join('|');
     return 'l:' + [attributes.name, attributes.from, attributes.to, attributes['link-type'] || 'inner'].join('|');
   }
 
@@ -74,7 +93,7 @@
   function conditionSignature(fetchXml) {
     var text = String(fetchXml || '');
     var tags = (text.match(/<(condition|link-entity)\b[^>]*>/gi) || []).map(signatureToken);
-    var values = (text.match(/<value>[^<]*<\/value>/gi) || []).map(function (value) { return 'v:' + value.replace(/<\/?value>/gi, ''); });
+    var values = (text.match(/<value>[^<]*<\/value>/gi) || []).map(function (value) { return 'v:' + normaliseValue(value.replace(/<\/?value>/gi, '')); });
     return tags.concat(values).sort().join('\n');
   }
 
@@ -92,6 +111,7 @@
   return {
     builderUrl: builderUrl, customerTableFor: customerTableFor, sendAvailability: sendAvailability, describeProgress: describeProgress,
     apiErrorText: apiErrorText, isBuilderChanged: isBuilderChanged, conditionSignature: conditionSignature, isFaithful: isFaithful,
+    resolveCurrentUser: resolveCurrentUser,
     isViewNewer: isViewNewer, RUN_STATUS: RUN_STATUS,
   };
 }));

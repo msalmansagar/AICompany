@@ -106,6 +106,33 @@ test('isViewNewer_viewEditedAfterTheCopy_isTrue', () => {
   ], [true, false, false]);
 });
 
+const MY_ACTIVE = '<fetch><entity name="account"><filter type="and"><condition attribute="ownerid" operator="eq-userid" /><condition attribute="statecode" operator="eq" value="0" /></filter></entity></fetch>';
+const ADMIN = '{AB12CD34-0000-1111-2222-333344445555}';
+
+test('resolveCurrentUser_myView_pinsTheConditionToTheAdmin', () => {
+  const resolved = audience.resolveCurrentUser(MY_ACTIVE, ADMIN);
+
+  assert.match(resolved, /<condition attribute="ownerid" operator="eq" value="ab12cd34-0000-1111-2222-333344445555" \/>/);
+  assert.doesNotMatch(resolved, /userid/);
+});
+
+test('resolveCurrentUser_notEqualCurrentUser_becomesNotEqualTheAdmin', () => {
+  assert.match(audience.resolveCurrentUser("<condition attribute='ownerid' operator='ne-userid'/>", ADMIN), /operator='ne' value='ab12cd34-0000-1111-2222-333344445555'\/>/);
+});
+
+test('resolveCurrentUser_teamOperators_areLeftForTheServerToRefuse', () => {
+  const teams = '<condition attribute="ownerid" operator="eq-useroruserteams" />';
+
+  assert.equal(audience.resolveCurrentUser(teams, ADMIN), teams);
+});
+
+test('isFaithful_guidInBracesAndCapitals_matchesTheSameGuidBare', () => {
+  const resolved = audience.resolveCurrentUser(MY_ACTIVE, ADMIN);
+  const fromEditor = resolved.replace('ab12cd34-0000-1111-2222-333344445555', '{AB12CD34-0000-1111-2222-333344445555}').replace(' />', ' uiname="Salman" uitype="systemuser" />');
+
+  assert.equal(audience.isFaithful(resolved, fromEditor), true);
+});
+
 test('apiErrorText_webApiErrorBody_returnsItsMessageElseAGenericOne', () => {
   assert.deepEqual([audience.apiErrorText({ error: { message: 'Only a Survey Admin…' } }, 400), audience.apiErrorText({}, 500)],
     ['Only a Survey Admin…', 'The request failed (HTTP 500).']);

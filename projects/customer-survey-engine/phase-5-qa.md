@@ -904,7 +904,7 @@ VERIFICATION (Addendum C)
 
 | ID | Description | Severity | Req | Status |
 |---|---|---|---|---|
-| **QA-D1** | **"My …" views select nobody.** Views with user-relative conditions (`eq-userid`, `eq-useroruserteams`, `eq-userteams`, `eq-businessid` …) are evaluated by Preview and Send, which run as SYSTEM, so "current user" is SYSTEM: "My Active Accounts" previewed **0** although the admin owns accounts. A dated send would report 0 invited with no error. Fix options: (a) when a view is copied, the panel replaces "current user" with the administrator who copies it (the survey then means "my accounts as of when I set it up"); and the server refuses any user-relative operator left in a filter, with a clear message; or (b) refuse such views outright. **Confidence: 95 %** (measured live). | High | FR-CSE-090, 091 | **Open — CEO choice of fix** |
+| **QA-D1** | **"My …" views select nobody.** Views with user-relative conditions (`eq-userid`, `eq-useroruserteams`, `eq-userteams`, `eq-businessid` …) are evaluated by Preview and Send, which run as SYSTEM, so "current user" is SYSTEM: "My Active Accounts" previewed **0** although the admin owns accounts. A dated send would report 0 invited with no error. Fix options: (a) when a view is copied, the panel replaces "current user" with the administrator who copies it (the survey then means "my accounts as of when I set it up"); and the server refuses any user-relative operator left in a filter, with a clear message; or (b) refuse such views outright. **Confidence: 95 %** (measured live). | High | FR-CSE-090, 091 | **Fixed 2026-11-18** — CEO chose (a): the panel pins `eq-userid` / `ne-userid` to the administrator who copies the view (also for a hand-picked "Equals current user"); `AudienceQuery` refuses any remaining user-relative operator at save and send. Live: raw "My Active Accounts" refused at save; pinned to the owner of 52 active accounts → previews 52. 615 xUnit, 22 web resource tests. Assembly `52eeb3ae…` deployed; kit rebuilt `4f9a064f…` |
 | QA-D2 | NFR-CSE-015 not measured live: the largest live send was 3 customers; the 450-customer and 2,000-customer cases are proven only by unit tests with a simulated clock. | Medium | NFR-CSE-015 | Open — measure on the test orgs (Gate 3) or on cloud with test accounts (needs go-ahead) |
 | QA-D3 | The panel's Send now confirmation dialog and the stale-view warning were not exercised in the browser (the tool freezes on dialogs; no view was edited). Logic reviewed and unit-tested. | Low | FR-CSE-084, 096 | Open — covered by the CEO's own browser test |
 | QA-D4 | Browser caching: after a web-resource deploy, users keep the old panel script and the old form definition until their cache refreshes (seen twice). Not a code defect; operational. | Low | — | Document in the runbook / handover (stage 10: clear browser cache or wait) |
@@ -913,7 +913,7 @@ Defects found and **fixed during build and review** (for the record): set_fetchX
 
 ## AD-4 Verdict
 
-**PASS WITH CONDITIONS — one High defect open (QA-D1).**
+**PASS WITH CONDITIONS.** The one High defect (QA-D1) was fixed and verified live the same day; D-C1 is closed.
 
 The one-time engine, dated sends, the daily gate, multi-number SMS and the validation steps are complete, tested and verified live. The view picker works and handles related-entity views; it mishandles user-relative ("My …") views (QA-D1).
 
