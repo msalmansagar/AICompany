@@ -118,6 +118,26 @@ export async function findUnprivilegedUser(session) {
   return null;
 }
 
+/** The first enabled interactive user who is not a System Administrator and holds none of the named roles; null when none of the first 25 qualifies. */
+export async function findUserWithoutRoles(session, roleNames) {
+  const users = await session.rows(`systemusers?$select=systemuserid,fullname&$filter=isdisabled eq false and accessmode eq 0 and applicationid eq null&$top=25`);
+  for (const user of users) {
+    if (await isAdministrator(session, user.systemuserid)) continue;
+    const held = await Promise.all(roleNames.map((name) => holdsRole(session, user.systemuserid, `name eq '${name}'`)));
+    if (!held.some(Boolean)) return user;
+  }
+  return null;
+}
+
+/**
+ * Clears the once-a-day gate (ADR-010), so the next RunDueSurveys call for today runs the daily passes
+ * again. Tests that call it several times for one date need this; the scheduler never does.
+ */
+export async function resetDailyPassGate(session) {
+  const [settings] = await session.rows('qdb_survey_settingses?$select=qdb_survey_settingsid');
+  if (settings) await session.write('PATCH', `qdb_survey_settingses(${settings.qdb_survey_settingsid})`, { qdb_daily_passes_completed_on: null });
+}
+
 /** A run-unique suffix, so each run uses fresh records. */
 export function runStamp() {
   return new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);

@@ -1,22 +1,22 @@
 {
-  "exportedAt": "2026-11-15T10:04:17.066Z",
+  "exportedAt": "2026-11-18T12:46:33.421Z",
   "sourceOrganisation": "https://org5869857f.crm4.dynamics.com",
   "sourceVersion": "9.2.26103.165",
   "solution": {
     "uniqueName": "SurveyEngine",
-    "version": "1.1.0.0",
+    "version": "1.2.0.0",
     "isManaged": false
   },
-  "total": 90,
+  "total": 110,
   "byType": {
-    "1 unknown": 14,
+    "1 unknown": 15,
     "20 unknown": 5,
     "91 unknown": 1,
-    "10020 CustomAPI": 8,
-    "10021 CustomAPIRequestParameter": 17,
-    "10022 CustomAPIResponseProperty": 23,
-    "92 unknown": 8,
-    "61 unknown": 10,
+    "10020 CustomAPI": 10,
+    "10021 CustomAPIRequestParameter": 19,
+    "10022 CustomAPIResponseProperty": 31,
+    "92 unknown": 10,
+    "61 unknown": 15,
     "26 unknown": 1,
     "62 unknown": 1,
     "80 unknown": 1,
@@ -148,6 +148,90 @@
       "rootcomponentbehavior": 0,
       "objectid": "370f4b88-e2de-f111-84e8-000d3abcf32d",
       "solutioncomponentid": "430f4b88-e2de-f111-84e8-000d3abcf32d"
+    },
+    {
+      "@odata.etag": "W/\"220716685\"",
+      "componenttype": 10020,
+      "rootcomponentbehavior": 0,
+      "objectid": "9821c1cc-f0e1-f111-84e8-000d3abcf32d",
+      "solutioncomponentid": "a292ccd2-f0e1-f111-84e8-000d3abcf32d"
+    },
+    {
+      "@odata.etag": "W/\"220716687\"",
+      "componenttype": 10021,
+      "rootcomponentbehavior": 0,
+      "objectid": "9921c1cc-f0e1-f111-84e8-000d3abcf32d",
+      "solutioncomponentid": "a492ccd2-f0e1-f111-84e8-000d3abcf32d"
+    },
+    {
+      "@odata.etag": "W/\"220716689\"",
+      "componenttype": 10022,
+      "rootcomponentbehavior": 0,
+      "objectid": "9a21c1cc-f0e1-f111-84e8-000d3abcf32d",
+      "solutioncomponentid": "a692ccd2-f0e1-f111-84e8-000d3abcf32d"
+    },
+    {
+      "@odata.etag": "W/\"220716691\"",
+      "componenttype": 10022,
+      "rootcomponentbehavior": 0,
+      "objectid": "9b21c1cc-f0e1-f111-84e8-000d3abcf32d",
+      "solutioncomponentid": "a892ccd2-f0e1-f111-84e8-000d3abcf32d"
+    },
+    {
+      "@odata.etag": "W/\"220716898\"",
+      "componenttype": 10020,
+      "rootcomponentbehavior": 0,
+      "objectid": "b092ccd2-f0e1-f111-84e8-000d3abcf32d",
+      "solutioncomponentid": "0356ced8-f0e1-f111-84e8-000d3abcf32d"
+    },
+    {
+      "@odata.etag": "W/\"220716900\"",
+      "componenttype": 10021,
+      "rootcomponentbehavior": 0,
+      "objectid": "b192ccd2-f0e1-f111-84e8-000d3abcf32d",
+      "solutioncomponentid": "0556ced8-f0e1-f111-84e8-000d3abcf32d"
+    },
+    {
+      "@odata.etag": "W/\"220716902\"",
+      "componenttype": 10022,
+      "rootcomponentbehavior": 0,
+      "objectid": "b292ccd2-f0e1-f111-84e8-000d3abcf32d",
+      "solutioncomponentid": "0756ced8-f0e1-f111-84e8-000d3abcf32d"
+    },
+    {
+      "@odata.etag": "W/\"220716904\"",
+      "componenttype": 10022,
+      "rootcomponentbehavior": 0,
+      "objectid": "b392ccd2-f0e1-f111-84e8-000d3abcf32d",
+      "solutioncomponentid": "0956ced8-f0e1-f111-84e8-000d3abcf32d"
+    },
+    {
+      "@odata.etag": "W/\"220716906\"",
+      "componenttype": 10022,
+      "rootcomponentbehavior": 0,
+      "objectid": "b492ccd2-f0e1-f111-84e8-000d3abcf32d",
+      "solutioncomponentid": "0b56ced8-f0e1-f111-84e8-000d3abcf32d"
+    },
+    {
+      "@odata.etag": "W/\"220716908\"",
+      "componenttype": 10022,
+      "rootcomponentbehavior": 0,
+      "objectid": "b592ccd2-f0e1-f111-84e8-000d3abcf32d",
+      "solutioncomponentid": "0d56ced8-f0e1-f111-84e8-000d3abcf32d"
+    },
+    {
+      "@odata.etag": "W/\"220716910\"",
+      "componenttype": 10022,
+      "rootcomponentbehavior": 0,
+      "objectid": "b692ccd2-f0e1-f111-84e8-000d3abcf32d",
+      "solutioncomponentid": "1156ced8-f0e1-f111-84e8-000d3abcf32d"
+    },
+    {
+      "@odata.etag": "W/\"220716912\"",
+      "componenttype": 10022,
+      "rootcomponentbehavior": 0,
+      "objectid": "b792ccd2-f0e1-f111-84e8-000d3abcf32d",
+      "solutioncomponentid": "1356ced8-f0e1-f111-84e8-000d3abcf32d"
     },
     {
       "@odata.etag": "W/\"219389751\"",
@@ -365,6 +449,55 @@
       "rootcomponentbehavior": 0,
       "objectid": "a641137d-cce0-f111-84ea-000d3abd8313",
       "solutioncomponentid": "a741137d-cce0-f111-84ea-000d3abd8313"
+    },
+    {
+      "@odata.etag": "W/\"220716923\"",
+      "componenttype": 92,
+      "rootcomponentbehavior": 0,
+      "objectid": "355611dc-f0e1-f111-84ea-000d3abd8313",
+      "solutioncomponentid": "4d5611dc-f0e1-f111-84ea-000d3abd8313"
+    },
+    {
+      "@odata.etag": "W/\"220716939\"",
+      "componenttype": 92,
+      "rootcomponentbehavior": 0,
+      "objectid": "825611dc-f0e1-f111-84ea-000d3abd8313",
+      "solutioncomponentid": "a95611dc-f0e1-f111-84ea-000d3abd8313"
+    },
+    {
+      "@odata.etag": "W/\"220717213\"",
+      "componenttype": 61,
+      "rootcomponentbehavior": 0,
+      "objectid": "f54f02ee-f0e1-f111-84ea-000d3abd8313",
+      "solutioncomponentid": "0a5002ee-f0e1-f111-84ea-000d3abd8313"
+    },
+    {
+      "@odata.etag": "W/\"220717218\"",
+      "componenttype": 61,
+      "rootcomponentbehavior": 0,
+      "objectid": "145002ee-f0e1-f111-84ea-000d3abd8313",
+      "solutioncomponentid": "195002ee-f0e1-f111-84ea-000d3abd8313"
+    },
+    {
+      "@odata.etag": "W/\"220734080\"",
+      "componenttype": 61,
+      "rootcomponentbehavior": 0,
+      "objectid": "8035ea4a-47e2-f111-84ea-000d3abd8313",
+      "solutioncomponentid": "8a35ea4a-47e2-f111-84ea-000d3abd8313"
+    },
+    {
+      "@odata.etag": "W/\"220737095\"",
+      "componenttype": 61,
+      "rootcomponentbehavior": 0,
+      "objectid": "d2f89c82-a6e2-f111-84ea-000d3abd8313",
+      "solutioncomponentid": "e0f89c82-a6e2-f111-84ea-000d3abd8313"
+    },
+    {
+      "@odata.etag": "W/\"220812804\"",
+      "componenttype": 1,
+      "rootcomponentbehavior": 1,
+      "objectid": "60696d5d-4d78-4712-b4e0-6cbef3df4906",
+      "solutioncomponentid": "012d8752-4ce3-f111-84ea-000d3abd8313"
     },
     {
       "@odata.etag": "W/\"219438222\"",
@@ -603,6 +736,13 @@
       "rootcomponentbehavior": 0,
       "objectid": "1bf3ec39-cce0-f111-84e8-70a8a55bc6a5",
       "solutioncomponentid": "66f3ec39-cce0-f111-84e8-70a8a55bc6a5"
+    },
+    {
+      "@odata.etag": "W/\"220717223\"",
+      "componenttype": 61,
+      "rootcomponentbehavior": 0,
+      "objectid": "417e17f1-f0e1-f111-84e8-70a8a55bc6a5",
+      "solutioncomponentid": "427e17f1-f0e1-f111-84e8-70a8a55bc6a5"
     },
     {
       "@odata.etag": "W/\"220042378\"",

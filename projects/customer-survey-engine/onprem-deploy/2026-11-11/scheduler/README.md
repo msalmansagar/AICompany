@@ -1,6 +1,10 @@
-# Run Due Surveys: scheduler wiring (B5)
+# Run Due Surveys: scheduler wiring (B5, Addendum D)
 
-`qdb_srv_RunDueSurveys` is an unbound Custom API. It must be called **once a day**; it does three things, in this order:
+`qdb_srv_RunDueSurveys` is an unbound Custom API. Since Addendum D it is called **every 15 minutes** (ADR-010).
+
+**On every call** it sends the One-time surveys whose send time has come, and finishes any "Send now" that was left part-way (for example, the administrator closed the form). A dated survey therefore goes out within 15 minutes of its time.
+
+**On the first call of each run date only**, it does the daily work, in this order:
 
 1. Releases Postponed invitations whose customer fatigue window has ended. If they expired first, or their setup was deactivated, it discards them and writes a suppression-log row.
 2. Runs every scheduled trigger that is due on the run date:
@@ -8,6 +12,8 @@
    - quarterly triggers on 1 Jan, 1 Apr, 1 Jul and 1 Oct;
    - annual triggers on 1 Jan.
 3. Applies response retention, but only once QDB Compliance has set both the period and the mode in Survey Settings.
+
+The date the daily work last completed is kept in Survey Settings → *Daily Passes Completed On*. Clearing it makes the next call run the daily work again; passing an earlier `RunDate` re-runs a missed day.
 
 | Input | Type | Meaning |
 |---|---|---|
@@ -27,11 +33,14 @@
 QDB IT runs this once, on a server that can reach CRM:
 
 ```powershell
-.\Register-RunDueSurveysTask.ps1 -OrgUrl https://<crm-host>/<org> -ServiceAccount <DOMAIN\svc-account> -LogPath D:\Logs\SurveyEngine -At 02:00
+.\Register-RunDueSurveysTask.ps1 -OrgUrl https://<crm-host>/<org> -ServiceAccount <DOMAIN\svc-account> -LogPath D:\Logs\SurveyEngine -At 00:05
 Start-ScheduledTask -TaskName 'Survey Engine - Run Due Surveys'   # test run
 ```
 
+An org that already has the daily task from release 1.1: run the same command again; it replaces the task's trigger.
+
 How the task behaves:
+- It runs every 15 minutes from `-At`, indefinitely. A run still going when the next one is due makes the next one skip, never overlap.
 - It runs `Invoke-RunDueSurveys.ps1` with Windows integrated authentication, so no password is stored in a file.
 - It writes `RunDueSurveys-yyyyMMdd.log` to the log folder.
 - It exits with code 1 on any failure, so the task's *Last Run Result* shows the failure.
@@ -43,9 +52,8 @@ How the task behaves:
 A flow needs a Dataverse connection, which only a signed-in user can create. Build it in the maker portal:
 
 1. **Recurrence:**
-   - Interval 1, Frequency Day.
+   - Interval 15, Frequency Minute.
    - Time zone `(UTC+03:00) Kuwait, Riyadh`.
-   - At hour 2, minute 0.
 2. **Initialize variable:** `IsComplete`, Boolean, `false`.
 3. **Do until** `IsComplete` is equal to `true`, with Count limit 10 and Timeout PT1H:
    - **Perform an unbound action** (Dataverse):

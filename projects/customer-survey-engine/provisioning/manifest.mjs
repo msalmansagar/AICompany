@@ -12,7 +12,7 @@
 export const SOLUTION = Object.freeze({
   uniqueName: 'SurveyEngine',
   friendlyName: 'Survey Engine',
-  version: '1.1.0.0',
+  version: '1.2.0.0',
   // The publisher of QdbDynamicFormEngine. Four publishers share the qdb prefix on the cloud org,
   // so it is pinned by unique name; on-prem orgs must carry the same publisher or the kit fails.
   publisherUniqueName: 'qdb',
@@ -31,7 +31,10 @@ const choice = (name, label, options, defaultValue = null) => ({ name, type: 'pi
 const option = (index, label) => ({ value: 100000000 + index, label });
 
 export const DELIVERY_OPTIONS = Object.freeze([option(0, 'Portal'), option(1, 'Secure link'), option(2, 'None')]);
-export const TRIGGER_KIND_OPTIONS = Object.freeze([option(0, 'Event'), option(1, 'Created'), option(2, 'Scheduled'), option(3, 'Milestone')]);
+export const TRIGGER_KIND_OPTIONS = Object.freeze([option(0, 'Event'), option(1, 'Created'), option(2, 'Scheduled'), option(3, 'Milestone'), option(4, 'One-time')]);
+// Addendum D (FR-CSE-083..091): a One-time trigger's audience and its run record.
+export const AUDIENCE_OPTIONS = Object.freeze([option(0, 'All active customers'), option(1, 'Filter')]);
+export const RUN_STATUS_OPTIONS = Object.freeze([option(0, 'Not sent'), option(1, 'Sending'), option(2, 'Sent'), option(3, 'Failed')]);
 export const SCHEDULE_PERIOD_OPTIONS = Object.freeze([option(0, 'Monthly'), option(1, 'Quarterly'), option(2, 'Annually')]);
 export const SCHEDULE_POPULATION_OPTIONS = Object.freeze([option(0, 'All active customers'), option(1, 'Active in period')]);
 export const FATIGUE_ACTION_OPTIONS = Object.freeze([option(0, 'Drop'), option(1, 'Postpone')]);
@@ -114,6 +117,23 @@ export const TABLES = Object.freeze([
       choice('qdb_fatigue_action', 'When Blocked by Fatigue', FATIGUE_ACTION_OPTIONS),
       integer('qdb_priority', 'Priority', { min: 0, max: 1000 }),
       boolean('qdb_is_active', 'Is Active', false),
+      // Addendum D: One-time trigger (D.2). The run columns are written only by the send APIs.
+      dateTime('qdb_send_on', 'Send On'),
+      choice('qdb_audience', 'Audience', AUDIENCE_OPTIONS, AUDIENCE_OPTIONS[0].value),
+      memo('qdb_audience_fetchxml', 'Audience Filter (FetchXML)', 100000),
+      // Amendment 1 (FR-CSE-095, 096): the view the filter was copied from, and when.
+      string('qdb_audience_view_name', 'Audience Copied From View', 200),
+      string('qdb_audience_view_id', 'Audience View Id', 40),
+      string('qdb_audience_view_type', 'Audience View Type', 20),
+      dateTime('qdb_audience_copied_on', 'Audience Copied On'),
+      choice('qdb_run_status', 'Run Status', RUN_STATUS_OPTIONS, RUN_STATUS_OPTIONS[0].value),
+      dateTime('qdb_run_started_on', 'Run Started On'),
+      dateTime('qdb_sent_on', 'Sent On'),
+      integer('qdb_invited_count', 'Invited', { min: 0, max: 2147483647 }),
+      integer('qdb_postponed_count', 'Postponed', { min: 0, max: 2147483647 }),
+      integer('qdb_suppressed_count', 'Suppressed', { min: 0, max: 2147483647 }),
+      memo('qdb_run_cursor', 'Run Cursor', 4000),
+      memo('qdb_run_message', 'Run Message', 2000),
     ],
   },
   {
@@ -130,7 +150,8 @@ export const TABLES = Object.freeze([
       dateTime('qdb_generated_on', 'Generated On'),
       dateTime('qdb_expires_on', 'Expires On'),
       integer('qdb_milestone_index', 'Milestone Index', { min: 0, max: 2147483647 }),
-      string('qdb_schedule_period_key', 'Schedule Period Key', 20),
+      // 50 since Addendum D: One-time invitations carry ONCE-{trigger id} (37 characters).
+      string('qdb_schedule_period_key', 'Schedule Period Key', 50),
       string('qdb_token_hash', 'Token Hash', 64),
       dateTime('qdb_token_used_on', 'Token Used On'),
       string('qdb_dedupe_key', 'Dedupe Key', 200, { required: true }),
@@ -188,6 +209,8 @@ export const TABLES = Object.freeze([
       choice('qdb_customer_table', 'Customer Table', CUSTOMER_TABLE_OPTIONS, CUSTOMER_TABLE_OPTIONS[0].value),
       boolean('qdb_securelink_enabled', 'Secure Link Enabled', false),
       string('qdb_securelink_base_url', 'Secure Link Base URL', 500),
+      // ADR-010: the last run date whose daily passes completed; the 15-minute scheduler runs them once a day.
+      dateOnly('qdb_daily_passes_completed_on', 'Daily Passes Completed On'),
     ],
   },
   {
@@ -198,8 +221,9 @@ export const TABLES = Object.freeze([
       string('qdb_recipient_field', 'Recipient Field', 128, { required: true }),
       string('qdb_message_field', 'Message Field', 128, { required: true }),
       string('qdb_customer_link_field', 'Customer Link Field', 128),
-      // B7: where the customer's mobile number lives on account differs per org; empty = no SMS.
-      string('qdb_customer_phone_field', 'Customer Mobile Field', 128),
+      // B7: where the customer's mobile number lives differs per org; empty = no SMS. Addendum D
+      // (FR-CSE-092): an ordered comma-separated list of columns, one SMS per distinct number.
+      string('qdb_customer_phone_field', 'Customer Mobile Fields', 1000),
       memo('qdb_static_columns_json', 'Static Columns JSON', 4000),
       boolean('qdb_is_active', 'Is Active', false),
     ],
@@ -239,6 +263,8 @@ export const TABLES = Object.freeze([
  */
 export const RELATIONSHIPS = Object.freeze([
   { lookup: 'qdb_survey_setup_id', label: 'Survey Setup', from: 'qdb_survey_trigger', to: 'qdb_survey_setup', cascade: 'Cascade', required: true },
+  // Audit AUD-D-01 (CEO 2026-11-18): who started a One-time send; the run writes themselves are made by SYSTEM.
+  { lookup: 'qdb_run_started_by', label: 'Run Started By', from: 'qdb_survey_trigger', to: 'systemuser', cascade: 'RemoveLink', schemaName: 'qdb_systemuser_qdb_survey_trigger_run_started_by' },
   { lookup: 'qdb_source_id', label: 'Source', from: 'qdb_survey_trigger', to: 'qdb_survey_source', cascade: 'RemoveLink' },
   { lookup: 'qdb_schedule_population_source_id', label: 'Population Source', from: 'qdb_survey_trigger', to: 'qdb_survey_source', cascade: 'RemoveLink' },
   { lookup: 'qdb_customer_id', label: 'Customer', from: 'qdb_survey_invitation', to: 'account', cascade: 'RemoveLink' },

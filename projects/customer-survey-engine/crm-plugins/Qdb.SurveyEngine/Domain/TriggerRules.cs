@@ -90,12 +90,16 @@ namespace Qdb.SurveyEngine.Domain
         public static DateTime? BlockingSince(SurveySettings settings, DateTime nowUtc) =>
             settings.FatigueMinDays > 0 ? nowUtc.AddDays(-settings.FatigueMinDays) : (DateTime?)null;
 
-        /// <summary>The trigger's own setting, else Drop for event/created and Postpone for milestone/scheduled.</summary>
+        /// <summary>The trigger's own setting, else Drop for event/created and Postpone for milestone/scheduled/one-time.</summary>
         public static FatigueAction ActionFor(SurveyTrigger trigger)
         {
             if (trigger.FatigueAction.HasValue) return trigger.FatigueAction.Value;
-            return trigger.Kind == TriggerKind.Milestone || trigger.Kind == TriggerKind.Scheduled ? FatigueAction.Postpone : FatigueAction.Drop;
+            return IsPostponedByDefault(trigger.Kind) ? FatigueAction.Postpone : FatigueAction.Drop;
         }
+
+        // A general survey has no request that could fire again later, so by default it waits rather than being lost.
+        private static bool IsPostponedByDefault(TriggerKind kind) =>
+            kind == TriggerKind.Milestone || kind == TriggerKind.Scheduled || kind == TriggerKind.OneTime;
     }
 
     /// <summary>Picks the delivery for a request from its Digital/Legacy origin (FR-CSE-010, 011).</summary>
@@ -148,6 +152,13 @@ namespace Qdb.SurveyEngine.Domain
         /// <summary>{setupId}|{customerId}|{periodKey}: one invitation per calendar period (FR-CSE-033, 044).</summary>
         public static string ForSchedule(Guid setupId, Guid customerId, string periodKey) =>
             string.Format("{0:D}|{1:D}|{2}", setupId, customerId, periodKey);
+
+        /// <summary>{setupId}|{customerId}|T{triggerId}: at most one invitation per customer per One-time trigger (FR-CSE-087, ADR-010).</summary>
+        public static string ForOneTime(Guid setupId, Guid customerId, Guid triggerId) =>
+            string.Format("{0:D}|{1:D}|T{2:N}", setupId, customerId, triggerId);
+
+        /// <summary>The period key a One-time trigger's invitations carry, so a resumed send can skip customers already invited.</summary>
+        public static string OneTimePeriodKey(Guid triggerId) => string.Format("ONCE-{0:N}", triggerId);
 
         private static string Sha256Hex(string text)
         {

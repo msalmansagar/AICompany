@@ -21,7 +21,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { openSession, findDisbursementSource, moveDisbursement, failedPluginJobsSince, sleep, anyOf, DISBURSEMENT_TABLE, PAYMENT_PROCESSED } from './e2e-helpers.mjs';
+import { openSession, findDisbursementSource, moveDisbursement, failedPluginJobsSince, sleep, anyOf, resetDailyPassGate, DISBURSEMENT_TABLE, PAYMENT_PROCESSED } from './e2e-helpers.mjs';
 import { ensureSurveyForm, ensureCompletionSetup, COMPLETION_FORM_CODE, COMPLETION_SETUP_NAME } from './e2e-fixtures.mjs';
 import { stepName } from '../provisioning/lib/plugin-payloads.mjs';
 import { fetchToken } from '../provisioning/lib/dataverse-client.mjs';
@@ -208,6 +208,8 @@ const runDue = async (session, runDate) => (await session.client.send('POST', 'q
 
 async function measureDailyRun(session, { setupId, period }) {
   console.log(`B — daily run for ${period.runDate} over ${SIZE.dailyRun} customers`);
+  // A repeat measurement for the same date would otherwise be skipped by the once-a-day gate (ADR-010).
+  await resetDailyPassGate(session);
   const startedAt = Date.now();
   const first = await runDue(session, period.runDate);
   const firstCallMs = Date.now() - startedAt;

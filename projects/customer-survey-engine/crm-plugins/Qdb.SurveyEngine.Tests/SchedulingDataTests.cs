@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
 using Moq;
@@ -109,10 +110,38 @@ namespace Qdb.SurveyEngine.Tests
             service.Setup(s => s.Retrieve(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<ColumnSet>()))
                    .Returns(customer);
 
-            var contact = new DispatchStore(service.Object, CustomerLink.Account).ReadContact(Guid.NewGuid(), null);
+            var contact = new DispatchStore(service.Object, CustomerLink.Account).ReadContact(Guid.NewGuid(), new string[0]);
 
             Assert.Equal("test@test.com", contact.Email);
-            Assert.Null(contact.Mobile);
+            Assert.Empty(contact.Phones);
+        }
+
+        [Fact]
+        public void ReadContact_SeveralPhoneFields_ReadsEachValueInOrder()
+        {
+            var customer = new Entity("account", Guid.NewGuid()) { ["emailaddress1"] = "a@b.com", ["telephone1"] = "+97411", ["address1_telephone1"] = "+97422" };
+            var service = new Mock<IOrganizationService>();
+            service.Setup(s => s.Retrieve(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<ColumnSet>())).Returns(customer);
+
+            var contact = new DispatchStore(service.Object, CustomerLink.Account).ReadContact(Guid.NewGuid(), new[] { "telephone1", "address1_telephone1" });
+
+            Assert.Equal(new[] { "+97411", "+97422" }, contact.Phones.Select(phone => phone.Number));
+        }
+
+        [Fact]
+        public void ReadContact_OneMistypedPhoneField_StillReadsTheValidOnes()
+        {
+            var service = new Mock<IOrganizationService>();
+            service.Setup(s => s.Retrieve(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<ColumnSet>()))
+                   .Returns((string table, Guid id, ColumnSet columns) =>
+                   {
+                       if (columns.Columns.Contains("bad_field")) throw new System.ServiceModel.FaultException<OrganizationServiceFault>(new OrganizationServiceFault());
+                       return new Entity(table, id) { ["emailaddress1"] = "a@b.com", ["telephone1"] = "+97411" };
+                   });
+
+            var contact = new DispatchStore(service.Object, CustomerLink.Account).ReadContact(Guid.NewGuid(), new[] { "bad_field", "telephone1" });
+
+            Assert.Equal(new[] { null, "+97411" }, contact.Phones.Select(phone => phone.Number));
         }
 
         [Fact]
@@ -129,9 +158,9 @@ namespace Qdb.SurveyEngine.Tests
                        throw new System.ServiceModel.FaultException<OrganizationServiceFault>(new OrganizationServiceFault());
                    });
 
-            var contact = new DispatchStore(service.Object, CustomerLink.Account).ReadContact(Guid.NewGuid(), "mobile_phone");
+            var contact = new DispatchStore(service.Object, CustomerLink.Account).ReadContact(Guid.NewGuid(), new[] { "mobile_phone" });
 
-            Assert.Null(contact.Mobile);
+            Assert.Null(Assert.Single(contact.Phones).Number);
         }
 
         [Fact]

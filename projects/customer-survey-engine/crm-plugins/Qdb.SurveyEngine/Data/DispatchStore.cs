@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
@@ -40,25 +41,35 @@ namespace Qdb.SurveyEngine.Data
         }
 
         /// <inheritdoc />
-        public CustomerContact ReadContact(Guid customerId, string phoneField)
+        public CustomerContact ReadContact(Guid customerId, IReadOnlyList<string> phoneFields)
         {
             var email = _service.Retrieve(_customer.TableLogicalName, customerId, new ColumnSet("emailaddress1")).GetAttributeValue<string>("emailaddress1");
-            return new CustomerContact { Email = email, Mobile = string.IsNullOrWhiteSpace(phoneField) ? null : ReadMobile(customerId, phoneField) };
+            var fields = phoneFields ?? new string[0];
+            return new CustomerContact { Email = email, Phones = fields.Count == 0 ? new CustomerPhone[0] : ReadPhones(customerId, fields) };
         }
 
-        // Read on its own so a mistyped mobile field costs only the SMS: the dispatcher then logs
-        // "no mobile number" and the email still goes out.
-        private string ReadMobile(Guid customerId, string phoneField)
+        // Read apart from the email so a mistyped phone column costs only the SMS. All columns are read
+        // in one call; if that faults (a column does not exist), each is read alone so the valid ones still count.
+        private IReadOnlyList<CustomerPhone> ReadPhones(Guid customerId, IReadOnlyList<string> fields)
+        {
+            var row = TryRetrieve(customerId, fields.ToArray());
+            if (row != null) return fields.Select(field => new CustomerPhone(field, ValueOf(row, field))).ToArray();
+            return fields.Select(field => new CustomerPhone(field, ValueOf(TryRetrieve(customerId, field), field))).ToArray();
+        }
+
+        private Entity TryRetrieve(Guid customerId, params string[] columns)
         {
             try
             {
-                return _service.Retrieve(_customer.TableLogicalName, customerId, new ColumnSet(phoneField)).GetAttributeValue<object>(phoneField)?.ToString();
+                return _service.Retrieve(_customer.TableLogicalName, customerId, new ColumnSet(columns));
             }
             catch (System.ServiceModel.FaultException<OrganizationServiceFault>)
             {
                 return null;
             }
         }
+
+        private static string ValueOf(Entity row, string field) => row?.GetAttributeValue<object>(field)?.ToString();
 
         /// <inheritdoc />
         public void SaveTokenHash(Guid invitationId, string tokenHash) =>

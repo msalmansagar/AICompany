@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Survey audience</title>
+  <style>
+    body { margin: 0; padding: 8px 4px; font-family: "Segoe UI", "Segoe UI Web (West European)", -apple-system, sans-serif; font-size: 14px; color: #242424; }
+    .message { margin: 0 0 8px; padding: 8px 10px; border-radius: 4px; background: #f3f2f1; }
+    .message.error { background: #fde7e9; color: #a4262c; }
+    #builder { display: none; width: 100%; min-height: 300px; border: 1px solid #d1d1d1; border-radius: 4px; }
+    #fallback { display: none; }
+    #fetchxml { box-sizing: border-box; width: 100%; min-height: 160px; font-family: Consolas, monospace; font-size: 12px; }
+    .actions { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+    button { min-height: 32px; padding: 0 16px; border-radius: 4px; border: 1px solid #8a8886; background: #fff; font: inherit; cursor: pointer; }
+    button.primary { background: #0f6cbd; border-color: #0f6cbd; color: #fff; }
+    button:disabled { cursor: not-allowed; opacity: 0.5; }
+    button:focus-visible { outline: 2px solid #0f6cbd; outline-offset: 2px; }
+    #send-hint { color: #616161; }
+    .message.warning { background: #fff4ce; color: #614d00; }
+    .views { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 6px; }
+    .views label { font-weight: 600; }
+    #view { min-height: 32px; min-width: 280px; max-width: 100%; font: inherit; border: 1px solid #8a8886; border-radius: 4px; padding: 0 8px; }
+    .source { margin: 0 0 8px; color: #616161; min-height: 1em; }
+  </style>
+  <script src="trigger-audience-core.js"></script>
+  <script src="trigger-audience-views.js"></script>
+  <script src="trigger-audience.js"></script>
+</head>
+<body>
+  <p id="message" class="message" role="status" aria-live="polite">Loading…</p>
+  <div class="views">
+    <label for="view">Start from a view</label>
+    <select id="view"><option value="">Choose a view to copy its filter…</option></select>
+    <button id="reload" type="button" style="display: none;">Reload from view</button>
+    <button id="start-over" type="button" style="display: none;">Start over</button>
+  </div>
+  <p id="source" class="source"></p>
+  <p id="stale" class="message warning" role="alert" style="display: none;">The view has changed since this audience was copied from it. Press Reload from view to use its current filter, then save. Until you do, the survey keeps the earlier copy.</p>
+  <div id="builder-area">
+    <iframe id="builder" title="Audience filter builder" src="about:blank"></iframe>
+    <div id="fallback">
+      <label for="fetchxml">Audience filter (FetchXML)</label>
+      <textarea id="fetchxml" spellcheck="false"></textarea>
+    </div>
+  </div>
+  <div class="actions">
+    <button id="preview" type="button">Preview count</button>
+    <button id="send" type="button" class="primary">Send now</button>
+    <span id="send-hint"></span>
+  </div>
+</body>
+</html>

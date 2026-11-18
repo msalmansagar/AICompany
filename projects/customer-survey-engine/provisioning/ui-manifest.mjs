@@ -130,8 +130,19 @@ export const FORMS = Object.freeze([
   },
   {
     table: 'qdb_survey_trigger',
+    // Addendum D: the One-time section is shown only for One-time triggers (trigger-form.js), and its panel
+    // writes the hidden qdb_audience_fetchxml on save. The run record is written only by the send APIs.
+    script: { library: 'qdb_/survey/trigger-form.js', onLoad: 'QdbSurveyTriggerForm.onLoad' },
     tabs: [{ label: 'Trigger', sections: [
       { label: 'Trigger', fields: ['qdb_name', 'qdb_survey_setup_id', 'qdb_trigger_kind', 'qdb_is_active', 'qdb_priority', 'qdb_fatigue_action'] },
+      { label: 'One-time', fields: [
+        'qdb_send_on', 'qdb_audience', { name: 'qdb_audience_fetchxml', hidden: true },
+        { name: 'qdb_audience_view_id', hidden: true }, { name: 'qdb_audience_view_type', hidden: true },
+        { name: 'qdb_audience_view_name', readOnly: true }, { name: 'qdb_audience_copied_on', readOnly: true },
+        { webResource: { name: 'qdb_/survey/trigger-audience.html', controlId: 'WebResource_qdb_audience', label: 'Audience and sending', rowSpan: 14 } },
+        { name: 'qdb_run_status', readOnly: true }, { name: 'qdb_run_started_by', readOnly: true }, { name: 'qdb_sent_on', readOnly: true }, { name: 'qdb_invited_count', readOnly: true },
+        { name: 'qdb_postponed_count', readOnly: true }, { name: 'qdb_suppressed_count', readOnly: true }, { name: 'qdb_run_message', readOnly: true },
+      ] },
       { label: 'Event and Created', fields: ['qdb_source_id', 'qdb_status_values', 'qdb_type_values'] },
       { label: 'Scheduled', fields: ['qdb_schedule_period', 'qdb_schedule_population', 'qdb_schedule_population_source_id'] },
       { label: 'Milestone', fields: ['qdb_milestone_every_n', 'qdb_milestone_status_values', 'qdb_milestone_type_values', 'qdb_milestone_count_from', 'qdb_milestone_skip_reached'] },
@@ -172,6 +183,18 @@ export const FORMS = Object.freeze([
       { label: 'Answers', sections: [{ label: 'Answers', subgrid: { table: 'qdb_survey_answer', lookup: 'qdb_survey_response_id', view: 'Survey Answers - All' } }] },
     ],
   },
+]);
+
+/**
+ * Addendum D web resources (ADR-009), uploaded from ../webresources/ before the forms that use them.
+ * type: 1 = HTML, 3 = JScript. The HTML loads its script by relative path, so both share the folder.
+ */
+export const WEB_RESOURCES = Object.freeze([
+  { name: 'qdb_/survey/trigger-audience.html', file: 'trigger-audience.html', type: 1, displayName: 'Survey Trigger Audience Panel' },
+  { name: 'qdb_/survey/trigger-audience-core.js', file: 'trigger-audience-core.js', type: 3, displayName: 'Survey Trigger Audience Rules' },
+  { name: 'qdb_/survey/trigger-audience-views.js', file: 'trigger-audience-views.js', type: 3, displayName: 'Survey Trigger Audience Views' },
+  { name: 'qdb_/survey/trigger-audience.js', file: 'trigger-audience.js', type: 3, displayName: 'Survey Trigger Audience Panel Script' },
+  { name: 'qdb_/survey/trigger-form.js', file: 'trigger-form.js', type: 3, displayName: 'Survey Trigger Form Script' },
 ]);
 
 /**

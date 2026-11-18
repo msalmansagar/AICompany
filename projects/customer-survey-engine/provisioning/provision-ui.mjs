@@ -8,12 +8,16 @@
  *
  * Live change: run --apply only with the user's explicit go-ahead for that org.
  */
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { SOLUTION } from './manifest.mjs';
-import { VIEWS, CHARTS, FORMS, APP } from './ui-manifest.mjs';
+import { VIEWS, CHARTS, FORMS, APP, WEB_RESOURCES } from './ui-manifest.mjs';
 import { createDataverseClient } from './lib/dataverse-client.mjs';
 import { ICONS, iconResourceName } from './ui-icons.mjs';
-import { ensureViews, readViewIds, ensureCharts, ensureForms, ensureIcons, publishTables, ensureApp } from './lib/ui-steps.mjs';
+import { ensureViews, readViewIds, ensureCharts, ensureForms, ensureWebResources, ensureIcons, publishTables, ensureApp } from './lib/ui-steps.mjs';
+
+const WEB_RESOURCE_FOLDER = resolve(dirname(fileURLToPath(import.meta.url)), '../webresources');
 
 async function run() {
   const { values } = parseArgs({ options: { apply: { type: 'boolean', default: false } } });
@@ -24,7 +28,8 @@ async function run() {
   console.log(`${values.apply ? 'APPLY' : 'PLAN (no changes)'} — ${client.orgUrl}`);
   console.log('[1] Views'); await ensureViews({ ...context, views: VIEWS });
   console.log('[2] Charts'); await ensureCharts({ ...context, charts: CHARTS });
-  console.log('[3] Forms'); await ensureForms({ ...context, forms: FORMS, viewIdFor: await readViewIds({ client, views: VIEWS }) });
+  console.log('[3a] Web resources'); const webResourceIdFor = await ensureWebResources({ ...context, resources: WEB_RESOURCES, folder: WEB_RESOURCE_FOLDER });
+  console.log('[3] Forms'); await ensureForms({ ...context, forms: FORMS, viewIdFor: await readViewIds({ client, views: VIEWS }), webResourceIdFor });
   console.log('[4] Icons'); await ensureIcons({ ...context, icons: ICONS, resourceNameFor: iconResourceName });
   // Publishing a platform table would also ship anyone's unpublished changes to it.
   const ownViews = VIEWS.filter((view) => !view.isPlatformTable);

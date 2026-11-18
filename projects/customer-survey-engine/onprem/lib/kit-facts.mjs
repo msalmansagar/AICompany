@@ -47,6 +47,7 @@ export function readKitFacts(kitDir) {
     surveyPluginAssembly: 'Qdb.SurveyEngine',
     dispatchPluginType: `${PLUGIN_TYPES}.InvitationDispatchPlugin`,
     triggerPluginType: `${PLUGIN_TYPES}.SurveyTriggerPlugin`,
+    validationPluginType: `${PLUGIN_TYPES}.TriggerAudienceValidationPlugin`,
     formEngineTables: FORM_ENGINE_TABLES,
     formEngineIcons: FORM_ENGINE_TABLES.slice(0, 3).map((table) => table.replace(/^qdb_/, 'qdb_icon_')),
     formEngineColumns: [...PATCH_COLUMNS],

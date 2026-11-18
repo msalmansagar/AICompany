@@ -132,3 +132,24 @@ test('preflight_orgAuditingOff_warnsP14', async () => {
 test('preflight_orgSettingsUnreadable_warnsP14', async () => {
   assert.equal(checkOf(await preflight({ organizations: notFound() }), 'P14').status, WARN);
 });
+
+const preflightWithPage = (page) => SurveyChecks.preflight({ get: fakeGet({}), kit: emptyKit(), config: emptyConfig(), getPage: async () => page });
+
+test('preflight_conditionEditorPagePresent_passesP15', async () => {
+  assert.equal(checkOf(await preflightWithPage({ ok: true, text: '<div id="advFind"></div>' }), 'P15').status, PASS);
+});
+
+test('preflight_conditionEditorPageMissing_warnsP15ButDoesNotFail', async () => {
+  const check = checkOf(await preflightWithPage({ ok: false, text: '', message: 'HTTP 404' }), 'P15');
+
+  assert.equal(check.status, WARN);
+  assert.match(check.detail, /FetchXML box/);
+});
+
+test('preflight_pageWithoutTheControl_warnsP15', async () => {
+  assert.equal(checkOf(await preflightWithPage({ ok: true, text: '<html>error</html>' }), 'P15').status, WARN);
+});
+
+test('preflight_nodeRunWithoutPageAccess_reportsP15AsInfo', async () => {
+  assert.equal(checkOf(await preflight({}), 'P15').status, SurveyChecks.INFO);
+});

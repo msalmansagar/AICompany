@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
-    Calls the qdb_srv_RunDueSurveys Custom API once a day (CSE-ENG-001 section 7.2, ADR-005).
+    Calls the qdb_srv_RunDueSurveys Custom API; the Scheduled Task runs it every 15 minutes
+    (CSE-ENG-001 section 7.2, ADR-005, ADR-010). The daily work happens on the first call of each day.
 
 .DESCRIPTION
     Run by a Windows Scheduled Task on a CRM or application server, under the AD service account,

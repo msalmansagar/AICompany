@@ -5,6 +5,8 @@
  *
  * @module survey-provisioning/ui-steps
  */
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { buildViewPayload, buildChartPayload, buildFormXml, buildSiteMapXml, appTableName, xml } from './ui-payloads.mjs';
 
 const MAIN_FORM_TYPE = 2;
@@ -68,13 +70,37 @@ export async function ensureCharts({ client, charts, isApply, report }) {
 }
 
 /** Replaces the layout of each table's main form (created with the table, so it is ours). */
-export async function ensureForms({ client, forms, viewIdFor, isApply, report }) {
+export async function ensureForms({ client, forms, viewIdFor, webResourceIdFor, isApply, report }) {
   for (const form of forms) {
     const existing = await first(client, `systemforms?$select=formid,name&$filter=objecttypecode eq '${form.table}' and type eq ${MAIN_FORM_TYPE}&$orderby=name asc`);
     if (!existing) throw new Error(`${form.table} has no main form to update`);
     report('update', `form ${form.table} "${existing.name}" (${form.tabs.length} tab(s))`);
-    if (isApply) await client.send('PATCH', `systemforms(${existing.formid})`, { formxml: buildFormXml(form, viewIdFor) });
+    if (isApply) await client.send('PATCH', `systemforms(${existing.formid})`, { formxml: buildFormXml(form, viewIdFor, webResourceIdFor) });
   }
+}
+
+/**
+ * Uploads each HTML / script web resource from `folder` (Addendum D), only when its content changed,
+ * publishes them, and answers name → id for the forms that place them. Plan mode reads ids only.
+ */
+export async function ensureWebResources({ client, resources, folder, isApply, report }) {
+  const ids = {};
+  for (const resource of resources) ids[resource.name] = await ensureWebResource(client, { resource, folder, isApply, report });
+  const changed = Object.values(ids).filter(Boolean);
+  if (isApply && changed.length > 0) {
+    await client.send('POST', 'PublishXml', { ParameterXml: `<importexportxml><webresources>${changed.map((id) => `<webresource>{${id}}</webresource>`).join('')}</webresources></importexportxml>` });
+  }
+  return (name) => ids[name] ?? (() => { throw new Error(`Web resource ${name} has no id (plan mode or not uploaded)`); })();
+}
+
+async function ensureWebResource(client, { resource, folder, isApply, report }) {
+  const content = readFileSync(resolve(folder, resource.file)).toString('base64');
+  const existing = await first(client, `webresourceset?$select=webresourceid,content&$filter=name eq '${resource.name}'`);
+  if (existing?.content === content) { report('exists', `web resource ${resource.name} (unchanged)`); return existing.webresourceid; }
+  report(existing ? 'update' : 'create', `web resource ${resource.name} (${Math.round(content.length * 0.75 / 1024)} KB)`);
+  if (!isApply) return existing?.webresourceid;
+  if (existing) { await client.send('PATCH', `webresourceset(${existing.webresourceid})`, { content, displayname: resource.displayName }); return existing.webresourceid; }
+  return (await client.send('POST', 'webresourceset', { name: resource.name, displayname: resource.displayName, webresourcetype: resource.type, content })).entityId;
 }
 
 const SVG_WEB_RESOURCE = 11;

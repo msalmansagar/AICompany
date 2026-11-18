@@ -7,6 +7,8 @@
  *   C  While secure link is disabled nothing is sent and the reason is logged.
  *   D  A Portal invitation is not dispatched.
  *   E  A Postponed secure-link invitation is dispatched when it is released to Pending.
+ *   F  Addendum D: with three phone columns configured, a customer whose telephone1 and telephone2 hold
+ *      the same digits gets one SMS per distinct number (two), each with the same link.
  * Uses a fake mobile number and an example.invalid address, deletes the SMS rows it creates, and
  * restores the settings and SMS configuration in `finally`. Live writes: run only with a go-ahead.
  *
@@ -100,6 +102,21 @@ async function scenarioReleased(session, { accountId, setupId, smsRows }) {
   smsRows.push(...sms.map((row) => row.activityid).filter((id) => !smsRows.includes(id)));
 }
 
+async function scenarioMultiNumber(session, { setupId, stamp, smsRows }) {
+  console.log('F — several phone columns, two holding the same number (Addendum D, FR-CSE-093)');
+  const { entityId: accountId } = await session.write('POST', 'accounts', {
+    name: `Survey E2E B7 Multi ${stamp}`, telephone1: '+974 0000 0001', telephone2: '97400000001', telephone3: '+97400000002',
+    description: 'Survey B7 test customer (multi-number). Safe to delete.',
+  });
+  const invitationId = await createInvitation(session, { accountId, setupId, label: 'multi' });
+  await waitForToken(session, invitationId);
+  const sms = await session.rows(`faxes?$select=activityid,faxnumber,qdb_message_body&$filter=_regardingobjectid_value eq ${accountId} and subject eq '${SMS_SUBJECT}'`);
+  smsRows.push(...sms.map((row) => row.activityid));
+  const numbers = sms.map((row) => row.faxnumber).sort();
+  session.check('one SMS per distinct number (telephone1 and telephone2 are the same digits)', numbers.join(',') === '+974 0000 0001,+97400000002', numbers.join(', '));
+  session.check('both SMS carry the same link', new Set(sms.map((row) => row.qdb_message_body)).size === 1);
+}
+
 async function configure(session, stamp) {
   const [settings] = await session.rows('qdb_survey_settingses?$select=qdb_survey_settingsid,qdb_securelink_enabled,qdb_securelink_base_url,_qdb_email_sender_queue_id_value');
   const [queue] = await session.rows("queues?$select=queueid&$filter=name eq 'Default messaging queue'");
@@ -107,7 +124,8 @@ async function configure(session, stamp) {
   if (active.length > 0) throw new Error('An SMS configuration is already active on this org; the test would bypass it.');
   const { entityId: smsConfigId } = await session.write('POST', 'qdb_survey_sms_configs', {
     qdb_name: `E2E B7 fax ${stamp}`, qdb_sms_table_logical_name: 'fax', qdb_recipient_field: 'faxnumber', qdb_message_field: 'qdb_message_body',
-    qdb_customer_link_field: 'regardingobjectid', qdb_customer_phone_field: 'telephone1', qdb_static_columns_json: JSON.stringify({ subject: SMS_SUBJECT }), qdb_is_active: true,
+    // Addendum D (FR-CSE-092): an ordered list; customers with only telephone1 still get one SMS.
+    qdb_customer_link_field: 'regardingobjectid', qdb_customer_phone_field: 'telephone1, telephone2, telephone3', qdb_static_columns_json: JSON.stringify({ subject: SMS_SUBJECT }), qdb_is_active: true,
   });
   await session.write('PATCH', `qdb_survey_settingses(${settings.qdb_survey_settingsid})`, {
     qdb_securelink_enabled: true, qdb_securelink_base_url: BASE_URL, 'qdb_email_sender_queue_id@odata.bind': `/queues(${queue.queueid})`,
@@ -142,6 +160,7 @@ async function run() {
     await scenarioDisabled(session, { accountId, setupId, settingsId: state.settings.qdb_survey_settingsid });
     await scenarioPortal(session, { accountId, setupId });
     await scenarioReleased(session, { accountId, setupId, smsRows: state.smsRows });
+    await scenarioMultiNumber(session, { setupId, stamp, smsRows: state.smsRows });
   } finally {
     await restore(session, state);
   }

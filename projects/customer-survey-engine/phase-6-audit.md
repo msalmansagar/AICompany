@@ -467,3 +467,65 @@ unverified: On-prem 9.1 behaviour — anonymise alternate-key null (C3/DEF-QA-C-
             MSS: the table is provisioned on the cloud org org5869857f since 2026-11-15,
             with auditing off as the manifest sets it; not yet on any on-prem org.)
 ```
+
+---
+
+# Addendum D — Audit: General Surveys, Audience Filter, Multi-Number SMS (BRD v1.5 + Amendment 1)
+
+| | |
+|---|---|
+| Phase | 6 — Audit (security, governance, compliance) |
+| Date | 2026-11-18 |
+| Branch | `feat/survey-addendum-d` @ `65d59cc0`, kit 1.2.0.0 (`4f9a064f…`) |
+| Inputs | BRD Addendum D + Amendment 1, `phase-3-arch.md` Addendum D, ADR-009/010, `phase-5-qa.md` Addendum D, two code reviews (2026-11-16, 2026-11-17), live org5869857f metadata and audit history (read-only) |
+
+## AD-A1 What was checked, with evidence
+
+| Area | Finding | Evidence |
+|---|---|---|
+| Who can create or change a One-time trigger | Survey Admin only (Create/Write/Delete on `qdb_survey_trigger`); Analyst and Integration read only. The save-time plugin also refuses non-admins | `RetrieveRolePrivilegesRole` on the org; `one-time-e2e` A (non-admin create refused, 403) |
+| Who can preview or send | Survey Admin or System Administrator, checked in each API before any work | `one-time-e2e` A (non-admin preview and send refused) |
+| Mass-send safety | Send now = preview count + confirmation; a dated send needs an Admin to set the date; runs once; fatigue still applies | QA AD-1 FR-CSE-084..087 |
+| Change history of the filter and schedule | Trigger table audited; `qdb_audience`, `qdb_audience_fetchxml`, `qdb_send_on`, `qdb_run_status`, `qdb_audience_view_name` audited; org auditing on | Org metadata 2026-11-18 |
+| **Who pressed Send now** | **Not recorded.** The send's run-record writes are made by SYSTEM; the audit history shows SYSTEM, not the administrator | Audit history of trigger `bd81d281…`: create by the caller, then two updates at 19:11:38/40 **by SYSTEM** (masks = run columns) → **AUD-D-01** |
+| Audience queries run as SYSTEM | They read every customer regardless of the administrator's own access; a filter on related tables can be used to learn which customers match data the administrator cannot read (count, then the invitations created) | Design (ADR-009 R-D3); `OneTimeSendService` uses the SYSTEM service → **AUD-D-02** |
+| "Current user" conditions | Fixed in QA (QA-D1): pinned to the administrator who copies; leftovers refused at save and send | QA AD-3; live view-audience QA 5/5 |
+| Multi-number SMS | SMS goes to up to five phone columns on BFD, including address phone columns, which may be landlines or another person's number | Config BFD-06 (CEO), FR-CSE-092..094 → **AUD-D-03** |
+| Size of a send | No upper limit; the safeguard is the preview count and confirmation | `OneTimeSendService` → **AUD-D-04** |
+| Dependence on an undocumented CRM page | The audience panel uses `/SFA/goal/ParticipatingQueryCondition.aspx` and its internal control (`set_fetchXml` appends; `Clear()` opens a dialog). A CRM update could break it; the FetchXML box fallback and preflight P15 cover a missing page, not a changed one | Live findings 2026-11-16/17 → **AUD-D-05** |
+| Web resources | Same-origin only; no `eval`; view names and messages set as text, never HTML (code review) | Review 2026-11-17 |
+| Scheduler every 15 minutes | Same Survey Scheduler role and account; a run never overlaps the next (`IgnoreNew`); daily work once a day. Load on 9.1 unmeasured | Runbook 8.2; checklist C7/C7a |
+| Retention and erasure | One-time invitations are ordinary invitations: covered by the 730-day retention and by `qdb_srv_EraseCustomerSurveyData` | Same tables, same customer lookup (Addendum C) |
+| Secrets, logging | No secrets added; trace lines carry counts and ids, no answers or phone numbers | Code |
+
+## AD-A2 Findings
+
+| ID | Finding | Severity | Recommendation |
+|---|---|---|---|
+| **AUD-D-01** | A mass send cannot be attributed: the audit history names SYSTEM, not the administrator who pressed Send now (or set the send date) | **High** (accountability for a send to every customer) | Record **Run Started By** (lookup to the user) on the trigger when a send starts: the administrator for Send now, the scheduler's account for a dated send; the dated send's decision is already attributable through the audited `qdb_send_on` change. Small change: one column, set in `TryStart` from the caller |
+| **AUD-D-02** | Audience queries run as SYSTEM, so a Survey Admin can target, and indirectly learn about, customers by data they cannot read themselves | **Medium** | Either (a) **accept**, documented: Survey Admin is a trusted role, every filter change is audited, and Preview returns only a count; or (b) run Preview and Send **as the administrator who last saved the filter** (impersonation), so record-level security applies. (b) changes behaviour for administrators with limited read access |
+| **AUD-D-03** | SMS to up to five phone columns may reach numbers that are not the customer's mobile (address phones, shared lines) | **Medium** (PDPPL purpose and accuracy) | QDB Compliance confirms the five BFD columns hold the customer's own contact numbers, or the list is cut to mobile columns. Configuration only; no code change |
+| AUD-D-04 | No limit on the size of a send | Low | Accept for release 1 (preview + confirm + fatigue); revisit if QDB wants a threshold that needs a second approver |
+| AUD-D-05 | Undocumented CRM page and control behind the audience panel | Low | Accept with P15 and the FetchXML box; re-test the panel after every CRM update (add to the handover's after-upgrade list) |
+| AUD-D-06 | After a deploy, browsers keep the old panel script and form for a while (QA-D4) | Low | Handover note: after importing a new kit, users clear the browser cache |
+
+## AD-A3 Verdict
+
+**CLEARED WITH CONDITIONS** for release with kit 1.2.0.0:
+
+- **AUD-D-01:** **fixed 2026-11-18** (CEO: add it). New lookup `qdb_run_started_by` (Run Started By → user) set when a send starts, from the plugin caller: the administrator for Send now, the scheduler's account for a dated send. Live: `one-time-e2e` "Run Started By names the caller who pressed Send, not SYSTEM" PASS (15/15). Assembly `e7281584…` deployed; kit rebuilt `7fbcf872…` (SystemUser shell stripped like Account/Contact/Queue).
+- **AUD-D-02:** **accepted by the CEO 2026-11-18** (option a): Survey Admin is a trusted role, every filter change is audited, Preview returns only a count. Recorded as an accepted risk; no code change.
+- **AUD-D-03** needs QDB Compliance's confirmation of the BFD phone columns before SMS is switched on at BFD.
+- AUD-D-04..06: accepted, documented.
+
+```
+VERIFICATION (Addendum D audit)
+criterion:  Security and governance of Addendum D assessed against live evidence; each finding traced
+command:    read-only scripts on org5869857f: table/column audit flags, org auditing, role privileges
+            (RetrieveRolePrivilegesRole), audit history of the E2E trigger; code review of
+            OneTimeSendService, AudienceQuery, TriggerAudienceValidationPlugin, web resources
+output:     trigger table and new columns audited, org auditing on; only Survey Admin writes triggers;
+            send writes recorded as SYSTEM (AUD-D-01)
+result:     CLEARED WITH CONDITIONS
+unverified: 9.1 on-prem behaviour (P15, Q15, scheduler load); Compliance view on the five phone columns
+```

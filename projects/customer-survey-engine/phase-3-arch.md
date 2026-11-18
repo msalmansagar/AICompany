@@ -1112,3 +1112,185 @@ reconciliation are to be run by the orchestrator before the CEO Phase-3→4 gate
 the one CRITICAL-eligible item is R1/OQ-C1's dependency chain, which gates
 *activation of anonymise mode*, not the build.
 
+---
+
+# Addendum D — General surveys, audience filter and multi-number SMS (BRD v1.5)
+
+Designs `phase-2-ba-addendum-d-audience-and-delivery.md` (FR-CSE-083..094, NFR-CSE-015..018; CEO answers
+OQ-D1..D5, 2026-11-16). Decisions: **ADR-009** (audience filter) and **ADR-010** (one-time run model and
+15-minute scheduler). Everything below is additive: no existing trigger kind, API contract or column meaning
+changes, except that `qdb_customer_phone_field` now accepts a list (D.5).
+
+## D.1 Shape of the change
+
+| Piece | New / changed | Requirement |
+|---|---|---|
+| `qdb_trigger_kind` option **One-time** (100000004) | new option | FR-CSE-083 |
+| Trigger columns for send time, audience, filter and run record | new columns (D.2) | FR-CSE-083..091 |
+| `TriggerAudienceValidationPlugin` — pre-operation on trigger Create/Update | new plugin step | FR-CSE-091, NFR-CSE-017 |
+| `qdb_srv_PreviewAudience` — count only | new Custom API | FR-CSE-084 |
+| `qdb_srv_SendOneTimeTrigger` — budgeted, resumable send | new Custom API | FR-CSE-084, 086, NFR-CSE-015 |
+| `qdb_srv_RunDueSurveys` — new first pass "due one-time triggers"; daily passes gated to once a day | changed | FR-CSE-085, NFR-CSE-016 |
+| Trigger form web resource `qdb_/survey/trigger-audience.html` — filter builder + Preview + Send now | new web resource | FR-CSE-084, 090 |
+| `InvitationDispatchPlugin` — one hand-off activity per distinct number | changed | FR-CSE-092..094 |
+| Windows Scheduled Task every 15 minutes | changed (kit scripts, runbook) | OQ-D3 |
+
+## D.2 Data: new columns on `qdb_survey_trigger`
+
+| Column | Type | Meaning |
+|---|---|---|
+| `qdb_send_on` | DateTime (user local, stored UTC) | Empty = send-now only. Set = the first scheduler run at or after it sends (FR-CSE-085). |
+| `qdb_audience` | Choice: All active customers (100000000) / Filter (100000001) | FR-CSE-089. |
+| `qdb_audience_fetchxml` | Multiple lines, 100 000 chars | The filter, as written by the builder (FR-CSE-089/090). |
+| `qdb_run_status` | Choice: Not sent / Sending / Sent / Failed | Run state (FR-CSE-086). Not editable on the form. |
+| `qdb_run_started_on`, `qdb_sent_on` | DateTime | When the run began / finished. |
+| `qdb_invited_count`, `qdb_postponed_count`, `qdb_suppressed_count` | Whole number | Running totals, updated per page. *Build note:* Postponed is counted apart from Invited (Pending) and Suppressed (logged), so the trigger says what will still go out. |
+| `qdb_run_cursor` | Multiple lines, 4 000 | FetchXML paging cookie + page number of the last committed page, so a budget-cut run resumes without re-processing (ADR-010). |
+| `qdb_run_message` | Multiple lines, 2 000 | Last failure or refusal, shown on the form (FR-CSE-091). |
+
+One-time triggers leave the source, status/type, schedule and milestone columns empty. Invitations get the
+dedupe key `{setup}|{customer}|T{triggerId}` — at most one per customer per one-time trigger, even across
+resumed or repeated calls (FR-CSE-087). The invitation's `qdb_survey_trigger_id` links back as today.
+
+## D.3 Audience filter (ADR-009)
+
+**Builder.** The trigger form hosts `qdb_/survey/trigger-audience.html`. It is the proven pattern from the
+Process Engine (`qdb_AdvanceFindFilter.html` + `qdb_AdvanceFindJs.js`, live on org5869857f since 2026-05-05),
+re-implemented under the survey's own name so the SurveyEngine solution does not depend on the Process
+Engine's resources or its hard-coded `qdb_filter` column:
+
+1. On form load the resource reads the org's customer table from Survey Settings, resolves its
+   ObjectTypeCode from metadata (`EntityDefinitions(LogicalName=…)?$select=ObjectTypeCode` — never
+   hard-coded), and loads `/SFA/goal/ParticipatingQueryCondition.aspx?entitytypecode={otc}&readonlymode=false`
+   in a same-origin iframe.
+2. When the page's control is ready (`contentWindow.advFind.parentElement.children.advFind.control`, retried
+   with a bounded count) it seeds `set_fetchXml(qdb_audience_fetchxml)`.
+3. A form **OnSave** handler reads `get_fetchXml()` into `qdb_audience_fetchxml` (submit mode always). If the
+   builder is still loading, Save is blocked with a form notification, not an `alert()`.
+4. **Fallback** (page missing on a 9.1 build, or control not found): the panel shows a plain FetchXML text box
+   so an admin can paste FetchXML downloaded from Advanced Find. The server validates both paths identically.
+
+**Server validation** (`AudienceQuery`, pure domain class, unit-tested) runs in the pre-operation plugin at
+save and again at send:
+
+- XML parses; root `fetch` has one `entity` whose name equals the org's customer table; no `aggregate`;
+  no `count`/`top` honoured. *Build note:* outer `link-entity` elements are **kept**, not refused: Advanced
+  Find writes them for "does not contain data" conditions, and the distinct id-only query cannot return
+  anything but customers of the root table.
+- The engine rewrites it: keeps the `filter` and `link-entity` elements (with their filters), drops every
+  `attribute`, `all-attributes`, `order`, `top`, `count`, `page`, sets `distinct="true"`, adds only the
+  primary id attribute, and pages with a cookie (page size 250).
+- Invalid → the save is refused with a clear message (FR-CSE-091); at send time → `qdb_run_status` Failed,
+  `qdb_run_message` set, nothing created.
+
+**Who may store a filter.** The pre-operation plugin refuses Create/Update of a One-time trigger unless the
+caller holds **Survey Admin** or System Administrator (role check by name and parity test, the same pattern
+as `Survey Scheduler`). The query runs as SYSTEM at send time, so this gate is what keeps mass sends Admin-only
+(NFR-CSE-017). Residual: a filter with link-entities can test whether related data exists, but only Admins can
+write one and the API returns ids of the customer table only (R-D3).
+
+## D.4 Sending (ADR-010)
+
+**Preview** — `qdb_srv_PreviewAudience(TriggerId) → Count, Message`. Survey Admin / SysAdmin only. Runs the
+rewritten query (or "all active") as SYSTEM, counting by pages; the form shows "N customers".
+
+**Send now** — `qdb_srv_SendOneTimeTrigger(TriggerId) → Invited, Suppressed, IsComplete, Message`. Survey
+Admin / SysAdmin only. Preconditions: trigger kind One-time, trigger and setup active, setup's form published,
+`qdb_run_status` Not sent or Sending (else refused: "already sent"). It:
+
+1. sets Sending + started-on (row-version concurrency, so two callers cannot both start);
+2. resumes from `qdb_run_cursor`; for each page of customers runs the **existing** candidate pipeline
+   (`CandidatePreparer`: dedupe → fatigue with the trigger's Drop / Postpone → priority → setup's **Digital**
+   delivery → invitation with version pin and expiry = now + setup expiry days), then commits the cursor and
+   running totals;
+3. stops between pages when the 90-second budget is near and returns `IsComplete = false`;
+4. on the last page sets Sent + sent-on + totals.
+
+The form's **Send now** button: Preview → `Xrm.Navigation.openConfirmDialog("Send to N customers?")` → loops
+the API while `IsComplete` is false, showing progress ("212 of 450"). Closing the form mid-way is safe: the
+trigger stays Sending and the next scheduler run finishes it from the cursor.
+
+**Scheduled** — `qdb_srv_RunDueSurveys` gets a new **first pass**: active One-time triggers with
+`qdb_send_on <= now` and status Not sent or Sending, oldest first, sent through the same service within the
+remaining budget. The Windows Scheduled Task runs **every 15 minutes** (OQ-D3). The calendar passes
+(scheduled triggers, postponed release, retention) are already idempotent but should not repeat 96 times a
+day: they run on the first call of each UTC day, recorded in a new Survey Settings column
+`qdb_daily_passes_completed_on` (Date) written only when they finish with `IsComplete = true`. An explicit
+`RunDate` argument (tests, catch-up) always runs them.
+
+## D.5 Multi-number SMS
+
+`qdb_survey_sms_config.qdb_customer_phone_field` keeps its name and now accepts a comma-separated, ordered
+list; its MaxLength rises from 128 to 1 000 (metadata increase is safe on 9.1). A single field behaves exactly
+as before, so HL's row and the cloud seed are unchanged.
+
+`InvitationDispatchPlugin` (`PhoneNumbers`, pure domain class): read every listed field from the customer in
+one Retrieve → drop empty → normalise to digits only → distinct (first field wins) → create **one hand-off
+activity per number**, each with the same message and link (the token is issued once per invitation, as now).
+No numbers → one reason-9 row (as today). A failed create → one reason-9 row naming the field; the invitation
+counts as delivered if any activity was created (FR-CSE-094). The preflight check C-sms validates every listed
+field exists.
+
+## D.6 Security and roles
+
+| Item | Rule |
+|---|---|
+| New Custom APIs | Gate on Survey Admin or System Administrator in the plugin (as `qdb_srv_ActivateSource`). Survey Analyst, Integration, Scheduler and Data Officer are refused. |
+| `qdb_srv_RunDueSurveys` | Unchanged gate (Survey Scheduler / SysAdmin); it may now send due one-time triggers, which only an Admin could have created (D.3). |
+| Trigger columns | Run-record columns are read-only on the form and written only by the APIs (SYSTEM). |
+| Web resource | Same-origin iframe only; no `eval`; FetchXML is never interpolated into HTML. |
+
+## D.7 Provisioning and kit impact
+
+- `manifest.mjs`: option 100000004, 10 trigger columns, 1 settings column, phone field MaxLength, 2 Custom APIs,
+  1 plugin step, web resource, trigger form section; `provision-ui.mjs` trigger form layout + OnLoad/OnSave
+  handlers.
+- Solution **1.2.0.0**; kit rebuilt for both orgs; scheduler scripts and runbook stage 8 → every 15 minutes.
+- Console checks: preflight **P15** — `ParticipatingQueryCondition.aspx` answers 200 on the org (decides
+  builder vs fallback before go-live); post-import Q-checks for the new APIs (R3 count 8 → 10), columns and
+  option.
+- BFD config: SMS row lists the five BFD-06 fields after import.
+
+## D.8 Test strategy hooks
+
+- xUnit (domain, fakes): `AudienceQuery` rewrite/refusals (aggregate, wrong entity, outer link, malformed,
+  top/order stripped); `PhoneNumbers` normalise/dedupe/order; one-time dedupe key; send service paging +
+  budget cut + resume from cursor (no duplicate invitations, totals correct); already-sent refusal; role gate;
+  daily-pass gate.
+- Cloud E2E (test data only, restore in `finally`): one-time trigger "all active" on a fresh test-customer
+  set via a filter on a stamp; Preview = N; Send now = N invitations (fatigue case logged); second Send
+  refused; dated trigger fired by a `RunDueSurveys` call after its time and not before; multi-number SMS
+  with three fields (two equal) → two fax rows.
+- Browser: filter builder loads, saves, reloads on the trigger form; fallback box when the page is forced
+  unavailable.
+- Coverage stays ≥ 80% branch on the C# project (A4 margin is thin).
+
+## D.9 Estimate
+
+| Work | Dev-days |
+|---|---|
+| Schema, form, provisioning | 1.5 |
+| Filter web resource (port + fallback + OnSave) | 2 |
+| `AudienceQuery` + validation plugin | 1.5 |
+| Preview + Send APIs, cursor/budget, RunDueSurveys pass + daily gate | 3 |
+| Multi-number dispatch | 1 |
+| Tests, E2E, deploy to cloud | 2 |
+| Kit 1.2.0.0, checks, runbook, scheduler scripts | 1.5 |
+| **Total** | **12.5** |
+
+## D.10 Risks
+
+| # | Risk | Mitigation |
+|---|---|---|
+| R-D1 | `ParticipatingQueryCondition.aspx` is undocumented; absent or different on a 9.1 build | Preflight P15 detects it before go-live; FetchXML text-box fallback works everywhere; server validation identical on both paths. |
+| R-D2 | 15-minute task adds load on the on-prem async/API servers | Calendar passes run once a day; the 15-minute call is a cheap query when nothing is due. QDB IT measures during Gate 3. |
+| R-D3 | SYSTEM-run filter could probe related data existence | Only Survey Admin can store a filter (pre-op gate); API returns only customer-table ids; trigger table is audited (who changed the filter). |
+| R-D4 | A large filter audience takes several calls | Cursor + budget (NFR-CSE-015); the scheduler finishes an interrupted Send now. |
+| R-D5 | Date/time entered in a different time zone from QDB | Column is user-local; form shows the time zone; stored UTC. |
+
+## D.11 Cross-artifact note
+
+Every FR-CSE-083..094 and NFR-CSE-015..018 is traced above. No constitution MUST is contravened: no hard-coded
+OTC, GUID or role id (resolved at runtime), SYSTEM operations are role-gated (Article VII), the suppression
+log stays append-only, the audit posture of the trigger table (on) is unchanged.
+

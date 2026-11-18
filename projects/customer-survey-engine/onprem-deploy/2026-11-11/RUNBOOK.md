@@ -21,7 +21,7 @@ A **WARN** needs a named person's decision, written down, before going on.
 |---|---|---|
 | 0.1 | Take a **full database backup** of the org. This is the real rollback: an unmanaged solution cannot be uninstalled cleanly (stage 10). | QDB DBA |
 | 0.2 | Check the kit files against the checksums in `README.md` (`Get-FileHash <file> -Algorithm SHA256`). | QDB IT |
-| 0.3 | Name the people: a **System Administrator** for the imports and source activation; the **AD service account** for the daily scheduler (gets only the **Survey Scheduler** role in CRM, stage 6); the **portal backend's service account** (gets Survey Integration). | QDB IT |
+| 0.3 | Name the people: a **System Administrator** for the imports and source activation; the **AD service account** for the scheduler (every 15 minutes) (gets only the **Survey Scheduler** role in CRM, stage 6); the **portal backend's service account** (gets Survey Integration). | QDB IT |
 
 ## Stage 1 — Preflight (read-only)
 
@@ -42,6 +42,7 @@ A **WARN** needs a named person's decision, written down, before going on.
 | **P12 grid columns saved as not editable** | PASS, or WARN with the list | the list decides stage 3; it does not stop stages 2 and 4 |
 | P13 System Job accepts the survey health view | PASS | stop: the SurveyEngine import would fail on the System Job view; raise it with MSS |
 | P14 org auditing is on | PASS, or WARN | WARN does not block the import, but before go-live a System Administrator turns on **Settings → Administration → System Settings → Auditing → Start Auditing**. Without it the survey tables' change history (checklist B9) records nothing |
+| P15 CRM condition editor page | PASS, or WARN | Kit 1.2.0.0 (Addendum D). PASS: the One-time trigger's audience panel uses CRM's own condition editor. WARN: this CRM build lacks the page; the panel offers a FetchXML box instead and views still work. It does not block the import; tell MSS either way (ADR-009 risk R-D1) |
 | C-src / C-sms / C-lang configuration names | PASS or INFO | FAIL: the name in `config/<org>.json` is wrong for this org; correct it with MSS before stage 7 |
 
 **Gate 1:** MSS confirms the preflight report in writing.
@@ -87,7 +88,7 @@ is done.
 
 | # | Step |
 |---|---|
-| 4.1 | **Import** → `SurveyEngine_1_1_0_0_onprem_unmanaged.zip`. Leave "enable SDK message processing steps" ticked: the two invitation dispatch steps must be on. |
+| 4.1 | **Import** → `SurveyEngine_1_2_0_0_onprem_unmanaged.zip`. Leave "enable SDK message processing steps" ticked: the two invitation dispatch steps must be on. |
 | 4.2 | **Publish All Customizations.** |
 
 The package carries no trigger steps (readiness F4); activating a source creates them (stage 8).
@@ -101,7 +102,7 @@ The package carries no trigger steps (readiness F4); activating a source creates
 
 | Check | Pass |
 |---|---|
-| Q1–Q4 solution (version 1.1.0.0), 10 tables, 5 roles, app | PASS |
+| Q1–Q4 solution (version 1.2.0.0), 10 tables, 5 roles, app | PASS |
 | **Q5 eight Custom APIs bound to `Qdb.SurveyEngine`** | PASS. If not, open each API in the Plugin Registration Tool and set its plugin type from `Qdb.SurveyEngine.Plugins` (same name without the `qdb_srv_` prefix, e.g. `qdb_srv_GetSurvey` → `GetSurveyPlugin`) |
 | Q6 two dispatch steps enabled, no trigger steps | PASS |
 | Q7 six Form Engine columns | PASS |
@@ -110,6 +111,7 @@ The package carries no trigger steps (readiness F4); activating a source creates
 | Q11 survey health view on System Job | PASS. A System Administrator then opens Survey Engine → **Health → Survey Jobs**: it opens on "Survey Jobs - Failed or Suspended" (empty after a clean install) |
 | Q12 one Survey Scheduler role | PASS. If it FAILs with "independent roles share the name", find who created the extra role before stage 6 gives the scheduler's account its role: the daily run admits any role with that name |
 | Q13 change history on the 8 audited survey tables | PASS (tables audited and org auditing on). WARN: the tables are audited but org auditing is off; turn it on (P14). FAIL: Publish All, then check again. Responses and answers are deliberately not audited (PDPPL). The eighth table is the erasure log, audited so an edit or delete of its evidence is recorded (audit AUD-C-01). This line is the evidence for checklist B9 |
+| Q15 One-time trigger validation steps | PASS: both steps enabled (kit 1.2.0.0). FAIL: the import ran with SDK message processing steps switched off; re-import with them on. Without these steps a One-time trigger's audience filter and its Survey Admin gate are checked only when it is sent, not when it is saved |
 | Q14 one Survey Data Officer role | PASS. If it FAILs with "independent roles share the name", find who created the extra role before stage 6 gives anyone the role: the erasure API admits any role with that name. **Re-run the post-import check every quarter** and after any business-unit or role change, since only this check catches a same-named role created later (architecture R7) |
 | **Render cache** | `compare-reports.mjs` reports **none changed by the import** |
 
@@ -140,7 +142,7 @@ Only once every question that blocks a row is answered (`config/README.md`). In 
 
 Re-run the stage 1 preflight after 7.2: the C-src lines must now all be PASS.
 
-## Stage 8 — Activate sources and the daily run
+## Stage 8 — Activate sources and the scheduled run
 
 **8.1 Activate a source** (System Administrator, console on a CRM page, one source at a time; this is a
 write):
@@ -156,16 +158,23 @@ fetch(Xrm.Utility.getGlobalContext().getClientUrl() + '/api/data/v9.0/qdb_srv_Ac
 The answer's `Message` lists the steps it created. It refuses a trigger whose status or type code is not on
 the table. `qdb_srv_DeactivateSource` with the same body removes them again.
 
-**8.2 Daily run.** On the server chosen in 0.3, as a local administrator, from `scheduler/`:
+**8.2 Scheduled run, every 15 minutes (kit 1.2.0.0, ADR-010).** On the server chosen in 0.3, as a local
+administrator, from `scheduler/`:
 
 ```powershell
-.\Register-RunDueSurveysTask.ps1 -OrgUrl https://<crm-server>/<org> -ServiceAccount <DOMAIN\svc> -LogPath D:\Logs\SurveyEngine -At 02:00
+.\Register-RunDueSurveysTask.ps1 -OrgUrl https://<crm-server>/<org> -ServiceAccount <DOMAIN\svc> -LogPath D:\Logs\SurveyEngine -At 00:05
 Start-ScheduledTask -TaskName 'Survey Engine - Run Due Surveys'
 ```
 
+The task repeats every 15 minutes from `-At`, indefinitely, and never runs twice at once. Every call sends
+the One-time surveys that are due; the daily work (postponed release, scheduled surveys, retention) runs on
+the first call of each day only, so `-At` is when the daily work happens. **An org that already has the
+daily task from kit 1.1.0.0:** run the same command again; it replaces the trigger.
+
 Pass: the day's log in `-LogPath` has a `RunDate …, call 1: …` summary line and no "still not complete"
-line, and the task's **Last Run Result** is `0x0`. One task per
-org (HL and QDB1 have different URLs).
+line, a second line about 15 minutes later says "Daily passes: already completed for this date", and the
+task's **Last Run Result** is `0x0`. One task per org (HL and QDB1 have different URLs). During Gate 3,
+QDB IT notes the CRM server load at the 15-minute calls (Addendum D risk R-D2).
 
 ## Stage 9 — Smoke test
 

@@ -10,5 +10,7 @@
 | ADR-006 | Generic status-set triggers with auto-registered steps | Accepted | 2026-11-09 | architect |
 | ADR-007 | Response storage shape (Response + Answer + JSON) | Accepted | 2026-11-09 | architect |
 | ADR-008 | Erasure Custom API: execution model and authorisation | Accepted | 2026-11-15 | architect |
+| ADR-009 | Audience filter stored on the trigger, built with the CRM condition page | Accepted | 2026-11-16 | architect (filter-on-trigger set by CEO) |
+| ADR-010 | One-time trigger run model and the 15-minute scheduler | Accepted | 2026-11-16 | architect |
 
 Status values: Proposed | Accepted | Deprecated | Superseded

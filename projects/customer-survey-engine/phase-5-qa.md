@@ -852,3 +852,82 @@ VERIFICATION (Addendum C)
   output:     C#: 481 passed, 0 failed. Assembly-level branch-rate: 80.34% (1275/1587 branches covered). Provisioning JS: 88 passed. On-prem JS: 131 passed.
   result:     PASS
   unverified: NFR-CSE-011 wall-clock measurement at BRD volumes on on-prem 9.1 (C1); NFR-CSE-012 high-volume erasure wall-clock on on-prem 9.1 (C2); architecture R1 alternate-key null behaviour on on-prem 9.1 (C3); runbook additions (C4); retention settings on each org (C5); live deletion of old invitation/suppression-log rows not exercised (no rows old enough on any org); NFR-CSE-014 live contact-org run (HL CRM, extends existing DEF-QA-002)
+
+---
+
+# Addendum D — QA: General Surveys, Audience Filter, Multi-Number SMS (BRD v1.5 + Amendment 1)
+
+| | |
+|---|---|
+| Phase | 5 — QA |
+| Date | 2026-11-18 |
+| Branch | `feat/survey-addendum-d` @ `6d09d8f0` (kit 1.2.0.0) |
+| Scope | FR-CSE-083..097, NFR-CSE-015..018; `phase-2-ba-addendum-d-audience-and-delivery.md` §4–§6, §9a; `phase-3-arch.md` Addendum D; ADR-009, ADR-010 |
+| Environment | org5869857f (cloud, account customers). On-prem 9.1 not available to MSS |
+
+## AD-1 Traceability
+
+| Req | What it promises | Evidence | Result |
+|---|---|---|---|
+| FR-CSE-083 | One-time trigger kind, no source | Option 100000004 deployed; `one-time-e2e` creates and sends sourceless triggers | PASS |
+| FR-CSE-084 | Send now with preview count + confirmation, Admin only | `one-time-e2e` B/C: Preview = 3 exactly, Send = 2 invited + 1 postponed; refusals A; panel: Preview → `openConfirmDialog` → loop (code + review; confirm dialog not clicked live) | PASS (confirm dialog by review) |
+| FR-CSE-085 | Dated send by the first scheduler run at or after the time | `one-time-e2e` D: not sent before; sent by the first run after; xUnit due pass | PASS |
+| FR-CSE-086 | Runs once; Sent with totals; second send refused | `one-time-e2e` C: Sent with totals, second send "already sent"; xUnit Failed/Sent refusals | PASS |
+| FR-CSE-087 | Same rules: dedupe per trigger, version pin, fatigue Drop/Postpone, priority, Digital delivery | `one-time-e2e`: dedupe key `…|T<trigger>`, period key `ONCE-…`, recent customer Postponed; xUnit Drop → Fatigue log, form-not-published → suppressed | PASS |
+| FR-CSE-088 | Expiry = setup expiry from creation | `one-time-e2e`: 14 days | PASS |
+| FR-CSE-089 | Audience: All active, or a filter stored on the trigger | Live; `AudienceQuery.AllActive` / `FromFetchXml` xUnit | PASS |
+| FR-CSE-090 (amended) | Views listed; copy a view; adjust for this survey | Live 2026-11-17: 16 account system views listed; Active (1 cond), My Active (2), Being Followed (related link kept), Active again — each replaces the last; `one-time-views-qa` — 5 real views accepted at save and previewed | PASS, **except QA-D1** |
+| FR-CSE-091 | Filter validated at save and at send; other tables, aggregates refused | `one-time-e2e` A (incident refused at save); xUnit `AudienceQuery`, `OneTimeTriggerRules`, validation plugin | PASS |
+| FR-CSE-092 | Ordered list of phone fields | B7 E2E F; xUnit `PhoneNumbers`; preflight C-sms checks each column | PASS |
+| FR-CSE-093 | One SMS per distinct number (digits), same link | B7 E2E F: 3 fields (2 equal) → 2 SMS, same text | PASS |
+| FR-CSE-094 | No number → reason 9; partial failure logged per column | B7 E2E B; xUnit `Dispatch_OneOfTwoNumbersFails…` | PASS |
+| FR-CSE-095 | Source view + copy date recorded and shown | Live: "Copied from: Active Accounts, 11/17/2026 …"; columns on form, `setSubmitMode('always')` (review) | PASS (save of a view copy with the new script not completed in the browser — cache; logic tested in isolation live 2026-11-16) |
+| FR-CSE-096 | Warn when the view changed since; Reload | `isViewNewer` tests; Reload path = copy path (live) | PASS by test + review; warning banner not seen live (no view edited) |
+| FR-CSE-097 | Filters the editor cannot show are kept exactly, not edited | Live: API-written `like '%x'` filter locked on load; `isFaithful` tests | PASS |
+| NFR-CSE-015 | Large audiences in budgeted, resumable batches without duplicates | xUnit: 300 customers, budget cut between pages, resume from cursor, no duplicates; concurrent resume: row-version writes, lost writer stops (2 tests) | PASS by test; **not measured live above 3 customers** (QA-D2) |
+| NFR-CSE-016 | Within 15 minutes of the send time | Logic proven live (first run after the time sends it); the 15-minute cadence is the scheduler task (parse-checked, not run) | PASS logic; cadence open on-prem (C7) |
+| NFR-CSE-017 | No mass send without preview + confirm or an Admin-set time; Admin only | `one-time-e2e` A: non-admin cannot create, preview or send; validation step filtered to definition columns so the scheduler's run-record writes pass | PASS |
+| NFR-CSE-018 | Both orgs (account/contact), 9.1 | Cloud account org only; contact-table and 9.1 untested (as DEF-QA-002); preflight P15 + post-import Q15 added for the test orgs | Open on-prem |
+
+## AD-2 Coverage
+
+| Suite | Result (2026-11-18) |
+|---|---|
+| C# xUnit `Qdb.SurveyEngine.Tests` | 610 pass, 0 fail. Assembly: line 89.95 %, **branch 80.74 %** (dotnet-coverage) — above NFR-CSE-007, margin still thin |
+| Addendum D C# files | `OneTimeSendService` 100 % line / 97 % branch; `AudienceQuery` 100/93; `OneTimeTriggerStore` 99/91; `TriggerAudienceValidationPlugin` 100/91; `RunDueSurveysService` 100/93; `PhoneNumbers` 100/89; data + plugin files together 96 % line / 86 % branch. Thin: `OneTimeBatch` 50 % branch, `OutcomeCounter` 67 % branch (null guards and unused pass-through members) |
+| Provisioning JS | 98 pass |
+| On-prem JS (checks, transforms, config) | 138 pass (P15, C-sms list, Q15 added) |
+| Web resources JS | 18 pass (core rules, views module, panel loads) |
+| Live E2E (org5869857f) | one-time 14/14, dispatch (B7, incl. multi-number) 11/11, daily run (B5) 12/12, view audiences 5/5 |
+
+## AD-3 Defects found in QA
+
+| ID | Description | Severity | Req | Status |
+|---|---|---|---|---|
+| **QA-D1** | **"My …" views select nobody.** Views with user-relative conditions (`eq-userid`, `eq-useroruserteams`, `eq-userteams`, `eq-businessid` …) are evaluated by Preview and Send, which run as SYSTEM, so "current user" is SYSTEM: "My Active Accounts" previewed **0** although the admin owns accounts. A dated send would report 0 invited with no error. Fix options: (a) when a view is copied, the panel replaces "current user" with the administrator who copies it (the survey then means "my accounts as of when I set it up"); and the server refuses any user-relative operator left in a filter, with a clear message; or (b) refuse such views outright. **Confidence: 95 %** (measured live). | High | FR-CSE-090, 091 | **Fixed 2026-11-18** — CEO chose (a): the panel pins `eq-userid` / `ne-userid` to the administrator who copies the view (also for a hand-picked "Equals current user"); `AudienceQuery` refuses any remaining user-relative operator at save and send. Live: raw "My Active Accounts" refused at save; pinned to the owner of 52 active accounts → previews 52. 615 xUnit, 22 web resource tests. Assembly `52eeb3ae…` deployed; kit rebuilt `4f9a064f…` |
+| QA-D2 | NFR-CSE-015 not measured live: the largest live send was 3 customers; the 450-customer and 2,000-customer cases are proven only by unit tests with a simulated clock. | Medium | NFR-CSE-015 | Open — measure on the test orgs (Gate 3) or on cloud with test accounts (needs go-ahead) |
+| QA-D3 | The panel's Send now confirmation dialog and the stale-view warning were not exercised in the browser (the tool freezes on dialogs; no view was edited). Logic reviewed and unit-tested. | Low | FR-CSE-084, 096 | Open — covered by the CEO's own browser test |
+| QA-D4 | Browser caching: after a web-resource deploy, users keep the old panel script and the old form definition until their cache refreshes (seen twice). Not a code defect; operational. | Low | — | Document in the runbook / handover (stage 10: clear browser cache or wait) |
+
+Defects found and **fixed during build and review** (for the record): set_fetchXml appends (views could not be changed — CEO-reported, fixed `…` "reload the editor per filter"), editor rewriting `like` → `eq` (write only if changed), condition page never loads (poll the control), panel started before its script (wait), picking a view while Audience = All active (start the editor), concurrent resume undercounting (row-version writes), overlapping view loads merging filters (one change at a time).
+
+## AD-4 Verdict
+
+**PASS WITH CONDITIONS.** The one High defect (QA-D1) was fixed and verified live the same day; D-C1 is closed.
+
+The one-time engine, dated sends, the daily gate, multi-number SMS and the validation steps are complete, tested and verified live. The view picker works and handles related-entity views; it mishandles user-relative ("My …") views (QA-D1).
+
+Conditions:
+- **D-C1:** Fix QA-D1 (CEO chooses (a) or (b)) before release.
+- **D-C2:** NFR-CSE-015 measured at BRD volume (QA-D2).
+- **D-C3:** On each test org: P15 reported, Q15 PASS, 15-minute task running cleanly (checklist C7, C7a); contact-table (HL) run of a one-time survey.
+- **D-C4:** CEO's browser test of the panel, including Send now's confirmation (QA-D3).
+
+---
+
+VERIFICATION (Addendum D)
+  criterion:  Every FR-CSE-083..097 / NFR-CSE-015..018 traced to evidence; all suites green; branch coverage ≥ 80 %
+  command:    dotnet-coverage collect "dotnet test crm-plugins/Qdb.SurveyEngine.Tests/Qdb.SurveyEngine.Tests.csproj --no-build" (cobertura); node --test provisioning/__tests__/*.test.mjs; node --test onprem/__tests__/*.test.mjs; node --test webresources/__tests__/*.test.mjs; node e2e/one-time-views-qa.mjs (org5869857f)
+  output:     C# 610/610, branch 80.74 %; provisioning 98/98; on-prem 138/138; web resources 18/18; view-audience QA 5/5 (My Active Accounts previews 0 — QA-D1)
+  result:     PASS WITH CONDITIONS
+  unverified: NFR-CSE-015 at volume (QA-D2); 9.1 on-prem and contact-table runs (NFR-CSE-018); Send now confirmation and stale-view warning in the browser (QA-D3)

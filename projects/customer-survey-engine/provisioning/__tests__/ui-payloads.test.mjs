@@ -12,7 +12,8 @@ const viewNamed = (name) => VIEWS.find((v) => v.name === name);
 const anyViewId = () => '{00000000-0000-0000-0000-000000000001}';
 
 test('describeField_everyFormField_existsInTheSchemaManifest', () => {
-  const fields = FORMS.flatMap((form) => form.tabs.flatMap((tab) => tab.sections.flatMap((section) => (section.fields ?? []).map((field) => [form.table, typeof field === 'string' ? field : field.name]))));
+  const fields = FORMS.flatMap((form) => form.tabs.flatMap((tab) => tab.sections.flatMap((section) => (section.fields ?? [])
+    .filter((field) => !field.webResource).map((field) => [form.table, typeof field === 'string' ? field : field.name]))));
 
   assert.doesNotThrow(() => fields.forEach(([table, name]) => describeField(table, name)));
 });
@@ -89,10 +90,38 @@ test('buildFormXml_source_makesActivationReadOnly', () => {
   assert.match(buildFormXml(FORMS.find((f) => f.table === 'qdb_survey_source'), anyViewId), /datafieldname="qdb_is_active" disabled="true"/);
 });
 
-test('buildFormXml_sameForm_isIdenticalOnEveryRun', () => {
-  const form = FORMS.find((f) => f.table === 'qdb_survey_trigger');
+const anyWebResourceId = () => '{11111111-2222-4333-8444-555555555555}';
+const triggerFormXml = () => buildFormXml(FORMS.find((f) => f.table === 'qdb_survey_trigger'), anyViewId, anyWebResourceId);
 
-  assert.equal(buildFormXml(form, anyViewId), buildFormXml(form, anyViewId));
+test('buildFormXml_sameForm_isIdenticalOnEveryRun', () => {
+  assert.equal(triggerFormXml(), triggerFormXml());
+});
+
+test('buildFormXml_trigger_placesTheAudiencePanelWebResource', () => {
+  assert.match(triggerFormXml(), /<control id="WebResource_qdb_audience" classid="\{9FDF5F91-88B1-47f4-AD53-C11EFC01A01D\}"><parameters><Url>qdb_\/survey\/trigger-audience\.html<\/Url><WebResourceId>\{11111111-2222-4333-8444-555555555555\}<\/WebResourceId>/);
+});
+
+test('buildFormXml_trigger_keepsTheFilterColumnOnTheFormButHidden', () => {
+  assert.match(triggerFormXml(), /visible="false"><labels><label description="Audience Filter \(FetchXML\)"/);
+});
+
+test('buildFormXml_trigger_registersTheFormScriptOnLoadWithExecutionContext', () => {
+  const formXml = triggerFormXml();
+
+  assert.match(formXml, /<formLibraries><Library name="qdb_\/survey\/trigger-form\.js"/);
+  assert.match(formXml, /<Handler functionName="QdbSurveyTriggerForm\.onLoad" libraryName="qdb_\/survey\/trigger-form\.js" handlerUniqueId="\{[^"]+\}" enabled="true" parameters="" passExecutionContext="true" \/>/);
+});
+
+test('buildFormXml_trigger_runRecordIsReadOnly', () => {
+  assert.match(triggerFormXml(), /datafieldname="qdb_run_status" disabled="true"/);
+});
+
+test('buildFormXml_formWithAWebResourceButNoIds_failsLoudly', () => {
+  assert.throws(() => buildFormXml(FORMS.find((f) => f.table === 'qdb_survey_trigger'), anyViewId), /No id for web resource/);
+});
+
+test('buildFormXml_formWithoutScript_hasNoFormLibraries', () => {
+  assert.doesNotMatch(buildFormXml(FORMS.find((f) => f.table === 'qdb_survey_source'), anyViewId), /formLibraries/);
 });
 
 test('stableGuid_seed_isAVersion4ShapedGuid', () => {

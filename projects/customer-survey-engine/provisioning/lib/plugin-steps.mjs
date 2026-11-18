@@ -77,7 +77,7 @@ export async function ensureSteps(context) {
 
 async function ensureStep(context, step) {
   const { client, isApply, report } = context;
-  const name = stepName(step.message, step.table, step.typeName);
+  const name = stepName(step.message, step.table, step.typeName, step.isSynchronous);
   const existing = (await client.send('GET', `sdkmessageprocessingsteps?$select=sdkmessageprocessingstepid,statecode&$filter=name eq '${name}'`)).json.value[0];
   if (existing) return report('exists', `step ${name} (${existing.statecode === 1 ? 'disabled' : 'ENABLED'})`);
   const hasPreImage = step.message === 'Update' && step.hasPreImage !== false;

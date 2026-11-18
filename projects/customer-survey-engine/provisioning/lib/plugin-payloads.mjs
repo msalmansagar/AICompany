@@ -13,14 +13,31 @@ export const PLUGIN = Object.freeze({
 });
 
 const ASYNC_MODE = 1;
+const SYNC_MODE = 0;
+const PRE_OPERATION_STAGE = 20;
 const POST_OPERATION_STAGE = 40;
 const PRE_IMAGE_TYPE = 0;
 const SERVER_DEPLOYMENT = 0;
 
-/** The step name, which is also how the registration finds an existing step. */
-export function stepName(message, table, typeName = PLUGIN.typeName) {
-  return `${typeName}: Async ${message} of ${table}`;
+/** The step name, which is also how the registration finds an existing step. Async names are unchanged since B2. */
+export function stepName(message, table, typeName = PLUGIN.typeName, isSynchronous = false) {
+  return `${typeName}: ${isSynchronous ? 'Sync PreOperation' : 'Async'} ${message} of ${table}`;
 }
+
+/**
+ * Addendum D (FR-CSE-091, NFR-CSE-017, ADR-009): synchronous pre-operation validation of One-time trigger
+ * saves. Enabled at registration; it passes every other trigger kind untouched. Update is filtered to the
+ * definition columns, so the send APIs' run-record writes never reach it.
+ */
+export const TRIGGER_VALIDATION = Object.freeze({
+  typeName: 'Qdb.SurveyEngine.Plugins.TriggerAudienceValidationPlugin',
+  description: 'Validates One-time survey trigger saves: Survey Admin only, usable audience filter (CSE-ENG-001 Addendum D).',
+  steps: Object.freeze(['Create', 'Update'].map((message) => Object.freeze({
+    message, table: 'qdb_survey_trigger', typeName: 'Qdb.SurveyEngine.Plugins.TriggerAudienceValidationPlugin', isSynchronous: true,
+    statusField: 'qdb_trigger_kind,qdb_survey_setup_id,qdb_audience,qdb_audience_fetchxml,qdb_send_on,qdb_is_active',
+    description: 'Refuses unusable One-time trigger saves (FR-CSE-091).', isEnabled: true, hasPreImage: false,
+  }))),
+});
 
 /**
  * B7: InvitationDispatchPlugin on the survey's own invitation table. Unlike the trigger steps these
@@ -45,13 +62,14 @@ export const DISPATCH = Object.freeze({
  */
 export function buildStepPayload(step, ids) {
   return {
-    name: stepName(step.message, step.table, step.typeName),
+    name: stepName(step.message, step.table, step.typeName, step.isSynchronous),
     description: step.description ?? `Survey triggers for ${step.table} (FR-CSE-026..030). Enabled when the source is activated.`,
-    mode: ASYNC_MODE,
-    stage: POST_OPERATION_STAGE,
+    mode: step.isSynchronous ? SYNC_MODE : ASYNC_MODE,
+    stage: step.isSynchronous ? PRE_OPERATION_STAGE : POST_OPERATION_STAGE,
     rank: 1,
     supporteddeployment: SERVER_DEPLOYMENT,
-    asyncautodelete: true,
+    // Auto-delete applies to system jobs, which only asynchronous steps create.
+    ...(step.isSynchronous ? {} : { asyncautodelete: true }),
     ...(step.message === 'Update' ? { filteringattributes: step.statusField } : {}),
     'sdkmessageid@odata.bind': `/sdkmessages(${ids.messageId})`,
     'sdkmessagefilterid@odata.bind': `/sdkmessagefilters(${ids.filterId})`,
@@ -142,6 +160,22 @@ export const CUSTOM_APIS = Object.freeze([
       integerOutput('SuppressionLogCount', 'Rows found (dry-run) or erased this call (live).'),
       booleanOutput('AreActual', 'True in live mode, false in dry-run (FR-CSE-081).'),
       booleanOutput('IsComplete', 'False when the budget ran out; call again until true.'),
+    ] },
+  // Addendum D FR-CSE-084, 086, NFR-CSE-015, 017 (ADR-010): unbound, run as SYSTEM, Survey Admin or System Administrator.
+  { uniqueName: 'qdb_srv_PreviewAudience', displayName: 'Preview Survey Audience', typeName: 'Qdb.SurveyEngine.Plugins.PreviewAudiencePlugin',
+    description: 'How many customers a One-time survey trigger would reach now. Survey Admin only (FR-CSE-084).',
+    inputs: [guidInput('TriggerId', 'The One-time qdb_survey_trigger.', false)],
+    outputs: [integerOutput('Count', 'Customers matching the audience now.'), stringOutput('Message', 'What was done.')] },
+  { uniqueName: 'qdb_srv_SendOneTimeTrigger', displayName: 'Send One-time Survey', typeName: 'Qdb.SurveyEngine.Plugins.SendOneTimeTriggerPlugin',
+    description: 'Sends a One-time survey trigger, page by page. Call again while IsComplete is false. Survey Admin only (FR-CSE-084).',
+    inputs: [guidInput('TriggerId', 'The One-time qdb_survey_trigger.', false)],
+    outputs: [
+      stringOutput('Status', 'NotSent, Sending, Sent or Failed.'),
+      integerOutput('Invited', 'Invitations created so far (Pending).'),
+      integerOutput('Postponed', 'Invitations postponed by the fatigue limit so far.'),
+      integerOutput('Suppressed', 'Customers logged in the suppression log so far.'),
+      booleanOutput('IsComplete', 'False when the budget ran out; call again until true.'),
+      stringOutput('Message', 'A refusal or failure reason, or the totals.'),
     ] },
 ]);
 

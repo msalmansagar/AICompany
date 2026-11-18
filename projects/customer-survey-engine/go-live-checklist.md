@@ -49,7 +49,8 @@ Every row is one runbook stage (`onprem-deploy/2026-11-11/RUNBOOK.md`). Track HL
 | C4 | **Grid-column census** (preflight P12) cleared, then the Form Engine DLL installed | weighted scoring on that org | Form owners + QDB IT | Open | Open |
 | C5 | SurveyEngine imported; post-import report and render-cache comparison confirmed by MSS (gate 2) | configuration | QDB IT → MSS | Open | Open |
 | C6 | Roles given: Survey Admin, Survey Analyst, Survey Integration (portal service account) | use | QDB IT | Open | Open |
-| C7 | Daily scheduled task registered and its first run clean | scheduled surveys, postponed release, retention | QDB IT | Open | Open |
+| C7 | Scheduled task registered **every 15 minutes** (kit 1.2.0.0, runbook 8.2; replaces the daily task), its first run clean and a second call 15 minutes later reporting "Daily passes: already completed" | one-time surveys, scheduled surveys, postponed release, retention | QDB IT | Open | Open |
+| C7a | Addendum D on each org: preflight **P15** reported (CRM condition editor present, or FetchXML box fallback) and post-import **Q15** PASS (One-time validation steps enabled); CRM server load at the 15-minute calls noted during Gate 3 (risk R-D2) | One-time surveys on that org | QDB IT → MSS | Open | Open |
 | C8 | Smoke test: read-only and `-WriteTest` pass on the test org (gate 3) | production | QDB IT → MSS | Open | Open |
 | C9 | Steps C1–C8 repeated on production; smoke test read-only only | go-live | QDB IT | Open | Open |
 
@@ -82,6 +83,7 @@ Every row is one runbook stage (`onprem-deploy/2026-11-11/RUNBOOK.md`). Track HL
 | F2 | Cloud: two Custom API parameter descriptions still say "account id" (should say account or contact) | nothing | Open | B9 item 3 |
 | F3 | Cloud: the app still uses the platform icon (the on-prem kit already uses its own) | nothing | Open | readiness F10 |
 | F4 | XSD check of the kit against Microsoft's 9.0.0.2090 schema (advisory; schemas not on the build machine) | nothing | Open | kit README |
+| F6 | **Addendum D** (one-time general surveys, audience from a view, multi-number SMS, 15-minute scheduler): built, reviewed twice, deployed to the cloud org and verified (E2E one-time 14/14, dispatch 11/11, daily run 12/12; view picker live-checked); kit rebuilt as **1.2.0.0** (`7fbcf872…`, assembly `e7281584…` = cloud). QA done (pass with conditions; QA-D1 "My …" views fixed). Audit done (cleared with conditions; AUD-D-01 Run Started By fixed, AUD-D-02 accepted by the CEO, AUD-D-03 with QDB Compliance). CEO final decision still to come | One-time surveys | **Built** 2026-11-18 | `phase-2-ba-addendum-d-audience-and-delivery.md`, `phase-3-arch.md` Addendum D, ADR-009/010 |
 | F5 | BRD text: assumption A-01 ("customers are accounts") and the B1 decision updated to the per-org customer table | nothing | **Done** 2026-11-12 | `phase-2-ba.md` A-01; `phase-3-arch.md` decisions (B9) |
 
 ## G. Cloud org — not a release 1 target (CEO, 2026-11-12)
