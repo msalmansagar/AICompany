@@ -351,7 +351,17 @@ const SurveyChecks = (() => {
     const triggers = steps.filter((step) => step.plugintypeid && step.plugintypeid.typename === kit.triggerPluginType);
     const isRight = dispatch.length === 2 && dispatch.every((step) => step.statecode === 0) && triggers.length === 0;
     return [result('Q6', 'Two dispatch steps enabled, no trigger steps before any source is activated', isRight ? PASS : WARN,
-      `${dispatch.length} dispatch (${dispatch.filter((step) => step.statecode === 0).length} enabled), ${triggers.length} trigger`)];
+      `${dispatch.length} dispatch (${dispatch.filter((step) => step.statecode === 0).length} enabled), ${triggers.length} trigger`),
+    validationStepsResult(steps, kit)];
+  }
+
+  // Addendum D (FR-CSE-091, NFR-CSE-017): without these, a One-time trigger's filter and its Survey Admin
+  // gate are checked only at send time, not when the trigger is saved.
+  function validationStepsResult(steps, kit) {
+    const validation = steps.filter((step) => step.plugintypeid && step.plugintypeid.typename === kit.validationPluginType);
+    const enabled = validation.filter((step) => step.statecode === 0).length;
+    return result('Q15', 'One-time trigger validation: Create and Update steps enabled', validation.length === 2 && enabled === 2 ? PASS : FAIL,
+      `${validation.length} step(s), ${enabled} enabled${validation.length === 2 && enabled === 2 ? '' : ': re-import with SDK message processing steps enabled'}`);
   }
 
   async function checkFormEngineUpdate(get, kit) {

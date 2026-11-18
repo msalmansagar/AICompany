@@ -1,12 +1,12 @@
 {
-  "builtAt": "2026-11-15T10:04:27.634Z",
-  "package": "SurveyEngine_1_1_0_0_onprem_unmanaged.zip",
-  "solutionVersion": "1.1.0.0",
-  "sha256": "e3534cf82c9c510f0f131e890b7870307af6d247cfaa11a936d2d19e2c76c983",
-  "bytes": 175769,
+  "builtAt": "2026-11-18T09:00:25.072Z",
+  "package": "SurveyEngine_1_2_0_0_onprem_unmanaged.zip",
+  "solutionVersion": "1.2.0.0",
+  "sha256": "598fa1d89ef13bdac4278319b0cc8d66b618918db3d9eb47071a357aa8d5194e",
+  "bytes": 210591,
   "source": {
     "file": "source/SurveyEngine_cloud_unmanaged.zip",
-    "sha256": "a93b7c46aa01a4e6d2a52d93d680c719b02362060166822815058d6fbdc43d93"
+    "sha256": "dcd03c1653659af2cf20fe2f1da5028cd1704e5160dd86cc16f5c01b3636c0a0"
   },
   "target": "Dynamics 365 CE 9.1 on-prem: HL CRM and BFD CRM / QDB1 (one package)",
   "manifest": {
@@ -25,7 +25,7 @@
     {
       "name": "empty-autonumber-format",
       "why": "AutoNumberFormat is empty on every column (no column is auto-numbered)",
-      "removed": 262
+      "removed": 278
     },
     {
       "name": "retrieve-audit-flag",
@@ -55,7 +55,7 @@
     {
       "name": "option-is-hidden",
       "why": "IsHidden=\"0\" on options, states and statuses — no option is hidden",
-      "removed": 98
+      "removed": 105
     },
     {
       "name": "retrieve-multiple-audit-flag",
@@ -131,8 +131,8 @@
     }
   ],
   "assembly": {
-    "embeddedSha256": "9e0991fd54794eda1653afff3b0e4a47bc64554390374466ebfe6ed31ebb81b2",
-    "localBuildSha256": "9e0991fd54794eda1653afff3b0e4a47bc64554390374466ebfe6ed31ebb81b2",
+    "embeddedSha256": "97e65b8acac58324fd479a3799aef3b143605e241d4f5839bb9ef13c5fb9a973",
+    "localBuildSha256": "97e65b8acac58324fd479a3799aef3b143605e241d4f5839bb9ef13c5fb9a973",
     "isLocalBuild": true
   },
   "xsd": {
@@ -150,7 +150,9 @@
     "relationships": 47,
     "pluginSteps": [
       "Qdb.SurveyEngine.Plugins.InvitationDispatchPlugin: Async Create of qdb_survey_invitation",
-      "Qdb.SurveyEngine.Plugins.InvitationDispatchPlugin: Async Update of qdb_survey_invitation"
+      "Qdb.SurveyEngine.Plugins.InvitationDispatchPlugin: Async Update of qdb_survey_invitation",
+      "Qdb.SurveyEngine.Plugins.TriggerAudienceValidationPlugin: Sync PreOperation Create of qdb_survey_trigger",
+      "Qdb.SurveyEngine.Plugins.TriggerAudienceValidationPlugin: Sync PreOperation Update of qdb_survey_trigger"
     ],
     "customApis": [
       "qdb_srv_ActivateSource",
@@ -158,11 +160,13 @@
       "qdb_srv_EraseCustomerSurveyData",
       "qdb_srv_GetSurvey",
       "qdb_srv_ListPendingSurveys",
+      "qdb_srv_PreviewAudience",
       "qdb_srv_RunDueSurveys",
+      "qdb_srv_SendOneTimeTrigger",
       "qdb_srv_SubmitResponse",
       "qdb_srv_ValidateLinkToken"
     ],
-    "webResources": 10,
+    "webResources": 15,
     "appModules": 1,
     "siteMaps": 1
   },
@@ -181,6 +185,11 @@
     "WebResources/qdb_icon_survey_sourceA440E4EE-39DD-F111-84E8-7C1E5283AD83",
     "WebResources/qdb_icon_survey_suppression_logB2C6D34A-3ADD-F111-84E8-70A8A55BC6A5",
     "WebResources/qdb_icon_survey_triggerE16BD904-3ADD-F111-84EA-000D3ABD8313",
+    "WebResources/qdb_surveytrigger-audience-corejs8035EA4A-47E2-F111-84EA-000D3ABD8313",
+    "WebResources/qdb_surveytrigger-audience-viewsjsD2F89C82-A6E2-F111-84EA-000D3ABD8313",
+    "WebResources/qdb_surveytrigger-audiencehtmlF54F02EE-F0E1-F111-84EA-000D3ABD8313",
+    "WebResources/qdb_surveytrigger-audiencejs145002EE-F0E1-F111-84EA-000D3ABD8313",
+    "WebResources/qdb_surveytrigger-formjs417E17F1-F0E1-F111-84E8-70A8A55BC6A5",
     "customapis/qdb_srv_ActivateSource/customapi.xml",
     "customapis/qdb_srv_ActivateSource/customapirequestparameters/SourceId/customapirequestparameter.xml",
     "customapis/qdb_srv_ActivateSource/customapiresponseproperties/Message/customapiresponseproperty.xml",
@@ -210,10 +219,22 @@
     "customapis/qdb_srv_ListPendingSurveys/customapirequestparameters/CustomerId/customapirequestparameter.xml",
     "customapis/qdb_srv_ListPendingSurveys/customapirequestparameters/Language/customapirequestparameter.xml",
     "customapis/qdb_srv_ListPendingSurveys/customapiresponseproperties/SurveysJson/customapiresponseproperty.xml",
+    "customapis/qdb_srv_PreviewAudience/customapi.xml",
+    "customapis/qdb_srv_PreviewAudience/customapirequestparameters/TriggerId/customapirequestparameter.xml",
+    "customapis/qdb_srv_PreviewAudience/customapiresponseproperties/Count/customapiresponseproperty.xml",
+    "customapis/qdb_srv_PreviewAudience/customapiresponseproperties/Message/customapiresponseproperty.xml",
     "customapis/qdb_srv_RunDueSurveys/customapi.xml",
     "customapis/qdb_srv_RunDueSurveys/customapirequestparameters/RunDate/customapirequestparameter.xml",
     "customapis/qdb_srv_RunDueSurveys/customapiresponseproperties/IsComplete/customapiresponseproperty.xml",
     "customapis/qdb_srv_RunDueSurveys/customapiresponseproperties/Summary/customapiresponseproperty.xml",
+    "customapis/qdb_srv_SendOneTimeTrigger/customapi.xml",
+    "customapis/qdb_srv_SendOneTimeTrigger/customapirequestparameters/TriggerId/customapirequestparameter.xml",
+    "customapis/qdb_srv_SendOneTimeTrigger/customapiresponseproperties/Invited/customapiresponseproperty.xml",
+    "customapis/qdb_srv_SendOneTimeTrigger/customapiresponseproperties/IsComplete/customapiresponseproperty.xml",
+    "customapis/qdb_srv_SendOneTimeTrigger/customapiresponseproperties/Message/customapiresponseproperty.xml",
+    "customapis/qdb_srv_SendOneTimeTrigger/customapiresponseproperties/Postponed/customapiresponseproperty.xml",
+    "customapis/qdb_srv_SendOneTimeTrigger/customapiresponseproperties/Status/customapiresponseproperty.xml",
+    "customapis/qdb_srv_SendOneTimeTrigger/customapiresponseproperties/Suppressed/customapiresponseproperty.xml",
     "customapis/qdb_srv_SubmitResponse/customapi.xml",
     "customapis/qdb_srv_SubmitResponse/customapirequestparameters/AnswersJson/customapirequestparameter.xml",
     "customapis/qdb_srv_SubmitResponse/customapirequestparameters/CallerCustomerId/customapirequestparameter.xml",

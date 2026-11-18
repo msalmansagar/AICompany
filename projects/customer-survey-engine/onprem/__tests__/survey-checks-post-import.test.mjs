@@ -57,6 +57,19 @@ test('postImport_twoEnabledDispatchStepsAndNoTrigger_passesQ6', async () => {
   assert.equal(checkOf(await postImport({ sdkmessageprocessingsteps: steps }), 'Q6').status, PASS);
 });
 
+test('postImport_bothValidationStepsEnabled_passesQ15', async () => {
+  const steps = rows(step('Dispatch', 0), step('Dispatch', 0), step('Validation', 0), step('Validation', 0));
+
+  assert.equal(checkOf(await postImport({ sdkmessageprocessingsteps: steps }), 'Q15').status, PASS);
+});
+
+test('postImport_validationStepDisabledOrMissing_failsQ15', async () => {
+  const disabled = rows(step('Validation', 0), step('Validation', 1));
+  const missing = rows(step('Dispatch', 0));
+
+  assert.deepEqual([checkOf(await postImport({ sdkmessageprocessingsteps: disabled }), 'Q15').status, checkOf(await postImport({ sdkmessageprocessingsteps: missing }), 'Q15').status], [FAIL, FAIL]);
+});
+
 test('postImport_triggerStepAlreadyRegistered_warnsQ6', async () => {
   const steps = rows(step('Dispatch', 0), step('Dispatch', 0), step('Trigger', 0), { name: 'orphan', statecode: 0 });
 

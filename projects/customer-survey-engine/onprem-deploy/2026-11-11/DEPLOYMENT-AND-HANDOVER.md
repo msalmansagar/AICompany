@@ -4,7 +4,7 @@
 |---|---|
 | For | QDB IT (deployment), QDB backend, frontend and mobile developers (code), QDB Compliance (erasure requests) |
 | Orgs | **HL CRM** (customers are contacts) and **BFD CRM / QDB1** (customers are accounts), Dynamics 365 CE 9.1 on-prem. **Test orgs first, production after** |
-| Source | `main` at `ba96eebf` (2026-11-15). Survey Engine solution **1.1.0.0**, Form Engine designer **1.6.1** |
+| Source | Branch `feat/survey-addendum-d` (2026-11-18; merged to `main` when approved). Survey Engine solution **1.2.0.0** (Addendum D: one-time general surveys, audience from a view, multi-number SMS, scheduler every 15 minutes), Form Engine designer **1.6.1** |
 | Detail | This guide is the overview and the order. The step-by-step detail for the Survey Engine is `RUNBOOK.md` in this folder; follow it exactly |
 
 ---
@@ -53,7 +53,7 @@ projects/
 | 2.2 | A **full database backup** taken in the maintenance window (the real rollback) |
 | 2.3 | **Plugin Registration Tool** (from the Dynamics 365 SDK / XrmToolBox) on the admin's machine |
 | 2.4 | **Windows PowerShell 5.1** on a machine that reaches CRM (smoke test, scheduler, speed test) |
-| 2.5 | A server and an **AD service account** for the daily scheduler; the **portal backend's service account** |
+| 2.5 | A server and an **AD service account** for the scheduler (every 15 minutes); the **portal backend's service account** |
 | 2.6 | Check every file against the SHA-256 checksums in `README.md`: `Get-FileHash <file> -Algorithm SHA256` |
 | 2.7 | Time: about **2 hours per org** for RUNBOOK stages 1–6 |
 
@@ -90,14 +90,14 @@ Follow `RUNBOOK.md` stage by stage. Summary:
 | Stage | What | Files | Gate |
 |---|---|---|---|
 | 0 | Backup, checksums, name the people | `README.md` | — |
-| 1 | **Preflight** (read-only, browser console). **P3 Custom APIs supported is the deciding check**: all eight survey APIs are Custom APIs. Also save the rollback backup | `scripts/survey-preflight-HL.console.js` or `-BFD`, `scripts/survey-rollback-backup.console.js` | **Gate 1**: send the preflight report; MSS confirms |
+| 1 | **Preflight** (read-only, browser console). **P3 Custom APIs supported is the deciding check**: all ten survey APIs are Custom APIs. P15 (CRM condition editor page) only decides whether the One-time audience panel uses CRM's editor or a FetchXML box. Also save the rollback backup | `scripts/survey-preflight-HL.console.js` or `-BFD`, `scripts/survey-rollback-backup.console.js` | **Gate 1**: send the preflight report; MSS confirms |
 | 2 | Form Engine columns + designer/runtime **1.6.1**, Publish All; on test orgs, the A2 evidence (republish three forms, two stage-2 reports) | `form-engine/QdbFormEngineSurveyUpdate_1_0_0_0_onprem_unmanaged.zip`, `form-engine/FormDesignerWebResource_1.6.1.zip`, `scripts/survey-stage2-check.console.js` | **Gate 1b** (test orgs) |
 | 3 | Form Engine plugin update (**only if P12 passed** or every listed grid column is confirmed read-only) | `form-engine/Qdb.FormEngine.Plugins.dll` | — |
-| 4 | Import **SurveyEngine 1.1.0.0**, Publish All | `SurveyEngine_1_1_0_0_onprem_unmanaged.zip` | — |
+| 4 | Import **SurveyEngine 1.2.0.0**, Publish All | `SurveyEngine_1_2_0_0_onprem_unmanaged.zip` | — |
 | 5 | **Post-import check** (read-only): Q1–Q14, including Q13 (change history on 8 tables) and Q14 (one Survey Data Officer role) | `scripts/survey-post-import.console.js` | **Gate 2**: send the report; MSS confirms |
 | 6 | Give the roles: Survey Admin, Survey Analyst, Survey Integration (portal account), Survey Scheduler (scheduler account only), **Survey Data Officer (named Compliance staff only, never a service account)** | — | — |
 | 7 | Configuration rows: **Survey Settings** (Customer Table = Contact on HL, Account on QDB1; **Retention Days 730, Mode Delete**; default language Arabic on HL, English on QDB1), Survey Sources (inactive), surveys published with Form Type = Survey, setups and triggers | `config/HL.json`, `config/BFD.json`, `config/README.md` | Rows with `TO_CONFIRM` values wait for QDB's answers |
-| 8 | Activate sources (`qdb_srv_ActivateSource`), register the daily task | `scheduler/Register-RunDueSurveysTask.ps1` | — |
+| 8 | Activate sources (`qdb_srv_ActivateSource`), register the scheduled task (every 15 minutes) | `scheduler/Register-RunDueSurveysTask.ps1` | — |
 | 9 | **Smoke test** (read-only, then end-to-end on test orgs) and the **trigger speed test** | `smoke-test.ps1`, `trigger-speed-test.ps1` | **Gate 3**: both test orgs pass |
 
 Also on each test org, for the erasure feature (QA conditions): time a large erasure and confirm anonymise mode
@@ -123,7 +123,7 @@ stage 2.5–2.7, smoke test step 1 only unless the change owner approves step 2)
 
 | Task | How often | Where |
 |---|---|---|
-| Daily run (scheduled surveys, retention clean-up) | daily, automatic | scheduled task log in `-LogPath`; **Survey Engine → Health → Survey Jobs** for failures |
+| Scheduled run: due one-time surveys every 15 minutes; scheduled surveys and retention clean-up once a day | automatic | scheduled task log in `-LogPath`; **Survey Engine → Health → Survey Jobs** for failures |
 | Re-run the post-import check (Q14: a second "Survey Data Officer" role would grant erasure rights) | **quarterly**, and after any role or business-unit change | `scripts/survey-post-import.console.js` |
 | Erasure requests | when Compliance accepts one | RUNBOOK **section 11** (dry run → live → rerun until complete → record both log rows) |
 | Retention | automatic | responses, invitations, suppression logs deleted after 730 days (never invitations under 13 months, suppression logs under 12) |
