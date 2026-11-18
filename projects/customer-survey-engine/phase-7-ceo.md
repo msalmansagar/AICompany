@@ -112,3 +112,28 @@ branch `feat/survey-pdppl-erasure`.
 | Merge to main | Not decided in this answer; needs a separate approval |
 | Decided by | The user, as CEO, in chat ("Approve with conditions") |
 | Date | 2026-11-15 |
+
+---
+
+## Addendum D — final decision (2026-11-18)
+
+Scope: BRD Addendum D + Amendment 1 (one-time general surveys sent now or at a date and time, to all active
+customers or an audience copied from a CRM view; multi-number SMS; scheduler every 15 minutes), with the QA fix
+QA-D1 ("My" views pinned to the copying administrator) and the audit fix AUD-D-01 (Run Started By).
+
+| Evidence | Result |
+|---|---|
+| Tests | C# 616 (branch coverage ≥ 80 %), provisioning 98, on-prem checks 138, web resources 22, all pass |
+| Reviews | Two code reviews (2026-11-16, 2026-11-17); all findings fixed |
+| Live (org5869857f) | One-time E2E 15/15, dispatch incl. multi-number 11/11, daily run 12/12, view audiences 5/5; view picker checked in the browser |
+| QA | Pass with conditions (`phase-5-qa.md` Addendum D); QA-D1 fixed |
+| Audit | Cleared with conditions (`phase-6-audit.md` Addendum D); AUD-D-01 fixed; AUD-D-02 accepted by the CEO; AUD-D-03 with QDB Compliance |
+| Kit | `onprem-deploy/2026-11-11/SurveyEngine_1_2_0_0_onprem_unmanaged.zip` `7fbcf872…`, assembly `e7281584…` identical to the cloud org |
+
+| | |
+|---|---|
+| Option chosen | **Approve with conditions** |
+| Conditions (before production, not before the merge) | (a) large-audience timing measured live (QA-D2); (b) on each QDB test org: preflight P15 reported, post-import Q15 PASS, the 15-minute task running cleanly, one run on HL's contact table (checklist C7, C7a); (c) QDB Compliance confirms the five BFD phone columns before SMS is switched on at BFD (AUD-D-03); (d) the CEO's browser test of the audience panel, including Send now's confirmation (QA-D3) |
+| Merge to main | **Approved** — open the PR and merge |
+| Decided by | The user, as CEO, in chat (three answers: "Approve with conditions", "Before production", "Open PR and merge") |
+| Date | 2026-11-18 |
