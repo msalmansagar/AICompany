@@ -58,10 +58,11 @@ namespace Qdb.SurveyEngine.Data
         }
 
         /// <inheritdoc />
-        public RunWrite TryStart(OneTimeTrigger trigger, DateTime nowUtc)
+        public RunWrite TryStart(OneTimeTrigger trigger, DateTime nowUtc, Guid startedBy)
         {
             var change = RunRecord(trigger.Trigger.Id, new OneTimeRunState { Status = OneTimeRunStatus.Sending });
             change["qdb_run_started_on"] = nowUtc;
+            change["qdb_run_started_by"] = startedBy == Guid.Empty ? null : new EntityReference("systemuser", startedBy);
             change["qdb_run_message"] = null;
             return TryUpdate(change, trigger.Run.RowVersion);
         }

@@ -140,7 +140,7 @@ export const FORMS = Object.freeze([
         { name: 'qdb_audience_view_id', hidden: true }, { name: 'qdb_audience_view_type', hidden: true },
         { name: 'qdb_audience_view_name', readOnly: true }, { name: 'qdb_audience_copied_on', readOnly: true },
         { webResource: { name: 'qdb_/survey/trigger-audience.html', controlId: 'WebResource_qdb_audience', label: 'Audience and sending', rowSpan: 14 } },
-        { name: 'qdb_run_status', readOnly: true }, { name: 'qdb_sent_on', readOnly: true }, { name: 'qdb_invited_count', readOnly: true },
+        { name: 'qdb_run_status', readOnly: true }, { name: 'qdb_run_started_by', readOnly: true }, { name: 'qdb_sent_on', readOnly: true }, { name: 'qdb_invited_count', readOnly: true },
         { name: 'qdb_postponed_count', readOnly: true }, { name: 'qdb_suppressed_count', readOnly: true }, { name: 'qdb_run_message', readOnly: true },
       ] },
       { label: 'Event and Created', fields: ['qdb_source_id', 'qdb_status_values', 'qdb_type_values'] },

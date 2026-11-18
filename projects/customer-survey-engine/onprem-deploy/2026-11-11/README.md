@@ -87,7 +87,8 @@ prerequisites.
 
 | Check | Result |
 |---|---|
-| Survey assembly in the package | byte-identical to the local Release build of `feat/survey-addendum-d` and to the assembly running on the cloud org (sha256 `52eeb3ae…`, compared 2026-11-18, includes the QA-D1 fix: "current user" conditions refused) |
+| Survey assembly in the package | byte-identical to the local Release build of `feat/survey-addendum-d` and to the assembly running on the cloud org (sha256 `e7281584…`, compared 2026-11-18; includes the QA-D1 fix, "current user" conditions refused, and the audit AUD-D-01 fix, Run Started By recorded) |
+| SystemUser shell | removed like Account, Contact and Queue (the Run Started By lookup brought it into the export); the lookup's relationship stays, on the survey trigger table |
 | Solution version | the export carries 1.2.0.0, the manifest's version; the build stops if they differ |
 | Plugin steps | 2 dispatch + 2 One-time validation steps kept; the 6 cloud trigger steps and their 3 images removed (activation creates them on-prem). Post-import Q15 checks the validation steps are enabled |
 | Change history | `IsAuditEnabled=1` on the package's source, setup, trigger, invitation, suppression log, settings, SMS config and erasure log tables, and `0` on response and answer (read from `customizations.xml`). Post-import Q13 checks it on each org; preflight P14 checks the org switch |
@@ -105,7 +106,7 @@ prerequisites.
 
 | File | SHA-256 | Bytes |
 |---|---|---|
-| `SurveyEngine_1_2_0_0_onprem_unmanaged.zip` | `4f9a064fd0de40bbb669789b8dd59cf9b5196ef11a8fc7f6299dc986a2b8ab41` | 211,747 |
+| `SurveyEngine_1_2_0_0_onprem_unmanaged.zip` | `7fbcf8725873f58be35cf430211d5cd1974d411b1381544e28575ae1ea4acfbb` | 212,165 |
 | `form-engine/QdbFormEngineSurveyUpdate_1_0_0_0_onprem_unmanaged.zip` | `bbef1bd91cf84cd2c97fe8bf1cba0cf2bb5ff37fce573728e4134edb759de980` | 3,426 |
 | `form-engine/FormDesignerWebResource_1.6.1.zip` | `b2a8ef00d98b213f6c8d784b50cc2e25291cb323ef780f92e8fb87cfe1bce008` | 1,386,590 |
 | `form-engine/Qdb.FormEngine.Plugins.dll` | `137658ae3a101eb97376aef8e22ea155155f74b2490900a81be7729f8529f083` | 903,680 |

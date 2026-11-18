@@ -127,7 +127,9 @@ export function buildRelationshipPayload(relationship, languageCode) {
  * The relationship schema name: referenced_referencing_lookup, shortened with a stable hash
  * suffix when it would exceed the platform limit, so re-runs always produce the same name.
  */
-export function relationshipSchemaName({ lookup, from, to }) {
+export function relationshipSchemaName({ lookup, from, to, schemaName }) {
+  // An explicit name for lookups to tables the generated name is refused for (systemuser needs the prefix first).
+  if (schemaName) return schemaName;
   const fullName = `${to}_${from}_${lookup}`;
   if (fullName.length <= MAX_RELATIONSHIP_NAME_LENGTH) return fullName;
   const suffix = createHash('sha256').update(fullName).digest('hex').slice(0, 8);

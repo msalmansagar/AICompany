@@ -68,7 +68,7 @@ namespace Qdb.SurveyEngine.Plugins
             RequireSurveyAdmin(system, context.InitiatingUserId);
             try
             {
-                var message = Run(BuildSender(system, tracing), triggerId, context);
+                var message = Run(BuildSender(system, tracing, context.InitiatingUserId), triggerId, context);
                 tracing.Trace("Trigger {0:D}: {1}", triggerId, message);
                 context.OutputParameters[MessageProperty] = message;
             }
@@ -96,11 +96,10 @@ namespace Qdb.SurveyEngine.Plugins
                 throw new InvalidPluginExecutionException($"Only a System Administrator or a user with the {OneTimeAccessCheck.SurveyAdminRoleName} role can preview or send a One-time survey.");
         }
 
-        private static OneTimeSendService BuildSender(IOrganizationService system, ITracingService tracing)
-        {
-            var customer = CustomerLinkReader.Read(system);
-            var pipeline = PipelineComposition.BuildPipeline(new PluginRuntime(system, customer, new SystemClock(), tracing));
-            return PipelineComposition.BuildOneTimeSender(system, customer, pipeline);
-        }
+        private static OneTimeSendService BuildSender(IOrganizationService system, ITracingService tracing, Guid callerId) =>
+            PipelineComposition.BuildOneTimeSender(new PluginRuntime
+            {
+                System = system, Customer = CustomerLinkReader.Read(system), Clock = new SystemClock(), Tracing = tracing, CallerId = callerId,
+            });
     }
 }

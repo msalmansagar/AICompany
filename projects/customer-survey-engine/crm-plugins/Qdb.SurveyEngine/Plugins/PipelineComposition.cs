@@ -1,3 +1,4 @@
+using System;
 using Microsoft.Xrm.Sdk;
 using Qdb.SurveyEngine.Data;
 using Qdb.SurveyEngine.Domain;
@@ -6,21 +7,17 @@ using Qdb.SurveyEngine.Services;
 
 namespace Qdb.SurveyEngine.Plugins
 {
-    /// <summary>What a Custom API plugin brings to the composition: the SYSTEM service, the org's customer link, a clock and its trace.</summary>
+    /// <summary>
+    /// What a Custom API plugin brings to the composition: the SYSTEM service, the org's customer link, a clock,
+    /// its trace, and the user the call runs for (recorded as who started a One-time send, AUD-D-01).
+    /// </summary>
     internal sealed class PluginRuntime
     {
-        public PluginRuntime(IOrganizationService system, CustomerLink customer, IClock clock, ITracingService tracing)
-        {
-            System = system;
-            Customer = customer;
-            Clock = clock;
-            Tracing = tracing;
-        }
-
-        public IOrganizationService System { get; }
-        public CustomerLink Customer { get; }
-        public IClock Clock { get; }
-        public ITracingService Tracing { get; }
+        public IOrganizationService System { get; set; }
+        public CustomerLink Customer { get; set; }
+        public IClock Clock { get; set; }
+        public ITracingService Tracing { get; set; }
+        public Guid CallerId { get; set; }
     }
 
     /// <summary>Wires the shared invitation pipeline and the One-time sender for the Custom API plugins that run as SYSTEM.</summary>
@@ -39,15 +36,16 @@ namespace Qdb.SurveyEngine.Plugins
                 Trace = new TracingServiceTrace(runtime.Tracing),
             };
 
-        /// <summary>The One-time sender over the given pipeline.</summary>
-        public static OneTimeSendService BuildOneTimeSender(IOrganizationService system, CustomerLink customer, SurveyTriggerDependencies pipeline) =>
+        /// <summary>The One-time sender for this call, over its own pipeline.</summary>
+        public static OneTimeSendService BuildOneTimeSender(PluginRuntime runtime) =>
             new OneTimeSendService(new OneTimeSendDependencies
             {
-                Pipeline = pipeline,
-                Triggers = new OneTimeTriggerStore(system),
-                Audience = new AudienceReader(system),
-                GeneratedKeys = new ScheduledInvitationReader(system),
-                CustomerTable = customer.TableLogicalName,
+                Pipeline = BuildPipeline(runtime),
+                Triggers = new OneTimeTriggerStore(runtime.System),
+                Audience = new AudienceReader(runtime.System),
+                GeneratedKeys = new ScheduledInvitationReader(runtime.System),
+                CustomerTable = runtime.Customer.TableLogicalName,
+                StartedBy = runtime.CallerId,
             });
     }
 }

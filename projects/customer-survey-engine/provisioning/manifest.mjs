@@ -263,6 +263,8 @@ export const TABLES = Object.freeze([
  */
 export const RELATIONSHIPS = Object.freeze([
   { lookup: 'qdb_survey_setup_id', label: 'Survey Setup', from: 'qdb_survey_trigger', to: 'qdb_survey_setup', cascade: 'Cascade', required: true },
+  // Audit AUD-D-01 (CEO 2026-11-18): who started a One-time send; the run writes themselves are made by SYSTEM.
+  { lookup: 'qdb_run_started_by', label: 'Run Started By', from: 'qdb_survey_trigger', to: 'systemuser', cascade: 'RemoveLink', schemaName: 'qdb_systemuser_qdb_survey_trigger_run_started_by' },
   { lookup: 'qdb_source_id', label: 'Source', from: 'qdb_survey_trigger', to: 'qdb_survey_source', cascade: 'RemoveLink' },
   { lookup: 'qdb_schedule_population_source_id', label: 'Population Source', from: 'qdb_survey_trigger', to: 'qdb_survey_source', cascade: 'RemoveLink' },
   { lookup: 'qdb_customer_id', label: 'Customer', from: 'qdb_survey_invitation', to: 'account', cascade: 'RemoveLink' },

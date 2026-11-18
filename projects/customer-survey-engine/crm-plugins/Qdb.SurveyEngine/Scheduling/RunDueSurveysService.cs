@@ -35,7 +35,7 @@ namespace Qdb.SurveyEngine.Scheduling
             var sender = new OneTimeSendService(new OneTimeSendDependencies
             {
                 Pipeline = pipeline, Triggers = dependencies.OneTimeTriggers, Audience = dependencies.Audience,
-                GeneratedKeys = dependencies.ScheduledInvitations, CustomerTable = dependencies.CustomerTable,
+                GeneratedKeys = dependencies.ScheduledInvitations, CustomerTable = dependencies.CustomerTable, StartedBy = dependencies.CallerId,
             });
             return new RunDueSurveysService(new OneTimeDuePass(dependencies.OneTimeTriggers, sender, pipeline), daily, dependencies.DailyPassGate);
         }

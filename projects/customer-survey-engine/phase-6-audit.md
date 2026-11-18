@@ -513,8 +513,8 @@ unverified: On-prem 9.1 behaviour — anonymise alternate-key null (C3/DEF-QA-C-
 
 **CLEARED WITH CONDITIONS** for release with kit 1.2.0.0:
 
-- **AUD-D-01** must be fixed (or explicitly accepted by the CEO) before release.
-- **AUD-D-02** needs a CEO decision: accept (a) or fix (b).
+- **AUD-D-01:** **fixed 2026-11-18** (CEO: add it). New lookup `qdb_run_started_by` (Run Started By → user) set when a send starts, from the plugin caller: the administrator for Send now, the scheduler's account for a dated send. Live: `one-time-e2e` "Run Started By names the caller who pressed Send, not SYSTEM" PASS (15/15). Assembly `e7281584…` deployed; kit rebuilt `7fbcf872…` (SystemUser shell stripped like Account/Contact/Queue).
+- **AUD-D-02:** **accepted by the CEO 2026-11-18** (option a): Survey Admin is a trusted role, every filter change is audited, Preview returns only a count. Recorded as an accepted risk; no code change.
 - **AUD-D-03** needs QDB Compliance's confirmation of the BFD phone columns before SMS is switched on at BFD.
 - AUD-D-04..06: accepted, documented.
 

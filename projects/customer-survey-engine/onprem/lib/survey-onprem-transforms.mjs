@@ -23,7 +23,8 @@ export const TRIGGER_PLUGIN_TYPE = 'Qdb.SurveyEngine.Plugins.SurveyTriggerPlugin
 export const PLATFORM_APP_ICON_ID = '953b9fac-1e5e-e611-80d6-00155ded156f';
 export const APP_ICON_RESOURCE = 'qdb_icon_survey_setup';
 // Out-of-box tables every CRM has; the cloud records them as dependencies on cloud-only solutions.
-export const OUT_OF_BOX_TABLES = new Set(['account', 'contact', 'queue']);
+// systemuser since Addendum D (AUD-D-01): the trigger's Run Started By lookup brings its shell into the export.
+export const OUT_OF_BOX_TABLES = new Set(['account', 'contact', 'queue', 'systemuser']);
 // Platform tables whose shell is kept because it carries a survey view (the survey health view on
 // System Job); the cloud records the same kind of self-dependency for them.
 const SURVEY_VIEWS_BY_TABLE = VIEWS.filter((view) => view.isPlatformTable)

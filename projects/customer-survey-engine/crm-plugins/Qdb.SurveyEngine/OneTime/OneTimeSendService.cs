@@ -108,7 +108,7 @@ namespace Qdb.SurveyEngine.OneTime
         private RunWrite Claim(OneTimeTrigger trigger) =>
             trigger.Run.Status == OneTimeRunStatus.Sending
                 ? _deps.Triggers.TrySaveProgress(trigger.Trigger.Id, trigger.Run)
-                : _deps.Triggers.TryStart(trigger, _deps.Pipeline.Clock.UtcNow);
+                : _deps.Triggers.TryStart(trigger, _deps.Pipeline.Clock.UtcNow, _deps.StartedBy);
 
         private static OneTimeRunState StartingState(OneTimeRunState run, string rowVersion) =>
             run.Status == OneTimeRunStatus.Sending ? run.WithRowVersion(rowVersion) : new OneTimeRunState { Status = OneTimeRunStatus.Sending, RowVersion = rowVersion };

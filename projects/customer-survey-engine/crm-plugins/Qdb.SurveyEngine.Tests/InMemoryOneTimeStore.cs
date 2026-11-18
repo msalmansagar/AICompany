@@ -43,9 +43,13 @@ namespace Qdb.SurveyEngine.Tests
 
         private RunWrite Won() => RunWrite.Saved((++_rowVersion).ToString());
 
-        public RunWrite TryStart(OneTimeTrigger trigger, DateTime nowUtc)
+        /// <summary>Who each started send was recorded as started by.</summary>
+        public List<Guid> StartedBy { get; } = new List<Guid>();
+
+        public RunWrite TryStart(OneTimeTrigger trigger, DateTime nowUtc, Guid startedBy)
         {
             if (IsStartRaceLost) return RunWrite.Lost();
+            StartedBy.Add(startedBy);
             trigger.Run = new OneTimeRunState { Status = OneTimeRunStatus.Sending };
             return Won();
         }

@@ -33,8 +33,8 @@ namespace Qdb.SurveyEngine.Plugins
             var system = ((IOrganizationServiceFactory)serviceProvider.GetService(typeof(IOrganizationServiceFactory))).CreateOrganizationService(null);
             if (!new SchedulerAccessCheck(system, new AdministratorCheck(system)).MayRunDueSurveys(context.InitiatingUserId))
                 throw new InvalidPluginExecutionException($"Only a System Administrator or a user with the {SchedulerAccessCheck.SurveySchedulerRoleName} role can run due surveys (give the scheduler's account the {SchedulerAccessCheck.SurveySchedulerRoleName} role).");
-            var clock = new SystemClock();
-            var summary = BuildService(system, clock, tracing).Run(runDate, new RunBudget(clock, WorkAllowance));
+            var runtime = new PluginRuntime { System = system, Customer = CustomerLinkReader.Read(system), Clock = new SystemClock(), Tracing = tracing, CallerId = context.InitiatingUserId };
+            var summary = BuildService(runtime).Run(runDate, new RunBudget(runtime.Clock, WorkAllowance));
             tracing.Trace("Run due surveys for {0:yyyy-MM-dd}: {1}", runDate, summary);
             context.OutputParameters[SummaryProperty] = summary.ToString();
             context.OutputParameters[IsCompleteProperty] = summary.IsComplete;
@@ -55,12 +55,14 @@ namespace Qdb.SurveyEngine.Plugins
             return runDate;
         }
 
-        private static RunDueSurveysService BuildService(IOrganizationService service, IClock clock, ITracingService tracing)
+        private static RunDueSurveysService BuildService(PluginRuntime runtime)
         {
-            var customer = CustomerLinkReader.Read(service);
+            var service = runtime.System;
+            var customer = runtime.Customer;
             return RunDueSurveysService.Compose(new RunDueSurveysDependencies
             {
-                Pipeline = PipelineComposition.BuildPipeline(new PluginRuntime(service, customer, clock, tracing)),
+                Pipeline = PipelineComposition.BuildPipeline(runtime),
+                CallerId = runtime.CallerId,
                 ScheduledTriggers = new ScheduledTriggerRepository(service),
                 Population = new CustomerPopulationReader(service, customer),
                 ScheduledInvitations = new ScheduledInvitationReader(service),

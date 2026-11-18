@@ -10,6 +10,7 @@ namespace Qdb.SurveyEngine.Tests
     public class OneTimeSendServiceTests
     {
         private const string FormCode = "srv_general";
+        private static readonly Guid Admin = Guid.NewGuid();
         private readonly InMemorySurveyStore _pipeline = new InMemorySurveyStore();
         private readonly InMemorySchedulingStore _scheduling;
         private readonly OneTimeTrigger _trigger;
@@ -33,7 +34,7 @@ namespace Qdb.SurveyEngine.Tests
             var deps = _scheduling.AsDependencies();
             return new OneTimeSendService(new OneTimeSendDependencies
             {
-                Pipeline = deps.Pipeline, Triggers = Store, Audience = Store, GeneratedKeys = _scheduling, CustomerTable = "account",
+                Pipeline = deps.Pipeline, Triggers = Store, Audience = Store, GeneratedKeys = _scheduling, CustomerTable = "account", StartedBy = Admin,
             });
         }
 
@@ -51,6 +52,16 @@ namespace Qdb.SurveyEngine.Tests
 
             Assert.Equal((OneTimeRunStatus.Sent, 3, true), (result.Status, result.Counts.Invited, result.IsComplete));
             Assert.Equal(OneTimeRunStatus.Sent, _trigger.Run.Status);
+        }
+
+        [Fact]
+        public void Send_Started_RecordsWhoStartedIt()
+        {
+            GiveAudience(1);
+
+            Send();
+
+            Assert.Equal(Admin, Assert.Single(Store.StartedBy));
         }
 
         [Fact]

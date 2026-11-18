@@ -1,19 +1,19 @@
 {
-  "builtAt": "2026-11-18T11:56:56.563Z",
+  "builtAt": "2026-11-18T12:47:30.573Z",
   "package": "SurveyEngine_1_2_0_0_onprem_unmanaged.zip",
   "solutionVersion": "1.2.0.0",
-  "sha256": "4f9a064fd0de40bbb669789b8dd59cf9b5196ef11a8fc7f6299dc986a2b8ab41",
-  "bytes": 211747,
+  "sha256": "7fbcf8725873f58be35cf430211d5cd1974d411b1381544e28575ae1ea4acfbb",
+  "bytes": 212165,
   "source": {
     "file": "source/SurveyEngine_cloud_unmanaged.zip",
-    "sha256": "93b64b510086b42ceee41f49aa3edf7838963498cf32c34059f5e6a116e1a658"
+    "sha256": "beb5a033192e3f718a01c3c2c8db0cac5ee1af0c8190c407ee3e360d5a37677b"
   },
   "target": "Dynamics 365 CE 9.1 on-prem: HL CRM and BFD CRM / QDB1 (one package)",
   "manifest": {
     "rootBefore": "<ImportExportXml version=\"9.2.26103.165\" SolutionPackageVersion=\"9.2\" languagecode=\"1033\" generatedBy=\"CrmLive\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" OrganizationVersion=\"9.2.26103.165\" OrganizationSchemaType=\"Full\" CRMServerServiceabilityVersion=\"9.2.26103.00165\">",
     "rootAfter": "<ImportExportXml version=\"9.0.0.0\" SolutionPackageVersion=\"9.0\" languagecode=\"1033\" generatedBy=\"CrmLive\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">",
-    "removedRootComponents": 9,
-    "removedDependencies": 21,
+    "removedRootComponents": 10,
+    "removedDependencies": 22,
     "remainingDependencies": 0
   },
   "customizationTransforms": [
@@ -25,7 +25,7 @@
     {
       "name": "empty-autonumber-format",
       "why": "AutoNumberFormat is empty on every column (no column is auto-numbered)",
-      "removed": 278
+      "removed": 279
     },
     {
       "name": "retrieve-audit-flag",
@@ -45,7 +45,7 @@
     {
       "name": "cascade-archive",
       "why": "Long-term data retention (archive) does not exist on 9.1; there is nothing to cascade",
-      "removed": 47
+      "removed": 48
     },
     {
       "name": "form-header-density",
@@ -96,7 +96,7 @@
     {
       "name": "out-of-box-table-shells",
       "why": "account, contact and queue shells carried the cloud org's own customizations of those tables (the Report Engine ribbon on account); the survey needs none of them",
-      "removed": 3,
+      "removed": 4,
       "dropped": [
         {
           "table": "account",
@@ -116,6 +116,10 @@
         {
           "table": "queue",
           "ribbonCustomActions": []
+        },
+        {
+          "table": "systemuser",
+          "ribbonCustomActions": []
         }
       ]
     },
@@ -131,8 +135,8 @@
     }
   ],
   "assembly": {
-    "embeddedSha256": "52eeb3ae9d9f431465ec651511a8dd00dfa02f6075a1e47ad2cfacb7e51b27ed",
-    "localBuildSha256": "52eeb3ae9d9f431465ec651511a8dd00dfa02f6075a1e47ad2cfacb7e51b27ed",
+    "embeddedSha256": "e728158441c10a2456bcbc089c0ea79cdc25b58d248878790d9ae19125a141f9",
+    "localBuildSha256": "e728158441c10a2456bcbc089c0ea79cdc25b58d248878790d9ae19125a141f9",
     "isLocalBuild": true
   },
   "xsd": {
@@ -147,7 +151,7 @@
       "Survey Integration",
       "Survey Scheduler"
     ],
-    "relationships": 47,
+    "relationships": 48,
     "pluginSteps": [
       "Qdb.SurveyEngine.Plugins.InvitationDispatchPlugin: Async Create of qdb_survey_invitation",
       "Qdb.SurveyEngine.Plugins.InvitationDispatchPlugin: Async Update of qdb_survey_invitation",

@@ -25,7 +25,7 @@ const audienceFetchXml = (marker) =>
   `<fetch version="1.0" mapping="logical"><entity name="account"><attribute name="name" /><order attribute="name" />`
   + `<filter type="and"><condition attribute="name" operator="like" value="Survey E2E OT %${marker}" /></filter></entity></fetch>`;
 
-const triggerRow = (session, id) => session.rows(`qdb_survey_triggers?$select=qdb_run_status,qdb_invited_count,qdb_postponed_count,qdb_suppressed_count,qdb_sent_on&$filter=qdb_survey_triggerid eq ${id}`).then((rows) => rows[0]);
+const triggerRow = (session, id) => session.rows(`qdb_survey_triggers?$select=qdb_run_status,qdb_invited_count,qdb_postponed_count,qdb_suppressed_count,qdb_sent_on,_qdb_run_started_by_value&$filter=qdb_survey_triggerid eq ${id}`).then((rows) => rows[0]);
 const invitationsOf = (session, triggerId) =>
   session.rows(`qdb_survey_invitations?$select=_qdb_customer_id_value,qdb_status,qdb_dedupe_key,qdb_schedule_period_key,qdb_expires_on,qdb_generated_on&$filter=_qdb_survey_trigger_id_value eq ${triggerId}`);
 const call = (session, api, triggerId) => session.client.send('POST', api, { TriggerId: triggerId }).then(({ json }) => json);
@@ -99,6 +99,8 @@ async function scenarioSendNow(session, { triggerId, customers }) {
   session.check('expiry is the setup\'s 14 days from creation', expiryDays === 14, `${expiryDays} day(s)`);
   const row = await triggerRow(session, triggerId);
   session.check('the trigger shows Sent with its totals', row.qdb_run_status === RUN.sent && row.qdb_invited_count === 2 && row.qdb_postponed_count === 1 && Boolean(row.qdb_sent_on));
+  const { json: me } = await session.client.send('GET', 'WhoAmI()');
+  session.check('Run Started By names the caller who pressed Send, not SYSTEM (AUD-D-01)', row._qdb_run_started_by_value === me.UserId, `${row._qdb_run_started_by_value} vs caller ${me.UserId}`);
   const again = await refusal(call(session, 'qdb_srv_SendOneTimeTrigger', triggerId));
   session.check('a second send is refused', again.includes('already sent'), again.slice(0, 140));
 }

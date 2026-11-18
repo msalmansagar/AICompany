@@ -154,6 +154,9 @@ namespace Qdb.SurveyEngine.Scheduling
 
         /// <summary>Runs the daily passes once per run date (ADR-010).</summary>
         public IDailyPassGate DailyPassGate { get; set; }
+
+        /// <summary>The scheduler's account (the caller); recorded as who started a dated One-time send (AUD-D-01).</summary>
+        public Guid CallerId { get; set; }
     }
 
     /// <summary>

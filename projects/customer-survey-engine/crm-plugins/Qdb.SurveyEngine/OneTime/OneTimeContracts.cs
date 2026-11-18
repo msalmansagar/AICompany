@@ -118,8 +118,11 @@ namespace Qdb.SurveyEngine.OneTime
         /// <summary>Active One-time triggers of active setups whose send time has come and that are Not sent or Sending, oldest send time first.</summary>
         IReadOnlyList<Guid> GetDueTriggerIds(DateTime nowUtc);
 
-        /// <summary>Marks the run as Sending (a fresh start or a resume), conditional on the row version read.</summary>
-        RunWrite TryStart(OneTimeTrigger trigger, DateTime nowUtc);
+        /// <summary>
+        /// Not sent / Failed → Sending, conditional on the row version read, recording who started it (audit
+        /// AUD-D-01: the run writes are made by SYSTEM, so the history alone cannot name the administrator).
+        /// </summary>
+        RunWrite TryStart(OneTimeTrigger trigger, DateTime nowUtc, Guid startedBy);
 
         /// <summary>Commits the cursor and totals after a page, conditional on <see cref="OneTimeRunState.RowVersion"/>.</summary>
         RunWrite TrySaveProgress(Guid triggerId, OneTimeRunState state);
@@ -166,6 +169,9 @@ namespace Qdb.SurveyEngine.OneTime
 
         /// <summary>The org's customer table (Survey Settings → Customer Table).</summary>
         public string CustomerTable { get; set; }
+
+        /// <summary>The user this plugin call runs for: the administrator (Send now) or the scheduler's account (AUD-D-01).</summary>
+        public Guid StartedBy { get; set; }
     }
 
     /// <summary>A Send or Preview the caller may not make; the message is shown to the administrator.</summary>

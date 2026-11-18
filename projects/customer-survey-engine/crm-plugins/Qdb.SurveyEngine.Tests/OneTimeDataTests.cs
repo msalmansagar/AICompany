@@ -81,7 +81,7 @@ namespace Qdb.SurveyEngine.Tests
             _service.Setup(s => s.Execute(It.IsAny<UpdateRequest>()))
                 .Throws(new FaultException<OrganizationServiceFault>(new OrganizationServiceFault { ErrorCode = unchecked((int)0x80060882) }));
 
-            Assert.False(Store().TryStart(new OneTimeTrigger { Trigger = new SurveyTrigger { Id = Guid.NewGuid() } }, DateTime.UtcNow).IsSaved);
+            Assert.False(Store().TryStart(new OneTimeTrigger { Trigger = new SurveyTrigger { Id = Guid.NewGuid() } }, DateTime.UtcNow, Guid.NewGuid()).IsSaved);
         }
 
         private void AcceptWritesAndReturnVersion(string newVersion, Action<UpdateRequest> capture)
@@ -96,9 +96,11 @@ namespace Qdb.SurveyEngine.Tests
             UpdateRequest sent = null;
             AcceptWritesAndReturnVersion("10", r => sent = r);
 
-            var write = Store().TryStart(new OneTimeTrigger { Trigger = new SurveyTrigger { Id = Guid.NewGuid() }, Run = new OneTimeRunState { RowVersion = "9" } }, DateTime.UtcNow);
+            var admin = Guid.NewGuid();
+            var write = Store().TryStart(new OneTimeTrigger { Trigger = new SurveyTrigger { Id = Guid.NewGuid() }, Run = new OneTimeRunState { RowVersion = "9" } }, DateTime.UtcNow, admin);
 
             Assert.Equal((true, "10"), (write.IsSaved, write.RowVersion));
+            Assert.Equal(("systemuser", admin), (sent.Target.GetAttributeValue<EntityReference>("qdb_run_started_by").LogicalName, sent.Target.GetAttributeValue<EntityReference>("qdb_run_started_by").Id));
             Assert.Equal(("9", (int)OneTimeRunStatus.Sending, ConcurrencyBehavior.IfRowVersionMatches),
                 (sent.Target.RowVersion, sent.Target.GetAttributeValue<OptionSetValue>("qdb_run_status").Value, sent.ConcurrencyBehavior));
         }
