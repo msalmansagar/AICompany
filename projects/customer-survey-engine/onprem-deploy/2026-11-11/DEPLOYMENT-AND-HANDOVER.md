@@ -126,6 +126,7 @@ stage 2.5–2.7, smoke test step 1 only unless the change owner approves step 2)
 | Scheduled run: due one-time surveys every 15 minutes; scheduled surveys and retention clean-up once a day | automatic | scheduled task log in `-LogPath`; **Survey Engine → Health → Survey Jobs** for failures |
 | Re-run the post-import check (Q14: a second "Survey Data Officer" role would grant erasure rights) | **quarterly**, and after any role or business-unit change | `scripts/survey-post-import.console.js` |
 | Erasure requests | when Compliance accepts one | RUNBOOK **section 11** (dry run → live → rerun until complete → record both log rows) |
+| "Send now" on a One-time trigger shows an error or keeps waiting | when it happens | press **Send now** again. A large audience is sent in several calls of up to about a minute each (measured: 1,000 customers in 3 calls), and a call's answer can be lost on the network after the work is saved. The next press continues where the last one stopped and never invites a customer twice; the 15-minute scheduled run also finishes it |
 | Retention | automatic | responses, invitations, suppression logs deleted after 730 days (never invitations under 13 months, suppression logs under 12) |
 | Rollback | if needed | RUNBOOK **stage 10** |
 
