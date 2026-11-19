@@ -4,7 +4,7 @@
 |---|---|
 | For | QDB IT (deployment), QDB backend, frontend and mobile developers (code), QDB Compliance (erasure requests) |
 | Orgs | **HL CRM** (customers are contacts) and **BFD CRM / QDB1** (customers are accounts), Dynamics 365 CE 9.1 on-prem. **Test orgs first, production after** |
-| Source | Branch `feat/survey-addendum-d` (2026-11-18; merged to `main` when approved). Survey Engine solution **1.2.0.0** (Addendum D: one-time general surveys, audience from a view, multi-number SMS, scheduler every 15 minutes), Form Engine designer **1.6.1** |
+| Source | `main` (Addendum D merged 2026-11-18, PR #186; large-audience timing recorded 2026-11-19, PR #187). Survey Engine solution **1.2.0.0** (Addendum D: one-time general surveys, audience from a view, multi-number SMS, scheduler every 15 minutes), Form Engine designer **1.6.1** |
 | Detail | This guide is the overview and the order. The step-by-step detail for the Survey Engine is `RUNBOOK.md` in this folder; follow it exactly |
 
 ---
@@ -94,7 +94,7 @@ Follow `RUNBOOK.md` stage by stage. Summary:
 | 2 | Form Engine columns + designer/runtime **1.6.1**, Publish All; on test orgs, the A2 evidence (republish three forms, two stage-2 reports) | `form-engine/QdbFormEngineSurveyUpdate_1_0_0_0_onprem_unmanaged.zip`, `form-engine/FormDesignerWebResource_1.6.1.zip`, `scripts/survey-stage2-check.console.js` | **Gate 1b** (test orgs) |
 | 3 | Form Engine plugin update (**only if P12 passed** or every listed grid column is confirmed read-only) | `form-engine/Qdb.FormEngine.Plugins.dll` | — |
 | 4 | Import **SurveyEngine 1.2.0.0**, Publish All | `SurveyEngine_1_2_0_0_onprem_unmanaged.zip` | — |
-| 5 | **Post-import check** (read-only): Q1–Q14, including Q13 (change history on 8 tables) and Q14 (one Survey Data Officer role) | `scripts/survey-post-import.console.js` | **Gate 2**: send the report; MSS confirms |
+| 5 | **Post-import check** (read-only): Q1–Q15, including Q13 (change history on 8 tables), Q14 (one Survey Data Officer role) and Q15 (both One-time trigger validation steps enabled) | `scripts/survey-post-import.console.js` | **Gate 2**: send the report; MSS confirms |
 | 6 | Give the roles: Survey Admin, Survey Analyst, Survey Integration (portal account), Survey Scheduler (scheduler account only), **Survey Data Officer (named Compliance staff only, never a service account)** | — | — |
 | 7 | Configuration rows: **Survey Settings** (Customer Table = Contact on HL, Account on QDB1; **Retention Days 730, Mode Delete**; default language Arabic on HL, English on QDB1), Survey Sources (inactive), surveys published with Form Type = Survey, setups and triggers | `config/HL.json`, `config/BFD.json`, `config/README.md` | Rows with `TO_CONFIRM` values wait for QDB's answers |
 | 8 | Activate sources (`qdb_srv_ActivateSource`), register the scheduled task (every 15 minutes) | `scheduler/Register-RunDueSurveysTask.ps1` | — |
@@ -214,8 +214,8 @@ More: `dynamic-form-engine/docs/deployment-guide.md` (Docker, CI, hosting), `TEC
 
 ### 9.1 What to send
 
-Send the **code-only package** prepared by MSS from `main` (`QDB-FormEngine-SurveyEngine-code-ba96eebf.zip`):
-committed files only, MSS's internal engagement records removed, no secrets, no signing key. Share it over QDB's
+Send the **code-only package** that MSS builds from the current `main` when QDB asks for the code (named
+`QDB-FormEngine-SurveyEngine-code-<commit>.zip` after the commit it was built from): committed files only, MSS's internal engagement records removed, no secrets, no signing key. Share it over QDB's
 approved secure file transfer, and send its SHA-256 separately so the receiver can check it.
 
 ### 9.2 What is never in it, and must never be added
