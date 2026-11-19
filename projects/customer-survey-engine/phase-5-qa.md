@@ -933,3 +933,11 @@ VERIFICATION (Addendum D)
   result:     PASS WITH CONDITIONS
   update 2026-11-19: node e2e/one-time-volume.mjs --apply (450) and --size 1000 --apply → 450 in 1 call (64 s); 1,000 in 3 calls (server 67/60/36 s per plugin trace log), 1,000 invitations/1,000 customers, clean-up 0 left → QA-D2 CLOSED
   unverified: NFR-CSE-015 at 2,000 (not run; resume path covered by 1,000); 9.1 on-prem and contact-table runs (NFR-CSE-018); Send now confirmation and stale-view warning in the browser (QA-D3)
+
+---
+
+## Post-release defects (bug-fix workflow)
+
+| ID | Symptom | Reproduction | Expected | Requirement violated | Status |
+|---|---|---|---|---|---|
+| **DEF-CSE-001** | An event survey can be lost with no log row when a record's status changes again before the async trigger job runs. | Found by the independent review of 2026-11-19 (item 1). Draft → Submitted → Approved in quick succession (a workflow auto-advancing, or two saves): the trigger job for the Submitted change runs after the record is already Approved. `SourceRecordReader` took the new status from a fresh read (`Data/SourceRecordReader.cs:37-44`), so it saw Draft → Approved; a trigger on {Submitted} did not fire and nothing was logged. Reproduced in xUnit `ReadCurrent_StatusChangedAgainBeforeTheJobRan_GivesTheStatusTheEventSet` (red: read 100000005, event set 100000002). | The survey decision uses the status the event set. | FR-CSE-026/027 (fires on the move into the set), NFR-CSE-001 (nothing dropped silently) | **Fixed in code, 2026-11-19**, branch `fix/survey-trigger-event-status`. Root cause: the async step passed only the record id. Fix: the plugin passes the request's `Target` (`RecordImages`, `SurveyTriggerPlugin.ImagesOf`); every source field the event carried (status, and type/origin/customer when set in the same request) is taken from it, and the fresh read fills only fields it did not carry. 4 tests; 620/620. Not yet deployed or live-verified |
