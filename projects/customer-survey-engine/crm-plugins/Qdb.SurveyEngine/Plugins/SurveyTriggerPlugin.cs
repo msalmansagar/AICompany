@@ -27,7 +27,7 @@ namespace Qdb.SurveyEngine.Plugins
             if (change == null) { tracing.Trace("SurveyTriggerPlugin: message {0} on {1} is not handled.", context.MessageName, context.PrimaryEntityName); return; }
             // SYSTEM context: the user who saved the request needs no survey-table privileges.
             var service = ((IOrganizationServiceFactory)serviceProvider.GetService(typeof(IOrganizationServiceFactory))).CreateOrganizationService(null);
-            BuildService(service, PreImageOf(context), tracing).Handle(change);
+            BuildService(service, ImagesOf(context), tracing).Handle(change);
         }
 
         /// <summary>The change described by the pipeline context, or null for a message the plugin ignores.</summary>
@@ -39,16 +39,20 @@ namespace Qdb.SurveyEngine.Plugins
             return new RecordChange { Message = message, TableLogicalName = context.PrimaryEntityName, RecordId = context.PrimaryEntityId };
         }
 
-        private static Entity PreImageOf(IPluginExecutionContext context) =>
-            context.PreEntityImages != null && context.PreEntityImages.Contains(PreImageName) ? context.PreEntityImages[PreImageName] : null;
+        /// <summary>The pre-image and the request's Target, as the pipeline context carried them.</summary>
+        public static RecordImages ImagesOf(IPluginExecutionContext context) => new RecordImages
+        {
+            PreImage = context.PreEntityImages != null && context.PreEntityImages.Contains(PreImageName) ? context.PreEntityImages[PreImageName] : null,
+            Target = context.InputParameters != null && context.InputParameters.Contains("Target") ? context.InputParameters["Target"] as Entity : null,
+        };
 
-        private static SurveyTriggerService BuildService(IOrganizationService service, Entity preImage, ITracingService tracing)
+        private static SurveyTriggerService BuildService(IOrganizationService service, RecordImages images, ITracingService tracing)
         {
             var customer = CustomerLinkReader.Read(service);
             return SurveyTriggerService.Compose(new SurveyTriggerDependencies
             {
                 Config = new SurveyConfigRepository(service),
-                Records = new SourceRecordReader(service, preImage, customer),
+                Records = new SourceRecordReader(service, images, customer),
                 Languages = new CustomerLanguageReader(service, customer),
                 RenderCache = new RenderCacheReader(service),
                 Milestones = new MilestoneCounter(service),

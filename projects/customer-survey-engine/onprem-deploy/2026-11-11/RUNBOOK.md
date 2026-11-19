@@ -88,7 +88,7 @@ is done.
 
 | # | Step |
 |---|---|
-| 4.1 | **Import** → `SurveyEngine_1_2_0_0_onprem_unmanaged.zip`. Leave "enable SDK message processing steps" ticked: the two invitation dispatch steps must be on. |
+| 4.1 | **Import** → `SurveyEngine_1_2_0_1_onprem_unmanaged.zip`. Leave "enable SDK message processing steps" ticked: the two invitation dispatch steps must be on. |
 | 4.2 | **Publish All Customizations.** |
 
 The package carries no trigger steps (readiness F4); activating a source creates them (stage 8).
@@ -102,7 +102,7 @@ The package carries no trigger steps (readiness F4); activating a source creates
 
 | Check | Pass |
 |---|---|
-| Q1–Q4 solution (version 1.2.0.0), 10 tables, 5 roles, app | PASS |
+| Q1–Q4 solution (version 1.2.0.1), 10 tables, 5 roles, app | PASS |
 | **Q5 eight Custom APIs bound to `Qdb.SurveyEngine`** | PASS. If not, open each API in the Plugin Registration Tool and set its plugin type from `Qdb.SurveyEngine.Plugins` (same name without the `qdb_srv_` prefix, e.g. `qdb_srv_GetSurvey` → `GetSurveyPlugin`) |
 | Q6 two dispatch steps enabled, no trigger steps | PASS |
 | Q7 six Form Engine columns | PASS |

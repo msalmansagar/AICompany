@@ -22,13 +22,18 @@ namespace Qdb.SurveyEngine.Tests
 
         private static RecordChange ReadWith(Entity current, Entity preImage) => ReadWith(current, preImage, CustomerLink.Account);
 
-        private static RecordChange ReadWith(Entity current, Entity preImage, CustomerLink customer)
+        private static RecordChange ReadWith(Entity current, Entity preImage, CustomerLink customer) =>
+            ReadWithImages(current, new RecordImages { PreImage = preImage }, customer);
+
+        private static RecordChange ReadWithImages(Entity current, RecordImages images, CustomerLink customer)
         {
             var service = new Mock<IOrganizationService>();
             service.Setup(s => s.Retrieve("qdb_loan_application", RecordId, It.IsAny<ColumnSet>())).Returns(current);
             var change = new RecordChange { Message = ChangeMessage.Update, TableLogicalName = "qdb_loan_application", RecordId = RecordId };
-            return new SourceRecordReader(service.Object, preImage, customer).ReadCurrent(Source(), change);
+            return new SourceRecordReader(service.Object, images, customer).ReadCurrent(Source(), change);
         }
+
+        private static Entity Target(int status) => new Entity("qdb_loan_application", RecordId) { ["statuscode"] = new OptionSetValue(status) };
 
         private static Entity Record(EntityReference customer) => new Entity("qdb_loan_application", RecordId)
         {
@@ -78,6 +83,23 @@ namespace Qdb.SurveyEngine.Tests
             var preImage = new Entity("qdb_loan_application", RecordId) { ["statuscode"] = new OptionSetValue(1) };
 
             Assert.Equal("1", ReadWith(Record(null), preImage).OldStatus);
+        }
+
+        // DEF-CSE-001: the record has moved on (100000005) by the time the async job runs; the event set 100000002.
+        [Fact]
+        public void ReadCurrent_StatusChangedAgainBeforeTheJobRan_GivesTheStatusTheEventSet()
+        {
+            var change = ReadWithImages(Record(null), new RecordImages { Target = Target(100000002) }, CustomerLink.Account);
+
+            Assert.Equal("100000002", change.NewStatus);
+        }
+
+        [Fact]
+        public void ReadCurrent_FieldTheEventDidNotCarry_IsReadFromTheRecord()
+        {
+            var change = ReadWithImages(Record(new EntityReference("account", AccountId)), new RecordImages { Target = Target(100000002) }, CustomerLink.Account);
+
+            Assert.Equal("7", change.Type);
         }
     }
 
@@ -190,6 +212,26 @@ namespace Qdb.SurveyEngine.Tests
             Assert.Equal(ChangeMessage.Update, change.Message);
             Assert.Equal(id, change.RecordId);
             Assert.Equal("qdb_cheque_clearing", change.TableLogicalName);
+        }
+
+        [Fact]
+        public void ImagesOf_RequestWithTarget_CarriesTheTarget()
+        {
+            var target = new Entity("qdb_cheque_clearing", Guid.NewGuid()) { ["statuscode"] = new OptionSetValue(100000002) };
+            var context = new Mock<IPluginExecutionContext>();
+            context.SetupGet(c => c.InputParameters).Returns(new ParameterCollection { { "Target", target } });
+            context.SetupGet(c => c.PreEntityImages).Returns(new EntityImageCollection());
+
+            Assert.Same(target, SurveyTriggerPlugin.ImagesOf(context.Object).Target);
+        }
+
+        [Fact]
+        public void ImagesOf_NoTarget_LeavesItEmpty()
+        {
+            var context = new Mock<IPluginExecutionContext>();
+            context.SetupGet(c => c.InputParameters).Returns(new ParameterCollection());
+
+            Assert.Null(SurveyTriggerPlugin.ImagesOf(context.Object).Target);
         }
 
         [Fact]
