@@ -8,9 +8,11 @@
     which must hold the Survey Scheduler role in CRM (no other role). Authenticates with Windows integrated
     authentication, so no password or secret is stored. Passes the server's local date as RunDate,
     so a run just after local midnight on the 1st is not read as the last day of the month in UTC.
-    Calls again while IsComplete is false (the API stops each call within the plugin time limit).
-    Writes one log line per call and exits 1 on any failure, so the task shows "Last Run Result"
-    as failed and monitoring can alert on it.
+    Runs the One-time pass and the daily passes as SEPARATE calls (Pass = OneTime, then Pass = Daily):
+    each Custom API call is one database transaction, so a failure in one pass rolls back only its own
+    work and the other pass still runs (DEF-CSE-002). Calls each pass again while IsComplete is false
+    (the API stops each call within the plugin time limit). Writes one log line per call and exits 1
+    if either pass failed, so the task shows "Last Run Result" as failed and monitoring can alert on it.
 
 .PARAMETER OrgUrl
     The organisation URL, e.g. https://crm.qdb.local/QDB
@@ -42,24 +44,33 @@ function Write-RunLog([string]$Message) {
     Write-Output $line
 }
 
-function Invoke-RunDueSurveysOnce {
+function Invoke-RunDueSurveysOnce([string]$Pass) {
     $uri = '{0}/api/data/v9.0/qdb_srv_RunDueSurveys' -f $OrgUrl.TrimEnd('/')
-    $body = @{ RunDate = $RunDate } | ConvertTo-Json
+    $body = @{ RunDate = $RunDate; Pass = $Pass } | ConvertTo-Json
     $headers = @{ 'OData-MaxVersion' = '4.0'; 'OData-Version' = '4.0'; Accept = 'application/json' }
     Invoke-RestMethod -Method Post -Uri $uri -Body $body -ContentType 'application/json; charset=utf-8' -Headers $headers -UseDefaultCredentials -TimeoutSec 180
 }
 
-try {
-    for ($call = 1; $call -le $MaxCalls; $call++) {
-        $result = Invoke-RunDueSurveysOnce
-        Write-RunLog ('RunDate {0}, call {1}: {2}' -f $RunDate, $call, $result.Summary)
-        if ($result.IsComplete) { exit 0 }
+# Runs one pass until it reports complete. Returns $true on success; logs and returns $false on any failure,
+# so the caller still runs the other pass.
+function Invoke-Pass([string]$Pass) {
+    try {
+        for ($call = 1; $call -le $MaxCalls; $call++) {
+            $result = Invoke-RunDueSurveysOnce $Pass
+            Write-RunLog ('RunDate {0}, {1} call {2}: {3}' -f $RunDate, $Pass, $call, $result.Summary)
+            if ($result.IsComplete) { return $true }
+        }
+        Write-RunLog ('RunDate {0}, {1}: still not complete after {2} calls; investigate volume or failures.' -f $RunDate, $Pass, $MaxCalls)
+        return $false
     }
-    Write-RunLog ('RunDate {0}: still not complete after {1} calls; investigate volume or failures.' -f $RunDate, $MaxCalls)
-    exit 1
+    catch {
+        Write-RunLog ('RunDate {0}, {1}: FAILED - {2}' -f $RunDate, $Pass, $_.Exception.Message)
+        if ($_.ErrorDetails -and $_.ErrorDetails.Message) { Write-RunLog ('  detail: {0}' -f $_.ErrorDetails.Message) }
+        return $false
+    }
 }
-catch {
-    Write-RunLog ('RunDate {0}: FAILED - {1}' -f $RunDate, $_.Exception.Message)
-    if ($_.ErrorDetails -and $_.ErrorDetails.Message) { Write-RunLog ('  detail: {0}' -f $_.ErrorDetails.Message) }
-    exit 1
-}
+
+$isOneTimeOk = Invoke-Pass 'OneTime'
+$isDailyOk = Invoke-Pass 'Daily'
+if ($isOneTimeOk -and $isDailyOk) { exit 0 }
+exit 1

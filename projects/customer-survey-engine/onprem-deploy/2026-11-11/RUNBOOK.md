@@ -88,7 +88,7 @@ is done.
 
 | # | Step |
 |---|---|
-| 4.1 | **Import** → `SurveyEngine_1_2_0_1_onprem_unmanaged.zip`. Leave "enable SDK message processing steps" ticked: the two invitation dispatch steps must be on. |
+| 4.1 | **Import** → `SurveyEngine_1_2_0_2_onprem_unmanaged.zip`. Leave "enable SDK message processing steps" ticked: the two invitation dispatch steps must be on. |
 | 4.2 | **Publish All Customizations.** |
 
 The package carries no trigger steps (readiness F4); activating a source creates them (stage 8).
@@ -102,7 +102,7 @@ The package carries no trigger steps (readiness F4); activating a source creates
 
 | Check | Pass |
 |---|---|
-| Q1–Q4 solution (version 1.2.0.1), 10 tables, 5 roles, app | PASS |
+| Q1–Q4 solution (version 1.2.0.2), 10 tables, 5 roles, app | PASS |
 | **Q5 eight Custom APIs bound to `Qdb.SurveyEngine`** | PASS. If not, open each API in the Plugin Registration Tool and set its plugin type from `Qdb.SurveyEngine.Plugins` (same name without the `qdb_srv_` prefix, e.g. `qdb_srv_GetSurvey` → `GetSurveyPlugin`) |
 | Q6 two dispatch steps enabled, no trigger steps | PASS |
 | Q7 six Form Engine columns | PASS |
@@ -169,11 +169,13 @@ Start-ScheduledTask -TaskName 'Survey Engine - Run Due Surveys'
 The task repeats every 15 minutes from `-At`, indefinitely, and never runs twice at once. Every call sends
 the One-time surveys that are due; the daily work (postponed release, scheduled surveys, retention) runs on
 the first call of each day only, so `-At` is when the daily work happens. **An org that already has the
-daily task from kit 1.1.0.0:** run the same command again; it replaces the trigger.
+daily task from kit 1.1.0.0:** run the same command again; it replaces the trigger. Since kit 1.2.0.2 each
+run makes two calls, `Pass = OneTime` then `Pass = Daily`, so a failure in one cannot stop the other
+(DEF-CSE-002). Copy the kit's `scheduler/Invoke-RunDueSurveys.ps1` over any older copy on the server.
 
-Pass: the day's log in `-LogPath` has a `RunDate …, call 1: …` summary line and no "still not complete"
-line, a second line about 15 minutes later says "Daily passes: already completed for this date", and the
-task's **Last Run Result** is `0x0`. One task per org (HL and QDB1 have different URLs). During Gate 3,
+Pass: the day's log in `-LogPath` has a `RunDate …, OneTime call 1: …` line and a `RunDate …, Daily call 1: …`
+line and no "still not complete" or "FAILED" line; about 15 minutes later the Daily line says "Daily passes:
+already completed for this date"; and the task's **Last Run Result** is `0x0`. One task per org (HL and QDB1 have different URLs). During Gate 3,
 QDB IT notes the CRM server load at the 15-minute calls (Addendum D risk R-D2).
 
 ## Stage 9 — Smoke test

@@ -119,7 +119,10 @@ export const CUSTOM_APIS = Object.freeze([
     inputs: [SOURCE_ID_INPUT], outputs: [MESSAGE_OUTPUT] },
   { uniqueName: 'qdb_srv_RunDueSurveys', displayName: 'Run Due Surveys', typeName: 'Qdb.SurveyEngine.Plugins.RunDueSurveysPlugin',
     description: 'Daily job: releases postponed invitations, runs scheduled triggers due today, applies response retention. Call again while IsComplete is false. System Administrator only (FR-CSE-033, 042, 058).',
-    inputs: [{ name: 'RunDate', displayName: 'Run Date', description: 'The scheduler\'s local date, yyyy-MM-dd; empty = today in UTC.', type: PARAMETER_TYPE.string, isOptional: true }],
+    inputs: [
+      { name: 'RunDate', displayName: 'Run Date', description: 'The scheduler\'s local date, yyyy-MM-dd; empty = today in UTC.', type: PARAMETER_TYPE.string, isOptional: true },
+      { name: 'Pass', displayName: 'Pass', description: 'OneTime or Daily: run only that pass, in its own transaction; empty = both.', type: PARAMETER_TYPE.string, isOptional: true },
+    ],
     outputs: [
       { name: 'Summary', displayName: 'Summary', description: 'What each pass did.', type: PARAMETER_TYPE.string },
       { name: 'IsComplete', displayName: 'Is Complete', description: 'False when the time budget ran out; call again.', type: PARAMETER_TYPE.boolean },
@@ -196,6 +199,21 @@ export function buildCustomApiPayload(api, pluginTypeId) {
     CustomAPIResponseProperties: api.outputs.map((output) => ({
       uniquename: output.name, name: output.name, displayname: output.displayName, description: output.description, type: output.type,
     })),
+  };
+}
+
+/** The API's declared inputs that the org's copy of it does not have yet (an input added after the API was created). */
+export function missingRequestParameters(api, existingUniqueNames) {
+  const existing = new Set(existingUniqueNames);
+  return api.inputs.filter((input) => !existing.has(input.name));
+}
+
+/** One request parameter added to an API that already exists. Only optional inputs may be added later. */
+export function buildRequestParameterPayload(input, customApiId) {
+  if (!input.isOptional) throw new Error(`${input.name} is required; a required input cannot be added to an existing Custom API`);
+  return {
+    uniquename: input.name, name: input.name, displayname: input.displayName, description: input.description, type: input.type, isoptional: true,
+    'CustomAPIId@odata.bind': `/customapis(${customApiId})`,
   };
 }
 

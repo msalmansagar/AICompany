@@ -433,6 +433,37 @@ namespace Qdb.SurveyEngine.Tests
         {
             Assert.Throws<InvalidPluginExecutionException>(() => RunDueSurveysPlugin.ReadRunDate(ContextWith("01/04/2026"), DateTime.UtcNow));
         }
+
+        private static IPluginExecutionContext ContextWithPass(string pass)
+        {
+            var inputs = new ParameterCollection();
+            if (pass != null) inputs[RunDueSurveysPlugin.PassParameter] = pass;
+            var context = new Mock<IPluginExecutionContext>();
+            context.SetupGet(c => c.InputParameters).Returns(inputs);
+            return context.Object;
+        }
+
+        [Fact]
+        public void ReadPass_Absent_RunsEveryPass()
+        {
+            Assert.Equal(RunPass.All, RunDueSurveysPlugin.ReadPass(ContextWithPass(null)));
+        }
+
+        [Theory]
+        [InlineData("OneTime", RunPass.OneTime)]
+        [InlineData("daily", RunPass.Daily)]
+        [InlineData(" Daily ", RunPass.Daily)]
+        [InlineData("", RunPass.All)]
+        public void ReadPass_Given_IsUsedIgnoringCaseAndSpaces(string text, RunPass expected)
+        {
+            Assert.Equal(expected, RunDueSurveysPlugin.ReadPass(ContextWithPass(text)));
+        }
+
+        [Fact]
+        public void ReadPass_Unknown_IsRefused()
+        {
+            Assert.Throws<InvalidPluginExecutionException>(() => RunDueSurveysPlugin.ReadPass(ContextWithPass("Weekly")));
+        }
     }
 
     public class CustomerPopulationReaderTests

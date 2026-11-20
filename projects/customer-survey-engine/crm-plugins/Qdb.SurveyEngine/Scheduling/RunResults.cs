@@ -73,6 +73,13 @@ namespace Qdb.SurveyEngine.Scheduling
         /// <summary>A call after the daily passes had already completed for the run date.</summary>
         public static RunSummary OneTimeOnly(OneTimeDueResult oneTime) => new RunSummary(oneTime, null, null, null);
 
+        /// <summary>A call asked for the One-time pass only (Pass = OneTime); the daily passes have their own call.</summary>
+        public static RunSummary DailyNotRequested(OneTimeDueResult oneTime) =>
+            new RunSummary(oneTime, null, null, null) { DailySkippedBecause = "Daily passes: not run in this call (Pass = OneTime)." };
+
+        // Why the daily passes did not run, when they did not.
+        private string DailySkippedBecause { get; set; } = "Daily passes: already completed for this date.";
+
         public OneTimeDueResult OneTime { get; }
         public PostponedReleaseResult Postponed { get; }
         public ScheduledRunResult Scheduled { get; }
@@ -88,7 +95,7 @@ namespace Qdb.SurveyEngine.Scheduling
         public bool IsComplete => OneTime.IsComplete && (!RanDailyPasses || AreDailyPassesComplete);
 
         public override string ToString() =>
-            $"{OneTime} " + (RanDailyPasses ? $"{Postponed} {Scheduled} {Retention}" : "Daily passes: already completed for this date.")
+            $"{OneTime} " + (RanDailyPasses ? $"{Postponed} {Scheduled} {Retention}" : DailySkippedBecause)
             + (IsComplete ? string.Empty : " Time budget spent: call again to continue.");
     }
 }

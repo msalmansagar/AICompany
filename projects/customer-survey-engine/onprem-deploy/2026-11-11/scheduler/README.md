@@ -18,6 +18,9 @@ The date the daily work last completed is kept in Survey Settings → *Daily Pas
 | Input | Type | Meaning |
 |---|---|---|
 | `RunDate` | String, optional | The scheduler's **local** date, `yyyy-MM-dd`. If empty, the API uses today's date in UTC. Pass an earlier date to re-run a missed day. |
+| `Pass` | String, optional (kit 1.2.0.2) | `OneTime` = only the One-time surveys; `Daily` = only the daily work; empty = both. |
+
+**The scheduler calls the two passes separately** (`OneTime`, then `Daily`). Each Custom API call is one database transaction, so if one pass fails it rolls back only its own work, and the other pass still runs (DEF-CSE-002). Before kit 1.2.0.2 both ran in one call, and a failing One-time send stopped the daily work too.
 
 | Output | Type | Meaning |
 |---|---|---|
@@ -54,12 +57,15 @@ A flow needs a Dataverse connection, which only a signed-in user can create. Bui
 1. **Recurrence:**
    - Interval 15, Frequency Minute.
    - Time zone `(UTC+03:00) Kuwait, Riyadh`.
-2. **Initialize variable:** `IsComplete`, Boolean, `false`.
-3. **Do until** `IsComplete` is equal to `true`, with Count limit 10 and Timeout PT1H:
-   - **Perform an unbound action** (Dataverse):
-     - Action name: `qdb_srv_RunDueSurveys`.
-     - `RunDate`: `formatDateTime(convertFromUtc(utcNow(), 'Arab Standard Time'), 'yyyy-MM-dd')`.
-   - **Set variable** `IsComplete` = `outputs('Perform_an_unbound_action')?['body/IsComplete']`.
-4. **Run after failure:** send an email or Teams alert to the CRM admin.
+2. **Apply to each** over the array `["OneTime", "Daily"]`, **sequential** (Concurrency off), so each pass is its own call and a failure in one does not stop the other:
+   1. **Initialize / set variable:** `IsComplete`, Boolean, `false`.
+   2. **Do until** `IsComplete` is equal to `true`, with Count limit 10 and Timeout PT1H:
+      - **Perform an unbound action** (Dataverse):
+        - Action name: `qdb_srv_RunDueSurveys`.
+        - `RunDate`: `formatDateTime(convertFromUtc(utcNow(), 'Arab Standard Time'), 'yyyy-MM-dd')`.
+        - `Pass`: `items('Apply_to_each')`.
+      - **Set variable** `IsComplete` = `outputs('Perform_an_unbound_action')?['body/IsComplete']`.
+   3. Configure the loop body's **run after** so a failed pass is recorded and the loop moves on to the next pass.
+3. **Run after failure:** send an email or Teams alert to the CRM admin.
 
 Run the flow once by hand and read `Summary` in the run history.
