@@ -88,7 +88,7 @@ is done.
 
 | # | Step |
 |---|---|
-| 4.1 | **Import** → `SurveyEngine_1_2_0_2_onprem_unmanaged.zip`. Leave "enable SDK message processing steps" ticked: the two invitation dispatch steps must be on. |
+| 4.1 | **Import** → `SurveyEngine_1_2_0_3_onprem_unmanaged.zip`. Leave "enable SDK message processing steps" ticked: the two invitation dispatch steps must be on. |
 | 4.2 | **Publish All Customizations.** |
 
 The package carries no trigger steps (readiness F4); activating a source creates them (stage 8).
@@ -102,7 +102,7 @@ The package carries no trigger steps (readiness F4); activating a source creates
 
 | Check | Pass |
 |---|---|
-| Q1–Q4 solution (version 1.2.0.2), 10 tables, 5 roles, app | PASS |
+| Q1–Q4 solution (version 1.2.0.3), 10 tables, 5 roles, app | PASS |
 | **Q5 eight Custom APIs bound to `Qdb.SurveyEngine`** | PASS. If not, open each API in the Plugin Registration Tool and set its plugin type from `Qdb.SurveyEngine.Plugins` (same name without the `qdb_srv_` prefix, e.g. `qdb_srv_GetSurvey` → `GetSurveyPlugin`) |
 | Q6 two dispatch steps enabled, no trigger steps | PASS |
 | Q7 six Form Engine columns | PASS |
@@ -172,6 +172,9 @@ the first call of each day only, so `-At` is when the daily work happens. **An o
 daily task from kit 1.1.0.0:** run the same command again; it replaces the trigger. Since kit 1.2.0.2 each
 run makes two calls, `Pass = OneTime` then `Pass = Daily`, so a failure in one cannot stop the other
 (DEF-CSE-002). Copy the kit's `scheduler/Invoke-RunDueSurveys.ps1` over any older copy on the server.
+Since kit 1.2.0.3 days the task missed (server down on the 1st, a freeze) are caught up on its next run, up to
+28 days back; the Daily log line then starts with "Missed day …". A line saying "NOT caught up" lists older
+days: re-run each with `-RunDate yyyy-MM-dd` (DEF-CSE-003).
 
 Pass: the day's log in `-LogPath` has a `RunDate …, OneTime call 1: …` line and a `RunDate …, Daily call 1: …`
 line and no "still not complete" or "FAILED" line; about 15 minutes later the Daily line says "Daily passes:

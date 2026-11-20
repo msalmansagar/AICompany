@@ -1,12 +1,12 @@
 {
-  "builtAt": "2026-11-20T12:00:36.345Z",
-  "package": "SurveyEngine_1_2_0_2_onprem_unmanaged.zip",
-  "solutionVersion": "1.2.0.2",
-  "sha256": "8f860b963ca5a4330a5686fe74c150dc89ceb15dcc33651a4c4141b6fb374936",
-  "bytes": 213411,
+  "builtAt": "2026-11-20T19:59:57.256Z",
+  "package": "SurveyEngine_1_2_0_3_onprem_unmanaged.zip",
+  "solutionVersion": "1.2.0.3",
+  "sha256": "30800ef695057039ad56dab41dc9c143b01a7796e6e5d414ff14574f3b352d0a",
+  "bytes": 214776,
   "source": {
     "file": "source/SurveyEngine_cloud_unmanaged.zip",
-    "sha256": "c214c1154da4ba05b5425bcb8509cb4deb60d7acbc2bb471f17124ed7593fcde"
+    "sha256": "dfb51f64ea45ef90448ab389a5d437b4c60e40956f6d5814fd8fb791e223d318"
   },
   "target": "Dynamics 365 CE 9.1 on-prem: HL CRM and BFD CRM / QDB1 (one package)",
   "manifest": {
@@ -135,8 +135,8 @@
     }
   ],
   "assembly": {
-    "embeddedSha256": "540e724f24ac6d84224b42b4e637b105e44a9ccc80c3704627bd90ebfc035783",
-    "localBuildSha256": "540e724f24ac6d84224b42b4e637b105e44a9ccc80c3704627bd90ebfc035783",
+    "embeddedSha256": "62b00e57a03f2d9af0edf34903f7d3d302e9e09d0cbedbdecb1b67b598d9e00f",
+    "localBuildSha256": "62b00e57a03f2d9af0edf34903f7d3d302e9e09d0cbedbdecb1b67b598d9e00f",
     "isLocalBuild": true
   },
   "xsd": {
