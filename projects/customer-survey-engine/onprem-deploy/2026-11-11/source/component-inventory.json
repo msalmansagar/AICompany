@@ -1,19 +1,19 @@
 {
-  "exportedAt": "2026-11-19T19:59:24.776Z",
+  "exportedAt": "2026-11-20T12:00:35.809Z",
   "sourceOrganisation": "https://org5869857f.crm4.dynamics.com",
   "sourceVersion": "9.2.26103.165",
   "solution": {
     "uniqueName": "SurveyEngine",
-    "version": "1.2.0.1",
+    "version": "1.2.0.2",
     "isManaged": false
   },
-  "total": 110,
+  "total": 111,
   "byType": {
     "1 unknown": 15,
     "20 unknown": 5,
     "91 unknown": 1,
     "10020 CustomAPI": 10,
-    "10021 CustomAPIRequestParameter": 19,
+    "10021 CustomAPIRequestParameter": 20,
     "10022 CustomAPIResponseProperty": 31,
     "92 unknown": 10,
     "61 unknown": 15,
@@ -743,6 +743,13 @@
       "rootcomponentbehavior": 0,
       "objectid": "417e17f1-f0e1-f111-84e8-70a8a55bc6a5",
       "solutioncomponentid": "427e17f1-f0e1-f111-84e8-70a8a55bc6a5"
+    },
+    {
+      "@odata.etag": "W/\"220945052\"",
+      "componenttype": 10021,
+      "rootcomponentbehavior": 0,
+      "objectid": "26ffa7c3-d2e4-f111-84e8-70a8a55bc6a5",
+      "solutioncomponentid": "2fffa7c3-d2e4-f111-84e8-70a8a55bc6a5"
     },
     {
       "@odata.etag": "W/\"220042378\"",
