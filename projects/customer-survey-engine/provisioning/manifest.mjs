@@ -342,19 +342,16 @@ export const ROLES = Object.freeze([
     ],
   },
   {
+    // Review item 3 (2026-11-19): the four integration APIs admit this role by name (IntegrationAccessCheck.cs)
+    // and do their work as SYSTEM, so the portal backend's account reads no survey or customer table directly
+    // and cannot see other customers' data around the APIs. Read of the organization row is the platform
+    // minimum, as for Survey Scheduler. revokeOn: tables this role granted before, removed from an existing role.
     name: 'Survey Integration',
-    privileges: [
-      ...RUNTIME_TABLES.map((table) => ({ table, rights: ['Create', 'Read', 'Write', 'Append', 'AppendTo'] })),
-      { table: 'qdb_survey_suppression_log', rights: ['Create', 'Read', 'Append'] },
-      ...['qdb_survey_source', 'qdb_survey_setup', 'qdb_survey_trigger', 'qdb_survey_settings', 'qdb_survey_sms_config']
-        .map((table) => ({ table, rights: READ })),
-      // Linking an invitation to its customer needs AppendTo on the customer table (account or
-      // contact, per qdb_customer_table); the published survey JSON and the form's type are read
-      // from the DFE tables.
-      { table: 'account', rights: ['Read', 'AppendTo'] },
-      { table: 'contact', rights: ['Read', 'AppendTo'] },
-      { table: 'qdb_form_render_cache', rights: ['Read'] },
-      { table: 'qdb_form_definition', rights: ['Read'] },
+    privileges: [{ table: 'organization', rights: ['Read'] }],
+    revokeOn: [
+      ...RUNTIME_TABLES, 'qdb_survey_suppression_log',
+      'qdb_survey_source', 'qdb_survey_setup', 'qdb_survey_trigger', 'qdb_survey_settings', 'qdb_survey_sms_config',
+      'account', 'contact', 'qdb_form_render_cache', 'qdb_form_definition',
     ],
   },
   {

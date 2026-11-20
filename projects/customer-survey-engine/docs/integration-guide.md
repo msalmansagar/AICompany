@@ -35,7 +35,7 @@ This guide explains how the QDB customer portal and mobile app show surveys to c
 | Endpoint | `https://<org>.crm4.dynamics.com/api/data/v9.2/<api>` | `https://<crm-host>/<org>/api/data/v9.0/<api>` (Windows/IFD authentication) |
 | CRM role needed | **Survey Integration** | **Survey Integration** |
 
-- The **Survey Integration** role grants exactly what the APIs need, and nothing about other customers' data beyond that. A caller without it gets HTTP **403** from CRM itself, before any survey code runs.
+- The **Survey Integration** role admits your account to the four APIs and grants **no** survey or customer table rights: the APIs check the role and then do their work inside CRM, so your account cannot read invitations, responses, accounts or contacts directly. Call the APIs; do not query those tables. A caller without the role is refused with `survey_forbidden` and a message naming the role (since kit 1.2.0.4).
 - **The customer is identified by your backend, not by CRM.** You pass the authenticated customer's CRM id as `CallerCustomerId`: the **account** id on the cloud org and BFD/QDB1 (corporate customers), the **contact** id on HL CRM (individuals). Which one an org uses is its Survey Settings → **Customer Table**; `CustomerId` on `ListPendingSurveys` follows the same rule. The API refuses an invitation that belongs to anyone else (`survey_forbidden`). Never take this id from the browser or the app without checking it against your own session.
 
 ---
@@ -218,12 +218,12 @@ A refusal comes back as **HTTP 400**. The message **starts with a code**, then a
 | Code | Meaning | What your app should do |
 |---|---|---|
 | `survey_bad_request` | Missing or malformed input: not a GUID, AnswersJson not valid, unknown question code | Fix the request; this is a bug on the calling side |
-| `survey_forbidden` | The invitation belongs to another customer, or secure links are disabled | Don't show the survey; log it |
+| `survey_forbidden` | The invitation belongs to another customer, secure links are disabled, or the calling account lacks the **Survey Integration** role (the message names the role) | Don't show the survey; log it. A role message is a deployment problem, not a customer problem |
 | `survey_not_found` | No such invitation, or one that was never sent; unknown link; pinned version missing | "This survey is not available" |
 | `survey_expired` | The invitation's expiry date has passed | "This survey has closed" |
 | `survey_already_submitted` | Already answered | "Thank you, you have already answered this survey" |
 
-HTTP **403** with a CRM privilege message means the calling account lacks the **Survey Integration** role. HTTP **401** means your token or credentials are wrong. Both are deployment problems, not customer problems.
+`survey_forbidden` with a message naming the **Survey Integration** role means the calling account lacks that role. HTTP **401** means your token or credentials are wrong. Both are deployment problems, not customer problems.
 
 ---
 

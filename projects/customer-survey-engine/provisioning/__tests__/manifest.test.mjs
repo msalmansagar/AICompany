@@ -101,9 +101,27 @@ test('alternateKeys_everyColumn_existsOnItsTable', () => {
   }
 });
 
-test('roles_answerContent_isReadableOnlyByAnalystAndIntegration', () => {
+test('roles_answerContent_isReadableOnlyByAnalyst', () => {
   const readers = ROLES.filter((role) => role.privileges.some((p) => ['qdb_survey_response', 'qdb_survey_answer'].includes(p.table) && p.rights.includes('Read')));
-  assert.deepEqual(readers.map((r) => r.name).sort(), ['Survey Analyst', 'Survey Integration']);
+  assert.deepEqual(readers.map((r) => r.name).sort(), ['Survey Analyst']);
+});
+
+// Review item 3 (2026-11-19): the integration APIs admit the role and work as SYSTEM, so the portal account
+// reads no survey or customer table directly; the organization read is the platform minimum, as for the scheduler.
+test('roles_surveyIntegration_grantsOnlyTheOrganizationRead', () => {
+  assert.deepEqual(ROLES.find((role) => role.name === 'Survey Integration')?.privileges, [{ table: 'organization', rights: ['Read'] }]);
+});
+
+test('roles_surveyIntegration_revokesWhatItUsedToGrant', () => {
+  const revokeOn = ROLES.find((role) => role.name === 'Survey Integration')?.revokeOn ?? [];
+
+  for (const table of ['qdb_survey_invitation', 'qdb_survey_response', 'qdb_survey_answer', 'account', 'contact', 'qdb_form_render_cache']) assert.ok(revokeOn.includes(table), table);
+});
+
+test('roles_surveyIntegration_nameMatchesThePluginCheck', () => {
+  const source = readFileSync(new URL('../../crm-plugins/Qdb.SurveyEngine/Data/IntegrationAccessCheck.cs', import.meta.url), 'utf8');
+  const [, pluginName] = source.match(/SurveyIntegrationRoleName\s*=\s*"([^"]+)"/);
+  assert.ok(ROLES.some((role) => role.name === pluginName), pluginName);
 });
 
 test('roles_surveyAdmin_cannotWriteSources', () => {

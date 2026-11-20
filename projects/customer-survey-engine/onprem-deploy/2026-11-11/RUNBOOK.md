@@ -123,7 +123,7 @@ The package carries no trigger steps (readiness F4); activating a source creates
 |---|---|---|
 | **Survey Admin** | survey administrators | setups, triggers, settings, SMS hand-off; reads sources and invitations |
 | **Survey Analyst** | people who read results | the only role that reads responses and answers (FR-CSE-060), with Excel export |
-| **Survey Integration** | the portal backend's service account | exactly what the four portal APIs need (integration guide) |
+| **Survey Integration** | the portal backend's service account | admits it to the four portal APIs, which then work inside CRM; it grants no survey or customer table rights, only the organization read (kit 1.2.0.4; integration guide) |
 | **Survey Scheduler** | the scheduler's AD service account (0.3), and **no other role** | lets it call the daily run and nothing else: the role grants no survey or customer table rights (only Read of the organization row, the platform minimum), and the run works as SYSTEM. Stage 8.2 proves the account can run it with this role alone |
 | **Survey Data Officer** | the named QDB Compliance staff who handle erasure requests, and **never** a service or integration account | lets them run the erasure API (section 11) and read the erasure log; it grants no survey or customer table rights, and the erasure works as SYSTEM |
 | System Administrator | the activation operator | source activation is administrator-only. The scheduler's account must **not** be a System Administrator (Phase 6 audit, SEC-01) |

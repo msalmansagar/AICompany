@@ -1,7 +1,7 @@
 // Role provisioning against a fake Web API client: what is created, granted and verified.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ensureRoles } from '../lib/role-steps.mjs';
+import { ensureRoles, surplusPrivileges } from '../lib/role-steps.mjs';
 
 const ROOT_UNIT = '00000000-0000-0000-0000-0000000000b1';
 const NEW_ROLE = '00000000-0000-0000-0000-0000000000r1';
@@ -27,4 +27,26 @@ test('ensureRoles_roleWithNoPrivileges_isCreatedAndGrantedNothing', async () => 
   await run(client, [{ name: 'Survey Scheduler', privileges: [] }]);
 
   assert.deepEqual(calls, ['GET businessunits', 'GET roles', 'POST roles', 'POST AddSolutionComponent']);
+});
+
+const integration = { name: 'Survey Integration', privileges: [{ table: 'organization', rights: ['Read'] }], revokeOn: ['qdb_survey_answer', 'account'] };
+
+test('surplusPrivileges_formerGrantsOnRevokedTables_areListed', () => {
+  const granted = ['prvReadorganization', 'prvReadqdb_survey_answer', 'prvCreateqdb_survey_answer', 'prvAppendToaccount'];
+
+  assert.deepEqual(surplusPrivileges(integration, granted).sort(), ['prvAppendToaccount', 'prvCreateqdb_survey_answer', 'prvReadqdb_survey_answer']);
+});
+
+test('surplusPrivileges_platformDefaultsAndTheManifestGrant_areKept', () => {
+  const granted = ['prvReadorganization', 'prvReadUserSettings', 'prvReadqdb_survey_answers_extra'];
+
+  assert.deepEqual(surplusPrivileges(integration, granted), []);
+});
+
+test('surplusPrivileges_roleWithoutRevokeOn_listsNothing', () => {
+  assert.deepEqual(surplusPrivileges({ name: 'Survey Analyst', privileges: [] }, ['prvReadaccount']), []);
+});
+
+test('surplusPrivileges_nameCase_isIgnored', () => {
+  assert.deepEqual(surplusPrivileges(integration, ['prvReadQdb_Survey_Answer']), ['prvReadQdb_Survey_Answer']);
 });

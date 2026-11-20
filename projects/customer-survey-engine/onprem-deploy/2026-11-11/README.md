@@ -68,8 +68,8 @@ filter, fixed in `4107c01b`.
 2. **Form Engine designer and runtime (2)**, then Publish All.
 3. **Form Engine plugin (3)**, only once its gate is cleared. Without it normal surveys still work, but
    weighted scores are not calculated: the published survey carries no weights or points.
-4. **SurveyEngine (4)**, then Publish All. It must come after (1): the Survey Integration role reads Form
-   Engine tables.
+4. **SurveyEngine (4)**, then Publish All. It must come after (1): the survey APIs read the Form Engine's
+   published surveys.
 
 ### The plugin gate (3)
 

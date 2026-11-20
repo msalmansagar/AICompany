@@ -369,34 +369,42 @@ namespace Qdb.SurveyEngine.Tests
                 throw new SurveyApiException(SurveyApiException.BadRequest, "test refusal");
         }
 
-        [Fact]
-        public void Execute_RunThrowsSurveyApiException_WrapsAsInvalidPluginExecution()
+        // Every RetrieveMultiple answers with one row: the role lookups then admit the caller, and the settings
+        // read finds a row without a customer table (account, the default). No rows: the caller holds no role.
+        private static IServiceProvider Provider(bool isCallerAdmitted)
         {
             var context = new Mock<IPluginExecutionContext>();
             context.SetupGet(c => c.UserId).Returns(Guid.NewGuid());
+            context.SetupGet(c => c.InitiatingUserId).Returns(Guid.NewGuid());
             context.SetupGet(c => c.MessageName).Returns("CustomAction");
             context.SetupGet(c => c.InputParameters).Returns(new ParameterCollection());
             context.SetupGet(c => c.OutputParameters).Returns(new ParameterCollection());
-
-            var tracing = new Mock<ITracingService>();
-
-            // CustomerLinkReader.Read calls RetrieveMultiple once
             var service = new Mock<IOrganizationService>();
             service.Setup(s => s.RetrieveMultiple(It.IsAny<QueryBase>()))
-                   .Returns(new EntityCollection() { MoreRecords = false });
-
+                   .Returns(isCallerAdmitted ? new EntityCollection(new[] { new Entity("role") }) : new EntityCollection());
             var factory = new Mock<IOrganizationServiceFactory>();
-            factory.Setup(f => f.CreateOrganizationService(It.IsAny<Guid?>()))
-                   .Returns(service.Object);
-
+            factory.Setup(f => f.CreateOrganizationService(It.IsAny<Guid?>())).Returns(service.Object);
             var provider = new Mock<IServiceProvider>();
             provider.Setup(p => p.GetService(typeof(IPluginExecutionContext))).Returns(context.Object);
-            provider.Setup(p => p.GetService(typeof(ITracingService))).Returns(tracing.Object);
+            provider.Setup(p => p.GetService(typeof(ITracingService))).Returns(new Mock<ITracingService>().Object);
             provider.Setup(p => p.GetService(typeof(IOrganizationServiceFactory))).Returns(factory.Object);
+            return provider.Object;
+        }
 
-            var ex = Assert.Throws<InvalidPluginExecutionException>(() => new RefusingPlugin().Execute(provider.Object));
+        [Fact]
+        public void Execute_RunThrowsSurveyApiException_WrapsAsInvalidPluginExecution()
+        {
+            var ex = Assert.Throws<InvalidPluginExecutionException>(() => new RefusingPlugin().Execute(Provider(true)));
 
             Assert.Contains("test refusal", ex.Message);
+        }
+
+        [Fact]
+        public void Execute_CallerWithoutTheIntegrationRole_IsRefusedBeforeRun()
+        {
+            var ex = Assert.Throws<InvalidPluginExecutionException>(() => new RefusingPlugin().Execute(Provider(false)));
+
+            Assert.Contains("Survey Integration", ex.Message);
         }
     }
 }
