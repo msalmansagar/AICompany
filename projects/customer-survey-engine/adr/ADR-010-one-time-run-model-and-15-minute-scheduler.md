@@ -1,7 +1,7 @@
 # ADR-010 — One-time trigger run model and the 15-minute scheduler
 
 **Project:** CSE-ENG-001 — Customer Survey Engine
-**Status:** Accepted (CEO, 2026-11-16)
+**Status:** Accepted (CEO, 2026-11-16); Amendment 1 (bug fix DEF-CSE-002) 2026-11-20
 **Date:** 2026-11-16
 **Requirements:** FR-CSE-083..088, NFR-CSE-015/016 (BRD Addendum D); CEO answers OQ-D3, OQ-D4
 **Amends:** ADR-005 (daily scheduler)
@@ -30,6 +30,23 @@ browser can be interrupted (form closed, network). ADR-005 runs `qdb_srv_RunDueS
    `RunDate` always runs them.
 6. **Same rules as every invitation.** The existing candidate pipeline applies: fatigue (OQ-D4) with the
    trigger's Drop / Postpone, priority, the setup's Digital delivery, version pin, expiry.
+
+## Amendment 1 — 2026-11-20 (DEF-CSE-002, bug fix)
+
+Decision 2 said each page's cursor is "committed". It is not: a Custom API call is **one database
+transaction**, so the cursor and invitations written after each page are saved only when the call ends. A
+call that throws, or overruns the 2-minute plugin limit, rolls back all of its pages. Decision 5 ran the
+One-time pass and the daily passes in that same transaction, so a One-time send that kept failing rolled back
+every call and the daily passes (scheduled surveys, postponed release, retention) never ran. Corrected:
+
+- **Two passes, two calls.** `qdb_srv_RunDueSurveys` takes an optional `Pass` input: `OneTime`, `Daily`, or
+  empty for both (the old behaviour, kept for any other caller). The scheduler (Windows task and cloud flow)
+  calls `OneTime` and then `Daily` as separate requests, each with its own error handling, so a failure in one
+  cannot roll back or block the other.
+- **Pages of 25, not 100.** The budget is still checked between pages, so a page is the most a call overruns
+  by: about 4 s at the measured 165 ms per customer, instead of about 16 s.
+- **What a resumed send relies on** is unchanged: progress written in a call that completes is kept, and the
+  dedupe key stops a second invitation when a failed call's customers are sent again by the next one.
 
 ## Consequences
 

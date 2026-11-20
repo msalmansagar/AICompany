@@ -5,7 +5,7 @@
  *
  * @module survey-provisioning/plugin-steps
  */
-import { PLUGIN, CUSTOM_APIS, buildStepPayload, buildPreImagePayload, buildCustomApiPayload, describeSignature, stepName } from './plugin-payloads.mjs';
+import { PLUGIN, CUSTOM_APIS, buildStepPayload, buildPreImagePayload, buildCustomApiPayload, describeSignature, stepName, missingRequestParameters, buildRequestParameterPayload } from './plugin-payloads.mjs';
 
 const ASSEMBLY_COMPONENT_TYPE = 91;
 const STEP_COMPONENT_TYPE = 92;
@@ -51,8 +51,8 @@ export async function ensurePluginType({ client, assemblyId, isApply, report }, 
 }
 
 /**
- * Ensures each survey Custom API exists with its plugin type (A1, A3). An existing API is left
- * as it is: its plugin type is fixed at creation.
+ * Ensures each survey Custom API exists with its plugin type (A1, A3). An existing API keeps its
+ * plugin type (fixed at creation); only optional inputs declared since are added to it.
  *
  * @param {{ client: object, assemblyId: string|null, isApply: boolean, report: Function }} context
  */
@@ -60,9 +60,21 @@ export async function ensureCustomApis(context) {
   for (const api of CUSTOM_APIS) {
     const pluginTypeId = await ensurePluginType(context, api);
     const existing = (await context.client.send('GET', `customapis?$select=customapiid&$filter=uniquename eq '${api.uniqueName}'`)).json.value[0];
-    if (existing) { context.report('exists', `custom API ${api.uniqueName}`); continue; }
+    if (existing) { await ensureRequestParameters(context, api, existing.customapiid); continue; }
     context.report('create', `custom API ${api.uniqueName} (${describeSignature(api)})`);
     if (context.isApply) await context.client.send('POST', 'customapis', buildCustomApiPayload(api, pluginTypeId));
+  }
+}
+
+// An existing API keeps its plugin type and its parameters; an optional input declared later (Pass on
+// qdb_srv_RunDueSurveys, DEF-CSE-002) is added to it.
+async function ensureRequestParameters(context, api, customApiId) {
+  const rows = (await context.client.send('GET', `customapirequestparameters?$select=uniquename&$filter=_customapiid_value eq ${customApiId}`)).json.value;
+  const missing = missingRequestParameters(api, rows.map((row) => row.uniquename));
+  if (missing.length === 0) { context.report('exists', `custom API ${api.uniqueName}`); return; }
+  for (const input of missing) {
+    context.report('create', `request parameter ${api.uniqueName}.${input.name} (optional)`);
+    if (context.isApply) await context.client.send('POST', 'customapirequestparameters', buildRequestParameterPayload(input, customApiId));
   }
 }
 

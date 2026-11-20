@@ -111,6 +111,17 @@ namespace Qdb.SurveyEngine.Tests
             Assert.Equal(2, Send().Counts.Suppressed);
         }
 
+        // DEF-CSE-002: the budget is checked between pages, so one page is the most a call can overrun by. At the
+        // 165 ms per customer measured on cloud (QA-D2) a page must stay within the 30 s left under the 2-minute limit
+        // with a wide margin for slower on-prem servers.
+        [Fact]
+        public void PageSize_AtTheRateMeasuredOnCloud_OvershootsTheAllowanceByAtMostFiveSeconds()
+        {
+            const double MeasuredSecondsPerCustomer = 0.165;
+
+            Assert.True(OneTimeSendService.PageSize * MeasuredSecondsPerCustomer <= 5, $"{OneTimeSendService.PageSize} customers ≈ {OneTimeSendService.PageSize * MeasuredSecondsPerCustomer:0.0} s");
+        }
+
         [Fact]
         public void Send_BudgetRunsOutBetweenPages_StopsAndSavesTheCursor()
         {
@@ -411,6 +422,77 @@ namespace Qdb.SurveyEngine.Tests
             var summary = RunDueSurveysService.Compose(_scheduling.AsDependencies()).Run(_pipeline.UtcNow.AddDays(-1), new RunBudget(_pipeline, TimeSpan.FromMinutes(5)));
 
             Assert.True(summary.RanDailyPasses);
+        }
+    }
+
+    // DEF-CSE-002: the scheduler runs the One-time pass and the daily passes as separate calls (separate
+    // transactions), so a failure in one cannot roll back or block the other.
+    public class RunPassTests
+    {
+        private readonly InMemorySurveyStore _pipeline = new InMemorySurveyStore();
+        private readonly InMemorySchedulingStore _scheduling;
+        private readonly OneTimeTrigger _due;
+
+        public RunPassTests()
+        {
+            _scheduling = new InMemorySchedulingStore(_pipeline);
+            _pipeline.PublishedVersions["srv_x|en"] = 1;
+            _scheduling.OneTime.AudienceCustomers.Add(Guid.NewGuid());
+            _due = new OneTimeTrigger
+            {
+                Trigger = new SurveyTrigger { Id = Guid.NewGuid(), Kind = TriggerKind.OneTime, Setup = new SurveySetup { Id = Guid.NewGuid(), FormCode = "srv_x" } },
+                IsTriggerActive = true, IsSetupActive = true, SendOn = _pipeline.UtcNow.AddMinutes(-1),
+            };
+            _scheduling.OneTime.Triggers[_due.Trigger.Id] = _due;
+        }
+
+        private RunSummary Run(RunPass pass) =>
+            RunDueSurveysService.Compose(_scheduling.AsDependencies()).Run(_pipeline.UtcNow, new RunBudget(_pipeline, TimeSpan.FromMinutes(5)), pass);
+
+        [Fact]
+        public void Run_OneTimePass_SendsTheDueTrigger()
+        {
+            Run(RunPass.OneTime);
+
+            Assert.Equal(OneTimeRunStatus.Sent, _due.Run.Status);
+        }
+
+        [Fact]
+        public void Run_OneTimePass_LeavesTheDailyPassesForTheirOwnCall()
+        {
+            var summary = Run(RunPass.OneTime);
+
+            Assert.False(summary.RanDailyPasses);
+            Assert.Null(_scheduling.OneTime.DailyPassesCompletedOn);
+        }
+
+        [Fact]
+        public void Run_DailyPass_DoesNotTouchOneTimeTriggers()
+        {
+            Run(RunPass.Daily);
+
+            Assert.Equal(OneTimeRunStatus.NotSent, _due.Run.Status);
+        }
+
+        [Fact]
+        public void Run_DailyPass_RunsTheDailyPassesAndRemembersTheDate()
+        {
+            var summary = Run(RunPass.Daily);
+
+            Assert.True(summary.RanDailyPasses);
+            Assert.Equal(_pipeline.UtcNow.Date, _scheduling.OneTime.DailyPassesCompletedOn);
+        }
+
+        [Fact]
+        public void Run_DailyPass_SummarySaysTheOneTimePassWasNotRun()
+        {
+            Assert.Contains("One-time pass: not run in this call", Run(RunPass.Daily).ToString());
+        }
+
+        [Fact]
+        public void Run_OneTimePass_SummarySaysTheDailyPassesWereNotRun()
+        {
+            Assert.Contains("Daily passes: not run in this call", Run(RunPass.OneTime).ToString());
         }
     }
 

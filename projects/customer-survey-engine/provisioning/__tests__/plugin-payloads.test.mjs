@@ -3,15 +3,33 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildStepPayload, buildPreImagePayload, stepsForSources, stepName, PLUGIN, CUSTOM_APIS, DISPATCH, TRIGGER_VALIDATION, buildCustomApiPayload, describeSignature } from '../lib/plugin-payloads.mjs';
+import { buildStepPayload, buildPreImagePayload, stepsForSources, stepName, PLUGIN, CUSTOM_APIS, DISPATCH, TRIGGER_VALIDATION, buildCustomApiPayload, describeSignature, missingRequestParameters, buildRequestParameterPayload } from '../lib/plugin-payloads.mjs';
 
 const apiNamed = (uniqueName) => CUSTOM_APIS.find((api) => api.uniqueName === uniqueName);
 
-test('buildCustomApiPayload_runDueSurveys_hasAnOptionalStringDateAndSummaryPlusIsCompleteOutputs', () => {
+test('buildCustomApiPayload_runDueSurveys_hasOptionalStringDateAndPassAndSummaryPlusIsCompleteOutputs', () => {
   const payload = buildCustomApiPayload(apiNamed('qdb_srv_RunDueSurveys'), 'type-id');
 
-  assert.deepEqual(payload.CustomAPIRequestParameters.map((p) => [p.uniquename, p.type, p.isoptional]), [['RunDate', 10, true]]);
+  assert.deepEqual(payload.CustomAPIRequestParameters.map((p) => [p.uniquename, p.type, p.isoptional]), [['RunDate', 10, true], ['Pass', 10, true]]);
   assert.deepEqual(payload.CustomAPIResponseProperties.map((p) => [p.uniquename, p.type]), [['Summary', 10], ['IsComplete', 0]]);
+});
+
+test('missingRequestParameters_apiCreatedBeforePassExisted_listsOnlyPass', () => {
+  const missing = missingRequestParameters(apiNamed('qdb_srv_RunDueSurveys'), ['RunDate']);
+
+  assert.deepEqual(missing.map((input) => input.name), ['Pass']);
+});
+
+test('missingRequestParameters_everyInputPresent_listsNothing', () => {
+  assert.deepEqual(missingRequestParameters(apiNamed('qdb_srv_RunDueSurveys'), ['RunDate', 'Pass']), []);
+});
+
+test('buildRequestParameterPayload_pass_bindsToTheExistingApiAsAnOptionalString', () => {
+  const pass = apiNamed('qdb_srv_RunDueSurveys').inputs.find((input) => input.name === 'Pass');
+
+  const payload = buildRequestParameterPayload(pass, 'api-id');
+
+  assert.deepEqual([payload.uniquename, payload.type, payload.isoptional, payload['CustomAPIId@odata.bind']], ['Pass', 10, true, '/customapis(api-id)']);
 });
 
 test('CUSTOM_APIS_everyParameterDescription_fitsDataverses100CharacterLimit', () => {
@@ -41,7 +59,7 @@ test('buildCustomApiPayload_getSurvey_returnsTheVersionAsAnInteger', () => {
 });
 
 test('describeSignature_runDueSurveys_listsInputsAndOutputs', () => {
-  assert.equal(describeSignature(apiNamed('qdb_srv_RunDueSurveys')), 'RunDate → Summary, IsComplete');
+  assert.equal(describeSignature(apiNamed('qdb_srv_RunDueSurveys')), 'RunDate, Pass → Summary, IsComplete');
 });
 
 test('buildCustomApiPayload_activate_isAnUnboundActionWithAGuidInputAndAStringOutput', () => {

@@ -40,11 +40,15 @@ namespace Qdb.SurveyEngine.Scheduling
             return new RunDueSurveysService(new OneTimeDuePass(dependencies.OneTimeTriggers, sender, pipeline), daily, dependencies.DailyPassGate);
         }
 
-        /// <summary>Runs the passes due for <paramref name="runDate"/> within <paramref name="budget"/>.</summary>
-        public RunSummary Run(DateTime runDate, RunBudget budget)
+        /// <summary>Runs every pass due for <paramref name="runDate"/> within <paramref name="budget"/>.</summary>
+        public RunSummary Run(DateTime runDate, RunBudget budget) => Run(runDate, budget, RunPass.All);
+
+        /// <summary>Runs the chosen passes due for <paramref name="runDate"/> within <paramref name="budget"/>.</summary>
+        public RunSummary Run(DateTime runDate, RunBudget budget, RunPass pass)
         {
             if (budget == null) throw new ArgumentNullException(nameof(budget));
-            var oneTime = _oneTime.Run(budget);
+            var oneTime = pass == RunPass.Daily ? OneTimeDueResult.NotRun() : _oneTime.Run(budget);
+            if (pass == RunPass.OneTime) return RunSummary.DailyNotRequested(oneTime);
             if (_gate.HasCompleted(runDate.Date)) return RunSummary.OneTimeOnly(oneTime);
             var summary = _daily.Run(oneTime, runDate.Date, budget);
             if (summary.AreDailyPassesComplete) _gate.MarkCompleted(runDate.Date);

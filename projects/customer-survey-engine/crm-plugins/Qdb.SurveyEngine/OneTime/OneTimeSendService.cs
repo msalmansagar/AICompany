@@ -10,14 +10,19 @@ namespace Qdb.SurveyEngine.OneTime
     /// <summary>
     /// Sends a One-time trigger (FR-CSE-083..088, ADR-010): page by page through its audience, each
     /// customer through the same rules as every invitation (version pin, fatigue with Drop / Postpone,
-    /// priority, the setup's Digital delivery). The cursor and totals are committed after each page and
-    /// the call stops between pages when the budget runs out, so the form or the scheduler can call
-    /// again and the send resumes where it stopped. A trigger runs once.
+    /// priority, the setup's Digital delivery). The cursor and totals are written after each page and the
+    /// call stops between pages when the budget runs out, so the form or the scheduler can call again and the
+    /// send resumes where it stopped. A Custom API call is ONE database transaction: those writes are saved
+    /// when the call ends, and a call that fails or overruns the plugin limit loses only its own pages
+    /// (DEF-CSE-002). A trigger runs once.
     /// </summary>
     public sealed class OneTimeSendService
     {
-        /// <summary>About 6 seconds of work per page at the A3-measured rate, so a page never outruns the budget.</summary>
-        public const int PageSize = 100;
+        /// <summary>
+        /// The budget is checked between pages, so a page is the most a call can overrun by: about 4 seconds at
+        /// the 165 ms per customer measured on cloud (QA-D2), leaving room for slower on-prem servers.
+        /// </summary>
+        public const int PageSize = 25;
 
         private readonly OneTimeSendDependencies _deps;
 
