@@ -80,6 +80,19 @@ namespace Qdb.SurveyEngine.Scheduling
         // Why the daily passes did not run, when they did not.
         private string DailySkippedBecause { get; set; } = "Daily passes: already completed for this date.";
 
+        // Missed run dates this call caught up, and those too old to catch up (DEF-CSE-003); empty when none.
+        private string MissedDaysNote { get; set; } = string.Empty;
+
+        /// <summary>This summary with the missed dates caught up before the run date, and any too old to catch up, named.</summary>
+        public RunSummary WithMissedDays(IReadOnlyList<string> caughtUp, MissedRunDays plan)
+        {
+            if (plan == null) throw new System.ArgumentNullException(nameof(plan));
+            var notes = new List<string>(caughtUp ?? new string[0]);
+            if (plan.TooOldCount > 0)
+                notes.Add($"NOT caught up, older than {MissedRunDays.MaxCatchUpDays} days: {plan.TooOldCount} day(s) from {plan.TooOldFrom:yyyy-MM-dd} to {plan.TooOldTo:yyyy-MM-dd}; re-run each with RunDate.");
+            return new RunSummary(OneTime, Postponed, Scheduled, Retention) { DailySkippedBecause = DailySkippedBecause, MissedDaysNote = string.Join(" ", notes) };
+        }
+
         public OneTimeDueResult OneTime { get; }
         public PostponedReleaseResult Postponed { get; }
         public ScheduledRunResult Scheduled { get; }
@@ -95,7 +108,8 @@ namespace Qdb.SurveyEngine.Scheduling
         public bool IsComplete => OneTime.IsComplete && (!RanDailyPasses || AreDailyPassesComplete);
 
         public override string ToString() =>
-            $"{OneTime} " + (RanDailyPasses ? $"{Postponed} {Scheduled} {Retention}" : DailySkippedBecause)
+            $"{OneTime} " + (MissedDaysNote.Length > 0 ? MissedDaysNote + " " : string.Empty)
+            + (RanDailyPasses ? $"{Postponed} {Scheduled} {Retention}" : DailySkippedBecause)
             + (IsComplete ? string.Empty : " Time budget spent: call again to continue.");
     }
 }

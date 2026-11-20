@@ -13,7 +13,9 @@
    - annual triggers on 1 Jan.
 3. Applies response retention, but only once QDB Compliance has set both the period and the mode in Survey Settings.
 
-The date the daily work last completed is kept in Survey Settings → *Daily Passes Completed On*. Clearing it makes the next call run the daily work again; passing an earlier `RunDate` re-runs a missed day.
+The date the daily work last completed is kept in Survey Settings → *Daily Passes Completed On*. Clearing it makes the next call run the daily work again.
+
+**Missed days are caught up automatically** (kit 1.2.0.3, DEF-CSE-003). If the scheduler did not run on some days (for example the server was down on 1 January), the next run does the daily work for each missed date, oldest first, so that period's surveys still go out. It goes back at most **28 days**; older missed dates are named in the summary ("NOT caught up …") and an administrator re-runs each one by passing it as `RunDate`. Re-running a date never creates duplicates and never moves *Daily Passes Completed On* backwards.
 
 | Input | Type | Meaning |
 |---|---|---|

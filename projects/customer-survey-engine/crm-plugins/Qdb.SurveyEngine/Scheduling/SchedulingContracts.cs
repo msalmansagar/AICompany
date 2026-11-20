@@ -119,8 +119,8 @@ namespace Qdb.SurveyEngine.Scheduling
     /// </summary>
     public interface IDailyPassGate
     {
-        /// <summary>True when the daily passes already completed for this run date.</summary>
-        bool HasCompleted(DateTime runDate);
+        /// <summary>The last run date whose daily passes completed; null when they never have.</summary>
+        DateTime? LastCompletedOn();
 
         /// <summary>Records that the daily passes completed for this run date.</summary>
         void MarkCompleted(DateTime runDate);

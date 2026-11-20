@@ -84,7 +84,7 @@ namespace Qdb.SurveyEngine.Tests
 
         public int Count(AudienceQuery query) => AudienceCustomers.Count;
 
-        public bool HasCompleted(DateTime runDate) => DailyPassesCompletedOn == runDate.Date;
+        public DateTime? LastCompletedOn() => DailyPassesCompletedOn;
 
         public void MarkCompleted(DateTime runDate) => DailyPassesCompletedOn = runDate.Date;
     }
