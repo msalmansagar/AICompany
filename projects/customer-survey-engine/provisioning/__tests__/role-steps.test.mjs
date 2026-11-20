@@ -1,7 +1,7 @@
 // Role provisioning against a fake Web API client: what is created, granted and verified.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ensureRoles, surplusPrivileges } from '../lib/role-steps.mjs';
+import { ensureRoles, surplusPrivileges, buildRemovePrivilegePayload } from '../lib/role-steps.mjs';
 
 const ROOT_UNIT = '00000000-0000-0000-0000-0000000000b1';
 const NEW_ROLE = '00000000-0000-0000-0000-0000000000r1';
@@ -45,6 +45,11 @@ test('surplusPrivileges_platformDefaultsAndTheManifestGrant_areKept', () => {
 
 test('surplusPrivileges_roleWithoutRevokeOn_listsNothing', () => {
   assert.deepEqual(surplusPrivileges({ name: 'Survey Analyst', privileges: [] }, ['prvReadaccount']), []);
+});
+
+// The Web API refused { PrivilegeId } live (0x80048d19); $metadata names the parameter Privilege, a privilege entity.
+test('buildRemovePrivilegePayload_privilege_isAnEntityReferenceNamedPrivilege', () => {
+  assert.deepEqual(buildRemovePrivilegePayload('p-1'), { Privilege: { '@odata.type': 'Microsoft.Dynamics.CRM.privilege', privilegeid: 'p-1' } });
 });
 
 test('surplusPrivileges_nameCase_isIgnored', () => {

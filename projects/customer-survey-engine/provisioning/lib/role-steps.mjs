@@ -45,8 +45,18 @@ async function revokeSurplusPrivileges({ client, isApply, report }, role, roleId
   if (!isApply) return;
   const idByName = new Map(held.map((privilege) => [privilege.name.toLowerCase(), privilege.privilegeid]));
   for (const name of surplus) {
-    await client.send('POST', `roles(${roleId})/Microsoft.Dynamics.CRM.RemovePrivilegeRole`, { PrivilegeId: idByName.get(name.toLowerCase()) });
+    await client.send('POST', `roles(${roleId})/Microsoft.Dynamics.CRM.RemovePrivilegeRole`, buildRemovePrivilegePayload(idByName.get(name.toLowerCase())));
   }
+}
+
+/**
+ * The body of RemovePrivilegeRole. Its parameter is `Privilege`, a privilege entity (read from the org's
+ * $metadata 2026-11-21), not a `PrivilegeId` GUID as on the SDK request, which the Web API refuses.
+ *
+ * @param {string} privilegeId
+ */
+export function buildRemovePrivilegePayload(privilegeId) {
+  return { Privilege: { '@odata.type': 'Microsoft.Dynamics.CRM.privilege', privilegeid: privilegeId } };
 }
 
 // The role's privileges with their names (RetrieveRolePrivilegesRole returns ids only).
