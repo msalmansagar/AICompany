@@ -170,21 +170,21 @@ namespace Qdb.SurveyEngine.Tests
         }
 
         [Fact]
-        public void HasCompleted_SameDate_IsTrue()
+        public void LastCompletedOn_Stored_IsTheDate()
         {
-            Assert.True(new DailyPassGate(ServiceWithSettings(new DateTime(2026, 12, 1)).Object).HasCompleted(new DateTime(2026, 12, 1, 23, 0, 0)));
+            Assert.Equal(new DateTime(2026, 12, 1), new DailyPassGate(ServiceWithSettings(new DateTime(2026, 12, 1)).Object).LastCompletedOn());
         }
 
         [Fact]
-        public void HasCompleted_OtherDate_IsFalse()
+        public void LastCompletedOn_StoredWithATime_DropsTheTime()
         {
-            Assert.False(new DailyPassGate(ServiceWithSettings(new DateTime(2026, 11, 30)).Object).HasCompleted(new DateTime(2026, 12, 1)));
+            Assert.Equal(new DateTime(2026, 12, 1), new DailyPassGate(ServiceWithSettings(new DateTime(2026, 12, 1, 23, 0, 0)).Object).LastCompletedOn());
         }
 
         [Fact]
-        public void HasCompleted_NeverCompleted_IsFalse()
+        public void LastCompletedOn_NeverCompleted_IsNull()
         {
-            Assert.False(new DailyPassGate(ServiceWithSettings(null).Object).HasCompleted(new DateTime(2026, 12, 1)));
+            Assert.Null(new DailyPassGate(ServiceWithSettings(null).Object).LastCompletedOn());
         }
 
         [Fact]

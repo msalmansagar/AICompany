@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Qdb.SurveyEngine.OneTime;
 using Qdb.SurveyEngine.Services;
 
@@ -49,10 +51,43 @@ namespace Qdb.SurveyEngine.Scheduling
             if (budget == null) throw new ArgumentNullException(nameof(budget));
             var oneTime = pass == RunPass.Daily ? OneTimeDueResult.NotRun() : _oneTime.Run(budget);
             if (pass == RunPass.OneTime) return RunSummary.DailyNotRequested(oneTime);
-            if (_gate.HasCompleted(runDate.Date)) return RunSummary.OneTimeOnly(oneTime);
-            var summary = _daily.Run(oneTime, runDate.Date, budget);
-            if (summary.AreDailyPassesComplete) _gate.MarkCompleted(runDate.Date);
-            return summary;
+            var lastCompleted = _gate.LastCompletedOn();
+            var plan = MissedRunDays.Plan(lastCompleted, runDate);
+            return plan.IsAlreadyCompleted ? RunSummary.OneTimeOnly(oneTime) : RunDailyDates(oneTime, plan, new DailyRunContext(lastCompleted, budget));
+        }
+
+        // Runs the daily passes for each planned date, oldest first; a date counts as done only when its passes
+        // finish, so a run cut by the budget resumes from the last finished date on the next call (DEF-CSE-003).
+        private RunSummary RunDailyDates(OneTimeDueResult oneTime, MissedRunDays plan, DailyRunContext context)
+        {
+            var caughtUp = new List<string>();
+            RunSummary summary = null;
+            foreach (var date in plan.Dates)
+            {
+                summary = _daily.Run(oneTime, date, context.Budget);
+                if (!summary.AreDailyPassesComplete) break;
+                RememberCompleted(date, context.LastCompleted);
+                if (date != plan.Dates.Last()) caughtUp.Add($"Missed day {date:yyyy-MM-dd}: {summary.Scheduled}");
+            }
+            return summary.WithMissedDays(caughtUp, plan);
+        }
+
+        // Never moves the date back: an administrator re-running an earlier date leaves the later one standing.
+        private void RememberCompleted(DateTime date, DateTime? lastCompleted)
+        {
+            if (lastCompleted == null || date > lastCompleted.Value) _gate.MarkCompleted(date);
+        }
+
+        private sealed class DailyRunContext
+        {
+            public DailyRunContext(DateTime? lastCompleted, RunBudget budget)
+            {
+                LastCompleted = lastCompleted;
+                Budget = budget;
+            }
+
+            public DateTime? LastCompleted { get; }
+            public RunBudget Budget { get; }
         }
 
         private static void RequireAll(RunDueSurveysDependencies dependencies)

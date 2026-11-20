@@ -141,6 +141,73 @@ namespace Qdb.SurveyEngine.Tests
             Assert.Equal(2, second.Scheduled.AlreadyGenerated);
         }
 
+        // DEF-CSE-003: the scheduler did not run on 1 January; the run on the 2nd must still send December's survey.
+        [Fact]
+        public void Run_FirstOfTheMonthMissed_NextDaySendsThatMonthsSurvey()
+        {
+            Scheduled(SchedulePeriod.Monthly, "srv-monthly");
+            _store.OneTime.DailyPassesCompletedOn = NewYear.AddDays(-1);
+
+            Run(NewYear.AddDays(1));
+
+            Assert.All(_pipeline.Invitations, i => Assert.Equal("2026-12", i.SchedulePeriodKey));
+            Assert.Equal(2, _pipeline.Invitations.Count);
+        }
+
+        [Fact]
+        public void Run_FirstOfTheMonthMissed_SummaryNamesTheDayCaughtUp()
+        {
+            Scheduled(SchedulePeriod.Monthly, "srv-monthly");
+            _store.OneTime.DailyPassesCompletedOn = NewYear.AddDays(-1);
+
+            Assert.Contains("Missed day 2027-01-01", Run(NewYear.AddDays(1)).ToString());
+        }
+
+        [Fact]
+        public void Run_FirstOfTheMonthMissed_RemembersTheRunDate()
+        {
+            _store.OneTime.DailyPassesCompletedOn = NewYear.AddDays(-1);
+
+            Run(NewYear.AddDays(1));
+
+            Assert.Equal(NewYear.AddDays(1), _store.OneTime.DailyPassesCompletedOn);
+        }
+
+        [Fact]
+        public void Run_EarlierRunDateReRun_DoesNotMoveTheCompletedDateBack()
+        {
+            _store.OneTime.DailyPassesCompletedOn = NewYear.AddDays(5);
+
+            Run(NewYear);
+
+            Assert.Equal(NewYear.AddDays(5), _store.OneTime.DailyPassesCompletedOn);
+        }
+
+        // 31 Dec has nothing due, so it finishes even with no budget; 1 Jan's monthly survey is cut, so the next
+        // call resumes at 1 Jan.
+        [Fact]
+        public void Run_MissedDaysCutByBudget_RemembersOnlyTheDaysThatFinished()
+        {
+            Scheduled(SchedulePeriod.Monthly, "srv-monthly");
+            _store.OneTime.DailyPassesCompletedOn = NewYear.AddDays(-2);
+
+            Run(NewYear.AddDays(1), TimeSpan.Zero);
+
+            Assert.Equal(NewYear.AddDays(-1), _store.OneTime.DailyPassesCompletedOn);
+        }
+
+        [Fact]
+        public void Run_MissedDaysCutByBudget_NextCallSendsTheCutDay()
+        {
+            Scheduled(SchedulePeriod.Monthly, "srv-monthly");
+            _store.OneTime.DailyPassesCompletedOn = NewYear.AddDays(-2);
+            Run(NewYear.AddDays(1), TimeSpan.Zero);
+
+            Run(NewYear.AddDays(1));
+
+            Assert.Equal(2, _pipeline.Invitations.Count(i => i.SchedulePeriodKey == "2026-12"));
+        }
+
         [Fact]
         public void Run_NotTheFirstOfThePeriod_CreatesNothing()
         {

@@ -1,7 +1,7 @@
 # ADR-010 — One-time trigger run model and the 15-minute scheduler
 
 **Project:** CSE-ENG-001 — Customer Survey Engine
-**Status:** Accepted (CEO, 2026-11-16); Amendment 1 (bug fix DEF-CSE-002) 2026-11-20
+**Status:** Accepted (CEO, 2026-11-16); Amendments 1 and 2 (bug fixes DEF-CSE-002, DEF-CSE-003) 2026-11-20
 **Date:** 2026-11-16
 **Requirements:** FR-CSE-083..088, NFR-CSE-015/016 (BRD Addendum D); CEO answers OQ-D3, OQ-D4
 **Amends:** ADR-005 (daily scheduler)
@@ -47,6 +47,22 @@ every call and the daily passes (scheduled surveys, postponed release, retention
   by: about 4 s at the measured 165 ms per customer, instead of about 16 s.
 - **What a resumed send relies on** is unchanged: progress written in a call that completes is kept, and the
   dedupe key stops a second invitation when a failed call's customers are sent again by the next one.
+
+## Amendment 2 — 2026-11-20 (DEF-CSE-003, bug fix)
+
+Scheduled surveys are due only on the 1st, and decision 5's gate compared only the run date, so a day the
+scheduler did not run (server down, holiday freeze) silently lost that period's surveys; recovery needed an
+administrator to notice and re-run with `RunDate`. Decision 5 also said an explicit `RunDate` "always runs"
+the passes; it ran them unless that date was the one stored, and then stored it, moving the gate backwards.
+Corrected:
+
+- **Catch-up.** The daily passes run for every date after the last completed one, oldest first, up to
+  28 days back (`MissedRunDays.MaxCatchUpDays`): quarterly and annual invitations expire one month into the
+  next period and the shortest month has 28 days, so a caught-up date always creates invitations before they
+  expire. Older missed dates are not run; the summary names them ("NOT caught up … re-run each with RunDate").
+- **A date counts as done only when its passes finish**, so a run cut by the budget resumes on the next call.
+- **The gate never moves back.** Re-running an earlier date with `RunDate` runs that date and leaves the later
+  completed date in place.
 
 ## Consequences
 
