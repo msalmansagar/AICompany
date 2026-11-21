@@ -5,7 +5,7 @@
 | Prepared by | MSS Technologies, Business Analyst |
 | Amends | `phase-2-ba.md` v1.5 (v1.1 + Addenda A–D) → becomes **v1.6** when this addendum is approved |
 | Date | 2026-11-21 |
-| Status | **DRAFT — awaiting CEO approval.** Nothing may be built from it until approved. |
+| Status | **APPROVED by the CEO 2026-11-21** (BRD v1.6), with the MSS recommendations on OQ-E1 (b) and OQ-E2 (a). OQ-E3 stays open; it does not block the build. |
 | Trigger | The CEO stated on 2026-11-21 that **HL CRM has about 44,000 customers, of which about 10,000 are active**, and that **all active HL contacts are customers** who may be surveyed. The BRD assumed about 450 active customers (section 9.2). The independent review of 2026-11-19 (item 5) found that the scheduled pass is not built for that size. |
 
 ---
@@ -88,7 +88,7 @@ the next call.
 |---|---|---|---|
 | NFR-CSE-006 (amended) | Performance | Trigger evaluation finishes well inside the 2-minute plugin limit at the expected volume of each org (5.1). The daily job handles the full customer base in budgeted calls that resume until complete. | Async trigger p95 < 10 s. A scheduled run over the org's active customers completes, with no call over the limit. |
 | NFR-CSE-019 | Performance — scale | At HL's volume, a scheduled or one-time survey to all ~10,000 active customers completes within **one hour** of starting, through the 15-minute scheduler, with no call over the plugin limit. | Measured (NFR-CSE-020). At 165 ms per customer, 10,000 customers is about 28 minutes of work. |
-| NFR-CSE-020 | Evidence | The scale is proven live, not only by unit tests. | A scheduled and a one-time run at the size chosen in **OQ-E1**, on the cloud org with test customers, timed; and the HL test org timing recorded by QDB IT during its Gate 3 runs. |
+| NFR-CSE-020 | Evidence | The scale is proven live, not only by unit tests. | A scheduled and a one-time run over **2,500** test customers (OQ-E1), on the cloud org with test customers, timed; and the HL test org timing recorded by QDB IT during its Gate 3 runs. |
 
 ---
 
@@ -127,8 +127,8 @@ the next call.
 
 | ID | Question | Options | MSS recommendation |
 |---|---|---|---|
-| OQ-E1 | How big should the live proof on the cloud org be? | (a) the full **10,000** test customers; (b) **2,500** on cloud plus the HL test org timing by QDB IT, and extrapolate | **(b)**: 2,500 already needs about 100 pages and many resumed calls, which is what has to be proven; 10,000 test accounts load the shared org for little extra evidence. |
-| OQ-E2 | Is about 27 minutes acceptable for a one-time "Send now" to all ~10,000 HL customers? The admin's form keeps calling until done, or the 15-minute scheduler finishes it. | (a) accept; (b) make it faster (more work per call, separate change) | **(a)**: it is a rare, deliberate action, it finishes without anyone waiting, and nobody is invited twice. |
+| OQ-E1 | **Answered 2026-11-21: (b).** How big should the live proof on the cloud org be? | (a) the full **10,000** test customers; (b) **2,500** on cloud plus the HL test org timing by QDB IT, and extrapolate | **(b)**: 2,500 already needs about 100 pages and many resumed calls, which is what has to be proven; 10,000 test accounts load the shared org for little extra evidence. |
+| OQ-E2 | **Answered 2026-11-21: (a) accept.** Is about 27 minutes acceptable for a one-time "Send now" to all ~10,000 HL customers? The admin's form keeps calling until done, or the 15-minute scheduler finishes it. | (a) accept; (b) make it faster (more work per call, separate change) | **(a)**: it is a rare, deliberate action, it finishes without anyone waiting, and nobody is invited twice. |
 | OQ-E3 | How many requests a month does HL expect (applications, disbursements, transfers)? | a number | Needed only to confirm event-trigger load; one customer per event is not a scale risk. |
 
 ---
@@ -137,7 +137,7 @@ the next call.
 
 | Role | Name | Decision | Date |
 |---|---|---|---|
-| CEO | | ☐ Approve ☐ Approve with conditions ☐ Revise | |
+| CEO | (the user, as CEO) | ☑ Approve, with OQ-E1 = (b) 2,500 on cloud + HL test org timing, OQ-E2 = (a) accept ~27 min one-time send | 2026-11-21 |
 
 When approved: BRD v1.6. Next steps (new-feature workflow, Spec Kit inside it): specify and clarify in
 `specs/NNN-scale-per-org/`, plan with architecture (paging design for the scheduled pass; check postponed release
