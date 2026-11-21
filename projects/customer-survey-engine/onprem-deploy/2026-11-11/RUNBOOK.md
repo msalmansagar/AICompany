@@ -88,7 +88,7 @@ is done.
 
 | # | Step |
 |---|---|
-| 4.1 | **Import** → `SurveyEngine_1_2_0_3_onprem_unmanaged.zip`. Leave "enable SDK message processing steps" ticked: the two invitation dispatch steps must be on. |
+| 4.1 | **Import** → `SurveyEngine_1_2_0_4_onprem_unmanaged.zip`. Leave "enable SDK message processing steps" ticked: the two invitation dispatch steps must be on. |
 | 4.2 | **Publish All Customizations.** |
 
 The package carries no trigger steps (readiness F4); activating a source creates them (stage 8).
@@ -102,7 +102,7 @@ The package carries no trigger steps (readiness F4); activating a source creates
 
 | Check | Pass |
 |---|---|
-| Q1–Q4 solution (version 1.2.0.3), 10 tables, 5 roles, app | PASS |
+| Q1–Q4 solution (version 1.2.0.4), 10 tables, 5 roles, app | PASS |
 | **Q5 eight Custom APIs bound to `Qdb.SurveyEngine`** | PASS. If not, open each API in the Plugin Registration Tool and set its plugin type from `Qdb.SurveyEngine.Plugins` (same name without the `qdb_srv_` prefix, e.g. `qdb_srv_GetSurvey` → `GetSurveyPlugin`) |
 | Q6 two dispatch steps enabled, no trigger steps | PASS |
 | Q7 six Form Engine columns | PASS |
@@ -123,7 +123,7 @@ The package carries no trigger steps (readiness F4); activating a source creates
 |---|---|---|
 | **Survey Admin** | survey administrators | setups, triggers, settings, SMS hand-off; reads sources and invitations |
 | **Survey Analyst** | people who read results | the only role that reads responses and answers (FR-CSE-060), with Excel export |
-| **Survey Integration** | the portal backend's service account | exactly what the four portal APIs need (integration guide) |
+| **Survey Integration** | the portal backend's service account | admits it to the four portal APIs, which then work inside CRM; it grants no survey or customer table rights, only the organization read (kit 1.2.0.4; integration guide) |
 | **Survey Scheduler** | the scheduler's AD service account (0.3), and **no other role** | lets it call the daily run and nothing else: the role grants no survey or customer table rights (only Read of the organization row, the platform minimum), and the run works as SYSTEM. Stage 8.2 proves the account can run it with this role alone |
 | **Survey Data Officer** | the named QDB Compliance staff who handle erasure requests, and **never** a service or integration account | lets them run the erasure API (section 11) and read the erasure log; it grants no survey or customer table rights, and the erasure works as SYSTEM |
 | System Administrator | the activation operator | source activation is administrator-only. The scheduler's account must **not** be a System Administrator (Phase 6 audit, SEC-01) |

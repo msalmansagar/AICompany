@@ -17,7 +17,57 @@ export async function ensureRoles(context) {
   for (const role of context.roles) {
     const roleId = await ensureRole(context, role, rootBusinessUnitId);
     await grantPrivileges(context, role, roleId);
+    await revokeSurplusPrivileges(context, role, roleId);
   }
+}
+
+/**
+ * Privileges a role holds on its `revokeOn` tables that the manifest no longer grants (a role cut back after it
+ * was created, e.g. Survey Integration, review item 3). Platform defaults on other tables are never listed.
+ *
+ * @param {{ privileges: object[], revokeOn?: string[] }} role
+ * @param {string[]} grantedNames Privilege names the role holds now.
+ * @returns {string[]} The names to remove.
+ */
+export function surplusPrivileges(role, grantedNames) {
+  if (!role.revokeOn?.length) return [];
+  const allowed = new Set(role.privileges.flatMap(privilegeNamesFor).map((name) => name.toLowerCase()));
+  const pattern = new RegExp(`^prv(Create|Read|Write|Delete|Append|AppendTo|Assign|Share)(${role.revokeOn.join('|')})$`, 'i');
+  return grantedNames.filter((name) => pattern.test(name) && !allowed.has(name.toLowerCase()));
+}
+
+async function revokeSurplusPrivileges({ client, isApply, report }, role, roleId) {
+  if (!role.revokeOn?.length || !roleId) return;
+  const held = await heldPrivileges(client, roleId);
+  const surplus = surplusPrivileges(role, held.map((privilege) => privilege.name));
+  if (surplus.length === 0) { report('exists', `role ${role.name}: nothing to revoke`); return; }
+  report('revoke', `role ${role.name}: ${surplus.length} privileges it no longer needs (${surplus.join(', ')})`);
+  if (!isApply) return;
+  const idByName = new Map(held.map((privilege) => [privilege.name.toLowerCase(), privilege.privilegeid]));
+  for (const name of surplus) {
+    await client.send('POST', `roles(${roleId})/Microsoft.Dynamics.CRM.RemovePrivilegeRole`, buildRemovePrivilegePayload(idByName.get(name.toLowerCase())));
+  }
+}
+
+/**
+ * The body of RemovePrivilegeRole. Its parameter is `Privilege`, a privilege entity (read from the org's
+ * $metadata 2026-11-21), not a `PrivilegeId` GUID as on the SDK request, which the Web API refuses.
+ *
+ * @param {string} privilegeId
+ */
+export function buildRemovePrivilegePayload(privilegeId) {
+  return { Privilege: { '@odata.type': 'Microsoft.Dynamics.CRM.privilege', privilegeid: privilegeId } };
+}
+
+// The role's privileges with their names (RetrieveRolePrivilegesRole returns ids only).
+async function heldPrivileges(client, roleId) {
+  const ids = (await client.send('GET', `RetrieveRolePrivilegesRole(RoleId=${roleId})`)).json.RolePrivileges.map((granted) => granted.PrivilegeId);
+  const named = [];
+  for (let start = 0; start < ids.length; start += 50) {
+    const filter = ids.slice(start, start + 50).map((id) => `privilegeid eq ${id}`).join(' or ');
+    named.push(...(await client.send('GET', `privileges?$select=privilegeid,name&$filter=${encodeURIComponent(filter)}`)).json.value);
+  }
+  return named;
 }
 
 async function findRootBusinessUnitId(client) {

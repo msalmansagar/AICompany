@@ -36,6 +36,13 @@ namespace Qdb.SurveyEngine.Integration
         public string MessageArabic { get; set; }
     }
 
+    /// <summary>Decides who may call the integration APIs, which then work as SYSTEM.</summary>
+    public interface IIntegrationAccessCheck
+    {
+        /// <summary>True when the user is a System Administrator or holds the Survey Integration role, directly or through a team.</summary>
+        bool MayCallIntegrationApis(Guid userId);
+    }
+
     /// <summary>Reads invitations and closes them on submit.</summary>
     public interface IIntegrationInvitationStore
     {

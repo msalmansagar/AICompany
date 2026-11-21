@@ -6,10 +6,11 @@ using Qdb.SurveyEngine.Integration;
 namespace Qdb.SurveyEngine.Plugins
 {
     /// <summary>
-    /// Shared plumbing of the integration Custom APIs (section 9). They run as the CALLING user, so
-    /// Dataverse privileges decide who may call: the Survey Integration role (the portal backend's
-    /// application user or service account) has exactly what they need. The customer is identified
-    /// by the payload and checked against the invitation, never by the caller's identity.
+    /// Shared plumbing of the integration Custom APIs (section 9). A caller who is a System Administrator or holds
+    /// the Survey Integration role (the portal backend's application user or service account) is admitted, and the
+    /// work then runs as SYSTEM, so that role needs no table rights and the account cannot read other customers'
+    /// data around the APIs (review item 3, 2026-11-19). The customer is identified by the payload and checked
+    /// against the invitation, never by the caller's identity.
     /// </summary>
     public abstract class IntegrationPluginBase : IPlugin
     {
@@ -19,16 +20,27 @@ namespace Qdb.SurveyEngine.Plugins
             if (serviceProvider == null) throw new InvalidPluginExecutionException("serviceProvider must not be null.");
             var context = (IPluginExecutionContext)serviceProvider.GetService(typeof(IPluginExecutionContext));
             var tracing = (ITracingService)serviceProvider.GetService(typeof(ITracingService));
-            var caller = ((IOrganizationServiceFactory)serviceProvider.GetService(typeof(IOrganizationServiceFactory))).CreateOrganizationService(context.UserId);
+            var system = ((IOrganizationServiceFactory)serviceProvider.GetService(typeof(IOrganizationServiceFactory))).CreateOrganizationService(null);
             try
             {
-                Run(new PluginCall(context, BuildDependencies(caller)));
+                RequireAdmitted(new IntegrationAccessCheck(system, new AdministratorCheck(system)), context.InitiatingUserId);
+                tracing.Trace("{0} called by user {1:D}; working as SYSTEM.", context.MessageName, context.InitiatingUserId);
+                Run(new PluginCall(context, BuildDependencies(system)));
             }
             catch (SurveyApiException refusal)
             {
                 tracing.Trace("{0} refused for user {1:D}: {2}", context.MessageName, context.UserId, refusal.Message);
                 throw new InvalidPluginExecutionException(refusal.Message, refusal);
             }
+        }
+
+        /// <summary>Refuses a caller who is neither a System Administrator nor a holder of the Survey Integration role.</summary>
+        /// <exception cref="SurveyApiException">survey_forbidden, naming the role to give the account.</exception>
+        public static void RequireAdmitted(IIntegrationAccessCheck access, Guid userId)
+        {
+            if (access == null) throw new ArgumentNullException(nameof(access));
+            if (!access.MayCallIntegrationApis(userId))
+                throw new SurveyApiException(SurveyApiException.Forbidden, $"Only a System Administrator or a user with the {IntegrationAccessCheck.SurveyIntegrationRoleName} role can call the survey APIs (give the portal backend's account the {IntegrationAccessCheck.SurveyIntegrationRoleName} role).");
         }
 
         /// <summary>Reads the inputs, does the work and writes the outputs.</summary>
