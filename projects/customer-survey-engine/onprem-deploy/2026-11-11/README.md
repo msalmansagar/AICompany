@@ -1,6 +1,11 @@
 # Customer Survey Engine — on-prem kit, 2026-11-11
 
-**Status: built, not yet imported anywhere.** Later on 2026-11-20 the SurveyEngine package was rebuilt as
+**Status: built, not yet imported anywhere.** On 2026-11-21 the SurveyEngine package was rebuilt as **1.2.0.4**
+(ENH-CSE-001, closes audit AUD-03): the four portal APIs check the caller's **Survey Integration** role and then
+work inside CRM, so that role now grants **no** survey or customer table rights (organization read only). The
+portal backend's account can no longer read other customers' survey data around the APIs. Verified on the cloud
+org (B6 E2E 17/17; an Integration-only user calls the APIs but cannot read survey tables, 9/9).
+Later on 2026-11-20 the SurveyEngine package was rebuilt as
 **1.2.0.3**, a bug fix (DEF-CSE-003): days the scheduler missed (server down on the 1st, a holiday freeze) are
 caught up on the next run, up to 28 days back, so that period's scheduled surveys still go out; older missed
 days are named in the run summary. Verified on the cloud org (`e2e/def-cse-003-missed-days-e2e.mjs` 5/5). No
@@ -46,7 +51,7 @@ order it goes in.
 | 1 | `form-engine/QdbFormEngineSurveyUpdate_1_0_0_0_onprem_unmanaged.zip` | The six Form Engine columns the surveys use: `qdb_form_type`, `qdb_scoring_mode` (Form Definition), `qdb_score_weight/min/max` (Form Field), `qdb_score_points` (Form Option Value) | Solutions → Import |
 | 2 | `form-engine/FormDesignerWebResource_1.6.1.zip` | Form designer and in-CRM runtime with Form Type, the survey branch, no "Submit another" on surveys, and the scoring boxes. The designer adds survey mode: New Form asks Normal Form or Survey, and a survey shows only survey controls and settings. 1.6.1 adds the three Save fixes above. Supersedes 1.6.0, 1.5.0 and 1.4.1 (it includes the 2026-10-19 fixes) | Solutions → Import, then Publish All |
 | 3 | `form-engine/Qdb.FormEngine.Plugins.dll` | Form Engine plugin that publishes the scoring values (scoring mode, weights, min/max, option points) into the survey JSON | Plugin Registration Tool → Update assembly. **Gated, see below** |
-| 4 | `SurveyEngine_1_2_0_3_onprem_unmanaged.zip` | The survey solution, version 1.2.0.3: 10 tables (with the erasure log), 5 roles (Survey Admin, Analyst, Integration, Survey Scheduler for the scheduler's account, and Survey Data Officer for erasure requests), 10 Custom APIs (with the erasure API and the two One-time APIs), the `Qdb.SurveyEngine` plugin with its 2 dispatch steps and 2 One-time trigger validation steps, the trigger form's audience panel (5 web resources), views, charts, forms, the Survey Engine app and 10 icons, and the survey health view "Survey Jobs - Failed or Suspended" on System Job (the only change to an out-of-box table) | Solutions → Import, then Publish All |
+| 4 | `SurveyEngine_1_2_0_4_onprem_unmanaged.zip` | The survey solution, version 1.2.0.4: 10 tables (with the erasure log), 5 roles (Survey Admin, Analyst, Integration, Survey Scheduler for the scheduler's account, and Survey Data Officer for erasure requests), 10 Custom APIs (with the erasure API and the two One-time APIs), the `Qdb.SurveyEngine` plugin with its 2 dispatch steps and 2 One-time trigger validation steps, the trigger form's audience panel (5 web resources), views, charts, forms, the Survey Engine app and 10 icons, and the survey health view "Survey Jobs - Failed or Suspended" on System Job (the only change to an out-of-box table) | Solutions → Import, then Publish All |
 
 `package-manifest.json` (survey) and `form-engine/package-manifest.json` record every change, count and
 checksum; `source/` and `form-engine/source/` hold the unmodified cloud exports they were built from.
@@ -101,7 +106,8 @@ prerequisites.
 
 | Check | Result |
 |---|---|
-| Survey assembly in the package | byte-identical to the local Release build of `fix/survey-missed-run-days` and to the assembly running on the cloud org (sha256 `62b00e57…`, compared 2026-11-20; adds the DEF-CSE-003 fix to DEF-CSE-001, DEF-CSE-002 and the QA-D1 and AUD-D-01 fixes) |
+| Survey assembly in the package | byte-identical to the local Release build of `enh/survey-integration-least-privilege` and to the assembly running on the cloud org (sha256 `e23675dc…`, compared 2026-11-21; adds ENH-CSE-001 to DEF-CSE-001..003 and the QA-D1 and AUD-D-01 fixes) |
+| Survey Integration role in the package | `prvReadOrganization` and the 9 platform defaults only; no survey, customer or Form Engine table right (read from `customizations.xml`) |
 | `Pass` parameter | in the package under `customapis/qdb_srv_RunDueSurveys/customapirequestparameters/Pass` (optional string) |
 | SystemUser shell | removed like Account, Contact and Queue (the Run Started By lookup brought it into the export); the lookup's relationship stays, on the survey trigger table |
 | Solution version | the export carries 1.2.0.3, the manifest's version; the build stops if they differ |
@@ -121,7 +127,7 @@ prerequisites.
 
 | File | SHA-256 | Bytes |
 |---|---|---|
-| `SurveyEngine_1_2_0_3_onprem_unmanaged.zip` | `30800ef695057039ad56dab41dc9c143b01a7796e6e5d414ff14574f3b352d0a` | 214,776 |
+| `SurveyEngine_1_2_0_4_onprem_unmanaged.zip` | `c6df3da73c751943c94aff1ee537f68f50253974527f30034107de5fb3fba0e1` | 214,975 |
 | `form-engine/QdbFormEngineSurveyUpdate_1_0_0_0_onprem_unmanaged.zip` | `bbef1bd91cf84cd2c97fe8bf1cba0cf2bb5ff37fce573728e4134edb759de980` | 3,426 |
 | `form-engine/FormDesignerWebResource_1.6.1.zip` | `b2a8ef00d98b213f6c8d784b50cc2e25291cb323ef780f92e8fb87cfe1bce008` | 1,386,590 |
 | `form-engine/Qdb.FormEngine.Plugins.dll` | `137658ae3a101eb97376aef8e22ea155155f74b2490900a81be7729f8529f083` | 903,680 |

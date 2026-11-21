@@ -4,7 +4,7 @@
 |---|---|
 | For | QDB IT (deployment), QDB backend, frontend and mobile developers (code), QDB Compliance (erasure requests) |
 | Orgs | **HL CRM** (customers are contacts) and **BFD CRM / QDB1** (customers are accounts), Dynamics 365 CE 9.1 on-prem. **Test orgs first, production after** |
-| Source | `main` (Addendum D merged 2026-11-18, PR #186; large-audience timing recorded 2026-11-19, PR #187). Survey Engine solution **1.2.0.3** (1.2.0.0 plus the DEF-CSE-001 trigger fix, the DEF-CSE-002 separate scheduler passes and the DEF-CSE-003 missed-day catch-up; Addendum D: one-time general surveys, audience from a view, multi-number SMS, scheduler every 15 minutes), Form Engine designer **1.6.1** |
+| Source | `main` (Addendum D merged 2026-11-18, PR #186; large-audience timing recorded 2026-11-19, PR #187). Survey Engine solution **1.2.0.4** (1.2.0.0 plus the DEF-CSE-001 trigger fix, the DEF-CSE-002 separate scheduler passes, the DEF-CSE-003 missed-day catch-up and the ENH-CSE-001 least-privilege portal role; Addendum D: one-time general surveys, audience from a view, multi-number SMS, scheduler every 15 minutes), Form Engine designer **1.6.1** |
 | Detail | This guide is the overview and the order. The step-by-step detail for the Survey Engine is `RUNBOOK.md` in this folder; follow it exactly |
 
 ---
@@ -93,7 +93,7 @@ Follow `RUNBOOK.md` stage by stage. Summary:
 | 1 | **Preflight** (read-only, browser console). **P3 Custom APIs supported is the deciding check**: all ten survey APIs are Custom APIs. P15 (CRM condition editor page) only decides whether the One-time audience panel uses CRM's editor or a FetchXML box. Also save the rollback backup | `scripts/survey-preflight-HL.console.js` or `-BFD`, `scripts/survey-rollback-backup.console.js` | **Gate 1**: send the preflight report; MSS confirms |
 | 2 | Form Engine columns + designer/runtime **1.6.1**, Publish All; on test orgs, the A2 evidence (republish three forms, two stage-2 reports) | `form-engine/QdbFormEngineSurveyUpdate_1_0_0_0_onprem_unmanaged.zip`, `form-engine/FormDesignerWebResource_1.6.1.zip`, `scripts/survey-stage2-check.console.js` | **Gate 1b** (test orgs) |
 | 3 | Form Engine plugin update (**only if P12 passed** or every listed grid column is confirmed read-only) | `form-engine/Qdb.FormEngine.Plugins.dll` | — |
-| 4 | Import **SurveyEngine 1.2.0.3**, Publish All | `SurveyEngine_1_2_0_3_onprem_unmanaged.zip` | — |
+| 4 | Import **SurveyEngine 1.2.0.4**, Publish All | `SurveyEngine_1_2_0_4_onprem_unmanaged.zip` | — |
 | 5 | **Post-import check** (read-only): Q1–Q15, including Q13 (change history on 8 tables), Q14 (one Survey Data Officer role) and Q15 (both One-time trigger validation steps enabled) | `scripts/survey-post-import.console.js` | **Gate 2**: send the report; MSS confirms |
 | 6 | Give the roles: Survey Admin, Survey Analyst, Survey Integration (portal account), Survey Scheduler (scheduler account only), **Survey Data Officer (named Compliance staff only, never a service account)** | — | — |
 | 7 | Configuration rows: **Survey Settings** (Customer Table = Contact on HL, Account on QDB1; **Retention Days 730, Mode Delete**; default language Arabic on HL, English on QDB1), Survey Sources (inactive), surveys published with Form Type = Survey, setups and triggers | `config/HL.json`, `config/BFD.json`, `config/README.md` | Rows with `TO_CONFIRM` values wait for QDB's answers |
