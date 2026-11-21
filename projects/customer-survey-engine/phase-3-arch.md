@@ -1298,7 +1298,7 @@ log stays append-only, the audit posture of the trigger table (on) is unchanged.
 
 # Addendum E — Scheduled surveys at HL scale (BRD v1.6)
 
-Status: **Proposed, awaiting CEO architecture approval** (2026-11-21). Design detail lives in the Spec Kit
+Status: **Accepted — CEO architecture approval 2026-11-21** (including R-E4). Design detail lives in the Spec Kit
 artefacts `specs/001-scale-per-org/` (plan, research R1–R8, data model, contract, quickstart) and in
 **ADR-011**. This section is the architecture record and its traceability.
 
@@ -1353,5 +1353,5 @@ About **7–9 dev-days** (research R8).
 | R-E1 | HL 9.1 slower than cloud | Paging keeps calls inside the limit at any speed; HL timing measured (NFR-CSE-020) |
 | R-E2 | RecordFailure itself fails (e.g. CRM down) | Logged by the script, which still exits 1; the next failure counts |
 | R-E3 | A Stuck trigger blocks a survey for a day | It is retried daily and alerts on every failed call; admins can also deactivate/reactivate |
-| R-E4 | Same-day Drop logged as Fatigue, not PriorityLost | Accepted by the CEO at architecture approval, or design changed |
+| R-E4 | Same-day Drop logged as Fatigue, not PriorityLost | **Closed** — accepted by the CEO at architecture approval, 2026-11-21 |
 

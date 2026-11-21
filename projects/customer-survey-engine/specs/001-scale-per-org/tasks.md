@@ -1,0 +1,161 @@
+---
+description: "Task list for 001-scale-per-org (BRD Addendum E, ADR-011)"
+---
+
+# Tasks: Scheduled Surveys at HL Scale (Scale per Org)
+
+**Input**: `projects/customer-survey-engine/specs/001-scale-per-org/` — spec.md, plan.md, research.md,
+data-model.md, contracts/run-due-surveys.md, quickstart.md
+**Architecture**: ADR-011 (Accepted 2026-11-21), `phase-3-arch.md` § Addendum E
+**Tests**: REQUIRED. TDD is mandatory (constitution Article IV, `.claude/rules/common.md`): every test task is
+written and seen failing before its implementation task.
+
+All paths are relative to `projects/customer-survey-engine/`. `Plugin` = `crm-plugins/Qdb.SurveyEngine/`,
+`Tests` = `crm-plugins/Qdb.SurveyEngine.Tests/`.
+
+## Format: `[ID] [P?] [Story] Description`
+
+- **[P]**: can run in parallel (different files, no dependency on an incomplete task)
+- **[Story]**: US1, US2, US3 (spec.md user stories)
+
+---
+
+## Phase 1: Setup
+
+- [ ] T001 Create the build branch `feat/survey-scale-per-org` from `docs/survey-brd-addendum-e` (company git rules; no `git add .`) and confirm the baseline is green: `dotnet test Tests/Qdb.SurveyEngine.Tests.csproj` and `node --test provisioning/__tests__/*.test.mjs onprem/__tests__/*.test.mjs`; record the baseline test counts in `specs/001-scale-per-org/tasks.md` Notes
+
+---
+
+## Phase 2: Foundational (blocks every story)
+
+**Purpose**: schema, settings and the run-record store that all three stories use.
+
+### Tests first
+
+- [ ] T002 [P] Write failing node:test cases in `provisioning/__tests__/manifest.test.mjs` asserting the manifest declares the four new trigger columns `data-model.md` Scheduled run progress.`qdb_run_period_key`, `.qdb_run_evaluated_count`, `.qdb_run_failed_calls`, `.qdb_run_progress_on`, the new option `data-model.md` Scheduled run progress.`qdb_run_status` = Stuck (100000004), and the settings column `data-model.md` Survey Settings.`qdb_stuck_after_failed_calls`
+- [ ] T003 [P] Write failing xUnit tests in `Tests/ScheduledRunStoreTests.cs` for a new `ScheduledRunStore`: reads a trigger's run record (status, period key, cursor, counts, failed calls, progress time, row version); `TrySaveProgress` is conditional on the row version (second writer gets `false`, writes nothing); `TrySaveProgress` always resets `qdb_run_failed_calls` to 0 and stamps `qdb_run_progress_on`
+- [ ] T004 [P] Write failing xUnit tests in `Tests/ConfigDataTests.cs` that Survey Settings maps `qdb_stuck_after_failed_calls` (`data-model.md` Survey Settings.`qdb_stuck_after_failed_calls`) and falls back to 3 when empty
+
+### Implementation
+
+- [ ] T005 Add to `provisioning/manifest.mjs` the four trigger columns and the Stuck option (`data-model.md` Scheduled run progress.`qdb_run_period_key`, `.qdb_run_evaluated_count`, `.qdb_run_failed_calls`, `.qdb_run_progress_on`, `.qdb_run_status`) and the settings column (`data-model.md` Survey Settings.`qdb_stuck_after_failed_calls`, default 3); make T002 pass
+- [ ] T006 [P] Add `RunStatus.Stuck = 100000004` and the scheduled run record type (period key, cursor, evaluated/invited/postponed/suppressed counts, failed calls, progress time, row version) in `Plugin/Scheduling/ScheduledRun.cs`; keep the existing one-time run types untouched
+- [ ] T007 Implement `IScheduledRunStore` + `ScheduledRunStore` in `Plugin/Data/ScheduledRunStore.cs` (row-version conditional update, the `OneTimeTriggerStore.TrySaveProgress` pattern) and its in-memory fake in `Tests/InMemorySchedulingStore.cs`; make T003 pass
+- [ ] T008 [P] Map `qdb_stuck_after_failed_calls` in `Plugin/Data/SurveyConfigMapping.cs` and expose it on the settings object in `Plugin/Data/SurveyConfigRepository.cs`; make T004 pass
+
+**Checkpoint**: schema declared, run record readable and writable, threshold configurable; all old tests green.
+
+---
+
+## Phase 3: User Story 1 — A quarterly survey reaches every HL customer (P1) 🎯 MVP
+
+**Goal**: scheduled triggers run one at a time in priority order, 25 customers per page, saving progress on
+the trigger after each page, until the whole population is evaluated (FR-001, FR-002, FR-005, FR-006,
+FR-007, FR-010).
+
+**Independent test**: an in-memory 300-customer scheduled trigger completes across budget-cut calls with
+exactly one invitation per customer; the trigger shows Sending with a rising evaluated count, then Sent.
+
+### Tests first
+
+- [ ] T009 [P] [US1] Write failing tests in `Tests/AudienceQueryTests.cs` / `Tests/SchedulingDataTests.cs` that `ScheduledCandidateBuilder` builds **one page** of 25 for "All active customers" (via `AudienceReader.ReadPage` + paging cookie) and for "Active in a source during the period" (via `CustomerPopulationReader.BuildFetchXml(query, pageNumber)`), returning the next cursor and an end-of-population flag (research R3)
+- [ ] T010 [P] [US1] Write failing tests in `Tests/SchedulingDataTests.cs` that the per-page dedupe check reads only the page's own `DedupeKey.ForSchedule(setup, customer, period)` keys and skips customers already invited (research R4)
+- [ ] T011 [US1] Write failing tests in `Tests/RunDueSurveysTests.cs` for `ScheduledTriggerPass`: (a) 300 customers, budget cut every few pages → resumed over several calls, exactly 300 invitations, `IsComplete` false until the last page; (b) progress written after each page (`data-model.md` Scheduled run progress.`qdb_run_evaluated_count`, `.qdb_run_progress_on`, `.qdb_run_cursor`, `.qdb_run_period_key`); (c) status Not sent → Sending → Sent; (d) two due triggers processed in priority order, the second starts only after the first is Sent (FR-010); (e) a trigger still Sending for period P is finished before period P+1 starts (FR-006); (f) an overlapping call that loses the row-version race writes nothing; (g) a deactivated setup or trigger stops at the next page
+- [ ] T012 [US1] Update `Tests/RunDueSurveysTests.cs` for FR-007 at ~450: every existing scheduled-pass test still passes unchanged, except the same-day **Drop** case, which now asserts reason **Fatigue** (CEO-accepted R-E4); `Run_TwoSchedulesDueForOneCustomer_SendsTheHigherPriorityAndPostponesTheOther` stays unchanged
+- [ ] T013 [P] [US1] Write failing tests in `Tests/RunDueSurveysTests.cs` for the scheduled part of `RunSummary`: `Scheduled: "<name>" <period> running, N evaluated (i invited, p postponed, s suppressed); k more due today.` and the `completed` form (contracts/run-due-surveys.md Outputs)
+
+### Implementation
+
+- [ ] T014 [US1] Change `Plugin/Scheduling/ScheduledCandidateBuilder.cs` and `Plugin/Data/CustomerPopulationReader.cs` / `Plugin/Data/AudienceReader.cs` to build one page from a saved cursor; share the page size with `OneTimeSendService.PageSize` (25); make T009 pass
+- [ ] T015 [US1] Replace the whole-period dedupe load with a per-page key lookup in `Plugin/Data/ScheduledInvitationReader.cs`; make T010 pass
+- [ ] T016 [US1] Rewrite `Plugin/Scheduling/ScheduledTriggerPass.cs`: order due triggers by priority then id, pick the first whose period run is incomplete and not Stuck, start or resume its run, dispatch page by page through the existing `InvitationDispatcher` rules (FR-002), save progress via `IScheduledRunStore` after each page, stop between pages when the `RunBudget` is spent; keep each method ≤ 20 lines (extract a page-runner class in `Plugin/Scheduling/ScheduledPageRunner.cs` if needed); make T011 and T012 pass
+- [ ] T017 [US1] Extend `Plugin/Scheduling/RunResults.cs` (`RunSummary`) with the scheduled-run progress text and `IsComplete` = false while a run is in progress; make T013 pass
+- [ ] T018 [US1] Wire `ScheduledRunStore` into the pass in `Plugin/Scheduling/RunDueSurveysService.cs` / `Plugin/Plugins/RunDueSurveysPlugin.cs` composition (no `new` inside logic)
+- [ ] T019 [P] [US1] Add the read-only **Run** section for scheduled triggers to `provisioning/ui-manifest.mjs` (Run Status, Period, Run Started On, Customers Evaluated, Invited, Postponed, Suppressed, Last Updated, Run Message; contracts/run-due-surveys.md Trigger form) with a failing-first test in `provisioning/__tests__/ui-payloads.test.mjs`
+- [ ] T020 [P] [US1] Show the Run section only for trigger kind Scheduled in `webresources/trigger-form.js`, test-first in `webresources/__tests__/trigger-form.test.mjs` (new file, same style as `trigger-audience.test.mjs`); the one-time section is unchanged
+
+**Checkpoint**: US1 complete in-memory; a large scheduled run completes across calls with progress visible.
+
+---
+
+## Phase 4: User Story 2 — An interrupted run finishes without duplicates or gaps (P1)
+
+**Goal**: interrupted or failed calls lose only their own pages; repeated failures mark the trigger Stuck;
+resume after missed days (FR-003, FR-004, FR-011).
+
+**Independent test**: a run cut mid-call and a run with one failing call each end with exactly one
+invitation per customer; three `RecordFailure` calls mark the trigger Stuck; a later successful page resets it.
+
+### Tests first
+
+- [ ] T021 [P] [US2] Write failing tests in `Tests/RunDueSurveysTests.cs`: a call that throws on page k (transaction rolled back in the fake: no writes kept) → next call redoes page k only; final count = population, zero duplicates, zero missing (SC-003)
+- [ ] T022 [P] [US2] Write failing tests in `Tests/RunDueSurveysTests.cs` for `Pass = RecordFailure`: increments `data-model.md` Scheduled run progress.`qdb_run_failed_calls` on the Sending trigger; at `data-model.md` Survey Settings.`qdb_stuck_after_failed_calls` sets `qdb_run_status` Stuck with the reason in `qdb_run_message`; with no run in progress it does nothing and says so; it never dispatches
+- [ ] T023 [P] [US2] Write failing tests in `Tests/RunDueSurveysTests.cs`: a Stuck trigger is skipped so the next-priority trigger runs; on the first Daily call of a new day it is retried, and a successful page sets it back to Sending with failed calls 0
+- [ ] T024 [P] [US2] Write failing tests in `Tests/MissedRunDaysTests.cs` / `Tests/RunDueSurveysTests.cs`: a run in progress keeps the daily gate open; after missed days (≤ 28) the run resumes from its saved cursor and completes (research R7)
+- [ ] T025 [P] [US2] Write failing tests in `Tests/PluginEntryPointTests.cs` that `RunDueSurveysPlugin.ReadPass` accepts `RecordFailure` and the refusal message for an unknown value lists `OneTime`, `Daily`, `RecordFailure`
+- [ ] T026 [P] [US2] Create `scheduler/__tests__/invoke-run-due-surveys.test.mjs` (new; no scheduler tests exist today) — a node:test that runs `scheduler/Invoke-RunDueSurveys.ps1` under `powershell.exe` against a stubbed `Invoke-RestMethod` (the script's call function is dot-sourced and replaced), plus a check that both copies (`scheduler/` and `onprem-deploy/2026-11-11/scheduler/`) are identical — asserting `scheduler/Invoke-RunDueSurveys.ps1` calls `Pass=RecordFailure` after a failed Daily call, logs its own error without failing on it, stops the Daily loop, and still exits 1
+
+### Implementation
+
+- [ ] T027 [US2] Add `RecordFailure = 3` to `Plugin/Scheduling/RunPass.cs` and parse it in `Plugin/Plugins/RunDueSurveysPlugin.cs`; make T025 pass
+- [ ] T028 [US2] Implement the RecordFailure pass in `Plugin/Scheduling/ScheduledFailureRecorder.cs`, called from `Plugin/Scheduling/RunDueSurveysService.cs`, using `IScheduledRunStore` and the settings threshold; make T022 pass
+- [ ] T029 [US2] Make `ScheduledTriggerPass` skip Stuck triggers and retry them on the first Daily call of a new day (`Plugin/Scheduling/ScheduledTriggerPass.cs`); make T021, T023 and T024 pass
+- [ ] T030 [US2] Update both copies of `scheduler/Invoke-RunDueSurveys.ps1` (keep them identical) and both `scheduler/README.md` copies; make T026 pass
+- [ ] T031 [US2] Accept `RecordFailure` in the `Pass` request-parameter description in `provisioning/lib/plugin-payloads.mjs` (no new parameter; description text only) with its test in `provisioning/__tests__/`
+
+**Checkpoint**: US1 + US2 complete in-memory; full suite green; code review (`code-reviewer`) of Phases 2–4.
+
+---
+
+## Phase 5: User Story 3 — Each org's expected size is written down and proven (P2)
+
+**Goal**: per-org volumes recorded; live proof on the cloud org (2,500) and the HL test-org procedure
+(FR-008, FR-009, SC-001, SC-002, SC-005).
+
+**Independent test**: read the records; run `e2e/scheduled-volume.mjs` and get 2,500 / 2,500.
+
+- [ ] T032 [P] [US3] Record per-org volumes (HL ~44,000 / ~10,000 active; BFD/QDB1 ~450) in `phase-2-ba.md` §5.1 cross-reference and `phase-3-arch.md` § Addendum E (FR-009)
+- [ ] T033 [US3] Write `e2e/scheduled-volume.mjs` (from `e2e/one-time-volume.mjs`: `--size N`, retry logging, plugintracelog timing): 2,500 `PERF-TEST-SC-*` test accounts, a scheduled setup + trigger scoped to them on a free run date, `Pass=Daily` loop until `IsComplete`, trigger run fields read after each call, one forced client interruption, postponed-release and retention passes observed (FR-008), full cleanup with leftovers 0 and the daily gate date restored (quickstart §3)
+- [ ] T034 [US3] **CEO go-ahead** — user runs `provision.mjs` plan/`--apply`, `register-plugin.mjs` plan/`--apply`, `provision-ui.mjs` plan/`--apply` on the cloud org; I verify read-only (columns, option, settings column, assembly hash = local build, form published) and bump the solution version to 1.2.0.5 (separate go-ahead)
+- [ ] T035 [US3] **CEO go-ahead** — run `e2e/scheduled-volume.mjs --size 2500`; record calls, per-call times, total time, 2,500 / 2,500 invitations, zero duplicates, and the extrapolated 10,000 time in `phase-5-qa.md` (SC-001, SC-002, SC-003)
+- [ ] T036 [P] [US3] Add the HL test-org timing procedure (one scheduled survey to a test audience: calls, total time, invitation count) to `onprem-deploy/2026-11-11/RUNBOOK.md` Gate 3 and a results row placeholder in `phase-5-qa.md` (SC-005, NFR-CSE-020)
+
+---
+
+## Phase 6: Polish & Cross-Cutting
+
+- [ ] T037 Run `/speckit-converge` and `/speckit-checklist`; resolve any unbuilt work
+- [ ] T038 Code review of the whole diff (`code-reviewer`, ≤ 20-line functions, ≤ 3 params, no null returns); apply findings
+- [ ] T039 Coverage ≥ 80 % on the changed C# (existing coverage command; record in `phase-5-qa.md`)
+- [ ] T040 Rebuild the on-prem kit as **1.2.0.5**: `onprem/export-survey-solution.mjs --date=2026-11-11` (retry once on "fetch failed"), `onprem/build-onprem-kit.mjs --date=2026-11-11`; update `onprem-deploy/2026-11-11/README.md`, `RUNBOOK.md` (stage 8.2: Stuck, RecordFailure, run section) and `DEPLOYMENT-AND-HANDOVER.md` with the new zip name, sha256, size and assembly hash
+- [ ] T041 Update `docs/` admin guidance: reading the Run section, what Stuck means and how to recover (fix cause → next day's retry, or deactivate/reactivate)
+- [ ] T042 QA phase (`phase-5-qa.md` Addendum E section), audit (`phase-6-audit.md`), CEO final decision (`phase-7-ceo.md`); ADR-011 stays Accepted
+- [ ] T043 One PR from `feat/survey-scale-per-org` to `main`; merge only on the user's approval; update memory
+
+---
+
+## Dependencies & Execution Order
+
+- **Setup (T001)** → **Foundational (T002–T008)** → **US1 (T009–T020)** → **US2 (T021–T031)** → **US3 (T032–T036)** → **Polish (T037–T043)**
+- US2 depends on US1 (it extends `ScheduledTriggerPass` and the run record). US3's live steps (T034, T035) need US1 + US2 built and reviewed; T032 and T036 are documentation and can run any time.
+- Inside each phase: tests before implementation; `ScheduledTriggerPass.cs` tasks (T016, T029) are sequential.
+- Live steps T034 and T035 each need their own CEO go-ahead; the user runs the deploy scripts.
+
+## Parallel Opportunities
+
+- Foundational tests: T002, T003, T004 together; then T006 and T008 alongside T005/T007.
+- US1: T009, T010, T013 together; T019 and T020 (UI) in parallel with T014–T018 (plugin).
+- US2: T021–T026 together (separate test files or independent test methods); T030/T031 in parallel with T027–T029.
+- US3: T032 and T036 any time.
+
+## Implementation Strategy
+
+- **MVP = US1**: paged, priority-ordered, resumable scheduled runs with progress — the change that makes HL's quarterly survey possible at all.
+- **Then US2** before any live deploy: failure counting and Stuck are part of the CEO's clarified behaviour, so nothing is deployed without them.
+- **Then US3**: one cloud deploy (T034) and one live proof (T035), then kit 1.2.0.5 and the HL test-org procedure.
+- Estimate (research R8): 7–9 dev-days.
+
+## Notes
+
+- Baseline test counts (T001): _to be filled_.
+- Commit after each green test/implementation pair; specific files only.

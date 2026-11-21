@@ -1,7 +1,7 @@
 # ADR-011 — Scheduled runs: one trigger at a time, paged, with failures counted outside the call
 
 **Project:** CSE-ENG-001 — Customer Survey Engine
-**Status:** Proposed (awaiting CEO architecture approval)
+**Status:** Accepted — CEO architecture approval 2026-11-21, including the same-day Drop → Fatigue label difference
 **Date:** 2026-11-21
 **Requirements:** FR-CSE-098, NFR-CSE-006 (amended), NFR-CSE-019/020, BR-E1..E3 (BRD Addendum E, v1.6); spec
 `specs/001-scale-per-org` FR-001..011 (clarified 2026-11-21)
