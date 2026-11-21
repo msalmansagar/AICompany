@@ -262,3 +262,26 @@ CRM, but CRM change history on invitations keeps their identity until it ages ou
 by QDB IT, D6); database backups, Excel exports already taken, and the SMS gateway, email system and portal
 are outside this procedure. After an erasure the customer can be surveyed again sooner than the fatigue rule
 would allow, and a milestone survey they already answered may be sent again (decision pack D8).
+
+## Section 12 — After refreshing a test org from a production backup
+
+A test org restored from a production backup carries production's active sources, setups and triggers,
+pending invitations and **real customers' phone numbers and email addresses**. Left as it is, its own
+scheduled task and trigger steps would keep creating invitations, and any SMS or email channel that is
+configured would reach **real customers** from the test org. Do this **straight after the restore, before
+the org is opened to anyone and before its scheduled task's next run** (independent review item 12,
+2026-11-19). Run by a System Administrator on the **test** org.
+
+| # | Step | Why |
+|---|---|---|
+| 12.1 | On the scheduler server, **disable** the task for this org: `Disable-ScheduledTask -TaskName 'Survey Engine - Run Due Surveys'` (or the name you gave the test org's task). | Stops new scheduled and One-time invitations every 15 minutes. |
+| 12.2 | **Survey Settings**: secure links **off**; clear **Email Sender Queue**; clear **Secure Link Base URL**. | With secure links off the dispatch steps send no SMS and no email. |
+| 12.3 | Every **Survey SMS Config** row: **Is Active = No**. | Nothing writes to the org's SMS table, so its SMS gateway cannot send. |
+| 12.4 | Every active **Survey Source**: `qdb_srv_DeactivateSource` (stage 8.1 call, same body). | Removes or disables the trigger steps: saving a request creates no invitation. |
+| 12.5 | Every **Survey Setup**: **Is Active = No**. | Stops scheduled, milestone and One-time triggers; postponed invitations are discarded and logged, not sent. |
+| 12.6 | Ask QDB IT to confirm the test org's **SMS gateway integration** and **email mailbox / server-side sync** do not point at production services. | Those are outside the Survey Engine; 12.2–12.3 only stop the engine feeding them. |
+| 12.7 | Ask QDB Compliance whether production personal data may stay in this test org, or must be masked or removed (PDPPL). | The restored invitations, responses and customer records are production personal data. |
+| 12.8 | Only then set the org up for testing: test SMS config with **test numbers**, test setups and sources (stage 7–8), and re-enable the task (`Enable-ScheduledTask …`). | |
+
+Check, an hour later: no new rows in **Survey Engine → Invitations** (sort by Created On), the task shows
+**Disabled**, and no new survey rows in the org's SMS table.

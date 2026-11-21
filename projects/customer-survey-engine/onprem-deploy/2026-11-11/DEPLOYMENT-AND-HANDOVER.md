@@ -128,6 +128,7 @@ stage 2.5–2.7, smoke test step 1 only unless the change owner approves step 2)
 | Erasure requests | when Compliance accepts one | RUNBOOK **section 11** (dry run → live → rerun until complete → record both log rows) |
 | "Send now" on a One-time trigger shows an error or keeps waiting | when it happens | press **Send now** again. A large audience is sent in several calls of up to about a minute each (measured: 1,000 customers in 3 calls), and a call's answer can be lost on the network after the work is saved. The next press continues where the last one stopped and never invites a customer twice; the 15-minute scheduled run also finishes it |
 | Retention | automatic | responses, invitations, suppression logs deleted after 730 days (never invitations under 13 months, suppression logs under 12) |
+| A test org is refreshed from a production backup | **every refresh, straight after the restore** | RUNBOOK **section 12**: disable the task, switch off SMS and email channels, deactivate sources and setups, then set up with test numbers. Otherwise the test org can survey **real customers** |
 | Rollback | if needed | RUNBOOK **stage 10** |
 
 ---
