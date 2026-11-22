@@ -111,16 +111,16 @@ namespace Qdb.SurveyEngine.Scheduling
         private static IEnumerable<ScheduledWork> WorkFor(SurveyTrigger trigger, DateTime runDate)
         {
             var run = trigger.Schedule.Run ?? new ScheduledRunState();
-            var stored = ReadablePeriod(trigger.Schedule.Period, run.PeriodKey);
+            var stored = ReadPeriod(trigger.Schedule.Period, run.PeriodKey);
             var isResumable = IsResumable(run) && stored.Count == 1;
             if (isResumable) yield return new ScheduledWork(trigger, stored[0], run);
-            foreach (var next in PeriodsToStart(trigger, new StoredRun(run, stored, isResumable), runDate))
+            foreach (var next in FindPeriodsToStart(trigger, new StoredRun(run, stored, isResumable), runDate))
                 yield return new ScheduledWork(trigger, next, next.Key == run.PeriodKey ? run : Fresh(next, run.RowVersion));
         }
 
         // The period due on the run date; or, on a day nothing is due, the period that fell due while the stored run was
         // unfinished (still running, or finished only after that due date: CEO option A, convergence T044).
-        private static IEnumerable<ReviewedPeriod> PeriodsToStart(SurveyTrigger trigger, StoredRun stored, DateTime runDate)
+        private static IEnumerable<ReviewedPeriod> FindPeriodsToStart(SurveyTrigger trigger, StoredRun stored, DateTime runDate)
         {
             var period = trigger.Schedule.Period;
             if (ScheduleCalendar.IsDue(period, runDate))
@@ -131,12 +131,12 @@ namespace Qdb.SurveyEngine.Scheduling
             }
             if (stored.Periods.Count == 0) yield break;
             var following = ScheduleCalendar.FollowingPeriod(period, stored.Periods[0]);
-            if (following.EndExclusive <= runDate.Date && (stored.IsResumable || HeldUp(stored.Run, following))) yield return following;
+            if (following.EndExclusive <= runDate.Date && (stored.IsResumable || IsHeldUp(stored.Run, following))) yield return following;
         }
 
         // A Sent run finished on or after the next period's due date, so that period waited for it (FR-006). One that
         // finished earlier held nothing up: a period missed for another reason (trigger switched off) is not sent late.
-        private static bool HeldUp(ScheduledRunState run, ReviewedPeriod following) =>
+        private static bool IsHeldUp(ScheduledRunState run, ReviewedPeriod following) =>
             run.Status == ScheduledRunStatus.Sent && run.ProgressOn.HasValue && run.ProgressOn.Value.Date >= following.EndExclusive;
 
         // Sending or Stuck; or not started yet but with failed calls counted (its first page keeps failing), so it keeps
@@ -146,7 +146,7 @@ namespace Qdb.SurveyEngine.Scheduling
 
         // A record whose period key cannot be read (e.g. left by a One-time send before the trigger's kind was changed)
         // names no scheduled period.
-        private static IReadOnlyList<ReviewedPeriod> ReadablePeriod(SchedulePeriod period, string periodKey)
+        private static IReadOnlyList<ReviewedPeriod> ReadPeriod(SchedulePeriod period, string periodKey)
         {
             try
             {

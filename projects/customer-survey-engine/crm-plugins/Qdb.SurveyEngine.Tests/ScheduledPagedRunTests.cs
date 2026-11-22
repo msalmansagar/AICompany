@@ -546,6 +546,19 @@ namespace Qdb.SurveyEngine.Tests
             Assert.Equal((10, ScheduledRunStatus.Sent, "2026-Q4"), (_pipeline.Invitations.Count(i => i.SchedulePeriodKey == "2026-Q4"), RunOf(HighId).Status, RunOf(HighId).PeriodKey));
         }
 
+        // Code review 2026-11-22: a run that finished ON the next period's due date (here 1 January) also held it up.
+        [Fact]
+        public void Run_PreviousPeriodFinishedOnTheNextDueDate_StartsTheWaitingPeriodOnALaterDay_FR006()
+        {
+            Scheduled("srv-quarterly");
+            _store.ActiveCustomers.AddRange(Customers(10));
+            SaveRun(HighId, new ScheduledRunState { Status = ScheduledRunStatus.Sent, PeriodKey = "2026-Q3", ProgressOn = new DateTime(2027, 1, 1, 23, 0, 0) });
+
+            CallUntilComplete(new DateTime(2027, 1, 2));
+
+            Assert.Equal(10, _pipeline.Invitations.Count(i => i.SchedulePeriodKey == "2026-Q4"));
+        }
+
         // A run that finished before the next period fell due did not hold it up: a trigger switched off over that due date
         // must not send the missed period late when switched on again (that stays the missed-day rule's job, DEF-CSE-003).
         [Fact]
