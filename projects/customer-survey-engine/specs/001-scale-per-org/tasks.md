@@ -178,3 +178,8 @@ invitation per customer; three `RecordFailure` calls mark the trigger Stuck; a l
 - [x] T048 Align the Summary example in `specs/001-scale-per-org/contracts/run-due-surveys.md` with the implemented wording (setup form code + period; no "k more due today" count), or implement the count in `Plugin/Scheduling/RunResults.cs`, per contracts/run-due-surveys.md Outputs (contradicts)
 - [x] T049 Add `Implements:` requirement-ID header comments to `ScheduledTriggerPass.Run`, `ScheduledPageRunner.Run`, `ScheduledFailureRecorder.Record` and the RecordFailure path of `RunDueSurveysPlugin` per Constitution XV (partial)
 - [x] T050 Confirm at QA the justification for the scheduler changes outside Addendum E (One-time pass no longer fails at MaxCalls; DEF-CSE-004 exit code), already recorded as DEF-CSE-004 in `phase-5-qa.md`, per tasks T030 scope (unrequested)
+
+## Phase 8: Convergence
+
+- [ ] T051 Add the T044 transition to the state diagram in `specs/001-scale-per-org/data-model.md` ("Sent for period P, finished on or after P+1's due date ──(next Daily call)──▶ Sending for period P+1") per data-model.md state transitions / FR-006 (contradicts)
+- [ ] T052 Add to the "Stuck" row of `onprem-deploy/2026-11-11/DEPLOYMENT-AND-HANDOVER.md` and the Stuck paragraph of both `scheduler/README.md` copies that a period which waited for the stuck one starts automatically once it finishes, so no manual re-run is needed, per T041 / FR-006 (partial)
