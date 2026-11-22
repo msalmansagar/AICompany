@@ -12,7 +12,7 @@
 export const SOLUTION = Object.freeze({
   uniqueName: 'SurveyEngine',
   friendlyName: 'Survey Engine',
-  version: '1.2.0.4',
+  version: '1.2.0.5',
   // The publisher of QdbDynamicFormEngine. Four publishers share the qdb prefix on the cloud org,
   // so it is pinned by unique name; on-prem orgs must carry the same publisher or the kit fails.
   publisherUniqueName: 'qdb',
