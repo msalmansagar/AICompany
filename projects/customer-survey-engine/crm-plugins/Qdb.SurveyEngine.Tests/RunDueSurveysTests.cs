@@ -128,6 +128,7 @@ namespace Qdb.SurveyEngine.Tests
         }
 
         [Fact]
+        // ADR-011: the run record now says the period was sent, so a re-run reports it instead of re-reading everyone.
         public void Run_TwiceOnTheSameDay_CreatesNoDuplicates()
         {
             Scheduled(SchedulePeriod.Annually, "srv-annual");
@@ -138,7 +139,7 @@ namespace Qdb.SurveyEngine.Tests
             var second = Run(NewYear);
 
             Assert.Equal(2, _pipeline.Invitations.Count);
-            Assert.Equal(2, second.Scheduled.AlreadyGenerated);
+            Assert.Equal(1, second.Scheduled.AlreadySent);
         }
 
         // DEF-CSE-003: the scheduler did not run on 1 January; the run on the 2nd must still send December's survey.
@@ -521,27 +522,116 @@ namespace Qdb.SurveyEngine.Tests
         [InlineData("daily", RunPass.Daily)]
         [InlineData(" Daily ", RunPass.Daily)]
         [InlineData("", RunPass.All)]
+        [InlineData("RecordFailure", RunPass.RecordFailure)]
+        [InlineData("recordfailure", RunPass.RecordFailure)]
         public void ReadPass_Given_IsUsedIgnoringCaseAndSpaces(string text, RunPass expected)
         {
             Assert.Equal(expected, RunDueSurveysPlugin.ReadPass(ContextWithPass(text)));
         }
 
         [Fact]
-        public void ReadPass_Unknown_IsRefused()
+        public void ReadPass_Unknown_IsRefusedNamingEveryAllowedValue_FR011()
         {
-            Assert.Throws<InvalidPluginExecutionException>(() => RunDueSurveysPlugin.ReadPass(ContextWithPass("Weekly")));
+            var refused = Assert.Throws<InvalidPluginExecutionException>(() => RunDueSurveysPlugin.ReadPass(ContextWithPass("Weekly")));
+
+            Assert.Contains("OneTime, Daily, RecordFailure or empty", refused.Message);
         }
     }
 
     public class CustomerPopulationReaderTests
     {
-        private static string Fetch() => CustomerPopulationReader.BuildFetchXml(new PopulationQuery
+        private static readonly Guid After = new Guid("aaaaaaaa-0000-0000-0000-000000000005");
+
+        private static PopulationQuery Query() => new PopulationQuery
         {
             Source = new SurveySource(Guid.NewGuid(), "qdb_payment_authorization_ticket", new SourceFields { CustomerLookup = "qdb_customer_name", Type = "qdb_disbursement_type_1" }),
             Period = ScheduleCalendar.PeriodEndingOn(SchedulePeriod.Quarterly, new DateTime(2026, 4, 1)),
             StatusValues = CodeList.Parse("751090050"),
             TypeValues = CodeList.Parse("751090000"),
-        }, 1);
+        };
+
+        private static string Fetch(Guid? after = null) => CustomerPopulationReader.BuildFetchXml(Query(), after, 25);
+
+        // Analysis C3: resuming by page number skips customers when the population shrinks between calls;
+        // resuming after the last customer id read cannot.
+        [Fact]
+        public void BuildFetchXml_Resume_StartsAfterTheLastCustomerReadNotAtAPageNumber_FR003()
+        {
+            var fetch = Fetch(After);
+
+            Assert.Contains($"<condition attribute='qdb_customer_name' operator='gt' value='{After:D}' />", fetch);
+            Assert.Contains("count='25'", fetch);
+            Assert.DoesNotContain("page=", fetch);
+        }
+
+        [Fact]
+        public void BuildFetchXml_FirstPage_HasNoResumeCondition()
+        {
+            Assert.DoesNotContain("operator='gt'", Fetch());
+        }
+
+        [Fact]
+        public void BuildFetchXml_OrdersByTheCustomerSoTheResumeConditionMatchesTheOrder()
+        {
+            Assert.Contains("<order attribute='qdb_customer_name' />", Fetch());
+        }
+
+        private static Mock<IOrganizationService> ServiceReturning(params Entity[] rows)
+        {
+            var service = new Mock<IOrganizationService>();
+            service.Setup(s => s.RetrieveMultiple(It.IsAny<QueryBase>())).Returns(new EntityCollection(rows));
+            return service;
+        }
+
+        private static Entity Ticket(string table, Guid id) => new Entity("qdb_payment_authorization_ticket") { ["qdb_customer_name"] = new EntityReference(table, id) };
+
+        [Fact]
+        public void ReadCustomersActiveIn_FewerRowsThanThePage_IsTheLastPage()
+        {
+            var customer = Guid.NewGuid();
+
+            var page = new CustomerPopulationReader(ServiceReturning(Ticket("account", customer)).Object, CustomerLink.Account).ReadCustomersActiveIn(Query(), null, 25);
+
+            Assert.Equal((true, (Guid?)customer), (page.IsLast, page.LastReadId));
+        }
+
+        // A filtered-out row (the other table of a polymorphic lookup) still moves the position on.
+        [Fact]
+        public void ReadCustomersActiveIn_LastRowNotACustomer_StillMovesThePositionPastIt()
+        {
+            var contactId = Guid.NewGuid();
+            var accountId = Guid.NewGuid();
+
+            var page = new CustomerPopulationReader(ServiceReturning(Ticket("contact", contactId), Ticket("account", accountId)).Object, CustomerLink.Contact).ReadCustomersActiveIn(Query(), null, 2);
+
+            Assert.Equal(new[] { contactId }, page.CustomerIds);
+            Assert.Equal(((Guid?)accountId, false), (page.LastReadId, page.IsLast));
+        }
+
+        [Fact]
+        public void ReadActiveCustomers_Resume_AsksForActiveCustomersAfterTheLastIdInIdOrder_FR003()
+        {
+            QueryExpression asked = null;
+            var service = new Mock<IOrganizationService>();
+            service.Setup(s => s.RetrieveMultiple(It.IsAny<QueryBase>())).Callback<QueryBase>(q => asked = (QueryExpression)q).Returns(new EntityCollection());
+
+            new CustomerPopulationReader(service.Object, CustomerLink.Account).ReadActiveCustomers(After, 25);
+
+            Assert.Equal(25, asked.TopCount);
+            Assert.Contains(asked.Criteria.Conditions, c => c.AttributeName == "accountid" && c.Operator == ConditionOperator.GreaterThan && (Guid)c.Values[0] == After);
+            Assert.Contains(asked.Criteria.Conditions, c => c.AttributeName == "statecode" && (int)c.Values[0] == 0);
+            Assert.Equal(("accountid", OrderType.Ascending), (asked.Orders.Single().AttributeName, asked.Orders.Single().OrderType));
+        }
+
+        [Fact]
+        public void ReadActiveCustomers_FullPage_IsNotTheLast()
+        {
+            var rows = Enumerable.Range(0, 2).Select(_ => new Entity("account", Guid.NewGuid())).ToArray();
+
+            var page = new CustomerPopulationReader(ServiceReturning(rows).Object, CustomerLink.Account).ReadActiveCustomers(null, 2);
+
+            Assert.Equal((false, (Guid?)rows[1].Id, 2), (page.IsLast, page.LastReadId, page.CustomerIds.Count));
+        }
 
         [Fact]
         public void BuildFetchXml_Period_LimitsCreatedOnToTheQuarter()
@@ -563,25 +653,45 @@ namespace Qdb.SurveyEngine.Tests
         }
 
         [Fact]
-        public void GetCustomersActiveIn_ContactOrgPolymorphicLookup_KeepsOnlyContacts()
+        public void ReadCustomersActiveIn_ContactOrgPolymorphicLookup_KeepsOnlyContacts()
         {
             var contactId = Guid.NewGuid();
-            var rows = new EntityCollection(new[]
-            {
-                new Entity("qdb_payment_authorization_ticket") { ["qdb_customer_name"] = new EntityReference("contact", contactId) },
-                new Entity("qdb_payment_authorization_ticket") { ["qdb_customer_name"] = new EntityReference("account", Guid.NewGuid()) },
-            });
+            var service = ServiceReturning(Ticket("contact", contactId), Ticket("account", Guid.NewGuid()));
+
+            var page = new CustomerPopulationReader(service.Object, CustomerLink.Contact).ReadCustomersActiveIn(Query(), null, 25);
+
+            Assert.Equal(new[] { contactId }, page.CustomerIds);
+        }
+    }
+
+    public class ScheduledInvitationPageKeyTests
+    {
+        // Analysis R4: a page checks only its own customers' keys, not every key of the period (10,000 at HL).
+        [Fact]
+        public void FindExistingDedupeKeys_AsksOnlyForThePagesKeysOfTheSetupAndPeriod_FR003()
+        {
+            var setup = Guid.NewGuid();
+            QueryExpression asked = null;
             var service = new Mock<IOrganizationService>();
-            service.Setup(s => s.RetrieveMultiple(It.IsAny<QueryBase>())).Returns(rows);
-            var query = new PopulationQuery
-            {
-                Source = new SurveySource(Guid.NewGuid(), "qdb_payment_authorization_ticket", new SourceFields { CustomerLookup = "qdb_customer_name" }),
-                Period = ScheduleCalendar.PeriodEndingOn(SchedulePeriod.Quarterly, new DateTime(2026, 4, 1)),
-            };
+            service.Setup(s => s.RetrieveMultiple(It.IsAny<QueryBase>())).Callback<QueryBase>(q => asked = (QueryExpression)q)
+                .Returns(new EntityCollection(new[] { new Entity("qdb_survey_invitation") { ["qdb_dedupe_key"] = "k1" } }));
 
-            var customers = new CustomerPopulationReader(service.Object, CustomerLink.Contact).GetCustomersActiveIn(query);
+            var found = new ScheduledInvitationReader(service.Object).FindExistingDedupeKeys(setup, "2026-Q4", new[] { "k1", "k2" });
 
-            Assert.Equal(new[] { contactId }, customers);
+            Assert.Equal(new[] { "k1" }, found);
+            var keys = asked.Criteria.Conditions.Single(c => c.AttributeName == "qdb_dedupe_key");
+            Assert.Equal(ConditionOperator.In, keys.Operator);
+            Assert.Equal(new object[] { "k1", "k2" }, keys.Values);
+            Assert.Contains(asked.Criteria.Conditions, c => c.AttributeName == "qdb_survey_setup_id" && (Guid)c.Values[0] == setup);
+            Assert.Contains(asked.Criteria.Conditions, c => c.AttributeName == "qdb_schedule_period_key" && (string)c.Values[0] == "2026-Q4");
+        }
+
+        [Fact]
+        public void FindExistingDedupeKeys_NoKeys_DoesNotQuery()
+        {
+            var service = new Mock<IOrganizationService>(MockBehavior.Strict);
+
+            Assert.Empty(new ScheduledInvitationReader(service.Object).FindExistingDedupeKeys(Guid.NewGuid(), "2026-Q4", new string[0]));
         }
     }
 }

@@ -63,10 +63,18 @@ namespace Qdb.SurveyEngine.Tests
 
         public bool TryCreate(InvitationDraft draft)
         {
+            if (FaultOnCustomer.HasValue && draft.CustomerId == FaultOnCustomer.Value) throw new InvalidOperationException("Simulated platform fault on create.");
             if (SimulateConcurrentDuplicate || ExistsWithDedupeKey(draft.DedupeKey)) return false;
             Invitations.Add(draft);
+            UtcNow += TimePerInvitation;
             return true;
         }
+
+        /// <summary>A create for this customer throws, as a CRM platform fault would (the call then fails and rolls back).</summary>
+        public Guid? FaultOnCustomer { get; set; }
+
+        /// <summary>How far the clock moves per created invitation, so a run budget runs out part-way through a population.</summary>
+        public TimeSpan TimePerInvitation { get; set; } = TimeSpan.Zero;
 
         public void Write(SuppressionEntry entry) => Suppressions.Add(entry);
 

@@ -26,5 +26,16 @@ namespace Qdb.SurveyEngine.Data
             query.AddOrder("qdb_survey_invitationid", OrderType.Ascending);
             return new HashSet<string>(_service.RetrieveAll(query).Select(e => e.GetAttributeValue<string>("qdb_dedupe_key")), StringComparer.Ordinal);
         }
+
+        /// <inheritdoc />
+        public ISet<string> FindExistingDedupeKeys(Guid setupId, string periodKey, IReadOnlyCollection<string> dedupeKeys)
+        {
+            if (dedupeKeys == null || dedupeKeys.Count == 0) return new HashSet<string>(StringComparer.Ordinal);
+            var query = new QueryExpression("qdb_survey_invitation") { ColumnSet = new ColumnSet("qdb_dedupe_key") };
+            query.Criteria.AddCondition("qdb_survey_setup_id", ConditionOperator.Equal, setupId);
+            query.Criteria.AddCondition("qdb_schedule_period_key", ConditionOperator.Equal, periodKey);
+            query.Criteria.AddCondition("qdb_dedupe_key", ConditionOperator.In, dedupeKeys.Cast<object>().ToArray());
+            return new HashSet<string>(_service.RetrieveMultiple(query).Entities.Select(e => e.GetAttributeValue<string>("qdb_dedupe_key")), StringComparer.Ordinal);
+        }
     }
 }

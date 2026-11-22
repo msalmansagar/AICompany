@@ -146,7 +146,7 @@ namespace Qdb.SurveyEngine.OneTime
         private OneTimeCounts SendPage(OneTimeBatch batch, IReadOnlyList<Guid> customerIds)
         {
             var counter = new OutcomeCounter(_deps.Pipeline.Invitations, _deps.Pipeline.Suppressions);
-            var pipeline = WithCounter(counter);
+            var pipeline = counter.Around(_deps.Pipeline);
             var suppressions = new SuppressionRecorder(pipeline);
             var pinner = new FormPinner(pipeline, suppressions);
             var dispatcher = new InvitationDispatcher(pipeline, suppressions);
@@ -156,16 +156,6 @@ namespace Qdb.SurveyEngine.OneTime
                 if (candidate != null) dispatcher.Dispatch(new[] { candidate }, batch.Settings);
             }
             return counter.Counts;
-        }
-
-        private SurveyTriggerDependencies WithCounter(OutcomeCounter counter)
-        {
-            var shared = _deps.Pipeline;
-            return new SurveyTriggerDependencies
-            {
-                Config = shared.Config, Records = shared.Records, Languages = shared.Languages, RenderCache = shared.RenderCache,
-                Milestones = shared.Milestones, Invitations = counter, Suppressions = counter, Clock = shared.Clock, Trace = shared.Trace,
-            };
         }
 
         private static OneTimeRunState Advance(OneTimeRunState state, AudiencePage page, OneTimeCounts pageCounts) => new OneTimeRunState

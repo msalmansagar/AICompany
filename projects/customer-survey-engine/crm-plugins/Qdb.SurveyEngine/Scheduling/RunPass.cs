@@ -15,5 +15,12 @@ namespace Qdb.SurveyEngine.Scheduling
 
         /// <summary>Only the once-a-day passes: postponed release, scheduled triggers, retention.</summary>
         Daily = 2,
+
+        /// <summary>
+        /// No survey work: counts one failed Daily call against the scheduled run it was working on (FR-011, ADR-011).
+        /// Called by the scheduler after a failed Daily call, in its own transaction, because the failed call's own
+        /// writes were rolled back.
+        /// </summary>
+        RecordFailure = 3,
     }
 }

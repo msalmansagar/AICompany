@@ -1,83 +1,150 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Globalization;
 using Qdb.SurveyEngine.Domain;
-using Qdb.SurveyEngine.Services;
 
 namespace Qdb.SurveyEngine.Scheduling
 {
     /// <summary>
-    /// Generates the invitations of every scheduled trigger due on the run date (FR-CSE-031..033).
-    /// Each customer goes through the same fatigue and priority rules as a record-driven trigger
-    /// (<see cref="InvitationDispatcher"/>), so a customer due for two schedules on 1 January gets
-    /// one survey and the other follows its Drop / Postpone setting. The period dedupe key makes a
-    /// second run on the same day create nothing.
+    /// Sends scheduled triggers' surveys (FR-CSE-031..033, FR-CSE-098; ADR-011): one run at a time in priority order,
+    /// 25 customers per page, saving the run record on the trigger after each page and stopping between pages when
+    /// the budget is spent, so a 10,000-customer survey resumes across the scheduler's calls. A Custom API call is ONE
+    /// transaction: a call that fails loses only its own pages, which the next call redoes (DEF-CSE-002).
     /// </summary>
     public sealed class ScheduledTriggerPass
     {
         private readonly RunDueSurveysDependencies _deps;
-        private readonly ScheduledCandidateBuilder _builder;
-        private readonly InvitationDispatcher _dispatcher;
+        private readonly ScheduledRunChecks _checks;
+        private readonly ScheduledPageRunner _pages;
 
-        public ScheduledTriggerPass(RunDueSurveysDependencies dependencies, ScheduledCandidateBuilder builder, InvitationDispatcher dispatcher)
+        public ScheduledTriggerPass(RunDueSurveysDependencies dependencies, ScheduledRunChecks checks, ScheduledPageRunner pages)
         {
             _deps = dependencies ?? throw new ArgumentNullException(nameof(dependencies));
-            _builder = builder ?? throw new ArgumentNullException(nameof(builder));
-            _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+            _checks = checks ?? throw new ArgumentNullException(nameof(checks));
+            _pages = pages ?? throw new ArgumentNullException(nameof(pages));
         }
 
-        /// <summary>Runs the triggers due on <paramref name="runDate"/>, or as many customers as the budget allows.</summary>
+        /// <summary>Works through the selected runs for <paramref name="runDate"/> until all finish or the budget is spent.</summary>
         public ScheduledRunResult Run(DateTime runDate, RunBudget budget)
         {
-            var result = new ScheduledRunResult();
-            var due = _deps.ScheduledTriggers.GetActiveScheduledTriggers().Where(t => ScheduleCalendar.IsDue(t.Schedule.Period, runDate)).ToList();
-            result.DueTriggers = due.Count;
-            var settings = _deps.Pipeline.Config.GetSettings();
-            var built = BuildAll(due, new ScheduledRunContext(runDate, settings, budget));
-            if (built == null) { result.IsComplete = false; return Traced(result); }
-            result.AlreadyGenerated = built.Sum(b => b.AlreadyGenerated);
-            result.Problems.AddRange(built.Where(b => b.Problem != null).Select(b => b.Problem));
-            foreach (var customer in built.SelectMany(b => b.Candidates).GroupBy(c => c.Evaluation.Change.CustomerId.Value))
+            _deps.Pipeline.Trace.Write($"Scheduled pass for {runDate:yyyy-MM-dd} starting.");
+            var selection = ScheduledSelection.Of(_deps.ScheduledTriggers.GetActiveScheduledTriggers(), runDate);
+            var result = new ScheduledRunResult { DueTriggers = selection.Work.Count, AlreadySent = selection.AlreadySent };
+            var call = new PassCall(_deps.Pipeline.Config.GetSettings(), budget);
+            foreach (var step in selection.Steps(runDate))
             {
-                if (budget.IsExhausted) { result.IsComplete = false; break; }
-                _dispatcher.Dispatch(customer.ToList(), settings);
-                result.CustomersEvaluated++;
+                var outcome = step.IsSkipped ? WorkOutcome.Skipped(step) : Send(step.Work, call);
+                result.Add(outcome);
+                if (outcome.StopsThePass) { result.IsComplete = false; break; }
             }
-            return Traced(result);
-        }
-
-        // Every due trigger must be built before any customer is dispatched, or priority between two
-        // schedules due for the same customer would be decided on half the candidates. A spent budget
-        // here answers null so nothing is dispatched and the next call starts over.
-        private IReadOnlyList<ScheduledTriggerCandidates> BuildAll(IReadOnlyList<SurveyTrigger> due, ScheduledRunContext context)
-        {
-            var built = new List<ScheduledTriggerCandidates>();
-            foreach (var trigger in due)
-            {
-                if (context.Budget.IsExhausted) return null;
-                built.Add(_builder.Build(new ScheduledRun(trigger, context.RunDate, context.Settings)));
-            }
-            return built;
-        }
-
-        private ScheduledRunResult Traced(ScheduledRunResult result)
-        {
             _deps.Pipeline.Trace.Write(result.ToString());
             return result;
         }
 
-        private sealed class ScheduledRunContext
+        private WorkOutcome Send(ScheduledWork work, PassCall call)
         {
-            public ScheduledRunContext(DateTime runDate, SurveySettings settings, RunBudget budget)
+            if (call.Budget.IsExhausted) return WorkOutcome.BudgetSpent(work, work.State, 0, 0);
+            var start = StartingState(work, call);
+            var claim = _deps.ScheduledRuns.TrySave(work.Trigger.Id, start);
+            if (!claim.IsSaved) return WorkOutcome.ChangedElsewhere(work);
+            var state = call.Remember(work, start, claim.RowVersion);
+            if (!work.IsNew) return SendPages(work, state, call);
+            var check = _checks.Check(work.Trigger);
+            return check.IsSendable ? SendPages(work, state, call) : FinishUnsendable(work, state, check.Reason, call);
+        }
+
+        // Starting or resuming re-writes the record conditionally, so of two overlapping calls only one goes on.
+        private ScheduledRunState StartingState(ScheduledWork work, PassCall call)
+        {
+            var now = _deps.Pipeline.Clock.UtcNow;
+            var start = work.IsNew
+                ? new ScheduledRunState { PeriodKey = work.Period.Key, StartedOn = now, FailedCalls = work.State.FailedCalls }
+                : work.State.Copy();
+            start.Status = ScheduledRunStatus.Sending;
+            start.ProgressOn = now;
+            start.RowVersion = call.RowVersionOf(work);
+            return start;
+        }
+
+        private WorkOutcome SendPages(ScheduledWork work, ScheduledRunState state, PassCall call)
+        {
+            var tally = new PageTally();
+            while (!call.Budget.IsExhausted)
             {
-                RunDate = runDate;
+                var page = _pages.Run(work, state, call.Settings);
+                tally.Add(page);
+                var next = WithProgressMessage(work, page.State);
+                var write = _deps.ScheduledRuns.TrySave(work.Trigger.Id, next);
+                if (!write.IsSaved) return WorkOutcome.ChangedElsewhere(work);
+                state = call.Remember(work, next, write.RowVersion);
+                TracePage(work, state, tally);
+                if (state.Status == ScheduledRunStatus.Sent) return WorkOutcome.Completed(work, state, tally.Evaluated, tally.AlreadyHad);
+            }
+            return WorkOutcome.BudgetSpent(work, state, tally.Evaluated, tally.AlreadyHad);
+        }
+
+        private WorkOutcome FinishUnsendable(ScheduledWork work, ScheduledRunState state, string reason, PassCall call)
+        {
+            var finished = state.Copy();
+            finished.Status = ScheduledRunStatus.Sent;
+            finished.Message = "Not sent: " + reason;
+            var write = _deps.ScheduledRuns.TrySave(work.Trigger.Id, finished);
+            if (!write.IsSaved) return WorkOutcome.ChangedElsewhere(work);
+            call.Remember(work, finished, write.RowVersion);
+            return WorkOutcome.NotSent(work, reason);
+        }
+
+        private static ScheduledRunState WithProgressMessage(ScheduledWork work, ScheduledRunState state)
+        {
+            var next = state.Copy();
+            next.Message = WorkOutcome.Progress(work, next);
+            return next;
+        }
+
+        // Article XIV: one trace line per page, so a slow or failing page can be found in the plugin trace log.
+        private void TracePage(ScheduledWork work, ScheduledRunState state, PageTally tally) =>
+            _deps.Pipeline.Trace.Write(string.Format(CultureInfo.InvariantCulture, "Scheduled page: trigger {0:D}, {1}; page {2} done; {3}",
+                work.Trigger.Id, work.Name, tally.Pages, WorkOutcome.Progress(work, state)));
+
+        /// <summary>What one call shares across runs: settings, budget, and each trigger's latest row version.</summary>
+        private sealed class PassCall
+        {
+            private readonly Dictionary<Guid, string> _rowVersions = new Dictionary<Guid, string>();
+
+            public PassCall(SurveySettings settings, RunBudget budget)
+            {
                 Settings = settings;
                 Budget = budget;
             }
 
-            public DateTime RunDate { get; }
             public SurveySettings Settings { get; }
             public RunBudget Budget { get; }
+
+            // A trigger's second run in one call (its next period) must use the version its first run wrote.
+            public string RowVersionOf(ScheduledWork work) =>
+                _rowVersions.TryGetValue(work.Trigger.Id, out var written) ? written : work.State.RowVersion;
+
+            public ScheduledRunState Remember(ScheduledWork work, ScheduledRunState state, string rowVersion)
+            {
+                var saved = state.Copy();
+                saved.RowVersion = rowVersion;
+                _rowVersions[work.Trigger.Id] = rowVersion;
+                return saved;
+            }
+        }
+
+        private sealed class PageTally
+        {
+            public int Pages { get; private set; }
+            public int Evaluated { get; private set; }
+            public int AlreadyHad { get; private set; }
+
+            public void Add(ScheduledPage page)
+            {
+                Pages++;
+                Evaluated += page.Evaluated;
+                AlreadyHad += page.AlreadyHad;
+            }
         }
     }
 }

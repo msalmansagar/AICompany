@@ -29,14 +29,30 @@ namespace Qdb.SurveyEngine.Scheduling
         OneTime.RunWrite TrySave(Guid triggerId, ScheduledRunState state);
     }
 
-    /// <summary>Finds the customers a scheduled trigger invites (FR-CSE-032).</summary>
+    /// <summary>
+    /// Finds the customers a scheduled trigger invites (FR-CSE-032), one page at a time in customer-id order.
+    /// A page starts after the last customer id read, never at a page number, so customers leaving or joining
+    /// the population between scheduler calls cannot make anyone be skipped (FR-003, analysis C3).
+    /// </summary>
     public interface ICustomerPopulationReader
     {
-        /// <summary>Every active account.</summary>
-        IReadOnlyList<Guid> GetActiveCustomers();
+        /// <summary>Active customers of the org's customer table after <paramref name="afterCustomerId"/> (null = from the first).</summary>
+        CustomerPage ReadActiveCustomers(Guid? afterCustomerId, int pageSize);
 
-        /// <summary>Distinct customers with at least one matching source record created in the period.</summary>
-        IReadOnlyList<Guid> GetCustomersActiveIn(PopulationQuery query);
+        /// <summary>Distinct customers with at least one matching source record created in the period, after <paramref name="afterCustomerId"/>.</summary>
+        CustomerPage ReadCustomersActiveIn(PopulationQuery query, Guid? afterCustomerId, int pageSize);
+    }
+
+    /// <summary>One page of a scheduled trigger's population.</summary>
+    public sealed class CustomerPage
+    {
+        public IReadOnlyList<Guid> CustomerIds { get; set; } = new Guid[0];
+
+        /// <summary>The last id read, including a row that was not a customer of the org's table; the next page starts after it.</summary>
+        public Guid? LastReadId { get; set; }
+
+        /// <summary>True when the population has no customers after this page.</summary>
+        public bool IsLast { get; set; }
     }
 
     /// <summary>Which source records make a customer "active in period".</summary>
@@ -57,6 +73,9 @@ namespace Qdb.SurveyEngine.Scheduling
     {
         /// <summary>The dedupe keys of the setup's invitations for the period, so a re-run skips them in memory.</summary>
         ISet<string> GetDedupeKeys(Guid setupId, string periodKey);
+
+        /// <summary>Which of one page's dedupe keys already have an invitation for the period (research R4).</summary>
+        ISet<string> FindExistingDedupeKeys(Guid setupId, string periodKey, IReadOnlyCollection<string> dedupeKeys);
     }
 
     /// <summary>A Postponed invitation waiting for release (FR-CSE-042).</summary>
@@ -144,6 +163,10 @@ namespace Qdb.SurveyEngine.Scheduling
         public IScheduledTriggerRepository ScheduledTriggers { get; set; }
         public ICustomerPopulationReader Population { get; set; }
         public IScheduledInvitationReader ScheduledInvitations { get; set; }
+
+        /// <summary>Writes scheduled triggers' run records (ADR-011).</summary>
+        public IScheduledRunStore ScheduledRuns { get; set; }
+
         public IPostponedInvitationStore Postponed { get; set; }
         public IResponseRetentionStore Retention { get; set; }
 

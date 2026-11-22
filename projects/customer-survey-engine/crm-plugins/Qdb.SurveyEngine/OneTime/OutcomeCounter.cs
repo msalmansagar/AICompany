@@ -26,6 +26,13 @@ namespace Qdb.SurveyEngine.OneTime
         /// <summary>The totals so far.</summary>
         public OneTimeCounts Counts => new OneTimeCounts { Invited = _invited, Postponed = _postponed, Suppressed = _suppressed };
 
+        /// <summary>The shared pipeline with invitation creates and suppression writes going through this counter.</summary>
+        public SurveyTriggerDependencies Around(SurveyTriggerDependencies shared) => new SurveyTriggerDependencies
+        {
+            Config = shared.Config, Records = shared.Records, Languages = shared.Languages, RenderCache = shared.RenderCache,
+            Milestones = shared.Milestones, Invitations = this, Suppressions = this, Clock = shared.Clock, Trace = shared.Trace,
+        };
+
         public bool ExistsWithDedupeKey(string dedupeKey) => _invitations.ExistsWithDedupeKey(dedupeKey);
 
         public bool HasSentInvitationSince(Guid customerId, DateTime sinceUtc) => _invitations.HasSentInvitationSince(customerId, sinceUtc);

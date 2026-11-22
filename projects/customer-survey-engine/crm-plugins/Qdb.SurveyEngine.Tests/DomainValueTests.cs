@@ -136,20 +136,16 @@ namespace Qdb.SurveyEngine.Tests
         }
 
         [Fact]
-        public void ScheduledRun_NullTrigger_Throws()
+        public void ScheduledWork_NullTrigger_Throws()
         {
-            Assert.Throws<ArgumentNullException>(() => new ScheduledRun(null, new DateTime(2026, 1, 15, 0, 0, 0, DateTimeKind.Utc), new SurveySettings()));
+            Assert.Throws<ArgumentNullException>(() => new ScheduledWork(null, ScheduleCalendar.PeriodFromKey(SchedulePeriod.Monthly, "2026-01"), new ScheduledRunState()));
         }
 
         [Fact]
-        public void ScheduledRun_NullSettings_Throws()
+        public void ScheduledWork_NullState_Throws()
         {
-            var trigger = new SurveyTrigger
-            {
-                Setup = new SurveySetup(),
-                Schedule = new ScheduleSettings { Period = SchedulePeriod.Monthly },
-            };
-            Assert.Throws<ArgumentNullException>(() => new ScheduledRun(trigger, new DateTime(2026, 2, 1), null));
+            var trigger = new SurveyTrigger { Setup = new SurveySetup(), Schedule = new ScheduleSettings { Period = SchedulePeriod.Monthly } };
+            Assert.Throws<ArgumentNullException>(() => new ScheduledWork(trigger, ScheduleCalendar.PeriodFromKey(SchedulePeriod.Monthly, "2026-01"), null));
         }
 
         [Fact]
@@ -210,7 +206,7 @@ namespace Qdb.SurveyEngine.Tests
         public void RunDueSurveysService_NullPostponed_Throws()
         {
             // Passes null for all three concrete-class parameters; throws on the first null guard
-            Assert.Throws<ArgumentNullException>(() => new RunDueSurveysService(null, null, null));
+            Assert.Throws<ArgumentNullException>(() => new RunDueSurveysService(null, null, null, null));
         }
 
         [Fact]

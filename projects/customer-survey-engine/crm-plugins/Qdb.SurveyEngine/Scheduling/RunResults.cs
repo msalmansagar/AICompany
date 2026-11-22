@@ -19,22 +19,43 @@ namespace Qdb.SurveyEngine.Scheduling
             $"Postponed: {Released} released, {Discarded} discarded, {StillWaiting} still waiting, {ChangedElsewhere} changed elsewhere.";
     }
 
-    /// <summary>What the scheduled-trigger pass did (FR-CSE-031..033).</summary>
+    /// <summary>What the scheduled-trigger pass did (FR-CSE-031..033, FR-005).</summary>
     public sealed class ScheduledRunResult
     {
+        /// <summary>Runs selected: triggers due on the run date plus unfinished runs (ADR-011).</summary>
         public int DueTriggers { get; set; }
+
+        /// <summary>Customers evaluated in this call.</summary>
         public int CustomersEvaluated { get; set; }
 
-        /// <summary>Customers that already had this period's invitation (a re-run); skipped, not logged.</summary>
+        /// <summary>Customers that already had this period's invitation (a redone page); skipped, not logged.</summary>
         public int AlreadyGenerated { get; set; }
+
+        /// <summary>Triggers due today whose run for the period was already sent.</summary>
+        public int AlreadySent { get; set; }
 
         /// <summary>Triggers skipped because they are misconfigured, with the reason.</summary>
         public List<string> Problems { get; } = new List<string>();
 
+        /// <summary>One line per run worked on or skipped: running, completed, Stuck, not sent.</summary>
+        public List<string> Runs { get; } = new List<string>();
+
         public bool IsComplete { get; set; } = true;
 
+        /// <summary>Adds one run's outcome to the totals and lines.</summary>
+        public void Add(WorkOutcome outcome)
+        {
+            if (outcome == null) throw new System.ArgumentNullException(nameof(outcome));
+            CustomersEvaluated += outcome.Evaluated;
+            AlreadyGenerated += outcome.AlreadyHad;
+            if (outcome.Problem.Length > 0) Problems.Add(outcome.Problem);
+            if (outcome.Line.Length > 0) Runs.Add(outcome.Line + ".");
+        }
+
         public override string ToString() =>
-            $"Scheduled: {DueTriggers} trigger(s) due, {CustomersEvaluated} customer(s) evaluated, {AlreadyGenerated} already had this period's invitation."
+            $"Scheduled: {DueTriggers} run(s) due or unfinished, {CustomersEvaluated} customer(s) evaluated, {AlreadyGenerated} already had this period's invitation."
+            + (AlreadySent > 0 ? $" {AlreadySent} already sent for this period." : string.Empty)
+            + (Runs.Count > 0 ? " " + string.Join(" ", Runs) : string.Empty)
             + (Problems.Count > 0 ? " Problems: " + string.Join(" ", Problems) : string.Empty);
     }
 
@@ -76,6 +97,10 @@ namespace Qdb.SurveyEngine.Scheduling
         /// <summary>A call asked for the One-time pass only (Pass = OneTime); the daily passes have their own call.</summary>
         public static RunSummary DailyNotRequested(OneTimeDueResult oneTime) =>
             new RunSummary(oneTime, null, null, null) { DailySkippedBecause = "Daily passes: not run in this call (Pass = OneTime)." };
+
+        /// <summary>A Pass = RecordFailure call: no survey work, only the failed-call count (FR-011).</summary>
+        public static RunSummary FailureRecorded(string outcome) =>
+            new RunSummary(OneTimeDueResult.NotRun(), null, null, null) { DailySkippedBecause = outcome };
 
         // Why the daily passes did not run, when they did not.
         private string DailySkippedBecause { get; set; } = "Daily passes: already completed for this date.";
