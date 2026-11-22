@@ -966,6 +966,14 @@ delivery (nothing sent). Safety checks all passed before any write.
 target per survey (at ~650 customers per 90-second call, about 16 calls; the 15-minute scheduler makes up to 10 calls per run).
 HL's 9.1 servers may be slower; their own timing comes from RUNBOOK 9.4 at Gate 3 (SC-005).
 
+**Coverage (NFR-CSE-007, task T039), 2026-11-22 at `41273612`:** `dotnet-coverage 18.12.0`, same tool as section 2.1, 724 C#
+tests passing. `Qdb.SurveyEngine` assembly: **branch 82.3%** (target 80%; was 80.05% on 2026-11-13), line 91.0%. **PASS.** New
+and changed classes, line / branch: ScheduledWork 100 / 92.9, ScheduledSelection 100 / 83.3, ScheduledTriggerPass 100 / 83.3,
+ScheduledPageRunner 100 / 91.7, ScheduledFailureRecorder 100 / 88.9, WorkOutcome 100 / 100, ScheduledRunState 100 / 100,
+ScheduledRunStore 100 / 80.0, CustomerPopulationReader 100 / 81.8, ScheduledInvitationReader 100 / 80.0, ScheduledTriggerRepository
+100 / 85.0, ScheduleCalendar 92.3 / 87.5, ScheduledRunChecks 100 / 75.0 (its window and delivery-None branches are each tested
+through the pass; the uncovered branch is the combination).
+
 **FR-008 evidence (other daily passes at HL volume, convergence T045):** postponed release and retention were not changed
 (research R6): both check the time budget per item and a handled item leaves their query, so a cut call resumes. Evidence:
 `PostponedReleasePassTests.Run_BudgetSpentBeforeTheRelease_SaysCallAgainAndTheNextCallReleases_FR008` (new) and
