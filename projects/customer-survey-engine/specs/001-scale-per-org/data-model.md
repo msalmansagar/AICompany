@@ -31,7 +31,9 @@ customers evaluated, invited, postponed, suppressed, last updated, message. Writ
 ```text
 Not sent ──(due date, first page)──▶ Sending ──(last page)──▶ Sent (completed)
                Sending ──(RecordFailure, failed calls ≥ threshold)──▶ Stuck
-               Stuck ──(first Daily call of a new day, page succeeds)──▶ Sending
+               Not sent ──(RecordFailure, failed calls ≥ threshold; first page kept failing)──▶ Stuck
+               Stuck ──(first Daily call whose run date is later than the date of qdb_run_progress_on,
+                        page succeeds)──▶ Sending
 Sent for period P ──(next period's due date)──▶ Sending for period P+1
 ```
 
@@ -40,6 +42,11 @@ Sent for period P ──(next period's due date)──▶ Sending for period P+1
 - Only the engine writes run columns. A run for period P is never restarted for P (the dedupe check would make
   it a no-op anyway).
 - `qdb_run_failed_calls` ≥ 0; set to 0 on every successful page.
+- `qdb_run_message` is cut to 2,000 characters before it is written (a Stuck reason may come from a long error).
+- `qdb_run_cursor` for "active in a source" holds the last customer id read (resume by key, research R3);
+  for "all active customers" the paging cookie and page number, as for one-time triggers.
+- `qdb_run_progress_on`'s date decides when a Stuck run is next retried (research R5).
+- New columns are audit-enabled like the rest of `qdb_survey_trigger` (Article VI).
 - Progress writes are conditional on the row version read at the start of the page (two overlapping calls:
   one advances, the other stops without writing).
 
@@ -47,7 +54,7 @@ Sent for period P ──(next period's due date)──▶ Sending for period P+1
 
 | Column | Type | New | Meaning |
 |---|---|---|---|
-| `qdb_stuck_after_failed_calls` | whole number (1–10), default 3 | **new** | How many failed calls in a row at one position mark a scheduled run Stuck (FR-011; Article V: a threshold lives in configuration) |
+| `qdb_stuck_after_failed_calls` | whole number (1–10), **required**, schema default 3; code has no fallback (empty → refused) | **new** | How many failed calls in a row at one position mark a scheduled run Stuck (FR-011; Article V: a threshold lives in configuration) |
 
 ## Unchanged entities
 

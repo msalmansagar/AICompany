@@ -1313,12 +1313,12 @@ and is cut by the 2-minute limit every time (research R1). Event, milestone and 
 | # | Decision | Traces to |
 |---|---|---|
 | 1 | Same-day scheduled triggers processed **one at a time in priority order** (then trigger id) | spec FR-010; BRD NFR-CSE-019 |
-| 2 | Each trigger's population read **25 at a time** with the one-time readers (`AudienceReader` for all active; page-numbered `CustomerPopulationReader` for active in a source); budget checked between pages | FR-001; FR-CSE-098 |
+| 2 | Each trigger's population read **25 at a time** with the one-time readers (`AudienceReader` for all active; `CustomerPopulationReader` for active in a source, resumed by the last customer id so population changes between calls skip nobody); budget checked between pages. Selection = triggers due on the run date **plus** every trigger with an unfinished run | FR-001; FR-CSE-098 |
 | 3 | Position, counts and progress written to the trigger after each page, **row-version conditional**; a run belongs to one period | FR-004, FR-006; BR-E2 |
 | 4 | Per-page dedupe check for the page's 25 customers; alternate key as backstop; a failed call loses only its own pages | FR-003; BR-E1 |
 | 5 | Same rules per customer (fatigue, priority, pin, fixed expiry, Digital delivery) | FR-002 |
 | 6 | Progress read-only on the trigger form (status incl. Stuck, period, evaluated, counts, last updated, message) and in the summary | FR-005 |
-| 7 | `Pass = RecordFailure` from the scheduler after a failed Daily call counts failed calls outside the rolled-back transaction; threshold `qdb_stuck_after_failed_calls` (default 3) → **Stuck**; a successful page resets; Stuck retried on the first Daily call of each day | FR-011; NFR-CSE-001 |
+| 7 | `Pass = RecordFailure` from the scheduler after a failed Daily call counts failed calls outside the rolled-back transaction, against the trigger the Daily pass would work on next (also a Not-sent one whose first page fails); threshold `qdb_stuck_after_failed_calls` (required, schema default 3, no code fallback) → **Stuck**; a successful page resets; Stuck does not hold the daily gate and is retried on the first Daily call of each later day | FR-011; NFR-CSE-001 |
 | 8 | Postponed release and retention unchanged: already per-item budgeted and naturally resumable | FR-008 |
 | 9 | At ~450 customers a run fits in one call; the only visible difference is a same-day **Drop** trigger logged as Fatigue instead of PriorityLost | FR-007 |
 
@@ -1327,7 +1327,7 @@ and is cut by the 2-minute limit every time (research R1). Event, milestone and 
 - `qdb_survey_trigger`: + `qdb_run_period_key` (text 50), `qdb_run_evaluated_count` (int),
   `qdb_run_failed_calls` (int), `qdb_run_progress_on` (date-time); `qdb_run_status` + option **Stuck**
   (100000004). Reused: run status, started on, cursor, invited/postponed/suppressed counts, message.
-- `qdb_survey_settings`: + `qdb_stuck_after_failed_calls` (int 1–10, default 3).
+- `qdb_survey_settings`: + `qdb_stuck_after_failed_calls` (int 1–10, required, schema default 3).
 - Trigger form: read-only **Run** section for scheduled triggers.
 - `qdb_srv_RunDueSurveys`: `Pass` accepts `RecordFailure`; scheduler script calls it after a failed Daily call.
 - Cloud apply: provisioning, plugin, UI (each with the CEO's go-ahead; the user runs the scripts). On-prem: kit

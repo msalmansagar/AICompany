@@ -1,6 +1,6 @@
 # Implementation Plan: Scheduled Surveys at HL Scale (Scale per Org)
 
-**Branch**: `docs/survey-brd-addendum-e` (renamed to a feature branch at build) | **Date**: 2026-11-21 | **Spec**: [spec.md](spec.md)
+**Branch**: `docs/survey-brd-addendum-e` (build on `feat/survey-scale-per-org`, created from it in T001) | **Date**: 2026-11-21 | **Spec**: [spec.md](spec.md)
 **Input**: Feature specification `projects/customer-survey-engine/specs/001-scale-per-org/spec.md`
 (BRD Addendum E, CEO-approved 2026-11-21; clarified 2026-11-21).
 **Architecture record**: `phase-3-arch.md` § Addendum E and `adr/ADR-011-scheduled-run-paging.md`.

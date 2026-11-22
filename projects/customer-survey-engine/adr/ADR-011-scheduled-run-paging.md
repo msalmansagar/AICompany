@@ -31,9 +31,15 @@ progress is shown on the trigger form, and that a step failing repeatedly marks 
    count, failed-call count, progress time, and run status **Stuck**. Shown read-only on the trigger form.
 5. **Failures counted outside the failed call.** A failed call rolls back anything it writes, so the scheduler
    script, after a failed `Pass = Daily` call, calls `Pass = RecordFailure` in a new transaction. It increments
-   the in-progress trigger's failed-call count and, at Survey Settings `qdb_stuck_after_failed_calls`
-   (default 3), sets Stuck with the reason. A successful page resets the count. A Stuck trigger is skipped so
-   lower-priority triggers proceed, and is retried on the first Daily call of each new day.
+   the failed-call count of the trigger the Daily pass would work on next (not just a Sending one: a failure
+   on a first page rolls back its Sending status) and, at Survey Settings `qdb_stuck_after_failed_calls`
+   (required, schema default 3, no fallback in code), sets Stuck with the reason. A successful page resets
+   the count. A Stuck trigger is skipped so lower-priority triggers proceed, does not hold the daily gate
+   open, and is retried on the first Daily call of each new day.
+7. **Selection and resume** (refined at `/speckit-analyze`, 2026-11-22, within the approved design): the pass
+   selects triggers due on the run date plus every trigger with an unfinished run, so a Stuck or carried-over
+   run is picked up on later days. "Active in a source" resumes by the last customer id, not by page number,
+   so customers leaving the population between calls cannot cause anyone to be skipped.
 6. **Other daily passes unchanged.** Postponed release and retention already check the budget per item and
    resume naturally.
 

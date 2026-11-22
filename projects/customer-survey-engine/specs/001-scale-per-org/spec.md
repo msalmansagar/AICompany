@@ -108,8 +108,11 @@ evidence is what lets QDB accept HL go-live (BRD NFR-CSE-006 amended, NFR-CSE-01
 - Fatigue (30 days) blocks many customers at once: each is dropped or postponed as configured, and logged,
   page by page, as today.
 - At ~450 customers the whole run fits in one call, exactly as today.
-- One customer cannot be evaluated (for example CRM rejects the record): it is logged with the reason and
-  skipped; the run carries on (FR-011).
+- One customer cannot be evaluated for a reason the engine can foresee (fatigue, no published form, no
+  customer link, delivery None, outside the window): it is logged with the reason and skipped; the run
+  carries on (FR-011).
+- CRM itself rejects a write for one customer: CRM ends the whole call and undoes its work, so that customer
+  cannot be skipped inside the call; the call counts as failed (next bullet) and is redone (FR-011).
 - A whole call fails at the same position 3 times in a row: the trigger shows **Stuck** and the scheduler run
   reports failure so monitoring alerts; after the cause is fixed the run resumes from that position (FR-011).
 
@@ -131,7 +134,8 @@ evidence is what lets QDB accept HL go-live (BRD NFR-CSE-006 amended, NFR-CSE-01
 - **FR-005** (BRD FR-CSE-098 (d); clarified 2026-11-21): For a scheduled trigger, progress MUST be visible in
   two places: (a) the run summary in the scheduler log (customers evaluated so far and that the run continues;
   final counts when it completes), and (b) read-only on the scheduled trigger's form in CRM: run status
-  (not started / running / completed / stuck), the period being sent, customers evaluated so far, and when it was
+  (not started / running / completed / stuck, shown with the trigger's existing labels Not sent / Sending /
+  Sent plus the new Stuck), the period being sent, customers evaluated so far, and when it was
   last updated, as one-time triggers already show.
 - **FR-006** (BRD BR-E2): A trigger's run for one period MUST complete before that trigger's next period
   is started.
@@ -143,9 +147,11 @@ evidence is what lets QDB accept HL go-live (BRD NFR-CSE-006 amended, NFR-CSE-01
   BFD/QDB1 ~450 active.
 - **FR-010** (BRD NFR-CSE-019; clarified 2026-11-21): Scheduled triggers due on the same run date MUST be
   processed one at a time in trigger priority order, highest first, each to completion before the next starts.
-- **FR-011** (BRD NFR-CSE-001, FR-CSE-098; clarified 2026-11-21): A customer whose evaluation fails MUST be
-  written to the suppression log with the reason and skipped, and the run MUST continue. If a whole scheduler
-  call fails at the same run position **3 times in a row**, the trigger's run status MUST become **Stuck**
+- **FR-011** (BRD NFR-CSE-001, FR-CSE-098; clarified 2026-11-21): A customer whose evaluation fails for a
+  reason the engine can foresee MUST be written to the suppression log with the reason and skipped, and the
+  run MUST continue. A fault raised by CRM itself ends the call (CRM undoes the call's work) and counts as a
+  failed call. If a whole scheduler call fails at the same run position **3 times in a row** (the number is a
+  Survey Settings value), the trigger's run status MUST become **Stuck**
   (shown on its form) and the scheduler run MUST report failure so monitoring alerts; the run resumes from
   that position once the cause is fixed.
 

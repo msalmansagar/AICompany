@@ -10,9 +10,13 @@ administrators. Access unchanged: System Administrator or Survey Scheduler (`Sch
 | `RunDate` | string, optional | unchanged | `yyyy-MM-dd`; empty = today (UTC) |
 | `Pass` | string, optional | **new accepted value** | `OneTime` · `Daily` · **`RecordFailure`** · empty = OneTime + Daily (unchanged) |
 
-`Pass = RecordFailure` does no survey work. It adds 1 to the failed-call count of the scheduled trigger whose
-run is in progress (status Sending) and, at the threshold in Survey Settings, marks it Stuck. With no run in
-progress it does nothing and says so. It is called only after a failed `Pass = Daily` call.
+`Pass = RecordFailure` does no survey work. It adds 1 to the failed-call count of the **target trigger** —
+the one the Daily pass would work on next for that `RunDate` (due or unfinished, priority order, run not
+complete, not Stuck; research R5/R7), whatever its status, because a failure on a first page rolls back its
+Sending status — and, at the threshold in Survey Settings, marks it Stuck with the reason "the daily call
+failed while this survey was next" (cut to 2,000 characters). With no target it does nothing and says so. If
+the threshold setting is empty it is refused with a message naming the setting. It is called only after a
+failed `Pass = Daily` call, with the same `RunDate`.
 
 ## Outputs (unchanged shape)
 

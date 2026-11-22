@@ -37,8 +37,14 @@ third-party libraries). Recorded in `dependencies.md`.
 
 - **All active customers**: reuse `AudienceReader.ReadPage` with the "all active customers" audience query
   (`AudienceQuery`, the same query the one-time send uses), paging cookie + page number, page size 25.
-- **Active in a source during the period**: reuse `CustomerPopulationReader.BuildFetchXml(query, pageNumber)`
-  (already page-numbered; distinct customers, so page number paging without a cookie).
+- **All active customers** resumes from the paging cookie, which is keyed on the last record's id, so
+  customers leaving or joining the set between calls do not shift the position.
+- **Active in a source during the period** (amended after `/speckit-analyze` C3): the existing
+  `CustomerPopulationReader.BuildFetchXml(query, pageNumber)` pages by **page number**. If customers leave the
+  set between calls (allowed by the spec's edge case), every later customer moves up and some would be
+  **skipped**, breaking FR-003/SC-003. **Decision**: resume by key instead — keep `distinct` and
+  `order by customer`, add `customer > lastCustomerId` and always read the first page of 25. The cursor
+  stores the last customer id. Re-reading a customer is harmless (per-page dedupe); skipping one is not.
 - **Page size**: 25 customers, shared with the one-time send (`OneTimeSendService.PageSize`, DEF-CSE-002):
   the budget is checked between pages, so a page bounds the overrun to ~4 s. A technical constant, not a
   business rule (same as the existing one-time page size).
@@ -71,12 +77,28 @@ third-party libraries). Recorded in `dependencies.md`.
     stay as they are and satisfy FR-011's "logged and skipped" for every foreseeable case.
   - **A whole call failing**: the scheduler script, which runs outside CRM's transaction, reports it. After
     a failed `Pass = Daily` call it makes one more call, `Pass = RecordFailure`, in its own transaction.
-    That call adds 1 to `qdb_run_failed_calls` on the trigger whose run is in progress and, at the threshold
-    (Survey Settings `qdb_stuck_after_failed_calls`, default 3, Article V), sets run status **Stuck** with
-    the reason in `qdb_run_message`. The script still exits 1, so monitoring alerts on every failure.
+    That call adds 1 to `qdb_run_failed_calls` on the **target trigger** and, at the threshold (Survey
+    Settings `qdb_stuck_after_failed_calls`, Article V), sets run status **Stuck** with the reason in
+    `qdb_run_message` (cut to its 2,000-character limit). The script still exits 1, so monitoring alerts on
+    every failure.
+  - **Target trigger** (amended after analysis C1): the trigger the Daily pass would work on next, chosen by
+    the same rule (R7 selection, priority order, run not complete, not Stuck). It is **not** "the trigger
+    whose status is Sending": a failure on a trigger's very first page rolls back its Sending status, so that
+    rule would find nothing and the trigger would never become Stuck. With no target, RecordFailure does
+    nothing and says so.
+  - **Threshold** (amended after analysis D1): the settings column is required with schema default 3; the
+    code never supplies its own value. If it is empty, RecordFailure refuses with a message naming the
+    setting (Article V).
+  - **Which pass failed** (analysis A1, accepted): postponed release runs before the scheduled pass in the
+    same Daily call, so a postponed-release fault is also counted against the target trigger. Accepted: the
+    alert fires either way, the Stuck reason says "the daily call failed while this survey was next", and
+    the plugin trace records which pass was running when the fault happened (one trace line at the start of
+    each pass), so the administrator finds the cause there. Telling the passes apart would need a new input
+    or a second Custom API, rejected as more schema for a rare case.
   - **A successful page** resets `qdb_run_failed_calls` to 0.
   - **A Stuck trigger** is skipped by later calls, so lower-priority triggers can proceed, and is retried on
-    the first Daily call of each new day; when the cause is fixed the retry succeeds and the run continues
+    the first Daily call of each new day — "new day" meaning the run date is later than the date of its
+    `qdb_run_progress_on`; when the cause is fixed the retry succeeds and the run continues
     from its saved position. An administrator can also deactivate and reactivate the setup.
 - **Alternatives**: a separate Custom API for recording failures (more schema for the same effect); a
   counter in a local file on the scheduler server (invisible in CRM; the spec requires Stuck on the form);
@@ -96,8 +118,14 @@ third-party libraries). Recorded in `dependencies.md`.
 ## R7 — Interaction with the daily gate and missed-day catch-up
 
 - The daily gate records a date only when all daily passes complete (DEF-CSE-003). A scheduled run in
-  progress keeps the scheduled pass incomplete, so later calls on the same run date continue it; a run that
-  crosses midnight is continued by the catch-up of the date it started on. No change to the gate.
+  progress keeps the scheduled pass incomplete, so later calls on the same run date continue it.
+- **Selection** (amended after analysis C2): the scheduled pass works on triggers **due on the run date plus
+  every trigger whose run is unfinished** (Sending, or Stuck and due a retry). Without the second part, a
+  quarterly run that is Stuck or still going on day 2 of the quarter would never be picked up again,
+  because the trigger is not "due" on day 2.
+- **Gate with Stuck runs** (C2): the scheduled pass counts as complete for the day when every selected run is
+  Sent or Stuck. So a Stuck survey does not hold the gate open (other days are not blocked), and the next
+  day's selection picks it up again for its daily retry. The gate itself does not change.
 
 ## R8 — Estimate
 
