@@ -35,6 +35,7 @@ Not sent ──(due date, first page)──▶ Sending ──(last page)──�
                Stuck ──(first Daily call whose run date is later than the date of qdb_run_progress_on,
                         page succeeds)──▶ Sending
 Sent for period P ──(next period's due date)──▶ Sending for period P+1
+Sent for period P, finished on or after P+1's due date ──(next Daily call)──▶ Sending for period P+1   (T044, FR-006)
 ```
 
 ### Validation rules

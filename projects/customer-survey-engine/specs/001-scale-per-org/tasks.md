@@ -181,5 +181,5 @@ invitation per customer; three `RecordFailure` calls mark the trigger Stuck; a l
 
 ## Phase 8: Convergence
 
-- [ ] T051 Add the T044 transition to the state diagram in `specs/001-scale-per-org/data-model.md` ("Sent for period P, finished on or after P+1's due date ──(next Daily call)──▶ Sending for period P+1") per data-model.md state transitions / FR-006 (contradicts)
-- [ ] T052 Add to the "Stuck" row of `onprem-deploy/2026-11-11/DEPLOYMENT-AND-HANDOVER.md` and the Stuck paragraph of both `scheduler/README.md` copies that a period which waited for the stuck one starts automatically once it finishes, so no manual re-run is needed, per T041 / FR-006 (partial)
+- [x] T051 Add the T044 transition to the state diagram in `specs/001-scale-per-org/data-model.md` ("Sent for period P, finished on or after P+1's due date ──(next Daily call)──▶ Sending for period P+1") per data-model.md state transitions / FR-006 (contradicts)
+- [x] T052 Add to the "Stuck" row of `onprem-deploy/2026-11-11/DEPLOYMENT-AND-HANDOVER.md` and the Stuck paragraph of both `scheduler/README.md` copies that a period which waited for the stuck one starts automatically once it finishes, so no manual re-run is needed, per T041 / FR-006 (partial)
