@@ -393,6 +393,15 @@ namespace Qdb.SurveyEngine.Tests
             Assert.Contains("Stuck After Failed Calls", refused.Message);
         }
 
+        // Seen live 2026-11-22: the RecordFailure answer said "not run in this call (Pass = Daily)".
+        [Fact]
+        public void RecordFailure_Summary_DoesNotNameAnotherPass()
+        {
+            Scheduled("srv-quarterly");
+
+            Assert.DoesNotContain("Pass = Daily", Call(new DateTime(2027, 2, 10), RunPass.RecordFailure).ToString());
+        }
+
         [Fact]
         public void RecordFailure_NeverSendsAnything()
         {

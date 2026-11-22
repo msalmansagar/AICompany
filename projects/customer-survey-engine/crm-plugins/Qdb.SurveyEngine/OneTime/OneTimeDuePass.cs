@@ -61,7 +61,7 @@ namespace Qdb.SurveyEngine.OneTime
         public List<string> Problems { get; } = new List<string>();
         public bool IsComplete { get; set; } = true;
 
-        /// <summary>False when the call did not run the One-time pass (Pass = Daily).</summary>
+        /// <summary>False when the call did not run the One-time pass (Pass = Daily or RecordFailure).</summary>
         public bool WasRun { get; private set; } = true;
 
         /// <summary>The result of a call that left the One-time pass to its own call.</summary>
@@ -78,7 +78,7 @@ namespace Qdb.SurveyEngine.OneTime
         }
 
         public override string ToString() => !WasRun
-            ? "One-time pass: not run in this call (Pass = Daily)."
+            ? "One-time pass: not run in this call."
             : $"One-time: {Triggers} trigger(s) due, {Sent} finished, {Counts}." + (Problems.Count > 0 ? " Problems: " + string.Join(" ", Problems) : string.Empty);
     }
 }
