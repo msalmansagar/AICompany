@@ -21,7 +21,7 @@ namespace Qdb.SurveyEngine.Scheduling
     /// </summary>
     public sealed class ScheduledFailureRecorder
     {
-        private const string ThresholdLabel = "Stuck After Failed Calls";
+        private const string THRESHOLD_LABEL = "Stuck After Failed Calls";
         private readonly RunDueSurveysDependencies _deps;
 
         public ScheduledFailureRecorder(RunDueSurveysDependencies dependencies)
@@ -33,7 +33,7 @@ namespace Qdb.SurveyEngine.Scheduling
         public string Record(DateTime runDate)
         {
             var threshold = _deps.Pipeline.Config.GetSettings().StuckAfterFailedCalls
-                ?? throw new ScheduledRunRefusedException($"Survey Settings '{ThresholdLabel}' is empty. Set it (for example 3) before the scheduler can count failed calls.");
+                ?? throw new ScheduledRunRefusedException($"Survey Settings '{THRESHOLD_LABEL}' is empty. Set it (for example 3) before the scheduler can count failed calls.");
             var selection = ScheduledSelection.Of(_deps.ScheduledTriggers.GetActiveScheduledTriggers(), runDate);
             var target = selection.Steps(runDate).Where(step => !step.IsSkipped).Select(step => step.Work).Take(1).ToList();
             if (target.Count == 0) return $"RecordFailure: no scheduled survey is running or due for {runDate:yyyy-MM-dd}; nothing to record.";

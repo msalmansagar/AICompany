@@ -46,6 +46,7 @@ namespace Qdb.SurveyEngine.Scheduling
     /// <summary>One page of a scheduled trigger's population.</summary>
     public sealed class CustomerPage
     {
+        /// <summary>The page's customers of the org's customer table, in id order.</summary>
         public IReadOnlyList<Guid> CustomerIds { get; set; } = new Guid[0];
 
         /// <summary>The last id read, including a row that was not a customer of the org's table; the next page starts after it.</summary>

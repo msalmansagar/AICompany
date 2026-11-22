@@ -15,7 +15,7 @@ namespace Qdb.SurveyEngine.Data
     /// </summary>
     public sealed class ScheduledRunStore : IScheduledRunStore
     {
-        private const int RowVersionMismatchError = unchecked((int)0x80060882);
+        private const int ROW_VERSION_MISMATCH_ERROR = unchecked((int)0x80060882);
         private readonly IOrganizationService _service;
 
         public ScheduledRunStore(IOrganizationService service)
@@ -33,10 +33,12 @@ namespace Qdb.SurveyEngine.Data
             {
                 _service.Execute(new UpdateRequest { Target = change, ConcurrencyBehavior = ConcurrencyBehavior.IfRowVersionMatches });
             }
-            catch (FaultException<OrganizationServiceFault> fault) when (fault.Detail.ErrorCode == RowVersionMismatchError)
+            catch (FaultException<OrganizationServiceFault> fault) when (fault.Detail.ErrorCode == ROW_VERSION_MISMATCH_ERROR)
             {
                 return RunWrite.Lost();
             }
+            // Update answers no row version, so it is read back for the next conditional write. If this read fails the whole
+            // call rolls back, the saved page included, and the scheduler counts a failed call: the page is redone next call.
             return RunWrite.Saved(_service.Retrieve(change.LogicalName, triggerId, new ColumnSet("versionnumber")).RowVersion);
         }
 

@@ -439,6 +439,20 @@ namespace Qdb.SurveyEngine.Tests
             Assert.Contains("srv-high 2026-Q4 is Stuck", summary.Scheduled.ToString());
         }
 
+        // Code review 2026-11-22: with the higher-priority run Stuck and set aside, a failed call was working on the next
+        // survey, so that one is counted; the Stuck run's count is left alone.
+        [Fact]
+        public void RecordFailure_HigherPriorityRunStuck_CountsTheNextSurvey_FR011()
+        {
+            Scheduled("srv-high", HighId).Priority = 1;
+            Scheduled("srv-low", LowId).Priority = 2;
+            StuckToday(HighId, "2026-Q4");
+
+            Call(NewYear, RunPass.RecordFailure);
+
+            Assert.Equal((3, 1), (RunOf(HighId).FailedCalls, RunOf(LowId).FailedCalls));
+        }
+
         // Analysis C2: a Stuck run does not hold the daily gate open.
         [Fact]
         public void Run_OnlyStuckRunsLeft_CompletesTheDay()

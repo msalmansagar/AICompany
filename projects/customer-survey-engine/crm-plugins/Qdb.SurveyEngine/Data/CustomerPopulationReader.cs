@@ -15,7 +15,7 @@ namespace Qdb.SurveyEngine.Data
     /// </summary>
     public sealed class CustomerPopulationReader : ICustomerPopulationReader
     {
-        private const int ActiveState = 0;
+        private const int ACTIVE_STATE = 0;
         private readonly IOrganizationService _service;
         private readonly CustomerLink _customer;
 
@@ -30,7 +30,7 @@ namespace Qdb.SurveyEngine.Data
         {
             var idColumn = _customer.TableLogicalName + "id";
             var query = new QueryExpression(_customer.TableLogicalName) { ColumnSet = new ColumnSet(false), TopCount = pageSize };
-            query.Criteria.AddCondition("statecode", ConditionOperator.Equal, ActiveState);
+            query.Criteria.AddCondition("statecode", ConditionOperator.Equal, ACTIVE_STATE);
             if (afterCustomerId.HasValue) query.Criteria.AddCondition(idColumn, ConditionOperator.GreaterThan, afterCustomerId.Value);
             query.AddOrder(idColumn, OrderType.Ascending);
             var ids = _service.RetrieveMultiple(query).Entities.Select(row => row.Id).ToList();
