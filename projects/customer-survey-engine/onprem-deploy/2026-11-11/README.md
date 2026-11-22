@@ -115,7 +115,7 @@ prerequisites.
 
 | Check | Result |
 |---|---|
-| Survey assembly in the package | byte-identical to the local Release build of `feat/survey-scale-per-org` (`bd767390`) and to the assembly running on the cloud org (sha256 `686e1beb…`, compared 2026-11-22; adds the paged scheduled runs of ADR-011 to ENH-CSE-001, DEF-CSE-001..003 and the QA-D1 and AUD-D-01 fixes) |
+| Survey assembly in the package | byte-identical to the local Release build of `feat/survey-scale-per-org` (`6e5a78bc`) and to the assembly running on the cloud org (sha256 `90598b8c…`, compared 2026-11-22; adds the paged scheduled runs of ADR-011, with the waiting period started after a late finish (T044), to ENH-CSE-001, DEF-CSE-001..003 and the QA-D1 and AUD-D-01 fixes) |
 | Addendum E schema in the package | `qdb_run_period_key`, `qdb_run_evaluated_count`, `qdb_run_failed_calls`, `qdb_run_progress_on` on the trigger, option Stuck (100000004) on `qdb_run_status`, `qdb_stuck_after_failed_calls` on Survey Settings, the trigger form's **Scheduled run** section (shared run fields carry their own control ids) and the updated `trigger-form.js` (read from `customizations.xml`) |
 | Stuck After Failed Calls | a whole-number column cannot carry a default, and import never changes the existing Survey Settings row: **set it to 3** after import (RUNBOOK 7.1; `config/<org>.json` → `settings`). Until it is set the scheduler cannot count failed calls and says so |
 | Survey Integration role in the package | `prvReadOrganization` and the 9 platform defaults only; no survey, customer or Form Engine table right (read from `customizations.xml`) |
@@ -138,7 +138,7 @@ prerequisites.
 
 | File | SHA-256 | Bytes |
 |---|---|---|
-| `SurveyEngine_1_2_0_5_onprem_unmanaged.zip` | `10515d3bed38f9f40dcc6357128d8a97cbd3a6e8c67d1d39e18fbc3e8fa3bf3a` | 222,104 |
+| `SurveyEngine_1_2_0_5_onprem_unmanaged.zip` | `7d4355e967182447567ef16af15dcef038b8055262f192fb53ce500e7b64033b` | 223,072 |
 | `form-engine/QdbFormEngineSurveyUpdate_1_0_0_0_onprem_unmanaged.zip` | `bbef1bd91cf84cd2c97fe8bf1cba0cf2bb5ff37fce573728e4134edb759de980` | 3,426 |
 | `form-engine/FormDesignerWebResource_1.6.1.zip` | `b2a8ef00d98b213f6c8d784b50cc2e25291cb323ef780f92e8fb87cfe1bce008` | 1,386,590 |
 | `form-engine/Qdb.FormEngine.Plugins.dll` | `137658ae3a101eb97376aef8e22ea155155f74b2490900a81be7729f8529f083` | 903,680 |
