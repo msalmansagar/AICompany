@@ -42,9 +42,18 @@ third-party libraries). Recorded in `dependencies.md`.
 - **Active in a source during the period** (amended after `/speckit-analyze` C3): the existing
   `CustomerPopulationReader.BuildFetchXml(query, pageNumber)` pages by **page number**. If customers leave the
   set between calls (allowed by the spec's edge case), every later customer moves up and some would be
-  **skipped**, breaking FR-003/SC-003. **Decision**: resume by key instead — keep `distinct` and
-  `order by customer`, add `customer > lastCustomerId` and always read the first page of 25. The cursor
-  stores the last customer id. Re-reading a customer is harmless (per-page dedupe); skipping one is not.
+  **skipped**, breaking FR-003/SC-003. **Decision**: resume by key instead, and always read the first page of
+  25 after the last customer id; the cursor stores that id. Re-reading a customer is harmless (per-page
+  dedupe); skipping one is not.
+- **Build finding (2026-11-22, read-only check on the cloud org)**: paging on the source's customer *lookup*
+  (`order by lookup`, `lookup > lastId`) repeated 2 of 5 customers on page 2, because a lookup column is not
+  sorted in the order a `gt` condition compares. **Final shape**: read the **customer table** ordered by its own
+  primary key (`accountid` / `contactid`, which pages cleanly: no overlap), with `id > lastId`, inner-joined to
+  the source records of the period (`link-entity` from the customer lookup, with the period, status and type
+  filters). Verified read-only: pages of 7 returned all 21 matching customers once, none missing. The inner
+  join also keeps only the org's customer table when the lookup is polymorphic. "All active customers" pages the
+  customer table by primary key too (`statecode = 0`, `id > lastId`), rather than through the one-time audience
+  reader's paging cookie: one rule for both populations.
 - **Page size**: 25 customers, shared with the one-time send (`OneTimeSendService.PageSize`, DEF-CSE-002):
   the budget is checked between pages, so a page bounds the overrun to ~4 s. A technical constant, not a
   business rule (same as the existing one-time page size).

@@ -550,16 +550,39 @@ namespace Qdb.SurveyEngine.Tests
             TypeValues = CodeList.Parse("751090000"),
         };
 
-        private static string Fetch(Guid? after = null) => CustomerPopulationReader.BuildFetchXml(Query(), after, 25);
+        private static string Fetch(Guid? after = null, CustomerLink customer = null) =>
+            new CustomerPopulationReader(new Mock<IOrganizationService>().Object, customer ?? CustomerLink.Account).BuildFetchXml(Query(), after, 25);
 
-        // Analysis C3: resuming by page number skips customers when the population shrinks between calls;
-        // resuming after the last customer id read cannot.
+        // Analysis C3 + live check 2026-11-22: a lookup column is not sorted in the order "gt" compares, so paging on the
+        // source's customer lookup repeated and skipped customers on the cloud org. The query reads the customer table
+        // ordered by its own primary key, joined to the source records of the period.
+        [Fact]
+        public void BuildFetchXml_ReadsTheCustomerTableOrderedByItsPrimaryKey_FR003()
+        {
+            var fetch = Fetch();
+
+            Assert.Contains("<entity name='account'><attribute name='accountid' /><order attribute='accountid' />", fetch);
+        }
+
+        [Fact]
+        public void BuildFetchXml_JoinsTheSourceRecordsThroughTheirCustomerLookup()
+        {
+            Assert.Contains("<link-entity name='qdb_payment_authorization_ticket' from='qdb_customer_name' to='accountid' link-type='inner'>", Fetch());
+        }
+
+        [Fact]
+        public void BuildFetchXml_ContactOrg_ReadsContacts()
+        {
+            Assert.Contains("<entity name='contact'><attribute name='contactid' /><order attribute='contactid' />", Fetch(null, CustomerLink.Contact));
+        }
+
+        // Analysis C3: resuming by page number skips customers when the population shrinks between calls.
         [Fact]
         public void BuildFetchXml_Resume_StartsAfterTheLastCustomerReadNotAtAPageNumber_FR003()
         {
             var fetch = Fetch(After);
 
-            Assert.Contains($"<condition attribute='qdb_customer_name' operator='gt' value='{After:D}' />", fetch);
+            Assert.Contains($"<condition attribute='accountid' operator='gt' value='{After:D}' />", fetch);
             Assert.Contains("count='25'", fetch);
             Assert.DoesNotContain("page=", fetch);
         }
@@ -570,12 +593,6 @@ namespace Qdb.SurveyEngine.Tests
             Assert.DoesNotContain("operator='gt'", Fetch());
         }
 
-        [Fact]
-        public void BuildFetchXml_OrdersByTheCustomerSoTheResumeConditionMatchesTheOrder()
-        {
-            Assert.Contains("<order attribute='qdb_customer_name' />", Fetch());
-        }
-
         private static Mock<IOrganizationService> ServiceReturning(params Entity[] rows)
         {
             var service = new Mock<IOrganizationService>();
@@ -583,29 +600,25 @@ namespace Qdb.SurveyEngine.Tests
             return service;
         }
 
-        private static Entity Ticket(string table, Guid id) => new Entity("qdb_payment_authorization_ticket") { ["qdb_customer_name"] = new EntityReference(table, id) };
-
         [Fact]
         public void ReadCustomersActiveIn_FewerRowsThanThePage_IsTheLastPage()
         {
             var customer = Guid.NewGuid();
 
-            var page = new CustomerPopulationReader(ServiceReturning(Ticket("account", customer)).Object, CustomerLink.Account).ReadCustomersActiveIn(Query(), null, 25);
+            var page = new CustomerPopulationReader(ServiceReturning(new Entity("account", customer)).Object, CustomerLink.Account).ReadCustomersActiveIn(Query(), null, 25);
 
             Assert.Equal((true, (Guid?)customer), (page.IsLast, page.LastReadId));
+            Assert.Equal(new[] { customer }, page.CustomerIds);
         }
 
-        // A filtered-out row (the other table of a polymorphic lookup) still moves the position on.
         [Fact]
-        public void ReadCustomersActiveIn_LastRowNotACustomer_StillMovesThePositionPastIt()
+        public void ReadCustomersActiveIn_FullPage_IsNotTheLastAndMovesToTheLastCustomer()
         {
-            var contactId = Guid.NewGuid();
-            var accountId = Guid.NewGuid();
+            var rows = Enumerable.Range(0, 2).Select(_ => new Entity("account", Guid.NewGuid())).ToArray();
 
-            var page = new CustomerPopulationReader(ServiceReturning(Ticket("contact", contactId), Ticket("account", accountId)).Object, CustomerLink.Contact).ReadCustomersActiveIn(Query(), null, 2);
+            var page = new CustomerPopulationReader(ServiceReturning(rows).Object, CustomerLink.Account).ReadCustomersActiveIn(Query(), null, 2);
 
-            Assert.Equal(new[] { contactId }, page.CustomerIds);
-            Assert.Equal(((Guid?)accountId, false), (page.LastReadId, page.IsLast));
+            Assert.Equal((false, (Guid?)rows[1].Id, 2), (page.IsLast, page.LastReadId, page.CustomerIds.Count));
         }
 
         [Fact]
@@ -652,16 +665,6 @@ namespace Qdb.SurveyEngine.Tests
             Assert.Contains("<condition attribute='qdb_disbursement_type_1' operator='in'><value>751090000</value></condition>", fetch);
         }
 
-        [Fact]
-        public void ReadCustomersActiveIn_ContactOrgPolymorphicLookup_KeepsOnlyContacts()
-        {
-            var contactId = Guid.NewGuid();
-            var service = ServiceReturning(Ticket("contact", contactId), Ticket("account", Guid.NewGuid()));
-
-            var page = new CustomerPopulationReader(service.Object, CustomerLink.Contact).ReadCustomersActiveIn(Query(), null, 25);
-
-            Assert.Equal(new[] { contactId }, page.CustomerIds);
-        }
     }
 
     public class ScheduledInvitationPageKeyTests
