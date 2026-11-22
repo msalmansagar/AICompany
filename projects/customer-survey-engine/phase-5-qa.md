@@ -945,6 +945,30 @@ VERIFICATION (Addendum D)
 | **DEF-CSE-003** | A day the scheduler does not run (server down, holiday freeze) silently loses that period's scheduled surveys: the run on the 2nd sends nothing for the month, quarter or year that ended on the 1st, and writes no log row. Also, re-running an earlier date with `RunDate` moved *Daily Passes Completed On* backwards. | Found by the independent review of 2026-11-19 (item 4). `ScheduleCalendar.IsDue` fires only when the run date IS the 1st; `DailyPassGate.HasCompleted` compared only the run date with the stored one (`Scheduling/RunDueSurveysService.cs`, `Data/DailyPassGate.cs`). Reproduced in xUnit `Run_FirstOfTheMonthMissed_NextDaySendsThatMonthsSurvey` (red: 0 invitations; gate 31 Dec, run 2 Jan) and 3 more red tests. | Missed days are caught up and their surveys sent; anything too old to catch up is named, never silent. | FR-CSE-042 (scheduled surveys), NFR-CSE-001 (nothing dropped silently), ADR-010 §5 | **Fixed in code, 2026-11-20**, branch `fix/survey-missed-run-days`. `MissedRunDays.Plan` runs every date after the last completed one, oldest first, up to 28 days (shortest month: a caught-up quarterly/annual invitation is always created before its one-month fixed expiry); older dates are named in the summary to re-run with `RunDate`. A date counts as done only when its passes finish (a budget cut resumes next call); the gate never moves back. `IDailyPassGate.HasCompleted` replaced by `LastCompletedOn`. ADR-010 Amendment 2; scheduler README. C# 645/645 (12 new). Not a schema change. **Deployed + live-verified 2026-11-20** on org5869857f (user ran `register-plugin.mjs --apply`; deployed assembly = local build, sha256 `62b00e57…`). `e2e/def-cse-003-missed-days-e2e.mjs` 5/5 (user go-ahead): gate set to 2026-11-17, Pass=Daily for 2026-11-20 caught up "Missed day 2026-11-18" and "Missed day 2026-11-19", completed and recorded 2026-11-20; a Pass=Daily re-run for 2026-11-10 left 2026-11-20 recorded; gate restored. The script refuses any 1st-of-month date (an active scheduled trigger would survey real accounts), so a caught-up 1st that actually sends a survey is proven by the unit tests, not live. On-prem kit rebuilt as 1.2.0.3 (PR #191, merged `9ecc82b5`) |
 | **DEF-CSE-004** | The on-prem scheduler script exits 0 even when a pass failed, so the Scheduled Task's *Last Run Result* never shows the failure and monitoring never alerts (the promise of DEF-CSE-002 and the scheduler README). Also: a pass still running after `MaxCalls` (10) was reported as a failure, which at HL's size (a One-time send of ~27 min, a 10,000-customer scheduled survey) would raise a false alarm every 15 minutes. | Found 2026-11-22 while writing the first automated test of the script (001-scale-per-org T026). `Write-RunLog` wrote its line with `Write-Output`; inside a PowerShell function that output becomes part of the return value, so `Invoke-Pass` returned "log lines + `$false`", an array that is always true (`scheduler/Invoke-RunDueSurveys.ps1`, both copies, kit 1.2.0.2–1.2.0.4). Reproduced by `scheduler/__tests__/invoke-run-due-surveys.test.mjs` `oneTimeFails_doesNotRecordAScheduledFailure` (red: exit 0 after a failed OneTime call). | A failed pass exits 1; a pass still running continues in the next scheduled run without an alarm. | DEF-CSE-002, NFR-CSE-001, scheduler README "Point monitoring at that result" | **Fixed in code, 2026-11-22**, with 001-scale-per-org on branch `feat/survey-scale-per-org` (the same script change adds `RecordFailure`). `Write-RunLog` uses `Write-Host`; reaching `MaxCalls` logs "continues in the next scheduled run" and is not a failure. First automated tests of the script (7, Windows PowerShell with a stubbed `Invoke-RestMethod`), including a check that the kit copy is identical. Not yet in a kit: ships in 1.2.0.5. QDB IT should know that kits 1.2.0.2–1.2.0.4 never alert on a failed night |
 
+## Addendum E (001-scale-per-org) — live volume proof, NFR-CSE-020 (OQ-E1 = b)
+
+Run 2026-11-22 on org5869857f with the CEO's go-ahead, `e2e/scheduled-volume.mjs --apply --size 2500`, after the cloud deploy
+(assembly sha256 `958f0391…` = local build; solution 1.2.0.5; Stuck After Failed Calls = 3). 2,500 `PERF-TEST-SC` accounts, each
+with one disbursement backdated to 2019-02-15; a quarterly "active in period" trigger; `Pass = Daily` for 2019-04-01; Portal
+delivery (nothing sent). Safety checks all passed before any write.
+
+| Check | Result |
+|---|---|
+| Run completes | **PASS**: 4 calls, 350 s of calls (91 s, 92 s, 91 s, 76 s) |
+| Every customer invited exactly once (SC-002, SC-003) | **PASS**: 2,500 invitations for 2,500 customers |
+| Every call within the 2-minute limit (NFR-CSE-006) | **PASS**: longest 92 s |
+| Resumes after the client loop stopped (FR-004) | **PASS**: stopped after call 2, resumed 10 s later from 1,300 evaluated |
+| Trigger progress visible (FR-005) | **PASS**: Sending at 650 / 1,300 / 1,975 evaluated, then Sent at 2,500, period 2019-Q1 |
+| RecordFailure on a quiet day records nothing | **PASS** |
+| Clean-up | **0 leftovers**; daily-pass date restored to 2026-11-20 |
+
+**Extrapolation for HL (NFR-CSE-019):** ~140 ms per customer → ~23 minutes of calls for 10,000 customers, inside the one-hour
+target per survey (at ~650 customers per 90-second call, about 16 calls; the 15-minute scheduler makes up to 10 calls per run).
+HL's 9.1 servers may be slower; their own timing comes from RUNBOOK 9.4 at Gate 3 (SC-005).
+
+**Test-tool note:** the first clean-up stopped with HTTP 401 after ~60 minutes (the script's access token expired); `--cleanup`
+finished it (918 accounts, trigger, setup) with 0 leftovers. Before a larger run the script should renew its token.
+
 ## Post-release enhancements (enhancement workflow)
 
 | ID | Change note (what changes · what must not regress · how verified) | Status |

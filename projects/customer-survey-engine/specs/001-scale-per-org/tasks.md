@@ -157,6 +157,13 @@ invitation per customer; three `RecordFailure` calls mark the trigger Stuck; a l
 
 ## Notes
 
+- **Progress 2026-11-22**: T001–T034, T036 and T041 done on `feat/survey-scale-per-org` (C# 716, node 292; code review: no
+  blockers, findings applied in `ba6bfc34`). Cloud deploy T034 done and verified (assembly sha256 `958f0391…` = local build;
+  forms carry the new fields; Stuck After Failed Calls = 3; solution 1.2.0.5). T035 live 2,500-customer run in progress.
+  Build findings: DEF-CSE-004 (scheduler always exited 0); a lookup column is not sorted in "gt" order, so "active in period"
+  reads the customer table by primary key (research R3); Dataverse whole-number columns carry no default (data-model.md).
+  Open: T035 result, T037–T040, T042–T043; the cosmetic summary fix `bd767390` deploys with the next plugin update.
+
 - Baseline test counts (T001, 2026-11-22, branch `feat/survey-scale-per-org`): C# 657 passed / 0 failed; node (provisioning + onprem + webresources) 269 passed / 0 failed.
 - Commit after each green test/implementation pair; specific files only.
 - Traceability (Article XV): test names and `feat`/`fix` commit subjects carry the requirement ID, e.g. `feat(survey): page scheduled runs [FR-CSE-098]`, test `Run_ScheduledRunCutByBudget_ResumesWithOneInvitationPerCustomer_FR001`; the PR lists FR-CSE-098, NFR-CSE-006/019/020 and spec FR-001..011 under `## Implements`.
