@@ -12,6 +12,13 @@ namespace Qdb.SurveyEngine.Data
     public sealed class ScheduledTriggerRepository : IScheduledTriggerRepository
     {
         private const string PopulationAlias = "population";
+
+        // The run record (ADR-011) and the row version every run write is conditional on.
+        private static readonly string[] RunColumns =
+        {
+            "qdb_run_status", "qdb_run_period_key", "qdb_run_cursor", "qdb_run_evaluated_count", "qdb_invited_count", "qdb_postponed_count",
+            "qdb_suppressed_count", "qdb_run_failed_calls", "qdb_run_started_on", "qdb_run_progress_on", "qdb_run_message", "versionnumber",
+        };
         private readonly IOrganizationService _service;
 
         public ScheduledTriggerRepository(IOrganizationService service)
@@ -24,8 +31,8 @@ namespace Qdb.SurveyEngine.Data
         {
             var query = new QueryExpression("qdb_survey_trigger")
             {
-                ColumnSet = new ColumnSet("qdb_trigger_kind", "qdb_status_values", "qdb_type_values", "qdb_priority", "qdb_fatigue_action", "createdon",
-                    "qdb_schedule_period", "qdb_schedule_population"),
+                ColumnSet = new ColumnSet(new[] { "qdb_trigger_kind", "qdb_status_values", "qdb_type_values", "qdb_priority", "qdb_fatigue_action", "createdon",
+                    "qdb_schedule_period", "qdb_schedule_population" }.Concat(RunColumns).ToArray()),
             };
             query.Criteria.AddCondition("qdb_is_active", ConditionOperator.Equal, true);
             query.Criteria.AddCondition("qdb_trigger_kind", ConditionOperator.Equal, (int)TriggerKind.Scheduled);
@@ -50,8 +57,32 @@ namespace Qdb.SurveyEngine.Data
                 Period = (SchedulePeriod)row.GetAttributeValue<OptionSetValue>("qdb_schedule_period").Value,
                 Population = (SchedulePopulation?)row.GetAttributeValue<OptionSetValue>("qdb_schedule_population")?.Value ?? SchedulePopulation.AllActiveCustomers,
                 PopulationSource = MapPopulationSource(row),
+                Run = MapRun(row),
             };
             return trigger;
+        }
+
+        private static ScheduledRunState MapRun(Entity row) => new ScheduledRunState
+        {
+            Status = (ScheduledRunStatus?)row.GetAttributeValue<OptionSetValue>("qdb_run_status")?.Value ?? ScheduledRunStatus.NotSent,
+            PeriodKey = row.GetAttributeValue<string>("qdb_run_period_key"),
+            LastCustomerId = ParseCustomerId(row.GetAttributeValue<string>("qdb_run_cursor")),
+            Evaluated = row.GetAttributeValue<int?>("qdb_run_evaluated_count") ?? 0,
+            Invited = row.GetAttributeValue<int?>("qdb_invited_count") ?? 0,
+            Postponed = row.GetAttributeValue<int?>("qdb_postponed_count") ?? 0,
+            Suppressed = row.GetAttributeValue<int?>("qdb_suppressed_count") ?? 0,
+            FailedCalls = row.GetAttributeValue<int?>("qdb_run_failed_calls") ?? 0,
+            StartedOn = row.GetAttributeValue<DateTime?>("qdb_run_started_on"),
+            ProgressOn = row.GetAttributeValue<DateTime?>("qdb_run_progress_on"),
+            Message = row.GetAttributeValue<string>("qdb_run_message"),
+            RowVersion = row.RowVersion,
+        };
+
+        // A cursor that is not a customer id (e.g. a One-time cursor left by an earlier kind) restarts the population.
+        private static Guid? ParseCustomerId(string cursor)
+        {
+            Guid customerId;
+            return Guid.TryParse(cursor, out customerId) ? customerId : (Guid?)null;
         }
 
         // The left-outer link answers no source id when the trigger has no population source.

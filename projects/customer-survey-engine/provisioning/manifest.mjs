@@ -34,7 +34,8 @@ export const DELIVERY_OPTIONS = Object.freeze([option(0, 'Portal'), option(1, 'S
 export const TRIGGER_KIND_OPTIONS = Object.freeze([option(0, 'Event'), option(1, 'Created'), option(2, 'Scheduled'), option(3, 'Milestone'), option(4, 'One-time')]);
 // Addendum D (FR-CSE-083..091): a One-time trigger's audience and its run record.
 export const AUDIENCE_OPTIONS = Object.freeze([option(0, 'All active customers'), option(1, 'Filter')]);
-export const RUN_STATUS_OPTIONS = Object.freeze([option(0, 'Not sent'), option(1, 'Sending'), option(2, 'Sent'), option(3, 'Failed')]);
+// Stuck (ADR-011) is set only on scheduled runs, Failed only on One-time runs.
+export const RUN_STATUS_OPTIONS = Object.freeze([option(0, 'Not sent'), option(1, 'Sending'), option(2, 'Sent'), option(3, 'Failed'), option(4, 'Stuck')]);
 export const SCHEDULE_PERIOD_OPTIONS = Object.freeze([option(0, 'Monthly'), option(1, 'Quarterly'), option(2, 'Annually')]);
 export const SCHEDULE_POPULATION_OPTIONS = Object.freeze([option(0, 'All active customers'), option(1, 'Active in period')]);
 export const FATIGUE_ACTION_OPTIONS = Object.freeze([option(0, 'Drop'), option(1, 'Postpone')]);
@@ -134,6 +135,11 @@ export const TABLES = Object.freeze([
       integer('qdb_suppressed_count', 'Suppressed', { min: 0, max: 2147483647 }),
       memo('qdb_run_cursor', 'Run Cursor', 4000),
       memo('qdb_run_message', 'Run Message', 2000),
+      // 001-scale-per-org (ADR-011): a scheduled trigger's run of one period, written page by page by the engine.
+      string('qdb_run_period_key', 'Run Period', 50),
+      integer('qdb_run_evaluated_count', 'Customers Evaluated', { min: 0, max: 2147483647 }),
+      integer('qdb_run_failed_calls', 'Failed Calls In A Row', { min: 0, max: 2147483647 }),
+      dateTime('qdb_run_progress_on', 'Run Last Updated'),
     ],
   },
   {
@@ -211,6 +217,9 @@ export const TABLES = Object.freeze([
       string('qdb_securelink_base_url', 'Secure Link Base URL', 500),
       // ADR-010: the last run date whose daily passes completed; the 15-minute scheduler runs them once a day.
       dateOnly('qdb_daily_passes_completed_on', 'Daily Passes Completed On'),
+      // FR-011 (ADR-011): failed scheduler calls in a row that mark a scheduled run Stuck. Required, no code default
+      // (Article V); the seed sets 3 on new orgs and the deploy step sets it on existing ones.
+      integer('qdb_stuck_after_failed_calls', 'Stuck After Failed Calls', { min: 1, max: 10, required: true }),
     ],
   },
   {

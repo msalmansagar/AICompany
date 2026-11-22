@@ -38,7 +38,8 @@
     "qdb_name": "Survey Settings",
     "qdb_fatigue_min_days": 30,
     "qdb_default_language": "en",
-    "qdb_securelink_enabled": false
+    "qdb_securelink_enabled": false,
+    "qdb_stuck_after_failed_calls": 3
   },
   "smsConfigs": []
 }

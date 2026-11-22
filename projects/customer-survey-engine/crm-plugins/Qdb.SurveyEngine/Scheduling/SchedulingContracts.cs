@@ -19,6 +19,16 @@ namespace Qdb.SurveyEngine.Scheduling
         IReadOnlyList<SurveyTrigger> GetActiveScheduledTriggers();
     }
 
+    /// <summary>
+    /// Writes a scheduled trigger's run record (ADR-011). Writes run as SYSTEM and are conditional on the
+    /// row version in the state, so of two overlapping scheduler calls only one advances a run.
+    /// </summary>
+    public interface IScheduledRunStore
+    {
+        /// <summary>Saves the state; not saved when the trigger changed since <see cref="ScheduledRunState.RowVersion"/>.</summary>
+        OneTime.RunWrite TrySave(Guid triggerId, ScheduledRunState state);
+    }
+
     /// <summary>Finds the customers a scheduled trigger invites (FR-CSE-032).</summary>
     public interface ICustomerPopulationReader
     {

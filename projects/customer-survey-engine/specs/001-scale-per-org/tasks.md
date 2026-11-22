@@ -157,7 +157,7 @@ invitation per customer; three `RecordFailure` calls mark the trigger Stuck; a l
 
 ## Notes
 
-- Baseline test counts (T001): _to be filled_.
+- Baseline test counts (T001, 2026-11-22, branch `feat/survey-scale-per-org`): C# 657 passed / 0 failed; node (provisioning + onprem + webresources) 269 passed / 0 failed.
 - Commit after each green test/implementation pair; specific files only.
 - Traceability (Article XV): test names and `feat`/`fix` commit subjects carry the requirement ID, e.g. `feat(survey): page scheduled runs [FR-CSE-098]`, test `Run_ScheduledRunCutByBudget_ResumesWithOneInvitationPerCustomer_FR001`; the PR lists FR-CSE-098, NFR-CSE-006/019/020 and spec FR-001..011 under `## Implements`.
 - Remediation of `/speckit-analyze` 2026-11-22 (D1, C1, C2, C3, I1, F1, A1, A2, G1, G2, G3, T1, L1) applied to spec.md, research.md, data-model.md, contracts/run-due-surveys.md and this file.

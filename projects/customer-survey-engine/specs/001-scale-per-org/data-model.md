@@ -54,7 +54,7 @@ Sent for period P ──(next period's due date)──▶ Sending for period P+1
 
 | Column | Type | New | Meaning |
 |---|---|---|---|
-| `qdb_stuck_after_failed_calls` | whole number (1–10), **required**, schema default 3; code has no fallback (empty → refused) | **new** | How many failed calls in a row at one position mark a scheduled run Stuck (FR-011; Article V: a threshold lives in configuration) |
+| `qdb_stuck_after_failed_calls` | whole number (1–10), **required**; code has no fallback (empty → refused). Dataverse whole-number columns carry no default, and the seed never changes an existing row, so 3 is set by the seed on new orgs and by the deploy step on existing ones (cloud: go-ahead PATCH; on-prem: RUNBOOK) | **new** | How many failed calls in a row at one position mark a scheduled run Stuck (FR-011; Article V: a threshold lives in configuration) |
 
 ## Unchanged entities
 
