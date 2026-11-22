@@ -22,7 +22,7 @@ failed `Pass = Daily` call, with the same `RunDate`.
 
 | Output | Type | Change |
 |---|---|---|
-| `Summary` | string | Scheduled part reports the trigger in progress, e.g. `Scheduled: "HL quarterly" 2026-Q4 running, 4,200 evaluated (4,100 invited, 80 postponed, 20 suppressed); 2 more due today.` or `… completed …`, and `… is Stuck: <reason>` |
+| `Summary` | string | Scheduled part: `Scheduled: N run(s) due or unfinished, … customer(s) evaluated, …` then one line per run, named by the setup's form code and period, e.g. `srv-quarterly 2026-Q4 running, 4200 evaluated (4100 invited, 80 postponed, 20 suppressed).`, `… completed, …`, `… is Stuck: <reason>`, `… waits for its previous period, which is not finished` or `… not sent: <reason>`. The count of other runs waiting is the "run(s) due or unfinished" figure, not a separate "more due today" clause (as built, 2026-11-22). |
 | `IsComplete` | boolean | `false` while any scheduled run for the day is still running (unchanged meaning: call again) |
 
 An unknown `Pass` value is refused with the existing message naming the allowed values (now including

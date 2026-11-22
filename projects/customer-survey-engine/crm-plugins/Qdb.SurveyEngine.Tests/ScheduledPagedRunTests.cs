@@ -501,6 +501,82 @@ namespace Qdb.SurveyEngine.Tests
             Assert.Empty(_pipeline.Invitations);
         }
 
+        // ── T044 (convergence F1, CEO option A): a period that fell due while its predecessor was unfinished starts once
+        // the predecessor completes, even on a day the trigger is not due (FR-006) ──
+
+        private void SaveRun(string triggerId, ScheduledRunState state)
+        {
+            state.RowVersion = _store.Runs.TryGetValue(new Guid(triggerId), out var stored) ? stored.RowVersion : "0";
+            _store.TrySave(new Guid(triggerId), state);
+        }
+
+        private void MoveToNextDay(DateTime completedDay)
+        {
+            _store.OneTime.DailyPassesCompletedOn = completedDay;
+            _pipeline.UtcNow = _pipeline.UtcNow.AddDays(1);
+        }
+
+        [Fact]
+        public void Run_PreviousPeriodStuckOnTheNextDueDay_StartsTheWaitingPeriodOnceItFinishes_FR006()
+        {
+            Scheduled("srv-quarterly");
+            _store.ActiveCustomers.AddRange(Customers(10));
+            _pipeline.Settings.FatigueMinDays = 0;
+            StuckToday(HighId, "2026-Q3");
+            CallUntilComplete(NewYear);
+            var sentOnDueDay = _pipeline.Invitations.Count;
+            MoveToNextDay(NewYear);
+
+            CallUntilComplete(NewYear.AddDays(1));
+
+            var periods = _pipeline.Invitations.Select(i => i.SchedulePeriodKey).ToList();
+            Assert.Equal((0, 10, 10), (sentOnDueDay, periods.Count(p => p == "2026-Q3"), periods.Count(p => p == "2026-Q4")));
+            Assert.True(periods.LastIndexOf("2026-Q3") < periods.IndexOf("2026-Q4"), "Q4 started before Q3 finished");
+        }
+
+        [Fact]
+        public void Run_PreviousPeriodFinishedAfterTheNextFellDue_StartsTheWaitingPeriodOnALaterDay_FR006()
+        {
+            Scheduled("srv-quarterly");
+            _store.ActiveCustomers.AddRange(Customers(10));
+            SaveRun(HighId, new ScheduledRunState { Status = ScheduledRunStatus.Sent, PeriodKey = "2026-Q3", ProgressOn = new DateTime(2027, 1, 2, 10, 0, 0) });
+
+            CallUntilComplete(new DateTime(2027, 1, 3));
+
+            Assert.Equal((10, ScheduledRunStatus.Sent, "2026-Q4"), (_pipeline.Invitations.Count(i => i.SchedulePeriodKey == "2026-Q4"), RunOf(HighId).Status, RunOf(HighId).PeriodKey));
+        }
+
+        // A run that finished before the next period fell due did not hold it up: a trigger switched off over that due date
+        // must not send the missed period late when switched on again (that stays the missed-day rule's job, DEF-CSE-003).
+        [Fact]
+        public void Run_PreviousPeriodFinishedBeforeTheNextFellDue_DoesNotSendTheNextLate()
+        {
+            Scheduled("srv-quarterly");
+            _store.ActiveCustomers.AddRange(Customers(10));
+            SaveRun(HighId, new ScheduledRunState { Status = ScheduledRunStatus.Sent, PeriodKey = "2026-Q3", ProgressOn = new DateTime(2026, 10, 1, 7, 0, 0) });
+
+            CallUntilComplete(new DateTime(2027, 1, 20));
+
+            Assert.Empty(_pipeline.Invitations);
+        }
+
+        [Fact]
+        public void RecordFailure_WaitingPeriodFirstPageKeepsFailing_KeepsItsPlaceUntilStuck_FR011()
+        {
+            Scheduled("srv-quarterly");
+            _store.ActiveCustomers.AddRange(Customers(10));
+            SaveRun(HighId, new ScheduledRunState { Status = ScheduledRunStatus.Sent, PeriodKey = "2026-Q3", ProgressOn = new DateTime(2027, 1, 2, 10, 0, 0) });
+            var runDate = new DateTime(2027, 1, 3);
+
+            for (var i = 0; i < 3; i++)
+            {
+                FailingCall(runDate, Customers(10).First());
+                Call(runDate, RunPass.RecordFailure);
+            }
+
+            Assert.Equal((ScheduledRunStatus.Stuck, "2026-Q4", 3), (RunOf(HighId).Status, RunOf(HighId).PeriodKey, RunOf(HighId).FailedCalls));
+        }
+
         // FR-004: the scheduler was down for days in the middle of a run; the catch-up resumes from the saved position.
         [Fact]
         public void Run_SchedulerDownMidRun_ResumesFromTheSavedPositionAfterMissedDays_FR004()

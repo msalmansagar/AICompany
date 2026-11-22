@@ -25,6 +25,7 @@ namespace Qdb.SurveyEngine.Scheduling
         }
 
         /// <summary>Works through the selected runs for <paramref name="runDate"/> until all finish or the budget is spent.</summary>
+        // Implements: FR-CSE-098, NFR-CSE-006/019; spec 001-scale-per-org FR-001, FR-004..FR-007, FR-010, FR-011.
         public ScheduledRunResult Run(DateTime runDate, RunBudget budget)
         {
             _deps.Pipeline.Trace.Write($"Scheduled pass for {runDate:yyyy-MM-dd} starting.");

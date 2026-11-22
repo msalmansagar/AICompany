@@ -218,6 +218,17 @@ namespace Qdb.SurveyEngine.Tests
             Assert.Equal(expected.Start, ScheduleCalendar.PeriodFromKey(SchedulePeriod.Quarterly, expected.Key).Start);
         }
 
+        [Theory]
+        [InlineData(SchedulePeriod.Monthly, "2026-12", "2027-01", "2027-02-01")]
+        [InlineData(SchedulePeriod.Quarterly, "2026-Q3", "2026-Q4", "2027-01-01")]
+        [InlineData(SchedulePeriod.Annually, "2026", "2027", "2028-01-01")]
+        public void FollowingPeriod_StoredPeriod_IsTheNextOneAndFallsDueAtItsEnd_FR006(SchedulePeriod period, string key, string nextKey, string dueOn)
+        {
+            var next = ScheduleCalendar.FollowingPeriod(period, ScheduleCalendar.PeriodFromKey(period, key));
+
+            Assert.Equal((nextKey, DateTime.Parse(dueOn)), (next.Key, next.EndExclusive));
+        }
+
         [Fact]
         public void PeriodFromKey_UnreadableKey_IsRefused()
         {

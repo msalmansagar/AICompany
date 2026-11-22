@@ -39,7 +39,11 @@ progress is shown on the trigger form, and that a step failing repeatedly marks 
 7. **Selection and resume** (refined at `/speckit-analyze`, 2026-11-22, within the approved design): the pass
    selects triggers due on the run date plus every trigger with an unfinished run, so a Stuck or carried-over
    run is picked up on later days. "Active in a source" resumes by the last customer id, not by page number,
-   so customers leaving the population between calls cannot cause anyone to be skipped.
+   so customers leaving the population between calls cannot cause anyone to be skipped. Built as: both populations read
+   the customer table ordered by its primary key (a lookup column is not sorted in the order "gt" compares, found live).
+8. **Waiting period** (convergence T044, CEO option A, 2026-11-22): a period that fell due while its predecessor's run
+   was unfinished starts once the predecessor completes, also on a day the trigger is not due. A run that finished
+   before the next due date held nothing up, so a period missed because the trigger was switched off is not sent late.
 6. **Other daily passes unchanged.** Postponed release and retention already check the budget per item and
    resume naturally.
 

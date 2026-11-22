@@ -107,6 +107,23 @@ namespace Qdb.SurveyEngine.Domain
             }
         }
 
+        /// <summary>
+        /// The period right after <paramref name="reviewed"/>; it falls due on its own end date (its EndExclusive), the 1st on
+        /// which the trigger surveys it (FR-006: it waits while its predecessor is unfinished).
+        /// </summary>
+        public static ReviewedPeriod FollowingPeriod(SchedulePeriod period, ReviewedPeriod reviewed)
+        {
+            if (reviewed == null) throw new ArgumentNullException(nameof(reviewed));
+            var start = reviewed.EndExclusive;
+            switch (period)
+            {
+                case SchedulePeriod.Monthly: return PeriodEndingOn(period, start.AddMonths(1));
+                case SchedulePeriod.Quarterly: return PeriodEndingOn(period, start.AddMonths(3));
+                case SchedulePeriod.Annually: return PeriodEndingOn(period, start.AddYears(1));
+                default: throw new ArgumentOutOfRangeException(nameof(period), period, "Unknown schedule period.");
+            }
+        }
+
         private static DateTime ParseQuarterStart(string key)
         {
             var culture = CultureInfo.InvariantCulture;

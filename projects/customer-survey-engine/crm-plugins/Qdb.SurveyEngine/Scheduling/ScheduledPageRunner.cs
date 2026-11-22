@@ -40,6 +40,7 @@ namespace Qdb.SurveyEngine.Scheduling
         }
 
         /// <summary>Sends the page after <see cref="ScheduledRunState.LastCustomerId"/> and answers the advanced state.</summary>
+        // Implements: FR-CSE-098; spec 001-scale-per-org FR-001..FR-003.
         public ScheduledPage Run(ScheduledWork work, ScheduledRunState state, SurveySettings settings)
         {
             var page = Read(work, state.LastCustomerId);

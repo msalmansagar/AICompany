@@ -257,8 +257,10 @@ async function apply(session, state, size) {
   try {
     report(session, await measure(session, state, size));
   } finally {
-    await session.write('PATCH', `qdb_survey_settingses(${state.settings.qdb_survey_settingsid})`, { qdb_daily_passes_completed_on: state.settings.qdb_daily_passes_completed_on ?? null });
-    const left = await cleanUp(session);
+    // A fresh session (new access token): the 2,500 run took ~60 minutes and the first token expired mid-clean-up (401).
+    const fresh = retryingSession(await openSession());
+    await fresh.write('PATCH', `qdb_survey_settingses(${state.settings.qdb_survey_settingsid})`, { qdb_daily_passes_completed_on: state.settings.qdb_daily_passes_completed_on ?? null });
+    const left = await cleanUp(fresh);
     session.check('clean-up: nothing left behind and the daily-pass date put back', left === 0, `${left} row(s) left`);
   }
 }

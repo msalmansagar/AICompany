@@ -132,6 +132,11 @@ third-party libraries). Recorded in `dependencies.md`.
   every trigger whose run is unfinished** (Sending, or Stuck and due a retry). Without the second part, a
   quarterly run that is Stuck or still going on day 2 of the quarter would never be picked up again,
   because the trigger is not "due" on day 2.
+- **Waiting period** (convergence T044, CEO option A, 2026-11-22): on a day nothing is due, the selection also adds the
+  period right after the stored run when that period's due date has passed and the stored run was unfinished then
+  (still running, or Sent only on or after that due date). A Sent run that finished earlier adds nothing, so a trigger
+  switched off over a due date does not send the missed period late (that stays the missed-day rule's job). A run not
+  yet started whose first page keeps failing (failed calls counted) keeps its place until it shows Stuck.
 - **Gate with Stuck runs** (C2): the scheduled pass counts as complete for the day when every selected run is
   Sent or Stuck. So a Stuck survey does not hold the gate open (other days are not blocked), and the next
   day's selection picks it up again for its daily retry. The gate itself does not change.

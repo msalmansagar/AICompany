@@ -30,6 +30,7 @@ namespace Qdb.SurveyEngine.Scheduling
         }
 
         /// <summary>Records the failure and answers what was recorded, for the summary.</summary>
+        // Implements: spec 001-scale-per-org FR-011 (research R5; analysis C1, D1).
         public string Record(DateTime runDate)
         {
             var threshold = _deps.Pipeline.Config.GetSettings().StuckAfterFailedCalls

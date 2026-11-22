@@ -966,8 +966,26 @@ delivery (nothing sent). Safety checks all passed before any write.
 target per survey (at ~650 customers per 90-second call, about 16 calls; the 15-minute scheduler makes up to 10 calls per run).
 HL's 9.1 servers may be slower; their own timing comes from RUNBOOK 9.4 at Gate 3 (SC-005).
 
+**FR-008 evidence (other daily passes at HL volume, convergence T045):** postponed release and retention were not changed
+(research R6): both check the time budget per item and a handled item leaves their query, so a cut call resumes. Evidence:
+`PostponedReleasePassTests.Run_BudgetSpentBeforeTheRelease_SaysCallAgainAndTheNextCallReleases_FR008` (new) and
+`RetentionExtensionTests.Run_BudgetExhaustedBeforeFirstItem_ReturnsIsCompleteFalse`. The live run had both passes empty by
+its safety checks, so it is not volume evidence for them; at HL ~10,000 invitations a month give ~330 a day reaching the
+730-day retention floor, small next to the scheduled run.
+
+**Scheduler changes outside Addendum E (convergence T050):** the script no longer treats "not complete after MaxCalls" as a
+failure for either pass, and exits 1 on a real failure. Both are DEF-CSE-004 (above): the first would have raised a false
+alarm every 15 minutes during HL's ~27-minute One-time send, the second made monitoring blind. Justified; no change removed.
+
+**Waiting period starts after a late finish (convergence T044, CEO option A, 2026-11-22):** a period that fell due while its
+predecessor's run was unfinished now starts once the predecessor completes, also on a day the trigger is not due; a run that
+finished before the next due date holds nothing up, so a period missed because the trigger was off is not sent late. Tests:
+`Run_PreviousPeriodStuckOnTheNextDueDay_StartsTheWaitingPeriodOnceItFinishes_FR006`, `…FinishedAfterTheNextFellDue…`,
+`…FinishedBeforeTheNextFellDue_DoesNotSendTheNextLate`, `RecordFailure_WaitingPeriodFirstPageKeepsFailing_KeepsItsPlaceUntilStuck_FR011`.
+
 **Test-tool note:** the first clean-up stopped with HTTP 401 after ~60 minutes (the script's access token expired); `--cleanup`
-finished it (918 accounts, trigger, setup) with 0 leftovers. Before a larger run the script should renew its token.
+finished it (918 accounts, trigger, setup) with 0 leftovers. Fixed (convergence T046): the script opens a fresh session
+before clean-up.
 
 ## Post-release enhancements (enhancement workflow)
 

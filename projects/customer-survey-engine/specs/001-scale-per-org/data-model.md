@@ -13,7 +13,7 @@ One run per trigger and period, stored on the trigger row. **Reused** columns co
 | `qdb_run_status` | choice | reused + **new option** | Not sent (100000000) · Sending = running (100000001) · Sent = completed (100000002) · Failed (100000003, one-time only) · **Stuck (100000004, new)** |
 | `qdb_run_period_key` | text (50) | **new** | The period the run belongs to, e.g. `2026-Q4`, `2026-12`, `2026` (the same key as the invitations' dedupe key) |
 | `qdb_run_started_on` | date-time | reused | When the run for this period started |
-| `qdb_run_cursor` | memo (4000) | reused | Saved position: page number and paging cookie (or page number only for "active in a source") |
+| `qdb_run_cursor` | memo (4000) | reused | Saved position: the last customer id read (the next page starts after it) |
 | `qdb_run_evaluated_count` | whole number | **new** | Customers evaluated so far in this period's run (invited + postponed + suppressed + already had it) |
 | `qdb_invited_count` | whole number | reused | Invited so far |
 | `qdb_postponed_count` | whole number | reused | Postponed so far |
@@ -43,8 +43,8 @@ Sent for period P ──(next period's due date)──▶ Sending for period P+1
   it a no-op anyway).
 - `qdb_run_failed_calls` ≥ 0; set to 0 on every successful page.
 - `qdb_run_message` is cut to 2,000 characters before it is written (a Stuck reason may come from a long error).
-- `qdb_run_cursor` for "active in a source" holds the last customer id read (resume by key, research R3);
-  for "all active customers" the paging cookie and page number, as for one-time triggers.
+- `qdb_run_cursor` holds the last customer id read, for both populations (resume by the customer table's primary key,
+  research R3 as amended); a value that is not a customer id (e.g. a One-time cursor) restarts from the first customer.
 - `qdb_run_progress_on`'s date decides when a Stuck run is next retried (research R5).
 - New columns are audit-enabled like the rest of `qdb_survey_trigger` (Article VI).
 - Progress writes are conditional on the row version read at the start of the page (two overlapping calls:

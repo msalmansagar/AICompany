@@ -72,6 +72,7 @@ namespace Qdb.SurveyEngine.Plugins
         }
 
         // A refusal (e.g. the Stuck threshold not set) reaches the caller as its own message, not a generic plugin error.
+        // Implements: spec 001-scale-per-org FR-011 (Pass = RecordFailure, ADR-011).
         private static RunSummary RunRefusingReadably(PluginRuntime runtime, DateTime runDate, RunPass pass)
         {
             try

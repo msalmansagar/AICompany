@@ -344,6 +344,21 @@ namespace Qdb.SurveyEngine.Tests
         private void SentDaysAgo(int days) =>
             _pipeline.Invitations.Add(new InvitationDraft { CustomerId = Customer, GeneratedOn = _pipeline.UtcNow.AddDays(-days), Status = InvitationStatus.Pending, DedupeKey = "earlier" });
 
+        // FR-008 (BRD NFR-CSE-006 amended): at HL's volume postponed release must also stop inside the time limit and
+        // resume; it checks the budget per invitation and a released one leaves the Postponed set (research R6).
+        [Fact]
+        public void Run_BudgetSpentBeforeTheRelease_SaysCallAgainAndTheNextCallReleases_FR008()
+        {
+            Postponed();
+            SentDaysAgo(31);
+            var cut = RunDueSurveysService.Compose(_store.AsDependencies()).Run(_pipeline.UtcNow, new RunBudget(_pipeline, TimeSpan.Zero)).Postponed;
+            _store.OneTime.DailyPassesCompletedOn = null;
+
+            Run();
+
+            Assert.Equal((false, 0, 1), (cut.IsComplete, cut.Released, _store.Released.Count));
+        }
+
         [Fact]
         public void Run_FatigueWindowEnded_ReleasesTheInvitation()
         {

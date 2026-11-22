@@ -111,28 +111,66 @@ namespace Qdb.SurveyEngine.Scheduling
         private static IEnumerable<ScheduledWork> WorkFor(SurveyTrigger trigger, DateTime runDate)
         {
             var run = trigger.Schedule.Run ?? new ScheduledRunState();
-            var resumable = IsResumable(trigger, run);
-            if (resumable) yield return new ScheduledWork(trigger, ScheduleCalendar.PeriodFromKey(trigger.Schedule.Period, run.PeriodKey), run);
-            if (!ScheduleCalendar.IsDue(trigger.Schedule.Period, runDate)) yield break;
-            var due = ScheduleCalendar.PeriodEndingOn(trigger.Schedule.Period, runDate);
-            if (run.PeriodKey == due.Key && (resumable || run.Status == ScheduledRunStatus.Sent)) yield break;
-            yield return new ScheduledWork(trigger, due, run.PeriodKey == due.Key ? run : Fresh(due, run.RowVersion));
+            var stored = ReadablePeriod(trigger.Schedule.Period, run.PeriodKey);
+            var isResumable = IsResumable(run) && stored.Count == 1;
+            if (isResumable) yield return new ScheduledWork(trigger, stored[0], run);
+            foreach (var next in PeriodsToStart(trigger, new StoredRun(run, stored, isResumable), runDate))
+                yield return new ScheduledWork(trigger, next, next.Key == run.PeriodKey ? run : Fresh(next, run.RowVersion));
         }
 
-        // A run left Sending or Stuck is resumed for its own period. A record whose period key cannot be read
-        // (e.g. left by a One-time send before the trigger's kind was changed) is not a scheduled run to resume.
-        private static bool IsResumable(SurveyTrigger trigger, ScheduledRunState run)
+        // The period due on the run date; or, on a day nothing is due, the period that fell due while the stored run was
+        // unfinished (still running, or finished only after that due date: CEO option A, convergence T044).
+        private static IEnumerable<ReviewedPeriod> PeriodsToStart(SurveyTrigger trigger, StoredRun stored, DateTime runDate)
         {
-            if (!run.IsUnfinished) return false;
+            var period = trigger.Schedule.Period;
+            if (ScheduleCalendar.IsDue(period, runDate))
+            {
+                var due = ScheduleCalendar.PeriodEndingOn(period, runDate);
+                if (stored.Run.PeriodKey != due.Key || !(stored.IsResumable || stored.Run.Status == ScheduledRunStatus.Sent)) yield return due;
+                yield break;
+            }
+            if (stored.Periods.Count == 0) yield break;
+            var following = ScheduleCalendar.FollowingPeriod(period, stored.Periods[0]);
+            if (following.EndExclusive <= runDate.Date && (stored.IsResumable || HeldUp(stored.Run, following))) yield return following;
+        }
+
+        // A Sent run finished on or after the next period's due date, so that period waited for it (FR-006). One that
+        // finished earlier held nothing up: a period missed for another reason (trigger switched off) is not sent late.
+        private static bool HeldUp(ScheduledRunState run, ReviewedPeriod following) =>
+            run.Status == ScheduledRunStatus.Sent && run.ProgressOn.HasValue && run.ProgressOn.Value.Date >= following.EndExclusive;
+
+        // Sending or Stuck; or not started yet but with failed calls counted (its first page keeps failing), so it keeps
+        // its place on the days after its due date until it shows Stuck.
+        private static bool IsResumable(ScheduledRunState run) =>
+            run.IsUnfinished || (run.Status == ScheduledRunStatus.NotSent && run.FailedCalls > 0);
+
+        // A record whose period key cannot be read (e.g. left by a One-time send before the trigger's kind was changed)
+        // names no scheduled period.
+        private static IReadOnlyList<ReviewedPeriod> ReadablePeriod(SchedulePeriod period, string periodKey)
+        {
             try
             {
-                ScheduleCalendar.PeriodFromKey(trigger.Schedule.Period, run.PeriodKey);
-                return true;
+                return new[] { ScheduleCalendar.PeriodFromKey(period, periodKey) };
             }
             catch (FormatException)
             {
-                return false;
+                return new ReviewedPeriod[0];
             }
+        }
+
+        /// <summary>A trigger's stored run with its readable period (none or one) and whether it is resumed.</summary>
+        private sealed class StoredRun
+        {
+            public StoredRun(ScheduledRunState run, IReadOnlyList<ReviewedPeriod> periods, bool isResumable)
+            {
+                Run = run;
+                Periods = periods;
+                IsResumable = isResumable;
+            }
+
+            public ScheduledRunState Run { get; }
+            public IReadOnlyList<ReviewedPeriod> Periods { get; }
+            public bool IsResumable { get; }
         }
 
         private static bool IsAlreadySent(SurveyTrigger trigger, DateTime runDate) =>
