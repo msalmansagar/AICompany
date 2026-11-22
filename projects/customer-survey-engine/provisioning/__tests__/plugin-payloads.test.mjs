@@ -32,6 +32,13 @@ test('buildRequestParameterPayload_pass_bindsToTheExistingApiAsAnOptionalString'
   assert.deepEqual([payload.uniquename, payload.type, payload.isoptional, payload['CustomAPIId@odata.bind']], ['Pass', 10, true, '/customapis(api-id)']);
 });
 
+// ADR-011: RecordFailure is a Pass value, not a new parameter or API.
+test('runDueSurveys_passDescription_namesRecordFailure_FR011', () => {
+  const pass = apiNamed('qdb_srv_RunDueSurveys').inputs.find((input) => input.name === 'Pass');
+
+  assert.match(pass.description, /RecordFailure/);
+});
+
 test('CUSTOM_APIS_everyParameterDescription_fitsDataverses100CharacterLimit', () => {
   const tooLong = CUSTOM_APIS.flatMap((api) => [...api.inputs, ...api.outputs].filter((p) => p.description.length > 100).map((p) => `${api.uniqueName}.${p.name}`));
 
