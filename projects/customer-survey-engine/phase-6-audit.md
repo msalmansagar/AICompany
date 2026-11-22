@@ -529,3 +529,84 @@ output:     trigger table and new columns audited, org auditing on; only Survey 
 result:     CLEARED WITH CONDITIONS
 unverified: 9.1 on-prem behaviour (P15, Q15, scheduler load); Compliance view on the five phone columns
 ```
+
+---
+
+## Addendum E (001-scale-per-org) — audit, 2026-11-22
+
+| | |
+|---|---|
+| Phase | 6 — Audit (security, governance, compliance) |
+| Scope | The Addendum E delta only: scheduled surveys paged 25 customers per call with a resumable run record on `qdb_survey_trigger` (new columns `qdb_run_period_key`, `qdb_run_evaluated_count`, `qdb_run_failed_calls`, `qdb_run_progress_on`; new run-status option **Stuck** 100000004); required Survey Settings column `qdb_stuck_after_failed_calls` (no code default); `qdb_srv_RunDueSurveys` accepts `Pass = RecordFailure`; a read-only Scheduled-run form section; the scheduler PowerShell calling `RecordFailure` and exiting 1 on failure (DEF-CSE-004); kit 1.2.0.5. Addendum to the base audit (2026-11-14) and Addenda C/D. |
+| Method | Direct source reads of the delivered code (cited `file:line`), the provisioning manifest, both org configs, the on-prem kit (RUNBOOK, HANDOVER, scheduler README, PowerShell), ADR-011, spec/data-model, and the QA Addendum-E sections. Security gate run (`gate-security.sh customer-survey-engine`). No live-org call; no on-prem org reachable. Only >80%-confidence findings reported. |
+| Verdict | **CLEARED WITH CONDITIONS** (see AE-Verdict). |
+
+### AE-A1 Findings
+
+| ID | Severity | Finding | Evidence | Recommendation | Before production? |
+|---|---|---|---|---|---|
+| **AUD-E-01** | INFO (positive) · 95% | **Permissions are unchanged and correctly scoped.** The new `Pass = RecordFailure` value is gated by the same `SchedulerAccessCheck` (System Administrator or the least-privilege Survey Scheduler role) and all run writes execute as SYSTEM behind that gate. No new table right, role, endpoint or field permission is introduced; the Survey Scheduler role still grants only invoke rights. | `Plugins/RunDueSurveysPlugin.cs:36-38` (caller gate), `:35` `CreateOrganizationService(null)` [SYSTEM], `:70` RecordFailure parsed within the existing API; `Data/SchedulerAccessCheck.cs:29-32` unchanged; `provisioning/manifest.mjs` roles unchanged for this delta. | None. Carries the SEC-01/Survey Scheduler least-privilege pattern cleanly. | No |
+| **AUD-E-02** | LOW · 85% | **`RecordFailure` is a minor availability-abuse surface.** A caller holding Survey Scheduler (or SysAdmin) can call `Pass = RecordFailure` on a quiet day with no real failure; three such calls mark the next-due trigger **Stuck** (`ScheduledFailureRecorder.Record` → `Counted`), skipping that survey until the first Daily call of a later day. Impact is availability only (a survey delayed, self-healing next day), never confidentiality, and it is the same trust boundary the account already owns — the Survey Scheduler account alone controls whether any scheduled survey is sent at all (work runs as SYSTEM). The Stuck marking is attributed to SYSTEM in the trigger's audit history; the caller is named only in the plugin trace (same limitation as AUD-D-01, but there is no human "sender" for an automated run). | `Scheduling/ScheduledFailureRecorder.cs:34-57`; `Scheduling/ScheduledWork.cs:32-33` (Stuck waits for a later day); `Plugins/RunDueSurveysPlugin.cs:36-38`. | Accept as a documented residual (PAT-005), inside the existing Survey Scheduler trust boundary. If monitoring is built (OPS-02), alert on a trigger entering Stuck with no corresponding failed Daily call in the log. | No |
+| **AUD-E-03** | LOW · 85% | **The run cursor is a customer identifier not covered by erasure or retention.** `qdb_run_cursor` stores the last-read customer GUID in plaintext on the trigger, and it persists after the run completes until the next period overwrites it. The per-customer DSAR path (`CustomerErasureService`, Addendum C) and the retention pass touch responses, invitations and suppression logs — **not** the trigger run columns — so an erased customer whose GUID happens to sit in a trigger's cursor remains pseudonymously referenced there. The change adds no new personal-data *field type*, and the cursor holds at most one id at any time (transient), so this is the same low-risk re-identification class as AUD-C-02 (register GUID) and CMP-C-01 (change-history), not a new category. | `Data/ScheduledRunStore.cs:49` writes `state.LastCustomerId.ToString("D")`; `Scheduling/ScheduledPageRunner.cs:93` sets `LastCustomerId = page.LastReadId`; erasure grep over `Erasure/*` finds no run-column handling. | Fold into the D9 Compliance acknowledgement alongside CMP-C-01/AUD-C-02: state that a trigger's run cursor retains a single customer GUID until the next period overwrites it, outside the DSAR scope, and have Compliance confirm acceptability. No code change required for release. | Compliance decision only (not a PR blocker) |
+| **AUD-E-04** | INFO (positive) · 93% | **Audit trail is sufficient and the Stuck reason is recorded.** The new run columns land on `qdb_survey_trigger`, which has `isAuditEnabled: true`; every page write and the Stuck transition are captured in the trigger change history, and the Stuck reason + progress are persisted in `qdb_run_message` (cut to 2,000 chars) and shown read-only on the form. Every state transition (Not sent → Sending → Sent / Stuck → Sending) is reconstructable from the trigger audit history plus the per-page scheduler trace line. Meets Constitution Article VI. | `provisioning/manifest.mjs:105` trigger `isAuditEnabled: true`; `Data/ScheduledRunStore.cs:45-61`; `Scheduling/ScheduledTriggerPass.cs:106-108` (one trace line per page); `data-model.md` state-transition table. | None. | No |
+| **AUD-E-05** | LOW · 88% | **DEF-CSE-004 monitoring gap is well communicated; delivery of alerting is still QDB IT's (standing OPS-02).** The script now exits 1 on a real failure, and the kit explicitly tells QDB IT that kits 1.2.0.2–1.2.0.4 exited 0 even after a failure and to copy the 1.2.0.5 script over them, and to point monitoring at the task's Last Run Result. No on-prem production org has imported any kit yet, so the blind-exit window never affected production. The residual is the base audit's OPS-02: the alarm itself is delegated, not delivered or gated. | RUNBOOK:181-183; `scheduler/README.md:56,58`; HANDOVER:7,96; base audit OPS-02 (§9). | Keep OPS-02 as the standing production condition; have it name the exit-code alarm and require kit ≥ 1.2.0.5 for exit-code-based monitoring. Communication is adequate; no new condition. | Production condition (already OPS-02) |
+| **AUD-E-06** | INFO (positive) · 95% | **The Stuck threshold is configuration, fail-safe, and documented.** `qdb_stuck_after_failed_calls` is required with no code fallback — an empty value is refused with a named, actionable message rather than silently defaulting — satisfying Article V (threshold in config). It is set to 3 in the seed and both org configs, and the runbook/handover both set it and flag the empty-on-upgrade case. | `Scheduling/ScheduledFailureRecorder.cs:36-37` (refuse-if-empty); `provisioning/manifest.mjs:222` `required: true`; `seed/org5869857f.json:42`, `config/HL.json:48`, `config/BFD.json:48`; RUNBOOK:138; HANDOVER:96. | None. | No |
+| **AUD-E-07** | INFO (positive) · 92% | **Conformance to the CEO decisions and traceability (Article XV) hold.** OQ-E1=(b) (2,500 on cloud + HL Gate 3), OQ-E2=(a), the architecture approval including Drop→Fatigue, and convergence T044 option A (waiting period starts after a late finish) are each reflected in ADR-011, the spec, the data model and the code, with FR/ADR citations in the doc comments. The one documentation-precision gap is QA's CHK020/E-C4: spec SC-004 does not name the accepted Drop→Fatigue suppression-reason exception in its own text (recorded in research R2, ADR-011 Consequences, plan T012). | ADR-011 (Status line, §Decision 4/7/8); `Scheduling/ScheduledSelection.cs:123-140` (waiting period, T044); spec SC-004 + QA AE-3 CHK020. | Apply the E-C4 parenthetical to SC-004 before merge (documentation; no code). | No (doc item E-C4) |
+
+### AE-A2 OWASP delta (Addendum E surface only)
+
+- **A01 Broken Access Control** — no change: `RecordFailure` sits behind the unchanged `SchedulerAccessCheck`; the only new ability within that boundary is the availability nuisance AUD-E-02 (Low, accepted). No new principal reaches the surface.
+- **A04 Insecure Design** — paging with a row-version conditional write (`ScheduledRunStore.TrySave`, `ConcurrencyBehavior.IfRowVersionMatches`) makes overlapping scheduler calls safe (only one advances) and a failed call lose only its own pages; the dedupe alternate key is the backstop against duplicates. Fail-safe.
+- **A08 / A09 Integrity & Logging** — improved: run state and the Stuck reason are audited on the trigger table and traced per page. No new injection, crypto or SSRF surface — the scheduled paths use typed `QueryExpression`/readers (no string FetchXML/SQL concatenation), make no outbound calls, and write only ids/counts/reasons (no answers or personal content) to traces. Security gate: **0 critical** (warnings are tests/seeds/build scripts and the known platform SysAdmin template id, none in the Addendum E scheduling code).
+
+### AE-A3 Data residency / PDPPL
+
+No change to residency: the delta is additive columns on existing on-prem tables, no new egress, no new push channel. The only data-protection item is AUD-E-03 (run cursor), a single-id residual to acknowledge in the D9 sign-off. Classification: the new run columns are operational metadata on an already-classified table; the cursor is the one carrying a customer identifier (treat as Confidential, consistent with the invitation dedupe key).
+
+### AE-Verdict
+
+**CLEARED WITH CONDITIONS.** The Addendum E build is a correct, fail-safe paging-and-resume design that introduces **no new release-blocking finding** and no new attack surface beyond a low, in-boundary availability nuisance (AUD-E-02). Permissions are unchanged and least-privilege; the audit trail and Stuck reason are captured on the audited trigger table; the required threshold is fail-safe configuration; and the DEF-CSE-004 monitoring gap is clearly communicated to QDB IT. **The PR may proceed through the PR / CEO gate.**
+
+Before production (none blocks the PR): (1) **AUD-E-03** — acknowledge the run cursor's retained customer GUID in the D9 Compliance sign-off (Compliance decision, no code); (2) **AUD-E-02** — record the RecordFailure availability residual as an accepted risk; (3) carry the base audit's **OPS-02** monitoring condition, naming the exit-code alarm and kit ≥ 1.2.0.5 (**AUD-E-05**); (4) the QA Addendum-E conditions stand: **E-C1** (final redeploy + kit rebuild to HEAD), **E-C2/SC-005** (HL Gate-3 timing by QDB IT), **E-C3** (FR-008 postponed-release/retention live volume at HL), **E-C4** (SC-004 parenthetical, documentation). All base-audit and Addendum-C production conditions remain in force.
+
+**Follow-up after the audit (main session, 2026-11-22):** **AUD-E-03 reduced in code.** The engine now clears `qdb_run_cursor`
+on the last page (`Scheduling/ScheduledPageRunner.cs` `Advance`; test `Run_Completed_ClearsTheSavedCustomerPosition`, C# 726
+pass), so a customer id is held only while a run is in progress (typically minutes; days only if a run is Stuck). The D9
+acknowledgement still applies to that in-progress window. **E-C4 closed**: spec SC-004 names the Drop → Fatigue exception.
+
+**Finding counts (Addendum E):** Critical 0 · High 0 · Medium 0 · Low 3 (AUD-E-02, AUD-E-03, AUD-E-05) · Info 4 positive (AUD-E-01/04/06/07). New release-blocking findings: **0**.
+
+```
+VERIFICATION (Addendum E audit)
+criterion:  The Addendum E delta adds no new access-control, data-protection, audit-trail
+            or governance gap beyond those assessed; permissions unchanged; cursor =
+            customer id; run columns audited; threshold fail-safe config; DEF-CSE-004
+            communicated — all against the actual code, manifest, configs and kit on
+            feat/survey-scale-per-org.
+command:    1. Source reads: Plugins/RunDueSurveysPlugin.cs, Data/SchedulerAccessCheck.cs,
+               Scheduling/ScheduledFailureRecorder.cs, ScheduledPageRunner.cs,
+               ScheduledTriggerPass.cs, ScheduledWork.cs, Data/ScheduledRunStore.cs,
+               Erasure/CustomerErasureService.cs.
+            2. grep new columns + setting across provisioning/, onprem-deploy/, scheduler/;
+               grep isAuditEnabled / qdb_survey_trigger in manifest.mjs; grep cursor/run in
+               Erasure/ and RetentionPass.cs.
+            3. bash .claude/scripts/gate-security.sh customer-survey-engine.
+output:     1. RunDueSurveysPlugin.cs:35 CreateOrganizationService(null) [SYSTEM]; :36-38
+               SchedulerAccessCheck gate; :70 RecordFailure within the same API —
+               permissions UNCHANGED, AUD-E-01 CONFIRMED. ScheduledFailureRecorder.cs:36-37
+               refuse-if-empty threshold; :39-41 targets the first non-skipped step —
+               AUD-E-02/E-06 CONFIRMED. ScheduledRunStore.cs:49 writes LastCustomerId as
+               text; Erasure/* has no run-column handling — AUD-E-03 CONFIRMED.
+            2. manifest.mjs:105 qdb_survey_trigger isAuditEnabled:true; :136-142 new run
+               columns; :222 qdb_stuck_after_failed_calls required — AUD-E-04/E-06 CONFIRMED.
+               seed:42 / HL.json:48 / BFD.json:48 = 3; RUNBOOK:138,181-183 + scheduler
+               README:56,58 communicate DEF-CSE-004 and monitoring — AUD-E-05 CONFIRMED.
+            3. Security gate: critical 0, warnings 116 (all tests/seeds/build scripts +
+               AdministratorCheck.cs:15 platform SysAdmin template id; none in Scheduling/).
+result:     PASS — every load-bearing claim confirmed against primary evidence; 0 new
+            release-blocking findings.
+unverified: On-prem 9.1 behaviour (kit not imported on any on-prem org); HL Gate-3 timing
+            (E-C2/SC-005, QDB IT); FR-008 live volume at HL (E-C3). C#/JS test counts
+            (725/292) and the 2,500-customer cloud run accepted from phase-5-qa.md
+            Addendum E, not re-run here. Live trigger audit state not read (org not called).
+```

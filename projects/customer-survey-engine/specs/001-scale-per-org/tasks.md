@@ -163,6 +163,10 @@ invitation per customer; three `RecordFailure` calls mark the trigger Stuck; a l
   Build findings: DEF-CSE-004 (scheduler always exited 0); a lookup column is not sorted in "gt" order, so "active in period"
   reads the customer table by primary key (research R3); Dataverse whole-number columns carry no default (data-model.md).
   Open: T035 result, T037–T040, T042–T043; the cosmetic summary fix `bd767390` deploys with the next plugin update.
+- **Progress, end of 2026-11-22**: T035 PASSED (2,500/2,500, 4 calls, longest 92 s); T037 done (converge ×2 → T044–T052, all
+  done; checklist `reliability.md`); T038 done (two code reviews, no blockers); T039 done (82.3% branch); T040 kit 1.2.0.5
+  built (rebuild pending with E-C1); T042 QA PASS WITH CONDITIONS (E-C1..E-C4, E-C4 closed), audit running. Remaining:
+  audit verdict, CEO final decision, E-C1 final redeploy + kit rebuild, T043 PR.
 
 - Baseline test counts (T001, 2026-11-22, branch `feat/survey-scale-per-org`): C# 657 passed / 0 failed; node (provisioning + onprem + webresources) 269 passed / 0 failed.
 - Commit after each green test/implementation pair; specific files only.

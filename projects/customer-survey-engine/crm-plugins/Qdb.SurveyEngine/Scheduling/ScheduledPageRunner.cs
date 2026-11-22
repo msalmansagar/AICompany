@@ -84,12 +84,13 @@ namespace Qdb.SurveyEngine.Scheduling
             Settings = settings,
         };
 
-        // A saved page always clears the failed-call count (FR-011).
+        // A saved page always clears the failed-call count (FR-011). The position is a customer id (personal data under
+        // PDPPL), so it is kept only while the run is in progress and cleared on the last page (audit AUD-E-03).
         private ScheduledRunState Advance(ScheduledRunState state, CustomerPage page, OneTimeCounts counts)
         {
             var next = state.Copy();
             next.Status = page.IsLast ? ScheduledRunStatus.Sent : ScheduledRunStatus.Sending;
-            next.LastCustomerId = page.LastReadId;
+            next.LastCustomerId = page.IsLast ? null : page.LastReadId;
             next.Evaluated += page.CustomerIds.Count;
             next.Invited += counts.Invited;
             next.Postponed += counts.Postponed;

@@ -115,6 +115,18 @@ namespace Qdb.SurveyEngine.Tests
             Assert.Equal((ScheduledRunStatus.Sent, 300, 300, 0), (run.Status, run.Evaluated, run.Invited, run.FailedCalls));
         }
 
+        // Audit AUD-E-03 (PDPPL): the saved position is a customer id; it is kept only while a run is in progress.
+        [Fact]
+        public void Run_Completed_ClearsTheSavedCustomerPosition()
+        {
+            Scheduled("srv-quarterly");
+            _store.ActiveCustomers.AddRange(Customers(300));
+
+            CallUntilComplete(NewYear);
+
+            Assert.Null(RunOf(HighId).LastCustomerId);
+        }
+
         [Fact]
         public void Run_WhileRunning_SummaryNamesTheSurveyPeriodAndProgress_FR005()
         {
