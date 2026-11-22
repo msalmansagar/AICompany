@@ -995,6 +995,92 @@ finished before the next due date holds nothing up, so a period missed because t
 finished it (918 accounts, trigger, setup) with 0 leftovers. Fixed (convergence T046): the script opens a fresh session
 before clean-up.
 
+---
+
+### Addendum E — QA verdict (2026-11-22)
+
+**Reviewer**: QA Engineer, MSS Technologies.
+**Sources read**: phase-2-ba-addendum-e-scale-per-org.md, specs/001-scale-per-org/{spec.md, plan.md, research.md, data-model.md, contracts/run-due-surveys.md}, ADR-011, tasks.md, checklists/reliability.md.
+**Tests run locally on branch `feat/survey-scale-per-org`**: dotnet test (Qdb.SurveyEngine.Tests.csproj --no-build) and node --test (provisioning + onprem + webresources + scheduler).
+
+---
+
+#### AE-1 Test Counts
+
+| Suite | Result | Delta vs. baseline (657 / 269) |
+|---|---|---|
+| C# xUnit `Qdb.SurveyEngine.Tests` | **725 pass, 0 fail** | +68 |
+| JS: provisioning + onprem + webresources + scheduler | **292 pass, 0 fail** | +23 |
+
+New Addendum E test files and their counts: `ScheduledPagedRunTests.cs` 36 tests; `ScheduledRunDataTests.cs` 15 tests; FR-008 test + convergence tests in `RunDueSurveysTests.cs`; `trigger-form.test.mjs` 4 tests (FR-005); `invoke-run-due-surveys.test.mjs` 7 tests (6 have `skip: !isWindows` — they ran on this Windows machine; on a Linux CI agent they would be skipped). Coverage: 82.3% branch on `Qdb.SurveyEngine` assembly at commit `41273612` (target 80%) — PASS.
+
+---
+
+#### AE-2 Traceability (spec FR-001..FR-011, SC-001..SC-005)
+
+| Requirement | Evidence | Result |
+|---|---|---|
+| FR-001 — paged, resumable, population both kinds | `Run_LargePopulationCutByTheBudget_ResumesAcrossCallsWithOneInvitationPerCustomer_FR001`; `Run_FirstCallCutByTheBudget_SaysToCallAgain`; `Run_QuarterlyDue_InvitesEveryActiveCustomerForThePeriod`; `Run_BudgetSpent_SaysToCallAgain`; live 2,500 run: 4 calls, all complete | PASS |
+| FR-002 — same rules (fatigue, priority, version pin, expiry, Digital) | `Run_ResumedPreviousPeriod_KeepsThatPeriodsFixedExpiry_FR002`; `Run_CustomerSurveyedRecently_PostponesByDefault`; `Run_DigitalDeliveryNone_LogsChannelNone`; `Run_FormNotPublished_LogsPerCustomer`; `FixedExpiry_QuarterlyQ1_ClosesOnFirstOfMay` | PASS |
+| FR-003 — no duplicate invitations whatever calls fail | `TrySave_RowChangedElsewhere_IsNotSavedAndDoesNotThrow_FR003`; `Run_CallFailsMidRun_NextCallRedoesOnlyTheLostWorkWithNoDuplicatesOrGaps_SC003`; `Run_TwiceOnTheSameDay_CreatesNoDuplicates`; live: 2,500 / 2,500 unique | PASS |
+| FR-004 — save position; resume after missed days | `TrySave_IsConditionalOnTheStateRowVersion_FR004`; `GetActiveScheduledTriggers_RunColumns_MapToTheRunState_FR004`; `Run_SchedulerDownMidRun_ResumesFromTheSavedPositionAfterMissedDays_FR004`; live: stopped after call 2 (1,300 evaluated), resumed to 2,500 | PASS |
+| FR-005 — progress in scheduler log and trigger form | `Run_EachPage_SavesTheProgressOnTheTrigger_FR005`; `Run_LastPage_MarksTheRunSentWithTheTotals_FR005`; `Run_WhileRunning_SummaryNamesTheSurveyPeriodAndProgress_FR005`; `TrySave_WritesEveryRunColumn_FR005`; `onLoad_scheduledTrigger_showsTheScheduledRunSection_FR005`; provisioning ui-manifest test; live: Sending at 650/1,300/1,975, Sent at 2,500 | PASS |
+| FR-006 — period P complete before period P+1 | `Run_PreviousPeriodStillSending_FinishesItBeforeStartingTheNext_FR006`; `PeriodFromKey_StoredKey_IsTheSamePeriodTheRunStartedFor_FR006`; `FollowingPeriod_StoredPeriod_IsTheNextOneAndFallsDueAtItsEnd_FR006`; `Run_PreviousPeriodStuckOnTheNextDueDay_StartsTheWaitingPeriodOnceItFinishes_FR006`; `Run_PreviousPeriodFinishedAfterTheNextFellDue_StartsTheWaitingPeriodOnALaterDay_FR006`; `Run_PreviousPeriodFinishedBeforeTheNextFellDue_DoesNotSendTheNextLate` | PASS |
+| FR-007 — same outcome at ~450 customers | `Run_SmallOrg_FitsInOneCall_FR007`; `Run_TwoTriggersDueForOneCustomerAndTheLowerDrops_LogsFatigue_FR007`; `Run_TwoSchedulesDueForOneCustomer_SendsTheHigherPriorityAndPostponesTheOther` (unchanged) | PASS |
+| FR-008 — postponed release and retention at HL volume | `Run_BudgetSpentBeforeTheRelease_SaysCallAgainAndTheNextCallReleases_FR008`; `RetentionExtensionTests.Run_BudgetExhaustedBeforeFirstItem_ReturnsIsCompleteFalse`; research R6 (no code change needed). No live volume evidence for these two passes specifically (the 2,500 run had both empty by safety checks). | PARTIAL — unit tests confirm per-item budget; live volume deferred to E-C3 |
+| FR-009 — volumes per org recorded | spec.md FR-009; BRD §5.1 table; tasks T032 doc update | PASS |
+| FR-010 — priority order, one trigger at a time | `Run_TwoTriggersDue_RunsTheHigherPriorityToCompletionBeforeStartingTheOther_FR010` | PASS |
+| FR-011 — Stuck logic; foreseeable errors logged; threshold config | `RecordFailure_RunInProgress_CountsTheFailedCall_FR011`; `RecordFailure_AtTheThreshold_MarksTheRunStuckWithAReason_FR011`; `RecordFailure_FirstPageKeepsFailing_StillReachesStuck_FR011`; `RecordFailure_ThresholdNotSet_IsRefusedNamingTheSetting_FR011`; `Run_SavedPageAfterFailures_ResetsTheFailedCallCount_FR011`; `Run_HigherPriorityRunStuck_SkipsItSoTheNextSurveyIsSent_FR011`; `TrySave_LongMessage_IsCutToTheColumnLimit_FR011`; `GetSettings_StuckThresholdEmpty_IsReportedMissingNotDefaulted_FR011`; `Run_ForeseeableProblemPerCustomerInPagedMode_LogsEachAndCompletes_FR011`; `dailyCallFails_recordsTheFailureInItsOwnCallAndExitsOne_FR011` | PASS |
+| SC-001 — 1 hour per 10,000-customer survey | Extrapolated from 2,500 live run: ~140 ms/customer → ~23 min of calls for 10,000 (inside 1-hour target). Direct HL proof pending SC-005. | PARTIAL — extrapolation supports; direct HL proof is E-C2 |
+| SC-002 — 2,500 / 2,500 invitations; no call over limit | Live: 2,500 invitations for 2,500 customers; longest call 92 s | PASS |
+| SC-003 — zero duplicates, zero missing after interruption | `Run_CallFailsMidRun_NextCallRedoesOnlyTheLostWorkWithNoDuplicatesOrGaps_SC003`; `Run_ActiveInPeriodCustomersLeaveBetweenCalls_NoRemainingCustomerIsSkipped_SC003`; live: stopped after call 2 (1,300 evaluated), resumed, still 2,500/2,500 | PASS |
+| SC-004 — existing ~450 test results unchanged | `Run_SmallOrg_FitsInOneCall_FR007`; all prior scheduled-pass tests pass. The Drop → Fatigue suppression-log reason change (research R2, plan T012) is the accepted sole difference. SC-004 itself does not name it — see CHK020 and E-C4. | PASS (with note — see E-C4) |
+| SC-005 — HL test-org timing by QDB IT | Procedure in RUNBOOK.md Gate 3 (task T036 done); results placeholder in phase-5-qa.md. No timing yet. | PARTIAL — pending QDB IT Gate 3 |
+
+---
+
+#### AE-3 Checklist Result
+
+39 of 40 items satisfied. One item open:
+
+- **CHK020** (open): SC-004 says "every existing scheduled-survey test result is unchanged" without naming the accepted Drop → Fatigue suppression-log reason change. The change is documented in research R2, ADR-011 Consequences and plan T012, but SC-004 itself does not state the exception. Recommend a parenthetical in SC-004 before the PR is merged. Confidence: 85%.
+
+---
+
+#### AE-4 Open Conditions
+
+- **E-C1 Final redeploy + kit rebuild** (before PR merge): the cloud org and on-prem kit 1.2.0.5 carry assembly `90598b8c…`, one commit behind the repo HEAD `e7b6cf34…` (three private method renames only; behavior is identical). A final deploy of the HEAD build and a kit rebuild are planned before the PR. This is a release step, not a QA failure.
+- **E-C2 HL test-org timing (SC-005)**: QDB IT records the HL Gate 3 timing during on-prem test-org runs. Owner: QDB IT. Procedure: RUNBOOK.md Gate 3. The 1-hour SC-001 target is supported by extrapolation (E-C3 above) but not yet confirmed on HL's 9.1 hardware.
+- **E-C3 FR-008 live volume**: postponed release and retention at HL scale are not live-evidenced for Addendum E. Unit tests confirm the per-item budget mechanism; research R6 confirms no code change was needed. Live volume evidence is a natural by-product of the HL Gate 3 runs (both passes run each day the scheduler does).
+- **E-C4 SC-004 precision (CHK020)**: add a note to SC-004 acknowledging the Drop → Fatigue suppression-log reason as the sole accepted difference. Documentation edit; no code change.
+
+**Scheduler Windows-only tests**: 6 of 7 tests in `invoke-run-due-surveys.test.mjs` have a `skip: !isWindows` guard. These ran on this Windows machine (all pass); on a Linux CI agent they are skipped. This is a known constraint of PowerShell 5.1 testing; not a defect.
+
+---
+
+#### AE-5 Defects Found
+
+None. No new defect above the 80% confidence threshold was found in this review. The existing open items from prior phases and from the independent review remain unchanged.
+
+---
+
+#### AE-6 Verdict
+
+**PASS WITH CONDITIONS**
+
+The Addendum E implementation is code-complete and unit-tested (725 C# / 292 JS, all green). The 2,500-customer live run on the cloud org (2026-11-22) passes SC-002 and SC-003. Coverage is 82.3% branch — above the 80% target. All FRs are covered by tests or by documented evidence except FR-008 and SC-001/SC-005 which are deferred to Gate 3 on the HL test org. Four release conditions are recorded above; none requires a code change before the PR.
+
+---
+
+VERIFICATION (Addendum E — QA verdict)
+  criterion:  725 C# tests green and 292 JS tests green on branch feat/survey-scale-per-org
+  command:    cd projects/customer-survey-engine && dotnet test crm-plugins/Qdb.SurveyEngine.Tests/Qdb.SurveyEngine.Tests.csproj --no-build -v quiet; node --test provisioning/__tests__/*.test.mjs onprem/__tests__/*.test.mjs webresources/__tests__/*.test.mjs scheduler/__tests__/*.test.mjs
+  output:     Passed!  - Failed: 0, Passed: 725, Skipped: 0, Total: 725, Duration: 9 s — Qdb.SurveyEngine.Tests.dll (net48). JS: tests 292, pass 292, fail 0, skipped 0.
+  result:     PASS
+  unverified: FR-008 live volume at HL scale (postponed release and retention — deferred to Gate 3); SC-001/SC-005 HL test-org timing (owned by QDB IT); final redeploy + kit rebuild to HEAD (3 private method renames; behavior identical)
+
+---
+
 ## Post-release enhancements (enhancement workflow)
 
 | ID | Change note (what changes · what must not regress · how verified) | Status |

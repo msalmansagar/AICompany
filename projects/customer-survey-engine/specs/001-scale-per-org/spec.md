@@ -179,7 +179,9 @@ evidence is what lets QDB accept HL go-live (BRD NFR-CSE-006 amended, NFR-CSE-01
 - **SC-003** (FR-CSE-098 (c)): After a run is interrupted at least once, the final invitation count equals
   the population, with **zero** duplicates and **zero** customers missing.
 - **SC-004** (FR-CSE-098 (e)): On a ~450-customer org, every existing scheduled-survey test result is
-  unchanged.
+  unchanged, with one accepted exception: when two scheduled surveys fall due for one customer on the same day and the
+  lower-priority trigger is set to **Drop**, its suppression-log reason is **Fatigue** instead of **PriorityLost** (CEO
+  architecture approval 2026-11-21, ADR-011 Consequences). Postpone triggers are unchanged.
 - **SC-005** (NFR-CSE-020): The HL test org's own timing is recorded by QDB IT during its Gate 3 runs.
 
 ## Assumptions
