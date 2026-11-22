@@ -135,7 +135,7 @@ Only once every question that blocks a row is answered (`config/README.md`). In 
 
 | # | Row | From |
 |---|---|---|
-| 7.1 | **Survey Settings** (exactly one row). **Customer Table = Contact on HL, Account on QDB1**; leave secure links off. **Retention Days = 730 and Retention Mode = Delete** (PDPPL decisions D2–D4): the daily run then deletes responses, invitations and suppression logs older than that, never invitations under 13 months or suppression logs under 12 months. | `config/<org>.json` → `settings`; `pdppl-decisions.md` |
+| 7.1 | **Survey Settings** (exactly one row). **Customer Table = Contact on HL, Account on QDB1**; leave secure links off. **Retention Days = 730 and Retention Mode = Delete** (PDPPL decisions D2–D4): the daily run then deletes responses, invitations and suppression logs older than that, never invitations under 13 months or suppression logs under 12 months. **Stuck After Failed Calls = 3** (kit 1.2.0.5, required): an org upgraded from an older kit has this field empty, and until it is set the scheduler cannot count failed calls. | `config/<org>.json` → `settings`; `pdppl-decisions.md`; ADR-011 |
 | 7.2 | **Survey Sources**, one per request table, all **inactive**. | `sources` |
 | 7.3 | **Survey SMS Config**, only when secure links are to be used. | `smsConfigs` |
 | 7.4 | Publish each survey form in the Form Designer with **Form Type = Survey**, then create its **Survey Setup** and **Survey Triggers** (status and type values per HL-03 / BFD-03). | survey owners |
@@ -176,8 +176,14 @@ Since kit 1.2.0.3 days the task missed (server down on the 1st, a freeze) are ca
 28 days back; the Daily log line then starts with "Missed day …". A line saying "NOT caught up" lists older
 days: re-run each with `-RunDate yyyy-MM-dd` (DEF-CSE-003).
 
+Since kit 1.2.0.5 a large scheduled survey (HL: ~10,000 customers) is sent 25 customers at a time across several
+runs; "not complete after 10 calls; continues in the next scheduled run" is normal and not a failure. After a failed
+Daily call the script makes one `RecordFailure` call; after *Stuck After Failed Calls* (Survey Settings, set it to
+**3**) failures in a row the trigger's *Scheduled run* section shows **Stuck** (ADR-011). Kits 1.2.0.2–1.2.0.4 exited
+0 even after a failure (DEF-CSE-004): copy the 1.2.0.5 script over them.
+
 Pass: the day's log in `-LogPath` has a `RunDate …, OneTime call 1: …` line and a `RunDate …, Daily call 1: …`
-line and no "still not complete" or "FAILED" line; about 15 minutes later the Daily line says "Daily passes:
+line and no "FAILED" line; about 15 minutes later the Daily line says "Daily passes:
 already completed for this date"; and the task's **Last Run Result** is `0x0`. One task per org (HL and QDB1 have different URLs). During Gate 3,
 QDB IT notes the CRM server load at the 15-minute calls (Addendum D risk R-D2).
 
@@ -221,7 +227,30 @@ Needs one source activated (8.1), with an active setup and Event trigger on it (
 Pass: **S1**, 95% of invitations within 10 s and none over 60 s. Both test orgs passing closes checklist A3; the cloud
 measurement of 2026-11-13 is information only.
 
-**Gate 3:** both test orgs pass step 2 and 9.3 before production.
+### 9.4 HL test org only: a scheduled survey at volume (NFR-CSE-020, kit 1.2.0.5)
+
+Proves that a scheduled survey reaches a large customer base on HL's own servers. The cloud org measured 2,500 test
+customers; HL's timing is recorded beside it.
+
+1. Pick a test audience on the HL test org: a survey source whose records in one past quarter belong only to **test
+   contacts with no real phone number or e-mail**. The more contacts the better; aim for at least 2,500.
+2. Create a switched-on setup with **Digital delivery = Portal** (nothing is sent) and a **Scheduled, Quarterly,
+   Active in period** trigger on that source. Make sure no other setup is switched on.
+3. Note the time, then run the scheduler for the day after that quarter, for example for Q1 2025:
+
+   ```powershell
+   .\scheduler\Invoke-RunDueSurveys.ps1 -OrgUrl https://<crm-server>/<org> -LogPath D:\Logs\SurveyEngine -RunDate 2025-04-01 -MaxCalls 60
+   ```
+
+4. Record, from the log and the trigger's *Scheduled run* section: the number of `Daily call` lines, the longest call,
+   the total time, *Customers Evaluated* and the invitation count for the period. Status must end **Sent**, with one
+   invitation per customer.
+5. Switch the setup off, delete the test invitations, and **send the figures and the log to MSS**.
+
+Pass: every call under 2 minutes, status Sent, invitations = customers evaluated. MSS extrapolates the time for
+~10,000 customers (target: one hour per survey, NFR-CSE-019).
+
+**Gate 3:** both test orgs pass step 2 and 9.3 before production, and the HL test org records 9.4.
 
 ## Stage 10 — Rollback
 

@@ -1308,6 +1308,13 @@ HL CRM has ~10,000 active customers (BRD Addendum E §5.1). The scheduled pass b
 population in one call; at ~165 ms per customer a 10,000-customer survey needs ~28 minutes in one transaction
 and is cut by the 2-minute limit every time (research R1). Event, milestone and one-time triggers already cope.
 
+**Volumes the design is built and tested for (FR-009, BRD Addendum E §5.1):**
+
+| Org | Customers (table) | Total | Active (surveyed) | Evidence |
+|---|---|---|---|---|
+| HL CRM | contacts | ~44,000 | ~10,000 (all active contacts are customers) | cloud 2,500-customer run (`e2e/scheduled-volume.mjs`) extrapolated; HL test org timing at Gate 3 (RUNBOOK) |
+| BFD / QDB1 | accounts | ~450 | ~450 | unchanged behaviour (FR-007); existing scheduled-pass tests; A3 450-customer daily run |
+
 ## E.2 Design (ADR-011)
 
 | # | Decision | Traces to |
