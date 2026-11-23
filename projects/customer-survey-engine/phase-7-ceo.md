@@ -153,12 +153,12 @@ DEF-CSE-004 (the scheduler script now exits 1 on a failure).
 | Spec Kit | analyze (13 findings fixed), converge ×2 (9 tasks, all done), checklist `reliability.md` 39/40 (CHK020 fixed in the spec) |
 | QA | Pass with conditions (`phase-5-qa.md`, Addendum E QA verdict): E-C1..E-C4; E-C4 closed |
 | Audit | Cleared with conditions (`phase-6-audit.md`, Addendum E): Low 3 (AUD-E-02 accepted residual, AUD-E-03 reduced in code, AUD-E-05 monitoring); no PR blocker |
-| Kit | `onprem-deploy/2026-11-11/SurveyEngine_1_2_0_5_onprem_unmanaged.zip`, rebuilt after the final redeploy (E-C1) |
+| Kit | `onprem-deploy/2026-11-11/SurveyEngine_1_2_0_5_onprem_unmanaged.zip` `6cb28dae…` (223,074 bytes), assembly `f0167554…` identical to the cloud org after the final redeploy of 2026-11-23 (E-C1 closed) |
 
 | | |
 |---|---|
-| Option chosen | _awaiting the CEO_ |
-| Conditions | Proposed, before production (not before the merge): E-C2 HL test-org timing (RUNBOOK 9.4, QDB IT, Gate 3); E-C3 postponed release and retention seen at HL volume (Gate 3); AUD-E-03 in the D9 Compliance acknowledgement; AUD-E-02 recorded as an accepted risk; AUD-E-05 / OPS-02 monitoring names the exit-code alarm and kit ≥ 1.2.0.5 |
-| Merge to main | _awaiting the CEO_ |
-| Decided by | _the user, as CEO, in chat_ |
-| Date | |
+| Option chosen | **Approve with conditions** |
+| Conditions | Before production (not before the merge): E-C2 HL test-org timing (RUNBOOK 9.4, QDB IT, Gate 3); E-C3 postponed release and retention seen at HL volume (Gate 3); AUD-E-03 in the D9 Compliance acknowledgement; AUD-E-02 recorded as an accepted risk; AUD-E-05 / OPS-02 monitoring names the exit-code alarm and kit ≥ 1.2.0.5 |
+| Merge to main | **Approved** — open the PR and merge (after the final redeploy and kit rebuild, E-C1) |
+| Decided by | The user, as CEO, in chat (answers: "Approve with conditions", "Open PR and merge") |
+| Date | 2026-11-23 |
