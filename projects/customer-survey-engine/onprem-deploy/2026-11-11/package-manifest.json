@@ -1,16 +1,16 @@
 {
-  "builtAt": "2026-11-21T11:08:53.677Z",
-  "package": "SurveyEngine_1_2_0_4_onprem_unmanaged.zip",
-  "solutionVersion": "1.2.0.4",
-  "sha256": "c6df3da73c751943c94aff1ee537f68f50253974527f30034107de5fb3fba0e1",
-  "bytes": 214975,
+  "builtAt": "2026-11-23T05:00:03.680Z",
+  "package": "SurveyEngine_1_2_0_5_onprem_unmanaged.zip",
+  "solutionVersion": "1.2.0.5",
+  "sha256": "6cb28dae8675c9ffd1c87f96ac3a50b56562d074823647d92277953a9a91bb20",
+  "bytes": 223074,
   "source": {
     "file": "source/SurveyEngine_cloud_unmanaged.zip",
-    "sha256": "9e50df6db63c922f0d6ea630c357527d0cbed7faed82fe61c62f345df4e04fc5"
+    "sha256": "93da0d01d7483c5c799b90ff092358a026888eb7ffe1f526d9be836e9e440b86"
   },
   "target": "Dynamics 365 CE 9.1 on-prem: HL CRM and BFD CRM / QDB1 (one package)",
   "manifest": {
-    "rootBefore": "<ImportExportXml version=\"9.2.26103.165\" SolutionPackageVersion=\"9.2\" languagecode=\"1033\" generatedBy=\"CrmLive\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" OrganizationVersion=\"9.2.26103.165\" OrganizationSchemaType=\"Full\" CRMServerServiceabilityVersion=\"9.2.26103.00165\">",
+    "rootBefore": "<ImportExportXml version=\"9.2.26104.157\" SolutionPackageVersion=\"9.2\" languagecode=\"1033\" generatedBy=\"CrmLive\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" OrganizationVersion=\"9.2.26104.157\" OrganizationSchemaType=\"Full\" CRMServerServiceabilityVersion=\"9.2.26104.00157\">",
     "rootAfter": "<ImportExportXml version=\"9.0.0.0\" SolutionPackageVersion=\"9.0\" languagecode=\"1033\" generatedBy=\"CrmLive\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">",
     "removedRootComponents": 10,
     "removedDependencies": 22,
@@ -25,7 +25,7 @@
     {
       "name": "empty-autonumber-format",
       "why": "AutoNumberFormat is empty on every column (no column is auto-numbered)",
-      "removed": 279
+      "removed": 284
     },
     {
       "name": "retrieve-audit-flag",
@@ -55,7 +55,7 @@
     {
       "name": "option-is-hidden",
       "why": "IsHidden=\"0\" on options, states and statuses — no option is hidden",
-      "removed": 105
+      "removed": 106
     },
     {
       "name": "retrieve-multiple-audit-flag",
@@ -135,8 +135,8 @@
     }
   ],
   "assembly": {
-    "embeddedSha256": "e23675dc95e5d11cc61b73bfe50fac2dee55f01c1ee34a2775f3e8b02fcf94ea",
-    "localBuildSha256": "e23675dc95e5d11cc61b73bfe50fac2dee55f01c1ee34a2775f3e8b02fcf94ea",
+    "embeddedSha256": "f01675543c6b8415bab518e61fe5418266985e0943aca16c23aeb2beb87ca669",
+    "localBuildSha256": "f01675543c6b8415bab518e61fe5418266985e0943aca16c23aeb2beb87ca669",
     "isLocalBuild": true
   },
   "xsd": {

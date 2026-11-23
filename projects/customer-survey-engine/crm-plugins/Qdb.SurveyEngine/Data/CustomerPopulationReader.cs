@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Microsoft.Xrm.Sdk;
@@ -9,11 +8,14 @@ using Qdb.SurveyEngine.Scheduling;
 
 namespace Qdb.SurveyEngine.Data
 {
-    /// <summary>Reads scheduled-trigger populations, page by page (FR-CSE-032).</summary>
+    /// <summary>
+    /// Reads scheduled-trigger populations one page at a time (FR-CSE-032, ADR-011). Each page is ordered by
+    /// customer id and starts after the last id read, so the position survives customers leaving or joining the
+    /// population between scheduler calls (analysis C3).
+    /// </summary>
     public sealed class CustomerPopulationReader : ICustomerPopulationReader
     {
-        private const int PageSize = 5000;
-        private const int ActiveState = 0;
+        private const int ACTIVE_STATE = 0;
         private readonly IOrganizationService _service;
         private readonly CustomerLink _customer;
 
@@ -24,53 +26,50 @@ namespace Qdb.SurveyEngine.Data
         }
 
         /// <inheritdoc />
-        public IReadOnlyList<Guid> GetActiveCustomers()
+        public CustomerPage ReadActiveCustomers(Guid? afterCustomerId, int pageSize)
         {
-            var query = new QueryExpression(_customer.TableLogicalName) { ColumnSet = new ColumnSet(false) };
-            query.Criteria.AddCondition("statecode", ConditionOperator.Equal, ActiveState);
-            query.AddOrder(_customer.TableLogicalName + "id", OrderType.Ascending);
-            return _service.RetrieveAll(query).Select(e => e.Id).ToList();
+            var idColumn = _customer.TableLogicalName + "id";
+            var query = new QueryExpression(_customer.TableLogicalName) { ColumnSet = new ColumnSet(false), TopCount = pageSize };
+            query.Criteria.AddCondition("statecode", ConditionOperator.Equal, ACTIVE_STATE);
+            if (afterCustomerId.HasValue) query.Criteria.AddCondition(idColumn, ConditionOperator.GreaterThan, afterCustomerId.Value);
+            query.AddOrder(idColumn, OrderType.Ascending);
+            var ids = _service.RetrieveMultiple(query).Entities.Select(row => row.Id).ToList();
+            return new CustomerPage { CustomerIds = ids, LastReadId = ids.Count > 0 ? ids.Last() : afterCustomerId, IsLast = ids.Count < pageSize };
         }
 
         /// <inheritdoc />
-        public IReadOnlyList<Guid> GetCustomersActiveIn(PopulationQuery query)
+        public CustomerPage ReadCustomersActiveIn(PopulationQuery query, Guid? afterCustomerId, int pageSize)
         {
-            var ids = new HashSet<Guid>();
-            for (var pageNumber = 1; ; pageNumber++)
-            {
-                var page = _service.RetrieveMultiple(new FetchExpression(BuildFetchXml(query, pageNumber)));
-                foreach (var customer in page.Entities.Select(row => ReadCustomer(row, query.Source)).Where(IsInCustomerTable))
-                    ids.Add(customer.Id);
-                if (!page.MoreRecords) return ids.ToList();
-            }
+            var ids = _service.RetrieveMultiple(new FetchExpression(BuildFetchXml(query, afterCustomerId, pageSize))).Entities.Select(row => row.Id).ToList();
+            return new CustomerPage { CustomerIds = ids, LastReadId = ids.Count > 0 ? ids.Last() : afterCustomerId, IsLast = ids.Count < pageSize };
         }
 
-        // A polymorphic customer lookup can point at either table; only the org's customer table counts,
-        // as on the trigger path (SourceRecordReader).
-        private bool IsInCustomerTable(EntityReference customer) => customer.LogicalName == _customer.TableLogicalName;
-
-        // The query filters out empty customers, so a missing value means the field name is wrong.
-        private static EntityReference ReadCustomer(Entity row, SurveySource source)
+        /// <summary>
+        /// One page of the org's customers with at least one of the source's records created in the period, after the last
+        /// customer read; public so tests can check it. It reads the customer table, ordered by its own primary key, joined
+        /// to the source: a lookup column is not sorted in the order a "gt" condition compares (checked live 2026-11-22),
+        /// so paging on the source's lookup repeated and skipped customers. The inner join also keeps only the org's
+        /// customer table when the lookup is polymorphic, as on the trigger path (SourceRecordReader).
+        /// </summary>
+        public string BuildFetchXml(PopulationQuery query, Guid? afterCustomerId, int pageSize)
         {
-            var customer = row.GetAttributeValue<EntityReference>(source.Fields.CustomerLookup);
-            if (customer == null)
-                throw new InvalidPluginExecutionException($"Source {source.TableLogicalName}: customer field '{source.Fields.CustomerLookup}' returned no lookup value; check the field name on the survey source.");
-            return customer;
+            var table = FetchXml.Escape(_customer.TableLogicalName);
+            var idColumn = FetchXml.Escape(_customer.TableLogicalName + "id");
+            var resume = afterCustomerId.HasValue ? FetchXml.Condition(_customer.TableLogicalName + "id", "gt", afterCustomerId.Value.ToString("D")) : string.Empty;
+            return $"<fetch distinct='true' count='{pageSize}'><entity name='{table}'><attribute name='{idColumn}' /><order attribute='{idColumn}' />"
+                + $"<filter type='and'>{resume}</filter>{SourceLink(query, idColumn)}</entity></fetch>";
         }
 
-        /// <summary>Distinct customers of the source's records created in the period; public so tests can check its filters.</summary>
-        public static string BuildFetchXml(PopulationQuery query, int pageNumber)
+        private static string SourceLink(PopulationQuery query, string idColumn)
         {
             var fields = query.Source.Fields;
             var filter = new StringBuilder();
-            filter.Append(FetchXml.NotNull(fields.CustomerLookup));
             filter.Append(FetchXml.Condition("createdon", "ge", query.Period.Start.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'")));
             filter.Append(FetchXml.Condition("createdon", "lt", query.Period.EndExclusive.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'")));
             if (!query.StatusValues.IsEmpty) filter.Append(FetchXml.In(fields.Status, query.StatusValues.ToArray()));
             if (!query.TypeValues.IsEmpty && !string.IsNullOrWhiteSpace(fields.Type)) filter.Append(FetchXml.In(fields.Type, query.TypeValues.ToArray()));
-            var customer = FetchXml.Escape(fields.CustomerLookup);
-            return $"<fetch distinct='true' count='{PageSize}' page='{pageNumber}'><entity name='{FetchXml.Escape(query.Source.TableLogicalName)}'>"
-                + $"<attribute name='{customer}' /><order attribute='{customer}' /><filter type='and'>{filter}</filter></entity></fetch>";
+            return $"<link-entity name='{FetchXml.Escape(query.Source.TableLogicalName)}' from='{FetchXml.Escape(fields.CustomerLookup)}' to='{idColumn}' link-type='inner'>"
+                + $"<filter type='and'>{filter}</filter></link-entity>";
         }
     }
 }

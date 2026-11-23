@@ -116,6 +116,36 @@ test('buildFormXml_trigger_runRecordIsReadOnly', () => {
   assert.match(triggerFormXml(), /datafieldname="qdb_run_status" disabled="true"/);
 });
 
+// ── 001-scale-per-org (FR-005): the scheduled run, read-only, in its own section ──
+
+const sectionXmlOf = (formXml, name) => formXml.match(new RegExp(`<section name="${name}"[^>]*>.*?</section>`))?.[0] ?? '';
+
+test('buildFormXml_trigger_scheduledRunSectionShowsTheRunReadOnly_FR005', () => {
+  const section = sectionXmlOf(triggerFormXml(), 'Scheduled_run');
+  for (const field of ['qdb_run_status', 'qdb_run_period_key', 'qdb_run_started_on', 'qdb_run_evaluated_count', 'qdb_invited_count',
+    'qdb_postponed_count', 'qdb_suppressed_count', 'qdb_run_progress_on', 'qdb_run_message']) {
+    assert.match(section, new RegExp(`datafieldname="${field}" disabled="true"`), field);
+  }
+});
+
+// A form cannot hold two controls with one id; fields shown in both run sections get their own control id.
+test('buildFormXml_trigger_everyControlAndCellIdIsUnique', () => {
+  const formXml = triggerFormXml();
+  for (const pattern of [/<control id="([^"]+)"/g, /<cell id="([^"]+)"/g]) {
+    const ids = [...formXml.matchAll(pattern)].map((match) => match[1]);
+    assert.deepEqual(ids.filter((id, index) => ids.indexOf(id) !== index), []);
+  }
+});
+
+test('buildFormXml_trigger_oneTimeSectionKeepsItsRunFields', () => {
+  const section = sectionXmlOf(triggerFormXml(), 'One_time');
+  assert.match(section, /<control id="qdb_run_status" [^>]*datafieldname="qdb_run_status"/);
+});
+
+test('buildFormXml_settings_asksForTheStuckThreshold_FR011', () => {
+  assert.match(buildFormXml(FORMS.find((f) => f.table === 'qdb_survey_settings'), anyViewId), /datafieldname="qdb_stuck_after_failed_calls"/);
+});
+
 test('buildFormXml_formWithAWebResourceButNoIds_failsLoudly', () => {
   assert.throws(() => buildFormXml(FORMS.find((f) => f.table === 'qdb_survey_trigger'), anyViewId), /No id for web resource/);
 });

@@ -1294,3 +1294,71 @@ Every FR-CSE-083..094 and NFR-CSE-015..018 is traced above. No constitution MUST
 OTC, GUID or role id (resolved at runtime), SYSTEM operations are role-gated (Article VII), the suppression
 log stays append-only, the audit posture of the trigger table (on) is unchanged.
 
+---
+
+# Addendum E — Scheduled surveys at HL scale (BRD v1.6)
+
+Status: **Accepted — CEO architecture approval 2026-11-21** (including R-E4). Design detail lives in the Spec Kit
+artefacts `specs/001-scale-per-org/` (plan, research R1–R8, data model, contract, quickstart) and in
+**ADR-011**. This section is the architecture record and its traceability.
+
+## E.1 Problem
+
+HL CRM has ~10,000 active customers (BRD Addendum E §5.1). The scheduled pass builds every due trigger's whole
+population in one call; at ~165 ms per customer a 10,000-customer survey needs ~28 minutes in one transaction
+and is cut by the 2-minute limit every time (research R1). Event, milestone and one-time triggers already cope.
+
+**Volumes the design is built and tested for (FR-009, BRD Addendum E §5.1):**
+
+| Org | Customers (table) | Total | Active (surveyed) | Evidence |
+|---|---|---|---|---|
+| HL CRM | contacts | ~44,000 | ~10,000 (all active contacts are customers) | cloud 2,500-customer run (`e2e/scheduled-volume.mjs`) extrapolated; HL test org timing at Gate 3 (RUNBOOK) |
+| BFD / QDB1 | accounts | ~450 | ~450 | unchanged behaviour (FR-007); existing scheduled-pass tests; A3 450-customer daily run |
+
+## E.2 Design (ADR-011)
+
+| # | Decision | Traces to |
+|---|---|---|
+| 1 | Same-day scheduled triggers processed **one at a time in priority order** (then trigger id) | spec FR-010; BRD NFR-CSE-019 |
+| 2 | Each trigger's population read **25 at a time** with the one-time readers (`AudienceReader` for all active; `CustomerPopulationReader` for active in a source, resumed by the last customer id so population changes between calls skip nobody); budget checked between pages. Selection = triggers due on the run date **plus** every trigger with an unfinished run | FR-001; FR-CSE-098 |
+| 3 | Position, counts and progress written to the trigger after each page, **row-version conditional**; a run belongs to one period | FR-004, FR-006; BR-E2 |
+| 4 | Per-page dedupe check for the page's 25 customers; alternate key as backstop; a failed call loses only its own pages | FR-003; BR-E1 |
+| 5 | Same rules per customer (fatigue, priority, pin, fixed expiry, Digital delivery) | FR-002 |
+| 6 | Progress read-only on the trigger form (status incl. Stuck, period, evaluated, counts, last updated, message) and in the summary | FR-005 |
+| 7 | `Pass = RecordFailure` from the scheduler after a failed Daily call counts failed calls outside the rolled-back transaction, against the trigger the Daily pass would work on next (also a Not-sent one whose first page fails); threshold `qdb_stuck_after_failed_calls` (required, schema default 3, no code fallback) → **Stuck**; a successful page resets; Stuck does not hold the daily gate and is retried on the first Daily call of each later day | FR-011; NFR-CSE-001 |
+| 8 | Postponed release and retention unchanged: already per-item budgeted and naturally resumable | FR-008 |
+| 9 | At ~450 customers a run fits in one call; the only visible difference is a same-day **Drop** trigger logged as Fatigue instead of PriorityLost | FR-007 |
+
+## E.3 Schema and kit impact
+
+- `qdb_survey_trigger`: + `qdb_run_period_key` (text 50), `qdb_run_evaluated_count` (int),
+  `qdb_run_failed_calls` (int), `qdb_run_progress_on` (date-time); `qdb_run_status` + option **Stuck**
+  (100000004). Reused: run status, started on, cursor, invited/postponed/suppressed counts, message.
+- `qdb_survey_settings`: + `qdb_stuck_after_failed_calls` (int 1–10, required, schema default 3).
+- Trigger form: read-only **Run** section for scheduled triggers.
+- `qdb_srv_RunDueSurveys`: `Pass` accepts `RecordFailure`; scheduler script calls it after a failed Daily call.
+- Cloud apply: provisioning, plugin, UI (each with the CEO's go-ahead; the user runs the scripts). On-prem: kit
+  **1.2.0.5**; RUNBOOK stage 8 and the HL timing step (NFR-CSE-020).
+
+## E.4 Security, audit, observability
+
+No new permission or role change. Run writes are by SYSTEM on an audited table; a Stuck transition carries its
+reason. Each page is traced; the summary reaches the scheduler log; every failed call exits 1 for monitoring.
+
+## E.5 Test strategy
+
+TDD: run store (conditional writes, period change), paged pass (resume, cut by budget, failed call, same-day
+order, Stuck and reset, ~450 unchanged), RecordFailure, provisioning (columns, option, settings), form script.
+Live: 2,500 test customers on cloud with one interruption (quickstart §3), plus QDB IT's HL test org timing.
+
+## E.6 Estimate and risks
+
+About **7–9 dev-days** (research R8).
+
+| ID | Risk | Mitigation |
+|---|---|---|
+| R-E1 | HL 9.1 slower than cloud | Paging keeps calls inside the limit at any speed; HL timing measured (NFR-CSE-020) |
+| R-E2 | RecordFailure itself fails (e.g. CRM down) | Logged by the script, which still exits 1; the next failure counts |
+| R-E3 | A Stuck trigger blocks a survey for a day | It is retried daily and alerts on every failed call; admins can also deactivate/reactivate |
+| R-E4 | Same-day Drop logged as Fatigue, not PriorityLost | **Closed** — accepted by the CEO at architecture approval, 2026-11-21 |
+

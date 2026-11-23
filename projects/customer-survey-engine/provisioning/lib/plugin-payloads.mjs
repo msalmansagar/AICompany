@@ -121,7 +121,7 @@ export const CUSTOM_APIS = Object.freeze([
     description: 'Daily job: releases postponed invitations, runs scheduled triggers due today, applies response retention. Call again while IsComplete is false. System Administrator only (FR-CSE-033, 042, 058).',
     inputs: [
       { name: 'RunDate', displayName: 'Run Date', description: 'The scheduler\'s local date, yyyy-MM-dd; empty = today in UTC.', type: PARAMETER_TYPE.string, isOptional: true },
-      { name: 'Pass', displayName: 'Pass', description: 'OneTime or Daily: run only that pass, in its own transaction; empty = both.', type: PARAMETER_TYPE.string, isOptional: true },
+      { name: 'Pass', displayName: 'Pass', description: 'OneTime or Daily: only that pass; empty = both; RecordFailure: count a failed Daily call.', type: PARAMETER_TYPE.string, isOptional: true },
     ],
     outputs: [
       { name: 'Summary', displayName: 'Summary', description: 'What each pass did.', type: PARAMETER_TYPE.string },

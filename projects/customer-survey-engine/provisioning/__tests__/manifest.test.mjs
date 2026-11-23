@@ -191,3 +191,49 @@ test('findManifestProblems_nameOverTheSchemaLimit_reportsIt', () => {
   const problems = findManifestProblems({ tables: [withLong, ...rest], relationships: RELATIONSHIPS, alternateKeys: ALTERNATE_KEYS, roles: ROLES });
   assert.deepEqual(problems, [`qdb_survey_source: column ${longName} is longer than 50 characters`]);
 });
+
+// ── 001-scale-per-org (ADR-011): scheduled run progress on the trigger, the Stuck threshold in settings ──
+
+const columnOf = (tableName, columnName) => TABLES.find((t) => t.name === tableName).columns.find((c) => c.name === columnName);
+
+test('trigger_scheduledRunProgress_hasTheFourNewColumns_FR005', () => {
+  const columns = columnNamesOf('qdb_survey_trigger');
+  for (const name of ['qdb_run_period_key', 'qdb_run_evaluated_count', 'qdb_run_failed_calls', 'qdb_run_progress_on']) assert.ok(columns.has(name), name);
+});
+
+test('trigger_runPeriodKey_holdsAPeriodKeyOfFiftyCharacters', () => {
+  assert.deepEqual([columnOf('qdb_survey_trigger', 'qdb_run_period_key').type, columnOf('qdb_survey_trigger', 'qdb_run_period_key').maxLength], ['string', 50]);
+});
+
+test('trigger_runCounts_areNeverNegative', () => {
+  for (const name of ['qdb_run_evaluated_count', 'qdb_run_failed_calls']) assert.equal(columnOf('qdb_survey_trigger', name).min, 0, name);
+});
+
+// The plugin writes 100000004 for a Stuck run (ScheduledRunStatus.Stuck); the option must exist with that value.
+test('trigger_runStatus_hasTheStuckOption_FR011', () => {
+  const options = columnOf('qdb_survey_trigger', 'qdb_run_status').options;
+  assert.deepEqual(options.find((o) => o.value === 100000004), { value: 100000004, label: 'Stuck' });
+  const source = readFileSync(new URL('../../crm-plugins/Qdb.SurveyEngine/Domain/SurveyCodes.cs', import.meta.url), 'utf8');
+  assert.match(source, /Stuck = 100000004/);
+});
+
+// Article V: the threshold lives in configuration; required so the settings form asks for it, 1–10.
+test('settings_stuckAfterFailedCalls_isARequiredWholeNumberFromOneToTen_FR011', () => {
+  const column = columnOf('qdb_survey_settings', 'qdb_stuck_after_failed_calls');
+  assert.deepEqual([column.type, column.min, column.max, column.required], ['integer', 1, 10, true]);
+});
+
+// New columns inherit the trigger table's change history (Article VI): the table stays audited and no
+// new column opts out.
+test('trigger_newRunColumns_keepChangeHistory', () => {
+  const trigger = TABLES.find((t) => t.name === 'qdb_survey_trigger');
+  assert.equal(trigger.isAuditEnabled, true);
+  for (const name of ['qdb_run_period_key', 'qdb_run_evaluated_count', 'qdb_run_failed_calls', 'qdb_run_progress_on']) {
+    assert.notEqual(columnOf('qdb_survey_trigger', name).isAuditEnabled, false, name);
+  }
+});
+
+test('seed_cloudOrgSettings_setTheStuckThresholdToThree', () => {
+  const seed = JSON.parse(readFileSync(new URL('../seed/org5869857f.json', import.meta.url), 'utf8'));
+  assert.equal(seed.settings.qdb_stuck_after_failed_calls, 3);
+});

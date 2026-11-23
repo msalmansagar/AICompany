@@ -1,6 +1,7 @@
 /*
  * qdb_/survey/trigger-form.js — Survey Trigger form script (Addendum D).
- * OnLoad: shows the One-time section only for One-time triggers and hands the form context to the
+ * OnLoad: shows the One-time section only for One-time triggers and the Scheduled run section only for
+ * Scheduled triggers (001-scale-per-org), and hands the form context to the
  * audience panel (qdb_/survey/trigger-audience.html) through getContentWindow, the supported way.
  * Registered as QdbSurveyTriggerForm.onLoad with "pass execution context".
  */
@@ -8,19 +9,31 @@ var QdbSurveyTriggerForm = (function () {
   'use strict';
 
   var ONE_TIME_KIND = 100000004;
+  var SCHEDULED_KIND = 100000002;
   var ONE_TIME_SECTION = 'One_time';
+  var SCHEDULED_RUN_SECTION = 'Scheduled_run';
   var AUDIENCE_CONTROL = 'WebResource_qdb_audience';
 
-  function isOneTime(formContext) {
+  function isKind(formContext, kindValue) {
     var kind = formContext.getAttribute('qdb_trigger_kind');
-    return Boolean(kind) && kind.getValue() === ONE_TIME_KIND;
+    return Boolean(kind) && kind.getValue() === kindValue;
   }
 
-  function showOneTimeSection(formContext) {
+  function isOneTime(formContext) {
+    return isKind(formContext, ONE_TIME_KIND);
+  }
+
+  function showSection(formContext, sectionName, isVisible) {
     formContext.ui.tabs.forEach(function (tab) {
-      var section = tab.sections.get(ONE_TIME_SECTION);
-      if (section) section.setVisible(isOneTime(formContext));
+      var section = tab.sections.get(sectionName);
+      if (section) section.setVisible(isVisible);
     });
+  }
+
+  // One-time triggers show their send section; scheduled triggers show the run of the current period (FR-005).
+  function showKindSections(formContext) {
+    showSection(formContext, ONE_TIME_SECTION, isOneTime(formContext));
+    showSection(formContext, SCHEDULED_RUN_SECTION, isKind(formContext, SCHEDULED_KIND));
   }
 
   var PANEL_WAIT_RETRIES = 40;
@@ -52,13 +65,16 @@ var QdbSurveyTriggerForm = (function () {
 
   function onLoad(executionContext) {
     var formContext = executionContext.getFormContext();
-    showOneTimeSection(formContext);
+    showKindSections(formContext);
     startAudiencePanel(formContext);
     formContext.getAttribute('qdb_trigger_kind').addOnChange(function () {
-      showOneTimeSection(formContext);
+      showKindSections(formContext);
       startAudiencePanel(formContext);
     });
   }
 
   return { onLoad: onLoad };
 }());
+
+// Lets the unit tests load the script; CRM loads it as a plain browser script.
+if (typeof module === 'object' && module.exports) module.exports = QdbSurveyTriggerForm;

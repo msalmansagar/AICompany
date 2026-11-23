@@ -44,7 +44,8 @@
     "qdb_language_field": "",
     "qdb_retention_days": 730,
     "qdb_retention_mode": 100000000,
-    "qdb_securelink_enabled": false
+    "qdb_securelink_enabled": false,
+    "qdb_stuck_after_failed_calls": 3
   },
   "smsConfigs": [
     {

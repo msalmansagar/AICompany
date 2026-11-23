@@ -28,6 +28,18 @@ namespace Qdb.SurveyEngine.Domain
         Failed = 100000003,
     }
 
+    /// <summary>
+    /// qdb_survey_trigger.qdb_run_status for a scheduled trigger's run of one period (ADR-011). Shares the
+    /// One-time option set; Failed is One-time only and Stuck is scheduled only.
+    /// </summary>
+    public enum ScheduledRunStatus
+    {
+        NotSent = 100000000,
+        Sending = 100000001,
+        Sent = 100000002,
+        Stuck = 100000004,
+    }
+
     /// <summary>qdb_survey_setup.qdb_delivery_digital / qdb_delivery_legacy.</summary>
     public enum DeliveryChoice
     {

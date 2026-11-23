@@ -145,6 +145,17 @@ export const FORMS = Object.freeze([
       ] },
       { label: 'Event and Created', fields: ['qdb_source_id', 'qdb_status_values', 'qdb_type_values'] },
       { label: 'Scheduled', fields: ['qdb_schedule_period', 'qdb_schedule_population', 'qdb_schedule_population_source_id'] },
+      // 001-scale-per-org (FR-005): the scheduled run of the current period, written page by page by the engine and shown
+      // only for Scheduled triggers (trigger-form.js). Fields also on the One-time section carry their own control id.
+      { label: 'Scheduled run', fields: [
+        { name: 'qdb_run_status', readOnly: true, controlId: 'qdb_run_status_scheduled' },
+        { name: 'qdb_run_period_key', readOnly: true }, { name: 'qdb_run_started_on', readOnly: true }, { name: 'qdb_run_evaluated_count', readOnly: true },
+        { name: 'qdb_invited_count', readOnly: true, controlId: 'qdb_invited_count_scheduled' },
+        { name: 'qdb_postponed_count', readOnly: true, controlId: 'qdb_postponed_count_scheduled' },
+        { name: 'qdb_suppressed_count', readOnly: true, controlId: 'qdb_suppressed_count_scheduled' },
+        { name: 'qdb_run_progress_on', readOnly: true },
+        { name: 'qdb_run_message', readOnly: true, controlId: 'qdb_run_message_scheduled' },
+      ] },
       { label: 'Milestone', fields: ['qdb_milestone_every_n', 'qdb_milestone_status_values', 'qdb_milestone_type_values', 'qdb_milestone_count_from', 'qdb_milestone_skip_reached'] },
     ] }],
   },
@@ -161,6 +172,8 @@ export const FORMS = Object.freeze([
     table: 'qdb_survey_settings',
     tabs: [{ label: 'Settings', sections: [
       { label: 'Invitations', fields: ['qdb_name', 'qdb_customer_table', 'qdb_fatigue_min_days', 'qdb_default_language', 'qdb_language_field'] },
+      // FR-011: failed scheduler calls in a row before a scheduled run shows Stuck.
+      { label: 'Scheduler', fields: ['qdb_stuck_after_failed_calls'] },
       { label: 'Retention (set by QDB Compliance)', fields: ['qdb_retention_days', 'qdb_retention_mode'] },
       { label: 'Secure link', fields: ['qdb_securelink_enabled', 'qdb_securelink_base_url', 'qdb_email_sender_queue_id'] },
     ] }],

@@ -17,12 +17,14 @@ namespace Qdb.SurveyEngine.Scheduling
         private readonly OneTimeDuePass _oneTime;
         private readonly DailyPasses _daily;
         private readonly IDailyPassGate _gate;
+        private readonly ScheduledFailureRecorder _failures;
 
-        public RunDueSurveysService(OneTimeDuePass oneTime, DailyPasses daily, IDailyPassGate gate)
+        public RunDueSurveysService(OneTimeDuePass oneTime, DailyPasses daily, IDailyPassGate gate, ScheduledFailureRecorder failures)
         {
             _oneTime = oneTime ?? throw new ArgumentNullException(nameof(oneTime));
             _daily = daily ?? throw new ArgumentNullException(nameof(daily));
             _gate = gate ?? throw new ArgumentNullException(nameof(gate));
+            _failures = failures ?? throw new ArgumentNullException(nameof(failures));
         }
 
         /// <summary>The composition root's wiring: validates every dependency and builds the service graph.</summary>
@@ -31,15 +33,15 @@ namespace Qdb.SurveyEngine.Scheduling
             RequireAll(dependencies);
             var pipeline = dependencies.Pipeline;
             var suppressions = new SuppressionRecorder(pipeline);
-            var builder = new ScheduledCandidateBuilder(dependencies, suppressions, new FormPinner(pipeline, suppressions));
-            var scheduled = new ScheduledTriggerPass(dependencies, builder, new InvitationDispatcher(pipeline, suppressions));
+            var scheduled = new ScheduledTriggerPass(dependencies, new ScheduledRunChecks(pipeline, suppressions), new ScheduledPageRunner(dependencies));
             var daily = new DailyPasses(new PostponedReleasePass(dependencies), scheduled, new RetentionPass(dependencies));
             var sender = new OneTimeSendService(new OneTimeSendDependencies
             {
                 Pipeline = pipeline, Triggers = dependencies.OneTimeTriggers, Audience = dependencies.Audience,
                 GeneratedKeys = dependencies.ScheduledInvitations, CustomerTable = dependencies.CustomerTable, StartedBy = dependencies.CallerId,
             });
-            return new RunDueSurveysService(new OneTimeDuePass(dependencies.OneTimeTriggers, sender, pipeline), daily, dependencies.DailyPassGate);
+            return new RunDueSurveysService(new OneTimeDuePass(dependencies.OneTimeTriggers, sender, pipeline), daily, dependencies.DailyPassGate,
+                new ScheduledFailureRecorder(dependencies));
         }
 
         /// <summary>Runs every pass due for <paramref name="runDate"/> within <paramref name="budget"/>.</summary>
@@ -49,6 +51,7 @@ namespace Qdb.SurveyEngine.Scheduling
         public RunSummary Run(DateTime runDate, RunBudget budget, RunPass pass)
         {
             if (budget == null) throw new ArgumentNullException(nameof(budget));
+            if (pass == RunPass.RecordFailure) return RunSummary.FailureRecorded(_failures.Record(runDate));
             var oneTime = pass == RunPass.Daily ? OneTimeDueResult.NotRun() : _oneTime.Run(budget);
             if (pass == RunPass.OneTime) return RunSummary.DailyNotRequested(oneTime);
             var lastCompleted = _gate.LastCompletedOn();
@@ -98,7 +101,7 @@ namespace Qdb.SurveyEngine.Scheduling
                 || pipeline.Suppressions == null || pipeline.Clock == null || pipeline.Trace == null)
                 throw new ArgumentException("Pipeline needs Config, Languages, RenderCache, Invitations, Suppressions, Clock and Trace.", nameof(dependencies));
             if (dependencies.ScheduledTriggers == null || dependencies.Population == null || dependencies.ScheduledInvitations == null
-                || dependencies.Postponed == null || dependencies.Retention == null)
+                || dependencies.ScheduledRuns == null || dependencies.Postponed == null || dependencies.Retention == null)
                 throw new ArgumentException("Every RunDueSurveysDependencies member is required.", nameof(dependencies));
             if (dependencies.InvitationRetention == null || dependencies.SuppressionLogRetention == null)
                 throw new ArgumentException("InvitationRetention and SuppressionLogRetention are required (Addendum C).", nameof(dependencies));

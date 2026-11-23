@@ -48,7 +48,8 @@ namespace Qdb.SurveyEngine.Data
         {
             var query = new QueryExpression("qdb_survey_settings")
             {
-                ColumnSet = new ColumnSet("qdb_language_field", "qdb_default_language", "qdb_fatigue_min_days", "qdb_retention_days", "qdb_retention_mode", "qdb_securelink_enabled"),
+                ColumnSet = new ColumnSet("qdb_language_field", "qdb_default_language", "qdb_fatigue_min_days", "qdb_retention_days", "qdb_retention_mode", "qdb_securelink_enabled",
+                    "qdb_stuck_after_failed_calls"),
                 TopCount = 1,
             };
             var row = _service.RetrieveMultiple(query).Entities.FirstOrDefault();
@@ -60,6 +61,7 @@ namespace Qdb.SurveyEngine.Data
             settings.RetentionDays = row.GetAttributeValue<int?>("qdb_retention_days");
             settings.RetentionMode = (RetentionMode?)row.GetAttributeValue<OptionSetValue>("qdb_retention_mode")?.Value;
             settings.SecureLinkEnabled = row.GetAttributeValue<bool?>("qdb_securelink_enabled") ?? false;
+            settings.StuckAfterFailedCalls = row.GetAttributeValue<int?>("qdb_stuck_after_failed_calls");
             return settings;
         }
     }

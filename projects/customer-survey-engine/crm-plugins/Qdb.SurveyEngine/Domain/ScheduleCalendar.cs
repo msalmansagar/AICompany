@@ -77,6 +77,65 @@ namespace Qdb.SurveyEngine.Domain
         }
 
         /// <summary>
+        /// The period a stored key names (the inverse of <see cref="PeriodEndingOn"/>), so an unfinished run resumes
+        /// for the period it started on whatever the run date is now (FR-006, ADR-011).
+        /// </summary>
+        public static ReviewedPeriod PeriodFromKey(SchedulePeriod period, string key)
+        {
+            var start = ParsePeriodStart(period, key ?? string.Empty);
+            switch (period)
+            {
+                case SchedulePeriod.Monthly: return new ReviewedPeriod(start, start.AddMonths(1), key);
+                case SchedulePeriod.Quarterly: return new ReviewedPeriod(start, start.AddMonths(3), key);
+                default: return new ReviewedPeriod(start, start.AddYears(1), key);
+            }
+        }
+
+        private static DateTime ParsePeriodStart(SchedulePeriod period, string key)
+        {
+            var culture = CultureInfo.InvariantCulture;
+            switch (period)
+            {
+                case SchedulePeriod.Monthly:
+                    return DateTime.ParseExact(key, "yyyy-MM", culture, DateTimeStyles.None);
+                case SchedulePeriod.Quarterly:
+                    return ParseQuarterStart(key);
+                case SchedulePeriod.Annually:
+                    return DateTime.ParseExact(key, "yyyy", culture, DateTimeStyles.None);
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(period), period, "Unknown schedule period.");
+            }
+        }
+
+        /// <summary>
+        /// The period right after <paramref name="reviewed"/>; it falls due on its own end date (its EndExclusive), the 1st on
+        /// which the trigger surveys it (FR-006: it waits while its predecessor is unfinished).
+        /// </summary>
+        public static ReviewedPeriod FollowingPeriod(SchedulePeriod period, ReviewedPeriod reviewed)
+        {
+            if (reviewed == null) throw new ArgumentNullException(nameof(reviewed));
+            var start = reviewed.EndExclusive;
+            switch (period)
+            {
+                case SchedulePeriod.Monthly: return PeriodEndingOn(period, start.AddMonths(1));
+                case SchedulePeriod.Quarterly: return PeriodEndingOn(period, start.AddMonths(3));
+                case SchedulePeriod.Annually: return PeriodEndingOn(period, start.AddYears(1));
+                default: throw new ArgumentOutOfRangeException(nameof(period), period, "Unknown schedule period.");
+            }
+        }
+
+        private static DateTime ParseQuarterStart(string key)
+        {
+            var culture = CultureInfo.InvariantCulture;
+            var parts = key.Split(new[] { "-Q" }, StringSplitOptions.None);
+            int year, quarter;
+            if (parts.Length != 2 || parts[0].Length != 4 || !int.TryParse(parts[0], NumberStyles.None, culture, out year)
+                || !int.TryParse(parts[1], NumberStyles.None, culture, out quarter) || quarter < 1 || quarter > 4)
+                throw new FormatException($"'{key}' is not a quarterly period key such as 2026-Q4.");
+            return new DateTime(year, (quarter - 1) * 3 + 1, 1);
+        }
+
+        /// <summary>
         /// A quarterly invitation's fixed expiry: one month into the following quarter (FR-CSE-016).
         /// Other periods use the setup's expiry days, so they answer null.
         /// </summary>

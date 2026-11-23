@@ -2,13 +2,43 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Qdb.SurveyEngine.Domain;
+using Qdb.SurveyEngine.OneTime;
 using Qdb.SurveyEngine.Scheduling;
 
 namespace Qdb.SurveyEngine.Tests
 {
     /// <summary>In-memory scheduling collaborators over an <see cref="InMemorySurveyStore"/>, so the daily job runs for real.</summary>
-    public sealed class InMemorySchedulingStore : IScheduledTriggerRepository, ICustomerPopulationReader, IScheduledInvitationReader, IPostponedInvitationStore, IResponseRetentionStore, IInvitationRetentionStore, ISuppressionLogRetentionStore
+    public sealed class InMemorySchedulingStore : IScheduledTriggerRepository, ICustomerPopulationReader, IScheduledInvitationReader, IScheduledRunStore, IPostponedInvitationStore, IResponseRetentionStore, IInvitationRetentionStore, ISuppressionLogRetentionStore
     {
+        private const string FirstRowVersion = "0";
+        private int _lastRowVersion;
+
+        /// <summary>Trigger id → its stored run record (qdb_survey_trigger run columns), with the row version.</summary>
+        public Dictionary<Guid, ScheduledRunState> Runs { get; } = new Dictionary<Guid, ScheduledRunState>();
+
+        /// <summary>When set, the trigger's row changes just after it is read, as an overlapping scheduler call would.</summary>
+        public Guid? ChangedAfterRead { get; set; }
+
+        /// <summary>Population pages read so far.</summary>
+        public int PagesRead { get; private set; }
+
+        private string RowVersionOf(Guid triggerId) => Runs.TryGetValue(triggerId, out var run) ? run.RowVersion : FirstRowVersion;
+
+        public RunWrite TrySave(Guid triggerId, ScheduledRunState state)
+        {
+            if (state.RowVersion != RowVersionOf(triggerId)) return RunWrite.Lost();
+            var saved = state.Copy();
+            saved.RowVersion = (++_lastRowVersion).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            Runs[triggerId] = saved;
+            return RunWrite.Saved(saved.RowVersion);
+        }
+
+        private void Touch(Guid triggerId)
+        {
+            var run = Runs.TryGetValue(triggerId, out var stored) ? stored.Copy() : new ScheduledRunState();
+            run.RowVersion = (++_lastRowVersion).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            Runs[triggerId] = run;
+        }
         private readonly InMemorySurveyStore _pipeline;
 
         public InMemorySchedulingStore(InMemorySurveyStore pipeline)
@@ -43,15 +73,33 @@ namespace Qdb.SurveyEngine.Tests
         public List<Guid> DeletedInvitations { get; } = new List<Guid>();
         public List<Guid> DeletedSuppressionLogs { get; } = new List<Guid>();
 
-        public IReadOnlyList<SurveyTrigger> GetActiveScheduledTriggers() => ScheduledTriggers;
+        // Each read carries the stored run record, as the CRM repository reads the run columns with the trigger.
+        public IReadOnlyList<SurveyTrigger> GetActiveScheduledTriggers()
+        {
+            foreach (var trigger in ScheduledTriggers)
+                trigger.Schedule.Run = Runs.TryGetValue(trigger.Id, out var run) ? run.Copy() : new ScheduledRunState { RowVersion = FirstRowVersion };
+            if (ChangedAfterRead.HasValue) Touch(ChangedAfterRead.Value);
+            return ScheduledTriggers;
+        }
 
-        public IReadOnlyList<Guid> GetActiveCustomers() => ActiveCustomers;
+        public CustomerPage ReadActiveCustomers(Guid? afterCustomerId, int pageSize) => PageOf(ActiveCustomers, afterCustomerId, pageSize);
 
-        public IReadOnlyList<Guid> GetCustomersActiveIn(PopulationQuery query)
+        public CustomerPage ReadCustomersActiveIn(PopulationQuery query, Guid? afterCustomerId, int pageSize)
         {
             LastPopulationQuery = query;
-            return CustomersActiveInPeriod;
+            return PageOf(CustomersActiveInPeriod, afterCustomerId, pageSize);
         }
+
+        // Ordered by id and resumed after the last id read, as the CRM readers do.
+        private CustomerPage PageOf(IEnumerable<Guid> population, Guid? afterCustomerId, int pageSize)
+        {
+            PagesRead++;
+            var page = population.OrderBy(id => id).Where(id => !afterCustomerId.HasValue || id.CompareTo(afterCustomerId.Value) > 0).Take(pageSize).ToList();
+            return new CustomerPage { CustomerIds = page, LastReadId = page.Count > 0 ? page.Last() : afterCustomerId, IsLast = page.Count < pageSize };
+        }
+
+        public ISet<string> FindExistingDedupeKeys(Guid setupId, string periodKey, IReadOnlyCollection<string> dedupeKeys) =>
+            new HashSet<string>(GetDedupeKeys(setupId, periodKey).Where(dedupeKeys.Contains));
 
         public ISet<string> GetDedupeKeys(Guid setupId, string periodKey) =>
             new HashSet<string>(_pipeline.Invitations.Where(i => i.SetupId == setupId && i.SchedulePeriodKey == periodKey).Select(i => i.DedupeKey));
@@ -98,7 +146,7 @@ namespace Qdb.SurveyEngine.Tests
 
         public RunDueSurveysDependencies AsDependencies() => new RunDueSurveysDependencies
         {
-            Pipeline = _pipeline.AsDependencies(), ScheduledTriggers = this, Population = this, ScheduledInvitations = this, Postponed = this,
+            Pipeline = _pipeline.AsDependencies(), ScheduledTriggers = this, Population = this, ScheduledInvitations = this, ScheduledRuns = this, Postponed = this,
             Retention = this, InvitationRetention = this, SuppressionLogRetention = this,
             OneTimeTriggers = OneTime, Audience = OneTime, CustomerTable = "account", DailyPassGate = OneTime,
         };

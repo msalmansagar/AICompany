@@ -116,6 +116,12 @@ namespace Qdb.SurveyEngine.Domain
 
         /// <summary>False until the NFR-CSE-009 security review signs off; every token request is refused while false.</summary>
         public bool SecureLinkEnabled { get; set; }
+
+        /// <summary>
+        /// Failed scheduler calls in a row that mark a scheduled run Stuck (FR-011). Null when the column is
+        /// empty: the code supplies no value of its own (Article V), so recording a failure is then refused.
+        /// </summary>
+        public int? StuckAfterFailedCalls { get; set; }
     }
 
     /// <summary>qdb_survey_settings.qdb_retention_mode.</summary>
@@ -133,5 +139,8 @@ namespace Qdb.SurveyEngine.Domain
 
         /// <summary>For Active in period: the source whose records make a customer active; null otherwise.</summary>
         public SurveySource PopulationSource { get; set; }
+
+        /// <summary>The trigger's current run record (ADR-011); Not sent before its first run.</summary>
+        public ScheduledRunState Run { get; set; } = new ScheduledRunState();
     }
 }

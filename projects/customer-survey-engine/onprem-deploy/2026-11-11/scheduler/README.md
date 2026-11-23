@@ -7,7 +7,7 @@
 **On the first call of each run date only**, it does the daily work, in this order:
 
 1. Releases Postponed invitations whose customer fatigue window has ended. If they expired first, or their setup was deactivated, it discards them and writes a suppression-log row.
-2. Runs every scheduled trigger that is due on the run date:
+2. Runs every scheduled trigger that is due on the run date, and continues any scheduled survey still unfinished from an earlier day:
    - monthly triggers on the 1st of each month;
    - quarterly triggers on 1 Jan, 1 Apr, 1 Jul and 1 Oct;
    - annual triggers on 1 Jan.
@@ -20,9 +20,13 @@ The date the daily work last completed is kept in Survey Settings → *Daily Pas
 | Input | Type | Meaning |
 |---|---|---|
 | `RunDate` | String, optional | The scheduler's **local** date, `yyyy-MM-dd`. If empty, the API uses today's date in UTC. Pass an earlier date to re-run a missed day. |
-| `Pass` | String, optional (kit 1.2.0.2) | `OneTime` = only the One-time surveys; `Daily` = only the daily work; empty = both. |
+| `Pass` | String, optional (kit 1.2.0.2) | `OneTime` = only the One-time surveys; `Daily` = only the daily work; empty = both. `RecordFailure` (kit 1.2.0.5) = no survey work, only count one failed `Daily` call. |
 
 **The scheduler calls the two passes separately** (`OneTime`, then `Daily`). Each Custom API call is one database transaction, so if one pass fails it rolls back only its own work, and the other pass still runs (DEF-CSE-002). Before kit 1.2.0.2 both ran in one call, and a failing One-time send stopped the daily work too.
+
+**Large scheduled surveys run across several calls** (kit 1.2.0.5, ADR-011). A scheduled survey is sent 25 customers at a time, one survey at a time in priority order, and its progress is saved on the trigger after each step (the trigger form's *Scheduled run* section shows it). At HL's ~10,000 customers a survey takes about 20 calls, so one scheduler run may end with the survey still going; the log says "continues in the next scheduled run" and that is **not** a failure.
+
+**After a failed `Daily` call the scheduler makes one `RecordFailure` call.** The failed call's own writes were rolled back, so it could not count itself. `RecordFailure` counts it on the scheduled survey it was working on; after *Stuck After Failed Calls* failures in a row (Survey Settings, set to 3) the trigger shows **Stuck** and the survey is set aside so the others go on. It is retried on the first `Daily` call of each later day and continues from where it stopped once the cause is fixed; if the trigger's next period fell due meanwhile, that period starts by itself once the stuck one finishes. Find the cause in this log and in the plugin trace log. If *Stuck After Failed Calls* is empty, `RecordFailure` is refused with a message naming it.
 
 | Output | Type | Meaning |
 |---|---|---|
@@ -48,7 +52,8 @@ How the task behaves:
 - It runs every 15 minutes from `-At`, indefinitely. A run still going when the next one is due makes the next one skip, never overlap.
 - It runs `Invoke-RunDueSurveys.ps1` with Windows integrated authentication, so no password is stored in a file.
 - It writes `RunDueSurveys-yyyyMMdd.log` to the log folder.
-- It exits with code 1 on any failure, so the task's *Last Run Result* shows the failure.
+- It calls `RecordFailure` once after a failed `Daily` call.
+- It exits with code 1 on any failure, so the task's *Last Run Result* shows the failure. (Before kit 1.2.0.5 the script exited 0 even after a failure, DEF-CSE-004.) A pass still running after 10 calls is not a failure.
 
 **Point monitoring at that result.** It is the operational alarm for a failed night (architecture challenge 6).
 
@@ -68,6 +73,7 @@ A flow needs a Dataverse connection, which only a signed-in user can create. Bui
         - `Pass`: `items('Apply_to_each')`.
       - **Set variable** `IsComplete` = `outputs('Perform_an_unbound_action')?['body/IsComplete']`.
    3. Configure the loop body's **run after** so a failed pass is recorded and the loop moves on to the next pass.
+   4. **If the `Daily` pass failed** (run after *has failed*): one more **Perform an unbound action** with `Pass` = `RecordFailure` and the same `RunDate`, so repeated failures mark the scheduled survey Stuck.
 3. **Run after failure:** send an email or Teams alert to the CRM admin.
 
 Run the flow once by hand and read `Summary` in the run history.

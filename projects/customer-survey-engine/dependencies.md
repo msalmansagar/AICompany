@@ -49,6 +49,13 @@ Re-run a GitHub search if the architecture introduces a component outside CRM (a
 | **BulkDeleteRequest (platform feature)** | n/a | n/a | MS Platform | Rejected — does not fit FR-CSE-076/077 | `BulkDeleteRequest` submits an asynchronous background job; it cannot be driven synchronously from within a plugin or made budget-aware inside a single plugin execution. It also triggers any registered plugins on the deleted entities, which can cause failures. The "sandbox fast delete" mode (`RunJobForSandbox`) that bypasses plugin triggers is a **cloud-only preview feature** unavailable on on-prem 9.1. |
 | Dataverse data-retention policies | n/a | n/a | MS Platform | Rejected — cloud only | Dataverse native retention policies are a Dataverse (cloud) feature; they do not exist in Dynamics 365 CE 9.1 on-premises. |
 
+## Addendum E — scheduled surveys at HL scale (2026-11-21)
+
+Decision: **BUILD**, reusing the engine's own one-time paging (ADR-010/011). No open-source library pages
+Dataverse queries or resumes work inside the plugin sandbox, and ADR-003 keeps the plugin free of third-party
+libraries. Platform options rejected: asynchronous system jobs (same 2-minute limit) and BulkDelete-style
+background jobs (not budget-aware inside a plugin; see the Addendum C entries above).
+
 **Conclusion: BUILD for all three parts.**
 
 All primitives needed (QueryExpression, DeleteRequest, UpdateRequest, `IOrganizationService.Execute`) are already part of `Microsoft.CrmSdk.CoreAssemblies` 9.0.2.49, which is the only production dependency in `Qdb.SurveyEngine.csproj`. The assembly requires no ILMerge step (confirmed in the csproj comment). No new dependency is introduced by this addendum.

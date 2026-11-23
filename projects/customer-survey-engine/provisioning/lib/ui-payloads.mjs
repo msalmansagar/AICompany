@@ -111,14 +111,17 @@ export function buildChartPayload(chart) {
 
 const labels = (text) => `<labels><label description="${xml(text)}" languagecode="${LANGUAGE_CODE}" /></labels>`;
 
+// A field shown in two sections needs its own control id (`controlId`, e.g. qdb_run_status_scheduled): a form
+// cannot hold two controls with one id. The first placement keeps the field name as its id.
 function fieldCell(table, field) {
-  const { name, readOnly, hidden } = typeof field === 'string' ? { name: field, readOnly: false, hidden: false } : field;
+  const { name, readOnly, hidden, controlId } = typeof field === 'string' ? { name: field, readOnly: false, hidden: false } : field;
   const { type, label } = describeField(table, name);
+  const id = controlId ?? name;
   const disabled = readOnly ? ' disabled="true"' : '';
   // A hidden field is still on the form, so a form script can read and write it (getAttribute).
   const visible = hidden ? ' visible="false"' : '';
-  return `<row><cell id="${stableGuid(`${table}.${name}.cell`)}"${visible}>${labels(label)}`
-    + `<control id="${xml(name)}" classid="${CONTROL_CLASS[type]}" datafieldname="${xml(name)}"${disabled} /></cell></row>`;
+  return `<row><cell id="${stableGuid(`${table}.${id}.cell`)}"${visible}>${labels(label)}`
+    + `<control id="${xml(id)}" classid="${CONTROL_CLASS[type]}" datafieldname="${xml(name)}"${disabled} /></cell></row>`;
 }
 
 /** An HTML web resource on the form; `webResourceIdFor(name)` answers its id (Addendum D audience panel). */
